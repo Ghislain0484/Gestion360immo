@@ -179,3 +179,7 @@ Calculs Automatiques + Notifications
 **🎯 Développé avec ❤️ pour les professionnels de l'immobilier en Côte d'Ivoire**
 
 **Version 1.0.0 - Production Ready**
+
+# Gestion360immo
+
+> Mise à jour pour redéploiement Vercel
