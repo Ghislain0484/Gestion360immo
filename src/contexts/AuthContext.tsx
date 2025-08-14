@@ -75,6 +75,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('Error checking session:', error);
+        // En cas d'erreur de session, vérifier les variables d'environnement
+        if (error instanceof Error && error.message.includes('Invalid API key')) {
+          console.error('Configuration Supabase invalide en production:', {
+            url: import.meta.env.VITE_SUPABASE_URL,
+            keyLength: import.meta.env.VITE_SUPABASE_ANON_KEY?.length,
+            keyStart: import.meta.env.VITE_SUPABASE_ANON_KEY?.substring(0, 10)
+          });
+        }
       } finally {
         setIsLoading(false);
       }

@@ -4,18 +4,50 @@ import { generateDemoId } from '../utils/uuidGenerator';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Vérification des variables d'environnement
-const isSupabaseConfigured = supabaseUrl && supabaseAnonKey && 
+// Vérification robuste des variables d'environnement
+const isSupabaseConfigured = Boolean(
+  supabaseUrl && 
+  supabaseAnonKey && 
+  supabaseUrl.startsWith('https://') && 
+  supabaseUrl.includes('.supabase.co') &&
   supabaseUrl !== 'https://votre-projet.supabase.co' && 
-  !supabaseAnonKey.includes('...');
+  supabaseAnonKey.startsWith('eyJ') &&
+  supabaseAnonKey.length > 100 &&
+  !supabaseAnonKey.includes('...')
+);
 
 if (!isSupabaseConfigured) {
-  console.warn('Supabase not configured - using offline mode');
+  console.warn('Supabase not configured properly - using offline mode', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseAnonKey,
+    urlValid: supabaseUrl?.startsWith('https://') && supabaseUrl?.includes('.supabase.co'),
+    keyValid: supabaseAnonKey?.startsWith('eyJ') && supabaseAnonKey?.length > 100
+  });
 }
 
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+// Créer le client Supabase avec gestion d'erreur
+export const supabase = (() => {
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+  
+  try {
+    return createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+      global: {
+        headers: {
+          'apikey': supabaseAnonKey,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Erreur lors de la création du client Supabase:', error);
+    return null;
+  }
+})();
 
 // Database service functions
 export const dbService = {
