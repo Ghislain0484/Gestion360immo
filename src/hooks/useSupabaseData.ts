@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { dbService, supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
-// Hook for real-time data synchronization
+// Hook for real-time data synchronization - FORCE SUPABASE
 export function useRealtimeData<T>(
   fetchFunction: (agencyId: string) => Promise<T[]>,
   tableName: string,
@@ -14,28 +14,49 @@ export function useRealtimeData<T>(
   const [error, setError] = useState<string | null>(null);
 
   const getValidAgencyId = (): string => {
-    return user?.agencyId || 'b2c3d4e5-f6a7-8901-2345-678901bcdef0';
+    if (!user?.agencyId) {
+      throw new Error('❌ Aucune agence associée - veuillez vous reconnecter');
+    }
+    return user.agencyId;
   };
 
   const fetchData = async () => {
-    const agencyId = getValidAgencyId();
-
-    if (!supabase) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
     try {
+      const agencyId = getValidAgencyId();
+      
+      if (!supabase) {
+        throw new Error('❌ Supabase non configuré - impossible de charger les données');
+      }
+      
+      setLoading(true);
+      setError(null);
+      
+      console.log(`🔄 Chargement ${tableName} pour agence:`, agencyId);
+      
       const result = await fetchFunction(agencyId);
       setData(result || []);
+      
+      console.log(`✅ ${tableName} chargées:`, result?.length || 0, 'éléments');
     } catch (err) {
-      console.error('Error fetching data:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
+      console.error(`❌ Erreur chargement ${tableName}:`, err);
+      
+      let errorMessage = 'Erreur lors du chargement des données';
+      if (err instanceof Error) {
+        if (err.message.includes('Invalid API key')) {
+          errorMessage = '🔑 Configuration Supabase invalide - Vérifiez les variables d\'environnement sur Vercel';
+        } else if (err.message.includes('permission denied')) {
+          errorMessage = '🚫 Accès refusé - Vérifiez vos permissions';
+        } else if (err.message.includes('Failed to fetch')) {
+          errorMessage = '🌐 Problème de connexion - Vérifiez votre connexion internet';
+        } else if (err.message.includes('agence associée')) {
+          errorMessage = '👤 Aucune agence associée - Veuillez vous reconnecter';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
+      setData([]);
     } finally {
       setLoading(false);
     }
@@ -44,14 +65,15 @@ export function useRealtimeData<T>(
   useEffect(() => {
     fetchData();
 
-    // Set up real-time subscription
+    // Configuration souscription temps réel
     let subscription: any = null;
     
     if (supabase && tableName) {
+      console.log(`📡 Configuration souscription temps réel pour: ${tableName}`);
       subscription = dbService.subscribeToChanges(tableName, (payload) => {
-        console.log('Real-time update received:', payload);
+        console.log(`📡 Mise à jour temps réel ${tableName}:`, payload);
         
-        // Refresh data when changes occur
+        // Actualiser les données lors des changements
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
           fetchData();
         }
@@ -72,7 +94,7 @@ export function useRealtimeData<T>(
   return { data, loading, error, refetch, setData };
 }
 
-// Hook for dashboard stats with real-time updates
+// Hook for dashboard stats - FORCE REAL DATA
 export function useDashboardStats() {
   const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
@@ -80,17 +102,38 @@ export function useDashboardStats() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchStats = async () => {
-    if (!user?.agencyId) return;
+    if (!user?.agencyId) {
+      setError('❌ Aucune agence associée');
+      setLoading(false);
+      return;
+    }
+    
+    if (!supabase) {
+      setError('❌ Supabase non configuré');
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     setError(null);
     
     try {
+      console.log('🔄 Chargement statistiques pour agence:', user.agencyId);
       const result = await dbService.getDashboardStats(user.agencyId);
       setStats(result);
+      console.log('✅ Statistiques chargées:', result);
     } catch (err) {
-      console.error('Error fetching dashboard stats:', err);
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des statistiques');
+      console.error('❌ Erreur statistiques:', err);
+      
+      let errorMessage = 'Erreur lors du chargement des statistiques';
+      if (err instanceof Error) {
+        if (err.message.includes('Invalid API key')) {
+          errorMessage = '🔑 Configuration Supabase invalide';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -99,7 +142,7 @@ export function useDashboardStats() {
   useEffect(() => {
     fetchStats();
 
-    // Set up real-time updates for dashboard
+    // Configuration mises à jour temps réel dashboard
     let subscriptions: any[] = [];
     
     if (supabase && user?.agencyId) {
@@ -107,8 +150,8 @@ export function useDashboardStats() {
       
       tables.forEach(table => {
         const subscription = dbService.subscribeToChanges(table, () => {
-          // Refresh stats when any relevant data changes
-          setTimeout(fetchStats, 500); // Small delay to ensure data is committed
+          console.log(`📡 Actualisation stats suite changement ${table}`);
+          setTimeout(fetchStats, 500);
         });
         if (subscription) subscriptions.push(subscription);
       });
@@ -121,6 +164,7 @@ export function useDashboardStats() {
 
   return { stats, loading, error, refetch: fetchStats };
 }
+
 export function useSupabaseData<T>(
   fetchFunction: (agencyId: string) => Promise<T[]>,
   dependencies: any[] = []
@@ -130,41 +174,44 @@ export function useSupabaseData<T>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fonction pour obtenir un agencyId valide
   const getValidAgencyId = (): string => {
-    // Utiliser l'agencyId de l'utilisateur ou l'UUID de démonstration par défaut
-    return user?.agencyId || 'b2c3d4e5-f6a7-8901-2345-678901bcdef0';
+    if (!user?.agencyId) {
+      throw new Error('❌ Aucune agence associée - veuillez vous reconnecter');
+    }
+    return user.agencyId;
   };
 
   const fetchData = async () => {
-    const agencyId = getValidAgencyId();
-
-    // Si Supabase n'est pas configuré, utiliser des données de démonstration
-    if (!supabase) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
     try {
+      const agencyId = getValidAgencyId();
+      
+      if (!supabase) {
+        throw new Error('❌ Supabase non configuré');
+      }
+      
+      setLoading(true);
+      setError(null);
+      
       const result = await fetchFunction(agencyId);
       setData(result || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
-      setError(errorMessage);
+      console.error('❌ Erreur chargement données:', err);
       
-      // Afficher une notification d'erreur plus conviviale
-      if (errorMessage.includes('invalid input syntax for type uuid')) {
-        setError('Erreur de configuration. Veuillez vous reconnecter.');
-      } else if (errorMessage.includes('permission denied')) {
-        setError('Accès refusé. Vérifiez vos permissions.');
-      } else if (errorMessage.includes('Failed to fetch')) {
-        setError('Problème de connexion. Vérifiez votre connexion internet.');
+      let errorMessage = 'Erreur lors du chargement';
+      if (err instanceof Error) {
+        if (err.message.includes('Invalid API key')) {
+          errorMessage = '🔑 Configuration Supabase invalide';
+        } else if (err.message.includes('permission denied')) {
+          errorMessage = '🚫 Accès refusé';
+        } else if (err.message.includes('Failed to fetch')) {
+          errorMessage = '🌐 Problème de connexion';
+        } else {
+          errorMessage = err.message;
+        }
       }
+      
+      setError(errorMessage);
+      setData([]);
     } finally {
       setLoading(false);
     }
@@ -192,22 +239,34 @@ export function useSupabaseCreate<T>(
     if (!data) {
       throw new Error('Données manquantes');
     }
+    
+    if (!supabase) {
+      throw new Error('❌ Supabase non configuré - impossible de sauvegarder');
+    }
 
     setLoading(true);
     setError(null);
     
     try {
-      console.log('Création en cours avec les données:', data);
+      console.log('🔄 Création en cours:', data);
       const result = await createFunction(data);
-      console.log('Résultat de la création:', result);
+      console.log('✅ Création réussie:', result);
       onSuccess?.(result);
       return result;
     } catch (err) {
-      console.error('Error creating data:', err);
+      console.error('❌ Erreur création:', err);
       
-      let errorMessage = 'Erreur lors de la création';
+      let errorMessage = 'Erreur lors de la création en base';
       if (err instanceof Error) {
-        errorMessage = err.message;
+        if (err.message.includes('Invalid API key')) {
+          errorMessage = '🔑 Configuration Supabase invalide - Vérifiez les variables d\'environnement';
+        } else if (err.message.includes('permission denied')) {
+          errorMessage = '🚫 Accès refusé - Vérifiez vos permissions';
+        } else if (err.message.includes('duplicate key')) {
+          errorMessage = '📋 Cet élément existe déjà';
+        } else {
+          errorMessage = err.message;
+        }
       }
       
       setError(errorMessage);
@@ -232,6 +291,10 @@ export function useSupabaseUpdate<T>(
       throw new Error('Paramètres manquants');
     }
     
+    if (!supabase) {
+      throw new Error('❌ Supabase non configuré');
+    }
+    
     setLoading(true);
     setError(null);
     
@@ -240,8 +303,17 @@ export function useSupabaseUpdate<T>(
       onSuccess?.(result);
       return result;
     } catch (err) {
-      console.error('Error updating data:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Erreur lors de la mise à jour';
+      console.error('❌ Erreur mise à jour:', err);
+      
+      let errorMessage = 'Erreur lors de la mise à jour';
+      if (err instanceof Error) {
+        if (err.message.includes('Invalid API key')) {
+          errorMessage = '🔑 Configuration Supabase invalide';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       throw err;
     } finally {
@@ -263,11 +335,9 @@ export function useSupabaseDelete(
     if (!id) {
       throw new Error('ID manquant');
     }
-
-    // Si Supabase n'est pas configuré, simuler la suppression
+    
     if (!supabase) {
-      onSuccess?.();
-      return;
+      throw new Error('❌ Supabase non configuré');
     }
     
     setLoading(true);
@@ -277,8 +347,17 @@ export function useSupabaseDelete(
       await deleteFunction(id);
       onSuccess?.();
     } catch (err) {
-      console.error('Error deleting data:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Erreur lors de la suppression';
+      console.error('❌ Erreur suppression:', err);
+      
+      let errorMessage = 'Erreur lors de la suppression';
+      if (err instanceof Error) {
+        if (err.message.includes('Invalid API key')) {
+          errorMessage = '🔑 Configuration Supabase invalide';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       throw err;
     } finally {
