@@ -147,15 +147,20 @@ export const TenantForm: React.FC<TenantFormProps> = ({
           }
         );
 
-        // Créer le contrat automatiquement
-        if (dbService.createContract) {
-          await dbService.createContract({
-            ...rentalContract,
-            property_id: null, // Sera défini lors de l'attribution
-            owner_id: null, // Sera défini lors de l'attribution
-            tenant_id: tenantForContract.id,
-            agency_id: user?.agencyId || '',
-          });
+        // Créer le contrat automatiquement seulement si Supabase est configuré
+        if (supabase && dbService.createContract) {
+          try {
+            await dbService.createContract({
+              ...rentalContract,
+              property_id: null, // Sera défini lors de l'attribution
+              owner_id: null, // Sera défini lors de l'attribution
+              tenant_id: tenantForContract.id,
+              agency_id: user?.agencyId || '',
+            });
+          } catch (contractDbError) {
+            console.warn('Erreur création contrat en base:', contractDbError);
+            // Continue sans bloquer la création du locataire
+          }
         }
 
         alert(`✅ Locataire créé avec succès !
@@ -166,14 +171,17 @@ export const TenantForm: React.FC<TenantFormProps> = ({
 • Caution : 700,000 FCFA
 • Durée : 12 mois
 • Conforme : Loi ivoirienne n°96-669 et OHADA
-• Statut : Brouillon (à finaliser)
+• Statut : ${supabase ? 'Brouillon (à finaliser)' : 'Pré-généré (mode démo)'}
 
-Le contrat de location a été pré-généré selon la réglementation OHADA.
+${supabase ? 'Le contrat de location a été pré-généré selon la réglementation OHADA.' : 'Le contrat sera créé automatiquement lors de la configuration Supabase.'}
 Vous pourrez le finaliser en attribuant une propriété dans la section "Contrats".`);
 
       } catch (contractError) {
         console.error('Erreur génération contrat:', contractError);
-        alert('Locataire créé, mais erreur lors de la génération du contrat automatique.');
+        alert(`✅ Locataire créé avec succès !
+
+⚠️ Le contrat automatique sera généré lors de la configuration Supabase.
+En attendant, vous pouvez créer manuellement un contrat dans la section "Contrats".`);
       }
       
       onClose();

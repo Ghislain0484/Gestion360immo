@@ -138,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       ];
 
+      // Always check demo users first
       const demoUser = demoUsers.find(u => u.email === email && u.password === password);
       
       if (demoUser) {
@@ -157,8 +158,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Only try Supabase if configured and not a demo user
-      if (supabase) {
+      // Only try Supabase if configured and credentials don't match demo users
+      if (supabase && isSupabaseConfigured) {
         try {
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
             email,
@@ -191,13 +192,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         } catch (supabaseError: any) {
           console.error('Supabase auth error:', supabaseError);
-          // Re-throw the specific Supabase error
-          throw supabaseError;
+          // If Supabase auth fails, show specific error message
+          if (supabaseError.message === 'Invalid login credentials') {
+            throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
+          } else {
+            throw new Error(`Erreur d'authentification: ${supabaseError.message}`);
+          }
         }
+      } else if (!isSupabaseConfigured) {
+        // If Supabase is not configured, only demo users are available
+        throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
       }
       
       // If we reach here, credentials are invalid
-      throw new Error('Email ou mot de passe incorrect');
+      throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
       
     } catch (error) {
       console.error('Login error:', error);

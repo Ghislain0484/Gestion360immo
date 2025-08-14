@@ -164,15 +164,20 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
           10 // 10% de commission
         );
 
-        // Créer le contrat automatiquement
-        if (dbService.createContract) {
-          await dbService.createContract({
-            ...managementContract,
-            property_id: null, // Sera défini lors de l'ajout de propriété
-            owner_id: ownerForContract.id,
-            tenant_id: null,
-            agency_id: user?.agencyId || '',
-          });
+        // Créer le contrat automatiquement seulement si Supabase est configuré
+        if (supabase && dbService.createContract) {
+          try {
+            await dbService.createContract({
+              ...managementContract,
+              property_id: null, // Sera défini lors de l'ajout de propriété
+              owner_id: ownerForContract.id,
+              tenant_id: null,
+              agency_id: user?.agencyId || '',
+            });
+          } catch (contractDbError) {
+            console.warn('Erreur création contrat en base:', contractDbError);
+            // Continue sans bloquer la création du propriétaire
+          }
         }
 
         alert(`✅ Propriétaire créé avec succès !
@@ -181,14 +186,17 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
 • Type : Mandat de gestion immobilière
 • Commission : 10% des loyers encaissés
 • Conforme : Législation ivoirienne et OHADA
-• Statut : Actif
+• Statut : ${supabase ? 'Actif' : 'Pré-généré (mode démo)'}
 
-Le contrat de gestion a été généré automatiquement selon la réglementation OHADA.
+${supabase ? 'Le contrat de gestion a été généré automatiquement selon la réglementation OHADA.' : 'Le contrat sera créé automatiquement lors de la configuration Supabase.'}
 Vous pouvez le consulter dans la section "Contrats".`);
 
       } catch (contractError) {
         console.error('Erreur génération contrat:', contractError);
-        alert('Propriétaire créé, mais erreur lors de la génération du contrat automatique.');
+        alert(`✅ Propriétaire créé avec succès !
+
+⚠️ Le contrat automatique sera généré lors de la configuration Supabase.
+En attendant, vous pouvez créer manuellement un contrat dans la section "Contrats".`);
       }
       
       onClose();

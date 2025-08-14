@@ -3,6 +3,7 @@ import { Plus, Search, Eye, Edit, Trash2, User, Phone, MapPin, Briefcase, Flag, 
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { Modal } from '../ui/Modal';
 import { TenantForm } from './TenantForm';
 import { Tenant, TenantFormData } from '../../types/tenant';
 import { useSupabaseData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';

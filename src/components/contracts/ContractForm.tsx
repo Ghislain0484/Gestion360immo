@@ -20,21 +20,21 @@ export const ContractForm: React.FC<ContractFormProps> = ({
   initialData,
 }) => {
   const [formData, setFormData] = useState<ContractFormData>({
-    propertyId: '',
-    ownerId: '',
-    tenantId: '',
-    agencyId: '1',
+    property_id: '',
+    owner_id: '',
+    tenant_id: '',
+    agency_id: '1',
     type: 'location',
-    startDate: new Date(),
-    monthlyRent: 0,
+    start_date: new Date(),
+    monthly_rent: 0,
     deposit: 0,
     charges: 0,
-    commissionRate: 10,
-    commissionAmount: 0,
+    commission_rate: 10,
+    commission_amount: 0,
     status: 'draft',
     terms: '',
     documents: [],
-    renewalHistory: [],
+    renewal_history: [],
     ...initialData,
   });
 
@@ -42,10 +42,10 @@ export const ContractForm: React.FC<ContractFormProps> = ({
     setFormData(prev => {
       const updated = { ...prev, ...updates };
       // Recalculate commission when rent or rate changes
-      if (updates.monthlyRent !== undefined || updates.commissionRate !== undefined) {
-        const rent = updates.monthlyRent ?? prev.monthlyRent ?? 0;
-        const rate = updates.commissionRate ?? prev.commissionRate ?? 0;
-        updated.commissionAmount = (rent * rate) / 100;
+      if (updates.monthly_rent !== undefined || updates.commission_rate !== undefined) {
+        const rent = updates.monthly_rent ?? prev.monthly_rent ?? 0;
+        const rate = updates.commission_rate ?? prev.commission_rate ?? 0;
+        updated.commission_amount = (rent * rate) / 100;
       }
       return updated;
     });
@@ -55,26 +55,26 @@ export const ContractForm: React.FC<ContractFormProps> = ({
     e.preventDefault();
     
     // Validation des données requises
-    if (!formData.propertyId.trim() || !formData.ownerId.trim() || !formData.tenantId.trim()) {
+    if (!formData.property_id.trim() || !formData.owner_id.trim() || !formData.tenant_id.trim()) {
       alert('Veuillez sélectionner une propriété, un propriétaire et un locataire');
       return;
     }
     
     // Validation des montants
     if (formData.type === 'location') {
-      if (!formData.monthlyRent || formData.monthlyRent <= 0) {
+      if (!formData.monthly_rent || formData.monthly_rent <= 0) {
         alert('Veuillez saisir un loyer mensuel valide');
         return;
       }
     } else if (formData.type === 'vente') {
-      if (!formData.salePrice || formData.salePrice <= 0) {
+      if (!formData.sale_price || formData.sale_price <= 0) {
         alert('Veuillez saisir un prix de vente valide');
         return;
       }
     }
     
     // Validation du taux de commission
-    if (!formData.commissionRate || formData.commissionRate < 0 || formData.commissionRate > 100) {
+    if (!formData.commission_rate || formData.commission_rate < 0 || formData.commission_rate > 100) {
       alert('Veuillez saisir un taux de commission valide (0-100%)');
       return;
     }
@@ -140,22 +140,22 @@ export const ContractForm: React.FC<ContractFormProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
               label="ID Propriété"
-              value={formData.propertyId}
-              onChange={(e) => updateFormData({ propertyId: e.target.value })}
+              value={formData.property_id}
+              onChange={(e) => updateFormData({ property_id: e.target.value })}
               required
               placeholder="Sélectionner une propriété"
             />
             <Input
               label="ID Propriétaire"
-              value={formData.ownerId}
-              onChange={(e) => updateFormData({ ownerId: e.target.value })}
+              value={formData.owner_id}
+              onChange={(e) => updateFormData({ owner_id: e.target.value })}
               required
               placeholder="Sélectionner un propriétaire"
             />
             <Input
               label="ID Locataire"
-              value={formData.tenantId}
-              onChange={(e) => updateFormData({ tenantId: e.target.value })}
+              value={formData.tenant_id}
+              onChange={(e) => updateFormData({ tenant_id: e.target.value })}
               required
               placeholder="Sélectionner un locataire"
             />
@@ -172,15 +172,15 @@ export const ContractForm: React.FC<ContractFormProps> = ({
             <Input
               label="Date de début"
               type="date"
-              value={formData.startDate.toISOString().split('T')[0]}
-              onChange={(e) => updateFormData({ startDate: new Date(e.target.value) })}
+              value={formData.start_date.toISOString().split('T')[0]}
+              onChange={(e) => updateFormData({ start_date: new Date(e.target.value) })}
               required
             />
             <Input
               label="Date de fin (optionnel)"
               type="date"
-              value={formData.endDate?.toISOString().split('T')[0] || ''}
-              onChange={(e) => updateFormData({ endDate: e.target.value ? new Date(e.target.value) : undefined })}
+              value={formData.end_date?.toISOString().split('T')[0] || ''}
+              onChange={(e) => updateFormData({ end_date: e.target.value ? new Date(e.target.value) : undefined })}
             />
           </div>
         </Card>
@@ -197,8 +197,8 @@ export const ContractForm: React.FC<ContractFormProps> = ({
                 <Input
                   label="Loyer mensuel (FCFA)"
                   type="number"
-                  value={formData.monthlyRent || ''}
-                  onChange={(e) => updateFormData({ monthlyRent: parseFloat(e.target.value) || 0 })}
+                  value={formData.monthly_rent || ''}
+                  onChange={(e) => updateFormData({ monthly_rent: parseFloat(e.target.value) || 0 })}
                   min="0"
                   placeholder="450000"
                 />
@@ -223,8 +223,8 @@ export const ContractForm: React.FC<ContractFormProps> = ({
               <Input
                 label="Prix de vente (FCFA)"
                 type="number"
-                value={formData.salePrice || ''}
-                onChange={(e) => updateFormData({ salePrice: parseFloat(e.target.value) || 0 })}
+                value={formData.sale_price || ''}
+                onChange={(e) => updateFormData({ sale_price: parseFloat(e.target.value) || 0 })}
                 min="0"
                 placeholder="25000000"
               />
@@ -233,8 +233,8 @@ export const ContractForm: React.FC<ContractFormProps> = ({
             <Input
               label="Taux de commission (%)"
               type="number"
-              value={formData.commissionRate}
-              onChange={(e) => updateFormData({ commissionRate: parseFloat(e.target.value) || 0 })}
+              value={formData.commission_rate}
+              onChange={(e) => updateFormData({ commission_rate: parseFloat(e.target.value) || 0 })}
               min="0"
               max="100"
               step="0.1"
@@ -248,7 +248,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({
                 style: 'currency',
                 currency: 'XOF',
                 minimumFractionDigits: 0,
-              }).format(formData.commissionAmount)} FCFA
+              }).format(formData.commission_amount)} FCFA
             </p>
           </div>
         </Card>

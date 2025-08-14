@@ -22,6 +22,7 @@ import { Modal } from '../ui/Modal';
 import { useState } from 'react';
 import { useDashboardStats, useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
+import { BibleVerseCard } from '../ui/BibleVerse';
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -199,6 +200,9 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Verset Biblique du Jour */}
+      <BibleVerseCard showRefresh={true} />
+
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Tableau de bord</h1>
         <p className="text-gray-600 mt-1">
