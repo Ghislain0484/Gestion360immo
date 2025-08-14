@@ -24,10 +24,6 @@ export function useRealtimeData<T>(
     try {
       const agencyId = getValidAgencyId();
       
-      if (!supabase) {
-        throw new Error('❌ Supabase non configuré - impossible de charger les données');
-      }
-      
       setLoading(true);
       setError(null);
       
@@ -68,7 +64,7 @@ export function useRealtimeData<T>(
     // Configuration souscription temps réel
     let subscription: any = null;
     
-    if (supabase && tableName) {
+    if (tableName) {
       console.log(`📡 Configuration souscription temps réel pour: ${tableName}`);
       subscription = dbService.subscribeToChanges(tableName, (payload) => {
         console.log(`📡 Mise à jour temps réel ${tableName}:`, payload);
@@ -108,12 +104,6 @@ export function useDashboardStats() {
       return;
     }
     
-    if (!supabase) {
-      setError('❌ Supabase non configuré');
-      setLoading(false);
-      return;
-    }
-    
     setLoading(true);
     setError(null);
     
@@ -145,7 +135,7 @@ export function useDashboardStats() {
     // Configuration mises à jour temps réel dashboard
     let subscriptions: any[] = [];
     
-    if (supabase && user?.agencyId) {
+    if (user?.agencyId) {
       const tables = ['properties', 'owners', 'tenants', 'contracts'];
       
       tables.forEach(table => {
@@ -184,10 +174,6 @@ export function useSupabaseData<T>(
   const fetchData = async () => {
     try {
       const agencyId = getValidAgencyId();
-      
-      if (!supabase) {
-        throw new Error('❌ Supabase non configuré');
-      }
       
       setLoading(true);
       setError(null);
@@ -240,9 +226,6 @@ export function useSupabaseCreate<T>(
       throw new Error('Données manquantes');
     }
     
-    if (!supabase) {
-      throw new Error('❌ Supabase non configuré - impossible de sauvegarder');
-    }
 
     setLoading(true);
     setError(null);
@@ -291,10 +274,6 @@ export function useSupabaseUpdate<T>(
       throw new Error('Paramètres manquants');
     }
     
-    if (!supabase) {
-      throw new Error('❌ Supabase non configuré');
-    }
-    
     setLoading(true);
     setError(null);
     
@@ -334,10 +313,6 @@ export function useSupabaseDelete(
   const deleteItem = async (id: string) => {
     if (!id) {
       throw new Error('ID manquant');
-    }
-    
-    if (!supabase) {
-      throw new Error('❌ Supabase non configuré');
     }
     
     setLoading(true);
