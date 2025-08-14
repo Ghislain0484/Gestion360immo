@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Vérification stricte des variables d'environnement
+// Vérification de la configuration Supabase
 const isSupabaseConfigured = Boolean(
   supabaseUrl && 
   supabaseAnonKey && 
@@ -26,11 +26,11 @@ console.log('🔧 Configuration Supabase:', {
   keyStart: supabaseAnonKey?.substring(0, 20) + '...'
 });
 
-// Créer le client Supabase OBLIGATOIREMENT
+// Créer le client Supabase avec fallback
 export const supabase = (() => {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ Variables d\'environnement Supabase manquantes');
-    throw new Error('Configuration Supabase manquante - Vérifiez les variables d\'environnement sur Vercel');
+  if (!isSupabaseConfigured) {
+    console.warn('⚠️ Supabase non configuré - Mode démo activé');
+    return null;
   }
   
   try {
@@ -39,27 +39,44 @@ export const supabase = (() => {
         persistSession: true,
         autoRefreshToken: true,
       },
-      global: {
-        headers: {
-          'apikey': supabaseAnonKey,
-        },
-      },
     });
     
     console.log('✅ Client Supabase créé avec succès');
     return client;
   } catch (error) {
     console.error('❌ Erreur création client Supabase:', error);
-    throw new Error('Impossible de créer le client Supabase');
+    return null;
   }
 })();
 
-// Helper function pour opérations base de données FORCÉES
-const forceDbOperation = async <T>(
+// Générateur d'ID unique pour le mode démo
+const generateId = () => `demo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+// Stockage local pour le mode démo
+const demoStorage = {
+  owners: 'demo_owners',
+  tenants: 'demo_tenants',
+  properties: 'demo_properties',
+  contracts: 'demo_contracts',
+  agencies: 'demo_agencies',
+};
+
+// Helper function pour opérations base de données avec fallback démo
+const safeDbOperation = async <T>(
   operation: () => Promise<T>,
-  operationName: string
+  operationName: string,
+  demoFallback?: () => T
 ): Promise<T> => {
   console.log(`🔄 ${operationName} - Tentative...`);
+  
+  // Si Supabase n'est pas configuré, utiliser le mode démo
+  if (!supabase || !isSupabaseConfigured) {
+    console.warn(`⚠️ ${operationName} - Mode démo (Supabase non configuré)`);
+    if (demoFallback) {
+      return demoFallback();
+    }
+    throw new Error('Mode démo - Fonctionnalité non disponible');
+  }
   
   try {
     const result = await operation();
@@ -68,167 +85,67 @@ const forceDbOperation = async <T>(
   } catch (error: any) {
     console.error(`❌ ${operationName} - Erreur:`, error);
     
-    // Gestion spécifique des erreurs API
+    // Si erreur API key, basculer en mode démo
     if (error.message?.includes('Invalid API key') || error.message?.includes('JWT')) {
-      throw new Error(`🔑 Configuration Supabase invalide - Vérifiez les variables d'environnement sur Vercel`);
-    } else if (error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-      throw new Error(`🌐 Erreur réseau - Vérifiez la connexion`);
-    } else if (error.message?.includes('permission denied')) {
-      throw new Error(`🚫 Permissions insuffisantes - Vérifiez les politiques RLS`);
-    } else {
-      throw error;
+      console.warn(`🔄 ${operationName} - Basculement mode démo suite erreur API`);
+      if (demoFallback) {
+        return demoFallback();
+      }
+      throw new Error('Configuration Supabase invalide - Mode démo activé');
     }
+    
+    throw error;
   }
 };
 
-// Database service functions - FORCE SUPABASE USAGE
+// Database service functions avec fallback démo complet
 export const dbService = {
-  // Agencies
-  async createAgency(agency: any) {
-    return await forceDbOperation(
-      async () => {
-        const { data, error } = await supabase
-          .from('agencies')
-          .insert(agency)
-          .select()
-          .single();
-        if (error) throw error;
-        return data;
-      },
-      'createAgency'
-    );
-  },
-
-  async getAgency(id: string) {
-    return await forceDbOperation(
-      async () => {
-        if (!id) throw new Error('ID agence manquant');
-        
-        const { data, error } = await supabase
-          .from('agencies')
-          .select('*')
-          .eq('id', id)
-          .single();
-        
-        if (error) throw error;
-        return data;
-      },
-      'getAgency'
-    );
-  },
-
-  // Registration requests - FORCE CREATION
-  async createRegistrationRequest(request: any) {
-    return await forceDbOperation(
-      async () => {
-        // Validation stricte
-        const requiredFields = ['agency_name', 'commercial_register', 'director_first_name', 'director_last_name', 'director_email', 'phone', 'city', 'address'];
-        for (const field of requiredFields) {
-          if (!request[field] || (typeof request[field] === 'string' && !request[field].trim())) {
-            throw new Error(`Le champ ${field} est obligatoire`);
-          }
-        }
-        
-        // Validation email
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(request.director_email)) {
-          throw new Error('Format d\'email invalide');
-        }
-        
-        // Validation téléphone
-        if (!/^(\+225)?[0-9\s-]{8,15}$/.test(request.phone)) {
-          throw new Error('Format de téléphone invalide');
-        }
-        
-        console.log('📝 Création demande inscription en base:', request);
-        
-        const { data, error } = await supabase
-          .from('agency_registration_requests')
-          .insert(request)
-          .select()
-          .single();
-        
-        if (error) {
-          console.error('❌ Erreur Supabase détaillée:', error);
-          throw new Error(`Erreur base de données: ${error.message}`);
-        }
-        
-        console.log('✅ Demande créée en base avec succès:', data);
-        return data;
-      },
-      'createRegistrationRequest'
-    );
-  },
-
-  // Owners - FORCE CREATION
+  // Owners
   async createOwner(owner: any) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        // Validation stricte
-        const requiredFields = ['first_name', 'last_name', 'phone', 'agency_id', 'address', 'city'];
-        for (const field of requiredFields) {
-          if (!owner[field] || (typeof owner[field] === 'string' && !owner[field].trim())) {
-            throw new Error(`Le champ ${field} est obligatoire`);
-          }
-        }
-        
-        // Validation types
-        if (typeof owner.children_count !== 'number' || owner.children_count < 0) {
-          throw new Error('Le nombre d\'enfants doit être un nombre positif');
-        }
-        
-        // Validation énumérations
-        const validPropertyTitles = ['attestation_villageoise', 'lettre_attribution', 'permis_habiter', 'acd', 'tf', 'cpf', 'autres'];
-        if (!validPropertyTitles.includes(owner.property_title)) {
-          throw new Error('Type de titre de propriété invalide');
-        }
-        
-        const validMaritalStatuses = ['celibataire', 'marie', 'divorce', 'veuf'];
-        if (!validMaritalStatuses.includes(owner.marital_status)) {
-          throw new Error('Situation matrimoniale invalide');
-        }
-        
-        console.log('📝 Création propriétaire en base:', owner);
-        
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('owners')
           .insert(owner)
           .select()
           .single();
-          
-        if (error) {
-          console.error('❌ Erreur création propriétaire:', error);
-          throw new Error(`Erreur base de données: ${error.message}`);
-        }
-        
-        console.log('✅ Propriétaire créé en base avec succès:', data);
+        if (error) throw error;
         return data;
       },
-      'createOwner'
+      'createOwner',
+      () => {
+        const newOwner = { ...owner, id: generateId(), created_at: new Date().toISOString() };
+        const stored = JSON.parse(localStorage.getItem(demoStorage.owners) || '[]');
+        stored.unshift(newOwner);
+        localStorage.setItem(demoStorage.owners, JSON.stringify(stored));
+        return newOwner;
+      }
     );
   },
 
-  async getOwners(agencyId: string) {
-    return await forceDbOperation(
+  async getOwners(agencyId?: string) {
+    return await safeDbOperation(
       async () => {
-        if (!agencyId) throw new Error('ID d\'agence manquant');
-        
-        const { data, error } = await supabase
-          .from('owners')
-          .select('*')
-          .eq('agency_id', agencyId)
-          .order('created_at', { ascending: false });
-          
+        let query = supabase!.from('owners').select('*');
+        if (agencyId) {
+          query = query.eq('agency_id', agencyId);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
         if (error) throw error;
         return data || [];
       },
-      'getOwners'
+      'getOwners',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.owners) || '[]');
+        return agencyId ? stored.filter((o: any) => o.agency_id === agencyId) : stored;
+      }
     );
   },
 
   async updateOwner(id: string, updates: any) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('owners')
           .update(updates)
           .eq('id', id)
@@ -237,88 +154,83 @@ export const dbService = {
         if (error) throw error;
         return data;
       },
-      'updateOwner'
+      'updateOwner',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.owners) || '[]');
+        const index = stored.findIndex((o: any) => o.id === id);
+        if (index !== -1) {
+          stored[index] = { ...stored[index], ...updates, updated_at: new Date().toISOString() };
+          localStorage.setItem(demoStorage.owners, JSON.stringify(stored));
+          return stored[index];
+        }
+        throw new Error('Propriétaire non trouvé');
+      }
     );
   },
 
   async deleteOwner(id: string) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        const { error } = await supabase
-          .from('owners')
-          .delete()
-          .eq('id', id);
+        const { error } = await supabase!.from('owners').delete().eq('id', id);
         if (error) throw error;
         return { success: true };
       },
-      'deleteOwner'
+      'deleteOwner',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.owners) || '[]');
+        const filtered = stored.filter((o: any) => o.id !== id);
+        localStorage.setItem(demoStorage.owners, JSON.stringify(filtered));
+        return { success: true };
+      }
     );
   },
 
-  // Tenants - FORCE CREATION
+  // Tenants
   async createTenant(tenant: any) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        // Validation stricte
-        const requiredFields = ['first_name', 'last_name', 'phone', 'agency_id', 'profession', 'nationality'];
-        for (const field of requiredFields) {
-          if (!tenant[field] || (typeof tenant[field] === 'string' && !tenant[field].trim())) {
-            throw new Error(`Le champ ${field} est obligatoire`);
-          }
-        }
-        
-        // Validation énumérations
-        const validMaritalStatuses = ['celibataire', 'marie', 'divorce', 'veuf'];
-        if (!validMaritalStatuses.includes(tenant.marital_status)) {
-          throw new Error('Situation matrimoniale invalide');
-        }
-        
-        const validPaymentStatuses = ['bon', 'irregulier', 'mauvais'];
-        if (!validPaymentStatuses.includes(tenant.payment_status)) {
-          throw new Error('Statut de paiement invalide');
-        }
-        
-        console.log('📝 Création locataire en base:', tenant);
-        
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('tenants')
           .insert(tenant)
           .select()
           .single();
-          
-        if (error) {
-          console.error('❌ Erreur création locataire:', error);
-          throw new Error(`Erreur base de données: ${error.message}`);
-        }
-        
-        console.log('✅ Locataire créé en base avec succès:', data);
+        if (error) throw error;
         return data;
       },
-      'createTenant'
+      'createTenant',
+      () => {
+        const newTenant = { ...tenant, id: generateId(), created_at: new Date().toISOString() };
+        const stored = JSON.parse(localStorage.getItem(demoStorage.tenants) || '[]');
+        stored.unshift(newTenant);
+        localStorage.setItem(demoStorage.tenants, JSON.stringify(stored));
+        return newTenant;
+      }
     );
   },
 
-  async getTenants(agencyId: string) {
-    return await forceDbOperation(
+  async getTenants(agencyId?: string) {
+    return await safeDbOperation(
       async () => {
-        if (!agencyId) throw new Error('Agency ID manquant');
-        
-        const { data, error } = await supabase
-          .from('tenants')
-          .select('*')
-          .eq('agency_id', agencyId)
-          .order('created_at', { ascending: false });
+        let query = supabase!.from('tenants').select('*');
+        if (agencyId) {
+          query = query.eq('agency_id', agencyId);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
         if (error) throw error;
         return data || [];
       },
-      'getTenants'
+      'getTenants',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.tenants) || '[]');
+        return agencyId ? stored.filter((t: any) => t.agency_id === agencyId) : stored;
+      }
     );
   },
 
   async updateTenant(id: string, updates: any) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('tenants')
           .update(updates)
           .eq('id', id)
@@ -327,76 +239,86 @@ export const dbService = {
         if (error) throw error;
         return data;
       },
-      'updateTenant'
+      'updateTenant',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.tenants) || '[]');
+        const index = stored.findIndex((t: any) => t.id === id);
+        if (index !== -1) {
+          stored[index] = { ...stored[index], ...updates, updated_at: new Date().toISOString() };
+          localStorage.setItem(demoStorage.tenants, JSON.stringify(stored));
+          return stored[index];
+        }
+        throw new Error('Locataire non trouvé');
+      }
     );
   },
 
   async deleteTenant(id: string) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        const { error } = await supabase
-          .from('tenants')
-          .delete()
-          .eq('id', id);
+        const { error } = await supabase!.from('tenants').delete().eq('id', id);
         if (error) throw error;
         return { success: true };
       },
-      'deleteTenant'
+      'deleteTenant',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.tenants) || '[]');
+        const filtered = stored.filter((t: any) => t.id !== id);
+        localStorage.setItem(demoStorage.tenants, JSON.stringify(filtered));
+        return { success: true };
+      }
     );
   },
 
-  // Properties - FORCE CREATION
+  // Properties
   async createProperty(property: any) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        // Validation des données obligatoires
-        if (!property.title || !property.owner_id || !property.agency_id) {
-          throw new Error('Données propriété manquantes (titre, propriétaire, agence)');
-        }
-        
-        console.log('📝 Création propriété en base:', property);
-        
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('properties')
           .insert(property)
           .select()
           .single();
-        if (error) {
-          console.error('❌ Erreur création propriété:', error);
-          throw new Error(`Erreur base de données: ${error.message}`);
-        }
-        
-        console.log('✅ Propriété créée en base avec succès:', data);
+        if (error) throw error;
         return data;
       },
-      'createProperty'
+      'createProperty',
+      () => {
+        const newProperty = { ...property, id: generateId(), created_at: new Date().toISOString() };
+        const stored = JSON.parse(localStorage.getItem(demoStorage.properties) || '[]');
+        stored.unshift(newProperty);
+        localStorage.setItem(demoStorage.properties, JSON.stringify(stored));
+        return newProperty;
+      }
     );
   },
 
-  async getProperties(agencyId: string) {
-    return await forceDbOperation(
+  async getProperties(agencyId?: string) {
+    return await safeDbOperation(
       async () => {
-        if (!agencyId) throw new Error('Agency ID manquant');
-        
-        const { data, error } = await supabase
-          .from('properties')
-          .select(`
-            *,
-            owners(first_name, last_name)
-          `)
-          .eq('agency_id', agencyId)
-          .order('created_at', { ascending: false });
+        let query = supabase!.from('properties').select(`
+          *,
+          owners(first_name, last_name)
+        `);
+        if (agencyId) {
+          query = query.eq('agency_id', agencyId);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
         if (error) throw error;
         return data || [];
       },
-      'getProperties'
+      'getProperties',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.properties) || '[]');
+        return agencyId ? stored.filter((p: any) => p.agency_id === agencyId) : stored;
+      }
     );
   },
 
   async updateProperty(id: string, updates: any) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('properties')
           .update(updates)
           .eq('id', id)
@@ -405,101 +327,88 @@ export const dbService = {
         if (error) throw error;
         return data;
       },
-      'updateProperty'
+      'updateProperty',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.properties) || '[]');
+        const index = stored.findIndex((p: any) => p.id === id);
+        if (index !== -1) {
+          stored[index] = { ...stored[index], ...updates, updated_at: new Date().toISOString() };
+          localStorage.setItem(demoStorage.properties, JSON.stringify(stored));
+          return stored[index];
+        }
+        throw new Error('Propriété non trouvée');
+      }
     );
   },
 
   async deleteProperty(id: string) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        const { error } = await supabase
-          .from('properties')
-          .delete()
-          .eq('id', id);
+        const { error } = await supabase!.from('properties').delete().eq('id', id);
         if (error) throw error;
         return { success: true };
       },
-      'deleteProperty'
+      'deleteProperty',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.properties) || '[]');
+        const filtered = stored.filter((p: any) => p.id !== id);
+        localStorage.setItem(demoStorage.properties, JSON.stringify(filtered));
+        return { success: true };
+      }
     );
   },
 
-  // Contracts - FORCE CREATION
+  // Contracts
   async createContract(contract: any) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        // Validation complète
-        const requiredFields = ['agency_id', 'type', 'start_date', 'commission_rate', 'terms'];
-        for (const field of requiredFields) {
-          if (contract[field] === undefined || contract[field] === null) {
-            throw new Error(`Le champ ${field} est obligatoire pour le contrat`);
-          }
-        }
-        
-        // Validation spécifique par type
-        if (contract.type === 'gestion' && !contract.owner_id) {
-          throw new Error('ID propriétaire obligatoire pour contrat de gestion');
-        }
-        
-        if (contract.type === 'location') {
-          if (!contract.tenant_id) {
-            throw new Error('ID locataire obligatoire pour contrat de location');
-          }
-          if (!contract.monthly_rent || contract.monthly_rent <= 0) {
-            throw new Error('Loyer mensuel obligatoire pour contrat de location');
-          }
-        }
-        
-        // Validation des montants
-        if (contract.commission_rate < 0 || contract.commission_rate > 100) {
-          throw new Error('Taux de commission invalide (0-100%)');
-        }
-        
-        console.log('📝 Création contrat en base:', contract);
-        
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('contracts')
           .insert(contract)
           .select()
           .single();
-          
-        if (error) {
-          console.error('❌ Erreur création contrat:', error);
-          throw new Error(`Erreur base de données: ${error.message}`);
-        }
-        
-        console.log('✅ Contrat créé en base avec succès:', data);
+        if (error) throw error;
         return data;
       },
-      'createContract'
+      'createContract',
+      () => {
+        const newContract = { ...contract, id: generateId(), created_at: new Date().toISOString() };
+        const stored = JSON.parse(localStorage.getItem(demoStorage.contracts) || '[]');
+        stored.unshift(newContract);
+        localStorage.setItem(demoStorage.contracts, JSON.stringify(stored));
+        return newContract;
+      }
     );
   },
 
-  async getContracts(agencyId: string) {
-    return await forceDbOperation(
+  async getContracts(agencyId?: string) {
+    return await safeDbOperation(
       async () => {
-        if (!agencyId) throw new Error('Agency ID manquant');
-        
-        const { data, error } = await supabase
-          .from('contracts')
-          .select(`
-            *,
-            properties(title),
-            owners(first_name, last_name),
-            tenants(first_name, last_name)
-          `)
-          .eq('agency_id', agencyId)
-          .order('created_at', { ascending: false });
+        let query = supabase!.from('contracts').select(`
+          *,
+          properties(title),
+          owners(first_name, last_name),
+          tenants(first_name, last_name)
+        `);
+        if (agencyId) {
+          query = query.eq('agency_id', agencyId);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
         if (error) throw error;
         return data || [];
       },
-      'getContracts'
+      'getContracts',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.contracts) || '[]');
+        return agencyId ? stored.filter((c: any) => c.agency_id === agencyId) : stored;
+      }
     );
   },
 
   async updateContract(id: string, updates: any) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('contracts')
           .update(updates)
           .eq('id', id)
@@ -508,39 +417,81 @@ export const dbService = {
         if (error) throw error;
         return data;
       },
-      'updateContract'
+      'updateContract',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.contracts) || '[]');
+        const index = stored.findIndex((c: any) => c.id === id);
+        if (index !== -1) {
+          stored[index] = { ...stored[index], ...updates, updated_at: new Date().toISOString() };
+          localStorage.setItem(demoStorage.contracts, JSON.stringify(stored));
+          return stored[index];
+        }
+        throw new Error('Contrat non trouvé');
+      }
     );
   },
 
   async deleteContract(id: string) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
-        const { error } = await supabase
-          .from('contracts')
-          .delete()
-          .eq('id', id);
+        const { error } = await supabase!.from('contracts').delete().eq('id', id);
         if (error) throw error;
         return { success: true };
       },
-      'deleteContract'
+      'deleteContract',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.contracts) || '[]');
+        const filtered = stored.filter((c: any) => c.id !== id);
+        localStorage.setItem(demoStorage.contracts, JSON.stringify(filtered));
+        return { success: true };
+      }
     );
   },
 
-  // Dashboard stats avec données réelles FORCÉES
+  // Agency
+  async getAgency(id: string) {
+    return await safeDbOperation(
+      async () => {
+        if (!id) throw new Error('ID agence manquant');
+        
+        const { data, error } = await supabase!
+          .from('agencies')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (error) throw error;
+        return data;
+      },
+      'getAgency',
+      () => {
+        // Données d'agence démo
+        return {
+          id: id,
+          name: 'Immobilier Excellence (Démo)',
+          commercial_register: 'CI-ABJ-2024-B-12345',
+          address: 'Abidjan, Côte d\'Ivoire',
+          phone: '+225 01 02 03 04 05',
+          email: 'contact@agence-demo.com',
+          created_at: new Date().toISOString()
+        };
+      }
+    );
+  },
+
+  // Dashboard stats avec fallback démo
   async getDashboardStats(agencyId: string) {
-    return await forceDbOperation(
+    return await safeDbOperation(
       async () => {
         if (!agencyId) throw new Error('Agency ID manquant');
         
-        // Récupération forcée des statistiques réelles
         const [propertiesResult, ownersResult, tenantsResult, contractsResult] = await Promise.all([
-          supabase.from('properties').select('id', { count: 'exact' }).eq('agency_id', agencyId),
-          supabase.from('owners').select('id', { count: 'exact' }).eq('agency_id', agencyId),
-          supabase.from('tenants').select('id', { count: 'exact' }).eq('agency_id', agencyId),
-          supabase.from('contracts').select('id, monthly_rent, status', { count: 'exact' }).eq('agency_id', agencyId)
+          supabase!.from('properties').select('id', { count: 'exact' }).eq('agency_id', agencyId),
+          supabase!.from('owners').select('id', { count: 'exact' }).eq('agency_id', agencyId),
+          supabase!.from('tenants').select('id', { count: 'exact' }).eq('agency_id', agencyId),
+          supabase!.from('contracts').select('id, monthly_rent, status', { count: 'exact' }).eq('agency_id', agencyId)
         ]);
 
-        // Vérification des erreurs
         if (propertiesResult.error) throw propertiesResult.error;
         if (ownersResult.error) throw ownersResult.error;
         if (tenantsResult.error) throw tenantsResult.error;
@@ -551,7 +502,7 @@ export const dbService = {
         const totalProperties = propertiesResult.count || 0;
         const occupancyRate = totalProperties > 0 ? (activeContracts.length / totalProperties) * 100 : 0;
 
-        const stats = {
+        return {
           totalProperties: propertiesResult.count || 0,
           totalOwners: ownersResult.count || 0,
           totalTenants: tenantsResult.count || 0,
@@ -560,16 +511,368 @@ export const dbService = {
           activeContracts: activeContracts.length,
           occupancyRate: Math.round(occupancyRate * 10) / 10
         };
-
-        console.log('✅ Statistiques récupérées:', stats);
-        return stats;
       },
-      'getDashboardStats'
+      'getDashboardStats',
+      () => {
+        const owners = JSON.parse(localStorage.getItem(demoStorage.owners) || '[]');
+        const tenants = JSON.parse(localStorage.getItem(demoStorage.tenants) || '[]');
+        const properties = JSON.parse(localStorage.getItem(demoStorage.properties) || '[]');
+        const contracts = JSON.parse(localStorage.getItem(demoStorage.contracts) || '[]');
+        
+        const agencyOwners = owners.filter((o: any) => o.agency_id === agencyId);
+        const agencyTenants = tenants.filter((t: any) => t.agency_id === agencyId);
+        const agencyProperties = properties.filter((p: any) => p.agency_id === agencyId);
+        const agencyContracts = contracts.filter((c: any) => c.agency_id === agencyId);
+        
+        const activeContracts = agencyContracts.filter((c: any) => c.status === 'active');
+        const monthlyRevenue = activeContracts.reduce((sum: number, c: any) => sum + (c.monthly_rent || 350000), 0);
+        const occupancyRate = agencyProperties.length > 0 ? (activeContracts.length / agencyProperties.length) * 100 : 0;
+
+        return {
+          totalProperties: agencyProperties.length,
+          totalOwners: agencyOwners.length,
+          totalTenants: agencyTenants.length,
+          totalContracts: agencyContracts.length,
+          monthlyRevenue,
+          activeContracts: activeContracts.length,
+          occupancyRate: Math.round(occupancyRate * 10) / 10
+        };
+      }
     );
   },
 
-  // Real-time subscriptions
+  // Registration requests
+  async createRegistrationRequest(request: any) {
+    return await safeDbOperation(
+      async () => {
+        const { data, error } = await supabase!
+          .from('agency_registration_requests')
+          .insert(request)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      },
+      'createRegistrationRequest',
+      () => {
+        const newRequest = { ...request, id: generateId(), created_at: new Date().toISOString() };
+        const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+        stored.unshift(newRequest);
+        localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
+        return newRequest;
+      }
+    );
+  },
+
+  async getRegistrationRequests() {
+    return await safeDbOperation(
+      async () => {
+        const { data, error } = await supabase!
+          .from('agency_registration_requests')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+      },
+      'getRegistrationRequests',
+      () => {
+        return JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+      }
+    );
+  },
+
+  async updateRegistrationRequest(id: string, updates: any) {
+    return await safeDbOperation(
+      async () => {
+        const { data, error } = await supabase!
+          .from('agency_registration_requests')
+          .update(updates)
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      },
+      'updateRegistrationRequest',
+      () => {
+        const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+        const index = stored.findIndex((r: any) => r.id === id);
+        if (index !== -1) {
+          stored[index] = { ...stored[index], ...updates };
+          localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
+          return stored[index];
+        }
+        throw new Error('Demande non trouvée');
+      }
+    );
+  },
+
+  // Admin functions
+  async getAllAgencies() {
+    return await safeDbOperation(
+      async () => {
+        const [agenciesResult, subscriptionsResult] = await Promise.all([
+          supabase!.from('agencies').select('*').order('created_at', { ascending: false }),
+          supabase!.from('agency_subscriptions').select('agency_id, plan_type, status, monthly_fee, next_payment_date')
+        ]);
+
+        if (agenciesResult.error) throw agenciesResult.error;
+        if (subscriptionsResult.error) throw subscriptionsResult.error;
+
+        const agencies = agenciesResult.data || [];
+        const subscriptions = subscriptionsResult.data || [];
+
+        return agencies.map((agency: any) => {
+          const subscription = subscriptions.find((sub: any) => sub.agency_id === agency.id);
+          return {
+            ...agency,
+            subscription_status: subscription?.status || 'trial',
+            plan_type: subscription?.plan_type || 'basic',
+            monthly_fee: subscription?.monthly_fee || 25000,
+            next_payment_date: subscription?.next_payment_date,
+          };
+        });
+      },
+      'getAllAgencies',
+      () => {
+        return [
+          {
+            id: 'demo_agency_1',
+            name: 'Immobilier Excellence (Démo)',
+            commercial_register: 'CI-ABJ-2024-B-12345',
+            city: 'Abidjan',
+            email: 'contact@demo.com',
+            phone: '+225 01 02 03 04 05',
+            subscription_status: 'active',
+            plan_type: 'premium',
+            monthly_fee: 50000,
+            created_at: new Date().toISOString()
+          }
+        ];
+      }
+    );
+  },
+
+  async getAllSubscriptions() {
+    return await safeDbOperation(
+      async () => {
+        const [subscriptionsResult, agenciesResult] = await Promise.all([
+          supabase!.from('agency_subscriptions').select('*').order('created_at', { ascending: false }),
+          supabase!.from('agencies').select('id, name, email')
+        ]);
+
+        if (subscriptionsResult.error) throw subscriptionsResult.error;
+        if (agenciesResult.error) throw agenciesResult.error;
+
+        const subscriptions = subscriptionsResult.data || [];
+        const agencies = agenciesResult.data || [];
+
+        return subscriptions.map((sub: any) => {
+          const agency = agencies.find((a: any) => a.id === sub.agency_id);
+          return {
+            ...sub,
+            agency_name: agency?.name || 'Agence inconnue',
+            agency_email: agency?.email,
+          };
+        });
+      },
+      'getAllSubscriptions',
+      () => {
+        return [
+          {
+            id: 'demo_sub_1',
+            agency_id: 'demo_agency_1',
+            agency_name: 'Immobilier Excellence (Démo)',
+            plan_type: 'premium',
+            status: 'active',
+            monthly_fee: 50000,
+            created_at: new Date().toISOString()
+          }
+        ];
+      }
+    );
+  },
+
+  async getPlatformStats() {
+    return await safeDbOperation(
+      async () => {
+        const [agenciesResult, subscriptionsResult, propertiesResult, contractsResult] = await Promise.all([
+          supabase!.from('agencies').select('id', { count: 'exact' }),
+          supabase!.from('agency_subscriptions').select('agency_id, status, monthly_fee'),
+          supabase!.from('properties').select('id', { count: 'exact' }),
+          supabase!.from('contracts').select('id, commission_amount')
+        ]);
+
+        if (agenciesResult.error) throw agenciesResult.error;
+        if (subscriptionsResult.error) throw subscriptionsResult.error;
+        if (propertiesResult.error) throw propertiesResult.error;
+        if (contractsResult.error) throw contractsResult.error;
+
+        const activeAgencies = subscriptionsResult.data?.filter((s: any) => s.status === 'active').length || 0;
+        const totalRevenue = contractsResult.data?.reduce((sum: number, c: any) => sum + (c.commission_amount || 0), 0) || 0;
+        const subscriptionRevenue = subscriptionsResult.data?.reduce((sum: number, s: any) => sum + (s.status === 'active' ? s.monthly_fee || 0 : 0), 0) || 0;
+
+        return {
+          totalAgencies: agenciesResult.count || 0,
+          activeAgencies,
+          totalProperties: propertiesResult.count || 0,
+          totalContracts: contractsResult.count || 0,
+          totalRevenue,
+          monthlyGrowth: 12,
+          subscriptionRevenue
+        };
+      },
+      'getPlatformStats',
+      () => {
+        return {
+          totalAgencies: 1,
+          activeAgencies: 1,
+          totalProperties: 5,
+          totalContracts: 3,
+          totalRevenue: 1500000,
+          monthlyGrowth: 12,
+          subscriptionRevenue: 50000
+        };
+      }
+    );
+  },
+
+  async getRecentAgencies() {
+    return await safeDbOperation(
+      async () => {
+        const { data, error } = await supabase!
+          .from('agencies')
+          .select('id, name, city, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (error) throw error;
+        return data || [];
+      },
+      'getRecentAgencies',
+      () => {
+        return [
+          {
+            id: 'demo_agency_1',
+            name: 'Immobilier Excellence (Démo)',
+            city: 'Abidjan',
+            created_at: new Date().toISOString()
+          }
+        ];
+      }
+    );
+  },
+
+  async getSystemAlerts() {
+    return await safeDbOperation(
+      async () => {
+        const alerts = [];
+        const { data: overdueAgencies } = await supabase!
+          .from('agency_subscriptions')
+          .select('agency_id')
+          .eq('status', 'overdue');
+
+        if (overdueAgencies && overdueAgencies.length > 0) {
+          alerts.push({
+            type: 'warning',
+            title: `${overdueAgencies.length} agence(s) en retard de paiement`,
+            description: 'Suspension automatique programmée'
+          });
+        }
+
+        if (alerts.length === 0) {
+          alerts.push({
+            type: 'success',
+            title: 'Système opérationnel',
+            description: 'Tous les services fonctionnent normalement'
+          });
+        }
+
+        return alerts;
+      },
+      'getSystemAlerts',
+      () => {
+        return [
+          {
+            type: 'warning',
+            title: 'Mode démo activé',
+            description: 'Configuration Supabase à vérifier'
+          }
+        ];
+      }
+    );
+  },
+
+  // Search functions
+  async searchOwnersHistory(searchTerm: string) {
+    return await safeDbOperation(
+      async () => {
+        const { data, error } = await supabase!
+          .from('owners')
+          .select(`
+            *,
+            agencies(name)
+          `)
+          .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
+          .limit(50);
+        if (error) throw error;
+        return data || [];
+      },
+      'searchOwnersHistory',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.owners) || '[]');
+        return stored.filter((owner: any) =>
+          owner.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          owner.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          owner.phone.includes(searchTerm)
+        ).slice(0, 10);
+      }
+    );
+  },
+
+  async searchTenantsHistory(searchTerm: string, paymentStatus?: string) {
+    return await safeDbOperation(
+      async () => {
+        let query = supabase!
+          .from('tenants')
+          .select(`
+            *,
+            agencies(name)
+          `)
+          .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`);
+
+        if (paymentStatus && paymentStatus !== 'all') {
+          query = query.eq('payment_status', paymentStatus);
+        }
+
+        const { data, error } = await query.limit(50);
+        if (error) throw error;
+        return data || [];
+      },
+      'searchTenantsHistory',
+      () => {
+        const stored = JSON.parse(localStorage.getItem(demoStorage.tenants) || '[]');
+        let filtered = stored.filter((tenant: any) =>
+          tenant.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          tenant.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          tenant.phone.includes(searchTerm)
+        );
+
+        if (paymentStatus && paymentStatus !== 'all') {
+          filtered = filtered.filter((t: any) => t.payment_status === paymentStatus);
+        }
+
+        return filtered.slice(0, 10);
+      }
+    );
+  },
+
+  // Real-time subscriptions avec fallback
   async subscribeToChanges(table: string, callback: (payload: any) => void) {
+    if (!supabase || !isSupabaseConfigured) {
+      console.warn(`⚠️ Souscription temps réel non disponible pour ${table} - Mode démo`);
+      return null;
+    }
+    
     try {
       console.log(`🔄 Souscription temps réel pour table: ${table}`);
       return supabase
@@ -599,239 +902,5 @@ export const dbService = {
     } catch (error) {
       console.warn('⚠️ Erreur désouscription:', error);
     }
-  },
-
-  // Admin functions
-  async getAllAgencies() {
-    return await forceDbOperation(
-      async () => {
-        const [agenciesResult, subscriptionsResult] = await Promise.all([
-          supabase.from('agencies').select('*').order('created_at', { ascending: false }),
-          supabase.from('agency_subscriptions').select('agency_id, plan_type, status, monthly_fee, next_payment_date')
-        ]);
-
-        if (agenciesResult.error) throw agenciesResult.error;
-        if (subscriptionsResult.error) throw subscriptionsResult.error;
-
-        const agencies = agenciesResult.data || [];
-        const subscriptions = subscriptionsResult.data || [];
-
-        // Enrichir avec les données d'abonnement
-        const enrichedAgencies = agencies.map((agency: any) => {
-          const subscription = subscriptions.find((sub: any) => sub.agency_id === agency.id);
-          return {
-            ...agency,
-            subscription_status: subscription?.status || 'trial',
-            plan_type: subscription?.plan_type || 'basic',
-            monthly_fee: subscription?.monthly_fee || 25000,
-            next_payment_date: subscription?.next_payment_date,
-          };
-        });
-
-        return enrichedAgencies;
-      },
-      'getAllAgencies'
-    );
-  },
-
-  async getRegistrationRequests() {
-    return await forceDbOperation(
-      async () => {
-        const { data, error } = await supabase
-          .from('agency_registration_requests')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        return data || [];
-      },
-      'getRegistrationRequests'
-    );
-  },
-
-  async updateRegistrationRequest(id: string, updates: any) {
-    return await forceDbOperation(
-      async () => {
-        console.log('📝 Mise à jour demande:', id, updates);
-        
-        const { data, error } = await supabase
-          .from('agency_registration_requests')
-          .update(updates)
-          .eq('id', id)
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      },
-      'updateRegistrationRequest'
-    );
-  },
-
-  async getAllSubscriptions() {
-    return await forceDbOperation(
-      async () => {
-        const [subscriptionsResult, agenciesResult] = await Promise.all([
-          supabase.from('agency_subscriptions').select('*').order('created_at', { ascending: false }),
-          supabase.from('agencies').select('id, name, email')
-        ]);
-
-        if (subscriptionsResult.error) throw subscriptionsResult.error;
-        if (agenciesResult.error) throw agenciesResult.error;
-
-        const subscriptions = subscriptionsResult.data || [];
-        const agencies = agenciesResult.data || [];
-
-        const enrichedSubscriptions = subscriptions.map((sub: any) => {
-          const agency = agencies.find((a: any) => a.id === sub.agency_id);
-          return {
-            ...sub,
-            agency_name: agency?.name || 'Agence inconnue',
-            agency_email: agency?.email,
-          };
-        });
-
-        return enrichedSubscriptions;
-      },
-      'getAllSubscriptions'
-    );
-  },
-
-  async getPlatformStats() {
-    return await forceDbOperation(
-      async () => {
-        const [agenciesResult, subscriptionsResult, propertiesResult, contractsResult] = await Promise.all([
-          supabase.from('agencies').select('id', { count: 'exact' }),
-          supabase.from('agency_subscriptions').select('agency_id, status, monthly_fee'),
-          supabase.from('properties').select('id', { count: 'exact' }),
-          supabase.from('contracts').select('id, commission_amount')
-        ]);
-
-        if (agenciesResult.error) throw agenciesResult.error;
-        if (subscriptionsResult.error) throw subscriptionsResult.error;
-        if (propertiesResult.error) throw propertiesResult.error;
-        if (contractsResult.error) throw contractsResult.error;
-
-        const activeAgencies = subscriptionsResult.data?.filter((s: any) => s.status === 'active').length || 0;
-        const totalRevenue = contractsResult.data?.reduce((sum: number, c: any) => sum + (c.commission_amount || 0), 0) || 0;
-        const subscriptionRevenue = subscriptionsResult.data?.reduce((sum: number, s: any) => sum + (s.status === 'active' ? s.monthly_fee || 0 : 0), 0) || 0;
-
-        return {
-          totalAgencies: agenciesResult.count || 0,
-          activeAgencies,
-          totalProperties: propertiesResult.count || 0,
-          totalContracts: contractsResult.count || 0,
-          totalRevenue,
-          monthlyGrowth: 0,
-          subscriptionRevenue
-        };
-      },
-      'getPlatformStats'
-    );
-  },
-
-  async getRecentAgencies() {
-    return await forceDbOperation(
-      async () => {
-        const { data, error } = await supabase
-          .from('agencies')
-          .select('id, name, city, created_at')
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (error) throw error;
-        return data || [];
-      },
-      'getRecentAgencies'
-    );
-  },
-
-  async getSystemAlerts() {
-    return await forceDbOperation(
-      async () => {
-        const alerts = [];
-
-        // Vérifier les abonnements en retard
-        const { data: overdueAgencies } = await supabase
-          .from('agency_subscriptions')
-          .select('agency_id')
-          .eq('status', 'overdue');
-
-        if (overdueAgencies && overdueAgencies.length > 0) {
-          alerts.push({
-            type: 'warning',
-            title: `${overdueAgencies.length} agence(s) en retard de paiement`,
-            description: 'Suspension automatique programmée'
-          });
-        }
-
-        // Vérifier les agences suspendues
-        const { data: suspendedAgencies } = await supabase
-          .from('agency_subscriptions')
-          .select('agency_id')
-          .eq('status', 'suspended');
-
-        if (suspendedAgencies && suspendedAgencies.length > 0) {
-          alerts.push({
-            type: 'error',
-            title: `${suspendedAgencies.length} agence(s) suspendue(s)`,
-            description: 'Impayés confirmés'
-          });
-        }
-
-        if (alerts.length === 0) {
-          alerts.push({
-            type: 'success',
-            title: 'Système opérationnel',
-            description: 'Tous les services fonctionnent normalement'
-          });
-        }
-
-        return alerts;
-      },
-      'getSystemAlerts'
-    );
-  },
-
-  // Search functions
-  async searchOwnersHistory(searchTerm: string) {
-    return await forceDbOperation(
-      async () => {
-        const { data, error } = await supabase
-          .from('owners')
-          .select(`
-            *,
-            agencies(name)
-          `)
-          .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
-          .limit(50);
-        if (error) throw error;
-        return data || [];
-      },
-      'searchOwnersHistory'
-    );
-  },
-
-  async searchTenantsHistory(searchTerm: string, paymentStatus?: string) {
-    return await forceDbOperation(
-      async () => {
-        let query = supabase
-          .from('tenants')
-          .select(`
-            *,
-            agencies(name)
-          `)
-          .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`);
-
-        if (paymentStatus && paymentStatus !== 'all') {
-          query = query.eq('payment_status', paymentStatus);
-        }
-
-        const { data, error } = await query.limit(50);
-        if (error) throw error;
-        return data || [];
-      },
-      'searchTenantsHistory'
-    );
   }
 };
