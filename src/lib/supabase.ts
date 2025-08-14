@@ -102,12 +102,14 @@ export const dbService = {
   },
 
   async unsubscribeFromChanges(subscription: any) {
-    if (subscription && typeof subscription.unsubscribe === 'function') {
-      try {
-        subscription.unsubscribe();
-      } catch (error) {
-        console.warn('Error unsubscribing from channel:', error);
+    if (!subscription) return;
+    
+    try {
+      if (typeof subscription.unsubscribe === 'function') {
+        await subscription.unsubscribe();
       }
+    } catch (error) {
+      console.warn('Error unsubscribing from channel:', error);
     }
   },
 
@@ -994,12 +996,15 @@ export const dbService = {
   // Contracts
   async createContract(contract: any) {
     if (!supabase) {
-      return {
+      // Mode démonstration - retourner un contrat fictif
+      const mockContract = {
         id: `contract_${Date.now()}`,
         ...contract,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+      console.log('Contrat créé en mode démo:', mockContract);
+      return mockContract;
     }
     
     // Validation des données obligatoires
@@ -1017,13 +1022,21 @@ export const dbService = {
       throw new Error('ID locataire obligatoire pour contrat de location');
     }
     
-    const { data, error } = await supabase
-      .from('contracts')
-      .insert(contract)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('contracts')
+        .insert(contract)
+        .select()
+        .single();
+      if (error) {
+        console.error('Erreur création contrat Supabase:', error);
+        throw new Error(`Erreur base de données: ${error.message}`);
+      }
+      return data;
+    } catch (dbError) {
+      console.error('Erreur lors de la création du contrat:', dbError);
+      throw dbError;
+    }
   },
 
   async getContracts(agencyId: string) {

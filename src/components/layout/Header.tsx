@@ -2,6 +2,8 @@ import React from 'react';
 import { Menu, Search, Bell, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
+import { BibleVerseCard } from '../ui/BibleVerse';
+import { useState } from 'react';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -9,6 +11,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   const { user, admin, logout } = useAuth();
+  const [showVerse, setShowVerse] = useState(false);
   
   const currentUser = user || admin;
   const isAdmin = !!admin;
@@ -40,6 +43,15 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           <Button variant="ghost" size="sm">
             <Bell className="h-5 w-5" />
           </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setShowVerse(!showVerse)}
+            title="Verset du jour"
+          >
+            📖
+          </Button>
 
           <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-2">
@@ -65,6 +77,13 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           </div>
         </div>
       </div>
+      
+      {/* Verset du jour dans le header */}
+      {showVerse && (
+        <div className="px-4 pb-4">
+          <BibleVerseCard compact={true} />
+        </div>
+      )}
     </header>
   );
 };
