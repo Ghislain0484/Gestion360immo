@@ -126,14 +126,32 @@ export const TenantForm: React.FC<TenantFormProps> = ({
       
       // Générer automatiquement le contrat de location OHADA
       try {
-        const agencyData = {
-          id: user?.agencyId || '',
-          name: 'Immobilier Excellence', // À récupérer depuis la base
-          address: 'Abidjan, Côte d\'Ivoire',
-          phone: '+225 01 02 03 04 05',
-          email: 'contact@agence.com',
-          commercialRegister: 'CI-ABJ-2024-B-12345'
-        };
+        // Récupérer les vraies données de l'agence
+        let agencyData;
+        try {
+          agencyData = await dbService.getAgency(user?.agencyId || '');
+          if (!agencyData) {
+            // Données par défaut si agence non trouvée
+            agencyData = {
+              id: user?.agencyId || '',
+              name: 'Immobilier Excellence',
+              address: 'Abidjan, Côte d\'Ivoire',
+              phone: '+225 01 02 03 04 05',
+              email: 'contact@agence.com',
+              commercial_register: 'CI-ABJ-2024-B-12345'
+            };
+          }
+        } catch (agencyError) {
+          console.warn('Impossible de récupérer les données agence:', agencyError);
+          agencyData = {
+            id: user?.agencyId || '',
+            name: 'Immobilier Excellence',
+            address: 'Abidjan, Côte d\'Ivoire',
+            phone: '+225 01 02 03 04 05',
+            email: 'contact@agence.com',
+            commercial_register: 'CI-ABJ-2024-B-12345'
+          };
+        }
 
         const rentalContract = await OHADAContractGenerator.generateRentalContractForTenant(
           tenantForContract,
@@ -147,23 +165,24 @@ export const TenantForm: React.FC<TenantFormProps> = ({
           }
         );
 
-        // Créer le contrat automatiquement seulement si Supabase est configuré
-        if (supabase && dbService.createContract) {
-          try {
-            await dbService.createContract({
-              ...rentalContract,
-              property_id: null, // Sera défini lors de l'attribution
-              owner_id: null, // Sera défini lors de l'attribution
-              tenant_id: tenantForContract.id,
-              agency_id: user?.agencyId || '',
-            });
-          } catch (contractDbError) {
-            console.warn('Erreur création contrat en base:', contractDbError);
-            // Continue sans bloquer la création du locataire
-          }
+        // Créer le contrat automatiquement
+        try {
+          const contractResult = await dbService.createContract({
+            ...rentalContract,
+            property_id: null, // Sera défini lors de l'attribution
+            owner_id: null, // Sera défini lors de l'attribution
+            tenant_id: tenantForContract.id,
+            agency_id: user?.agencyId || '',
+          });
+          
+          console.log('✅ Contrat de location créé:', contractResult);
+        } catch (contractDbError) {
+          console.warn('⚠️ Erreur création contrat en base:', contractDbError);
+          // Continue sans bloquer la création du locataire
         }
 
-        alert(`✅ Locataire créé avec succès !
+        // Message de succès avec impression
+        const shouldPrint = confirm(`✅ Locataire créé avec succès !
 
 📋 CONTRAT DE LOCATION AUTOMATIQUE :
 • Type : Bail d'habitation
@@ -171,17 +190,25 @@ export const TenantForm: React.FC<TenantFormProps> = ({
 • Caution : 700,000 FCFA
 • Durée : 12 mois
 • Conforme : Loi ivoirienne n°96-669 et OHADA
-• Statut : ${supabase ? 'Brouillon (à finaliser)' : 'Pré-généré (mode démo)'}
+• Statut : Brouillon (à finaliser avec propriété)
 
-${supabase ? 'Le contrat de location a été pré-généré selon la réglementation OHADA.' : 'Le contrat sera créé automatiquement lors de la configuration Supabase.'}
-Vous pourrez le finaliser en attribuant une propriété dans la section "Contrats".`);
+Le contrat de location a été pré-généré selon la réglementation OHADA.
+Vous pourrez le finaliser en attribuant une propriété dans la section "Contrats".
+
+Voulez-vous imprimer le contrat maintenant ?`);
+
+        if (shouldPrint) {
+          printContract(rentalContract, agencyData, tenantForContract);
+        }
 
       } catch (contractError) {
         console.error('Erreur génération contrat:', contractError);
         alert(`✅ Locataire créé avec succès !
 
-⚠️ Le contrat automatique sera généré lors de la configuration Supabase.
-En attendant, vous pouvez créer manuellement un contrat dans la section "Contrats".`);
+⚠️ Erreur lors de la génération automatique du contrat.
+Vous pouvez créer manuellement un contrat dans la section "Contrats".
+
+Erreur: ${contractError instanceof Error ? contractError.message : 'Erreur inconnue'}`);
       }
       
       onClose();

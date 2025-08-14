@@ -3,6 +3,18 @@ import { supabase, dbService } from '../lib/supabase';
 import { User } from '../types';
 import { PlatformAdmin } from '../types/admin';
 
+// Check if Supabase is properly configured
+const isSupabaseConfigured = Boolean(
+  import.meta.env.VITE_SUPABASE_URL && 
+  import.meta.env.VITE_SUPABASE_ANON_KEY && 
+  import.meta.env.VITE_SUPABASE_URL.startsWith('https://') && 
+  import.meta.env.VITE_SUPABASE_URL.includes('.supabase.co') &&
+  import.meta.env.VITE_SUPABASE_URL !== 'https://votre-projet.supabase.co' && 
+  import.meta.env.VITE_SUPABASE_ANON_KEY.startsWith('eyJ') &&
+  import.meta.env.VITE_SUPABASE_ANON_KEY.length > 100 &&
+  !import.meta.env.VITE_SUPABASE_ANON_KEY.includes('...')
+);
+
 interface AuthContextType {
   user: User | null;
   admin: PlatformAdmin | null;
@@ -48,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Only check Supabase if configured
-        if (supabase) {
+        if (supabase && isSupabaseConfigured) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             // Get user profile from database using Supabase auth user ID
@@ -72,12 +84,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setUser(user);
             }
           }
+        } else if (!isSupabaseConfigured) {
+          console.warn('⚠️ Supabase non configuré - mode démo uniquement');
         }
       } catch (error) {
         console.error('Error checking session:', error);
         // En cas d'erreur de session, vérifier les variables d'environnement
         if (error instanceof Error && error.message.includes('Invalid API key')) {
-          console.error('Configuration Supabase invalide en production:', {
+          console.error('🔑 Configuration Supabase invalide en production:', {
             url: import.meta.env.VITE_SUPABASE_URL,
             keyLength: import.meta.env.VITE_SUPABASE_ANON_KEY?.length,
             keyStart: import.meta.env.VITE_SUPABASE_ANON_KEY?.substring(0, 10)
@@ -92,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth changes
     let authListener: any = null;
-    if (supabase) {
+    if (supabase && isSupabaseConfigured) {
       const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
           setUser(null);
@@ -169,12 +183,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Only try Supabase if configured and credentials don't match demo users
       if (supabase && isSupabaseConfigured) {
         try {
+          console.log('🔐 Tentative de connexion Supabase...');
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
             email,
             password,
           });
 
-          if (authError) throw authError;
+          if (authError) {
+            console.error('❌ Erreur authentification Supabase:', authError);
+            throw authError;
+          }
 
           // Get user profile from database using authenticated user ID
           const { data: userData, error: userError } = await supabase
@@ -183,7 +201,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .eq('id', authData.user.id)
             .single();
 
-          if (userError) throw userError;
+          if (userError) {
+            console.error('❌ Erreur récupération profil utilisateur:', userError);
+            throw userError;
+          }
 
           const user: User = {
             id: userData.id,
@@ -197,18 +218,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           
           setUser(user);
+          console.log('✅ Connexion Supabase réussie');
           return;
         } catch (supabaseError: any) {
           console.error('Supabase auth error:', supabaseError);
           // If Supabase auth fails, show specific error message
           if (supabaseError.message === 'Invalid login credentials') {
             throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
+          } else if (supabaseError.message?.includes('Invalid API key')) {
+            console.error('🔑 Clé API invalide - Vérifiez la configuration Supabase');
+            throw new Error('Configuration invalide. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
           } else {
             throw new Error(`Erreur d'authentification: ${supabaseError.message}`);
           }
         }
       } else if (!isSupabaseConfigured) {
         // If Supabase is not configured, only demo users are available
+        console.warn('⚠️ Supabase non configuré - comptes démo uniquement');
         throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
       }
       
@@ -269,8 +295,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // If not demo admin, try Supabase authentication
-      if (supabase) {
+      if (supabase && isSupabaseConfigured) {
         try {
+          console.log('🔐 Tentative de connexion admin Supabase...');
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
             email,
             password,
@@ -299,11 +326,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           setAdmin(admin);
           localStorage.setItem('admin', JSON.stringify(admin));
+          console.log('✅ Connexion admin Supabase réussie');
           return;
         } catch (supabaseError) {
+          console.error('❌ Erreur connexion admin Supabase:', supabaseError);
           throw new Error('Identifiants administrateur incorrects');
         }
       } else {
+        console.warn('⚠️ Supabase non configuré pour admin');
         throw new Error('Identifiants administrateur incorrects');
       }
       
@@ -315,7 +345,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    if (supabase) {
+    if (supabase && isSupabaseConfigured) {
       supabase.auth.signOut();
     }
     setUser(null);

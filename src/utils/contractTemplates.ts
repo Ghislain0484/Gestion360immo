@@ -452,3 +452,70 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
     return `${agencyCode}-${typeCode}-${year}${month}-${String(sequence).padStart(4, '0')}`;
   }
 }
+
+// Fonction d'impression de contrat
+export const printContract = (contract: any, agencyData: any, clientData: any) => {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+
+  const contractHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Contrat ${contract.type} - ${agencyData.name}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+          .company-name { font-size: 24px; font-weight: bold; color: #333; }
+          .contract-title { font-size: 20px; margin: 20px 0; text-align: center; }
+          .content { margin: 30px 0; }
+          .signature-section { margin-top: 50px; display: flex; justify-content: space-between; }
+          .signature-box { text-align: center; width: 45%; }
+          .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #666; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="company-name">${agencyData.name.toUpperCase()}</div>
+          <div>${agencyData.address}</div>
+          <div>Tél: ${agencyData.phone}</div>
+          <div>Email: ${agencyData.email}</div>
+          ${agencyData.commercial_register ? `<div>RC: ${agencyData.commercial_register}</div>` : ''}
+        </div>
+        
+        <div class="contract-title">
+          <strong>${contract.type === 'gestion' ? 'CONTRAT DE MANDAT DE GESTION IMMOBILIÈRE' : 'CONTRAT DE BAIL D\'HABITATION'}</strong>
+        </div>
+        
+        <div class="content">
+          ${contract.terms.replace(/\n/g, '<br>')}
+        </div>
+        
+        <div class="signature-section">
+          <div class="signature-box">
+            <p><strong>${contract.type === 'gestion' ? 'LE PROPRIÉTAIRE' : 'LE LOCATAIRE'}</strong></p>
+            <p>${clientData.firstName} ${clientData.lastName}</p>
+            <br><br><br>
+            <p>Signature: ________________</p>
+          </div>
+          <div class="signature-box">
+            <p><strong>L'AGENCE</strong></p>
+            <p>${agencyData.name}</p>
+            <br><br><br>
+            <p>Signature et cachet: ________________</p>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <div>Contrat généré automatiquement le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}</div>
+          <div>Conforme à la législation ivoirienne et aux Actes Uniformes OHADA</div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(contractHtml);
+  printWindow.document.close();
+  printWindow.print();
+};

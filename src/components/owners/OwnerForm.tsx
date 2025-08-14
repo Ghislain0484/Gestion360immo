@@ -149,14 +149,32 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       
       // Générer automatiquement le contrat de gestion OHADA
       try {
-        const agencyData = {
-          id: user?.agencyId || '',
-          name: 'Immobilier Excellence', // À récupérer depuis la base
-          address: 'Abidjan, Côte d\'Ivoire',
-          phone: '+225 01 02 03 04 05',
-          email: 'contact@agence.com',
-          commercialRegister: 'CI-ABJ-2024-B-12345'
-        };
+        // Récupérer les vraies données de l'agence
+        let agencyData;
+        try {
+          agencyData = await dbService.getAgency(user?.agencyId || '');
+          if (!agencyData) {
+            // Données par défaut si agence non trouvée
+            agencyData = {
+              id: user?.agencyId || '',
+              name: 'Immobilier Excellence',
+              address: 'Abidjan, Côte d\'Ivoire',
+              phone: '+225 01 02 03 04 05',
+              email: 'contact@agence.com',
+              commercial_register: 'CI-ABJ-2024-B-12345'
+            };
+          }
+        } catch (agencyError) {
+          console.warn('Impossible de récupérer les données agence:', agencyError);
+          agencyData = {
+            id: user?.agencyId || '',
+            name: 'Immobilier Excellence',
+            address: 'Abidjan, Côte d\'Ivoire',
+            phone: '+225 01 02 03 04 05',
+            email: 'contact@agence.com',
+            commercial_register: 'CI-ABJ-2024-B-12345'
+          };
+        }
 
         const managementContract = await OHADAContractGenerator.generateManagementContractForOwner(
           ownerForContract,
@@ -164,39 +182,48 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
           10 // 10% de commission
         );
 
-        // Créer le contrat automatiquement seulement si Supabase est configuré
-        if (supabase && dbService.createContract) {
-          try {
-            await dbService.createContract({
-              ...managementContract,
-              property_id: null, // Sera défini lors de l'ajout de propriété
-              owner_id: ownerForContract.id,
-              tenant_id: null,
-              agency_id: user?.agencyId || '',
-            });
-          } catch (contractDbError) {
-            console.warn('Erreur création contrat en base:', contractDbError);
-            // Continue sans bloquer la création du propriétaire
-          }
+        // Créer le contrat automatiquement
+        try {
+          const contractResult = await dbService.createContract({
+            ...managementContract,
+            property_id: null, // Sera défini lors de l'ajout de propriété
+            owner_id: ownerForContract.id,
+            tenant_id: null,
+            agency_id: user?.agencyId || '',
+          });
+          
+          console.log('✅ Contrat de gestion créé:', contractResult);
+        } catch (contractDbError) {
+          console.warn('⚠️ Erreur création contrat en base:', contractDbError);
+          // Continue sans bloquer la création du propriétaire
         }
 
-        alert(`✅ Propriétaire créé avec succès !
+        // Message de succès avec impression
+        const shouldPrint = confirm(`✅ Propriétaire créé avec succès !
 
 📋 CONTRAT DE GESTION AUTOMATIQUE :
 • Type : Mandat de gestion immobilière
 • Commission : 10% des loyers encaissés
 • Conforme : Législation ivoirienne et OHADA
-• Statut : ${supabase ? 'Actif' : 'Pré-généré (mode démo)'}
+• Statut : Actif et prêt à imprimer
 
-${supabase ? 'Le contrat de gestion a été généré automatiquement selon la réglementation OHADA.' : 'Le contrat sera créé automatiquement lors de la configuration Supabase.'}
-Vous pouvez le consulter dans la section "Contrats".`);
+Le contrat de gestion a été généré automatiquement selon la réglementation OHADA.
+Vous pouvez le consulter dans la section "Contrats".
+
+Voulez-vous imprimer le contrat maintenant ?`);
+
+        if (shouldPrint) {
+          printContract(managementContract, agencyData, ownerForContract);
+        }
 
       } catch (contractError) {
         console.error('Erreur génération contrat:', contractError);
         alert(`✅ Propriétaire créé avec succès !
 
-⚠️ Le contrat automatique sera généré lors de la configuration Supabase.
-En attendant, vous pouvez créer manuellement un contrat dans la section "Contrats".`);
+⚠️ Erreur lors de la génération automatique du contrat.
+Vous pouvez créer manuellement un contrat dans la section "Contrats".
+
+Erreur: ${contractError instanceof Error ? contractError.message : 'Erreur inconnue'}`);
       }
       
       onClose();
