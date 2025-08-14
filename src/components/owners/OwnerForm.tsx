@@ -10,6 +10,7 @@ import { AgencyIdGenerator } from '../../utils/idGenerator';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { dbService } from '../../lib/supabase';
+import { printContract } from '../../utils/contractTemplates';
 
 interface OwnerFormProps {
   isOpen: boolean;
@@ -197,7 +198,7 @@ Vous pouvez le consulter et le modifier dans la section "Contrats".
 Voulez-vous imprimer le contrat maintenant ?`);
 
         if (shouldPrint) {
-          printContract(managementContract, agencyData, ownerForContract);
+          printContract(contractResult, agencyData, ownerForContract);
         }
 
       } catch (contractError) {

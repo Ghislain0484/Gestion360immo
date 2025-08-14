@@ -10,6 +10,7 @@ import { AgencyIdGenerator } from '../../utils/idGenerator';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { dbService } from '../../lib/supabase';
+import { printContract } from '../../utils/contractTemplates';
 
 interface TenantFormProps {
   isOpen: boolean;
@@ -182,7 +183,7 @@ Vous pouvez le finaliser en attribuant une propriété dans la section "Contrats
 Voulez-vous imprimer le contrat maintenant ?`);
 
         if (shouldPrint) {
-          printContract(rentalContract, agencyData, tenantForContract);
+          printContract(contractResult, agencyData, tenantForContract);
         }
 
       } catch (contractError) {

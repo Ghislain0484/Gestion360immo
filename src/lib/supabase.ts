@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { generateDemoId } from '../utils/uuidGenerator';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -31,7 +30,7 @@ console.log('🔧 Configuration Supabase:', {
 export const supabase = (() => {
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('❌ Variables d\'environnement Supabase manquantes');
-    return null;
+    throw new Error('Configuration Supabase manquante - Vérifiez les variables d\'environnement sur Vercel');
   }
   
   try {
@@ -51,25 +50,18 @@ export const supabase = (() => {
     return client;
   } catch (error) {
     console.error('❌ Erreur création client Supabase:', error);
-    return null;
+    throw new Error('Impossible de créer le client Supabase');
   }
 })();
 
 // Helper function pour opérations base de données FORCÉES
 const forceDbOperation = async <T>(
   operation: () => Promise<T>,
-  operationName: string,
-  throwOnError: boolean = true
+  operationName: string
 ): Promise<T> => {
-  if (!supabase) {
-    const error = new Error('❌ Supabase non configuré - impossible de sauvegarder en base');
-    console.error(error.message);
-    if (throwOnError) throw error;
-    return {} as T;
-  }
-
+  console.log(`🔄 ${operationName} - Tentative...`);
+  
   try {
-    console.log(`🔄 ${operationName} - Tentative...`);
     const result = await operation();
     console.log(`✅ ${operationName} - Succès en base de données`);
     return result;
@@ -78,22 +70,14 @@ const forceDbOperation = async <T>(
     
     // Gestion spécifique des erreurs API
     if (error.message?.includes('Invalid API key') || error.message?.includes('JWT')) {
-      const apiError = new Error(`🔑 Clé API Supabase invalide - Vérifiez la configuration sur Vercel`);
-      console.error(apiError.message);
-      if (throwOnError) throw apiError;
+      throw new Error(`🔑 Configuration Supabase invalide - Vérifiez les variables d'environnement sur Vercel`);
     } else if (error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-      const networkError = new Error(`🌐 Erreur réseau - Vérifiez la connexion`);
-      console.error(networkError.message);
-      if (throwOnError) throw networkError;
+      throw new Error(`🌐 Erreur réseau - Vérifiez la connexion`);
     } else if (error.message?.includes('permission denied')) {
-      const permError = new Error(`🚫 Permissions insuffisantes - Vérifiez les politiques RLS`);
-      console.error(permError.message);
-      if (throwOnError) throw permError;
+      throw new Error(`🚫 Permissions insuffisantes - Vérifiez les politiques RLS`);
     } else {
-      if (throwOnError) throw error;
+      throw error;
     }
-    
-    return {} as T;
   }
 };
 
@@ -103,7 +87,7 @@ export const dbService = {
   async createAgency(agency: any) {
     return await forceDbOperation(
       async () => {
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('agencies')
           .insert(agency)
           .select()
@@ -120,7 +104,7 @@ export const dbService = {
       async () => {
         if (!id) throw new Error('ID agence manquant');
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('agencies')
           .select('*')
           .eq('id', id)
@@ -129,8 +113,7 @@ export const dbService = {
         if (error) throw error;
         return data;
       },
-      'getAgency',
-      false // Ne pas throw pour permettre fallback
+      'getAgency'
     );
   },
 
@@ -158,7 +141,7 @@ export const dbService = {
         
         console.log('📝 Création demande inscription en base:', request);
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('agency_registration_requests')
           .insert(request)
           .select()
@@ -206,7 +189,7 @@ export const dbService = {
         
         console.log('📝 Création propriétaire en base:', owner);
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('owners')
           .insert(owner)
           .select()
@@ -229,7 +212,7 @@ export const dbService = {
       async () => {
         if (!agencyId) throw new Error('ID d\'agence manquant');
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('owners')
           .select('*')
           .eq('agency_id', agencyId)
@@ -245,7 +228,7 @@ export const dbService = {
   async updateOwner(id: string, updates: any) {
     return await forceDbOperation(
       async () => {
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('owners')
           .update(updates)
           .eq('id', id)
@@ -261,7 +244,7 @@ export const dbService = {
   async deleteOwner(id: string) {
     return await forceDbOperation(
       async () => {
-        const { error } = await supabase!
+        const { error } = await supabase
           .from('owners')
           .delete()
           .eq('id', id);
@@ -297,7 +280,7 @@ export const dbService = {
         
         console.log('📝 Création locataire en base:', tenant);
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('tenants')
           .insert(tenant)
           .select()
@@ -320,7 +303,7 @@ export const dbService = {
       async () => {
         if (!agencyId) throw new Error('Agency ID manquant');
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('tenants')
           .select('*')
           .eq('agency_id', agencyId)
@@ -335,7 +318,7 @@ export const dbService = {
   async updateTenant(id: string, updates: any) {
     return await forceDbOperation(
       async () => {
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('tenants')
           .update(updates)
           .eq('id', id)
@@ -351,7 +334,7 @@ export const dbService = {
   async deleteTenant(id: string) {
     return await forceDbOperation(
       async () => {
-        const { error } = await supabase!
+        const { error } = await supabase
           .from('tenants')
           .delete()
           .eq('id', id);
@@ -373,7 +356,7 @@ export const dbService = {
         
         console.log('📝 Création propriété en base:', property);
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('properties')
           .insert(property)
           .select()
@@ -395,7 +378,7 @@ export const dbService = {
       async () => {
         if (!agencyId) throw new Error('Agency ID manquant');
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('properties')
           .select(`
             *,
@@ -413,7 +396,7 @@ export const dbService = {
   async updateProperty(id: string, updates: any) {
     return await forceDbOperation(
       async () => {
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('properties')
           .update(updates)
           .eq('id', id)
@@ -429,7 +412,7 @@ export const dbService = {
   async deleteProperty(id: string) {
     return await forceDbOperation(
       async () => {
-        const { error } = await supabase!
+        const { error } = await supabase
           .from('properties')
           .delete()
           .eq('id', id);
@@ -473,7 +456,7 @@ export const dbService = {
         
         console.log('📝 Création contrat en base:', contract);
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('contracts')
           .insert(contract)
           .select()
@@ -496,7 +479,7 @@ export const dbService = {
       async () => {
         if (!agencyId) throw new Error('Agency ID manquant');
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('contracts')
           .select(`
             *,
@@ -516,7 +499,7 @@ export const dbService = {
   async updateContract(id: string, updates: any) {
     return await forceDbOperation(
       async () => {
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('contracts')
           .update(updates)
           .eq('id', id)
@@ -532,7 +515,7 @@ export const dbService = {
   async deleteContract(id: string) {
     return await forceDbOperation(
       async () => {
-        const { error } = await supabase!
+        const { error } = await supabase
           .from('contracts')
           .delete()
           .eq('id', id);
@@ -551,10 +534,10 @@ export const dbService = {
         
         // Récupération forcée des statistiques réelles
         const [propertiesResult, ownersResult, tenantsResult, contractsResult] = await Promise.all([
-          supabase!.from('properties').select('id', { count: 'exact' }).eq('agency_id', agencyId),
-          supabase!.from('owners').select('id', { count: 'exact' }).eq('agency_id', agencyId),
-          supabase!.from('tenants').select('id', { count: 'exact' }).eq('agency_id', agencyId),
-          supabase!.from('contracts').select('id, monthly_rent, status', { count: 'exact' }).eq('agency_id', agencyId)
+          supabase.from('properties').select('id', { count: 'exact' }).eq('agency_id', agencyId),
+          supabase.from('owners').select('id', { count: 'exact' }).eq('agency_id', agencyId),
+          supabase.from('tenants').select('id', { count: 'exact' }).eq('agency_id', agencyId),
+          supabase.from('contracts').select('id, monthly_rent, status', { count: 'exact' }).eq('agency_id', agencyId)
         ]);
 
         // Vérification des erreurs
@@ -581,18 +564,12 @@ export const dbService = {
         console.log('✅ Statistiques récupérées:', stats);
         return stats;
       },
-      'getDashboardStats',
-      false // Permettre fallback pour stats
+      'getDashboardStats'
     );
   },
 
   // Real-time subscriptions
   async subscribeToChanges(table: string, callback: (payload: any) => void) {
-    if (!supabase) {
-      console.warn('🚫 Pas de souscription temps réel - Supabase non configuré');
-      return null;
-    }
-    
     try {
       console.log(`🔄 Souscription temps réel pour table: ${table}`);
       return supabase
@@ -629,8 +606,8 @@ export const dbService = {
     return await forceDbOperation(
       async () => {
         const [agenciesResult, subscriptionsResult] = await Promise.all([
-          supabase!.from('agencies').select('*').order('created_at', { ascending: false }),
-          supabase!.from('agency_subscriptions').select('agency_id, plan_type, status, monthly_fee, next_payment_date')
+          supabase.from('agencies').select('*').order('created_at', { ascending: false }),
+          supabase.from('agency_subscriptions').select('agency_id, plan_type, status, monthly_fee, next_payment_date')
         ]);
 
         if (agenciesResult.error) throw agenciesResult.error;
@@ -653,15 +630,14 @@ export const dbService = {
 
         return enrichedAgencies;
       },
-      'getAllAgencies',
-      false
+      'getAllAgencies'
     );
   },
 
   async getRegistrationRequests() {
     return await forceDbOperation(
       async () => {
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('agency_registration_requests')
           .select('*')
           .order('created_at', { ascending: false });
@@ -669,8 +645,7 @@ export const dbService = {
         if (error) throw error;
         return data || [];
       },
-      'getRegistrationRequests',
-      false
+      'getRegistrationRequests'
     );
   },
 
@@ -679,7 +654,7 @@ export const dbService = {
       async () => {
         console.log('📝 Mise à jour demande:', id, updates);
         
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('agency_registration_requests')
           .update(updates)
           .eq('id', id)
@@ -697,8 +672,8 @@ export const dbService = {
     return await forceDbOperation(
       async () => {
         const [subscriptionsResult, agenciesResult] = await Promise.all([
-          supabase!.from('agency_subscriptions').select('*').order('created_at', { ascending: false }),
-          supabase!.from('agencies').select('id, name, email')
+          supabase.from('agency_subscriptions').select('*').order('created_at', { ascending: false }),
+          supabase.from('agencies').select('id, name, email')
         ]);
 
         if (subscriptionsResult.error) throw subscriptionsResult.error;
@@ -718,8 +693,7 @@ export const dbService = {
 
         return enrichedSubscriptions;
       },
-      'getAllSubscriptions',
-      false
+      'getAllSubscriptions'
     );
   },
 
@@ -727,10 +701,10 @@ export const dbService = {
     return await forceDbOperation(
       async () => {
         const [agenciesResult, subscriptionsResult, propertiesResult, contractsResult] = await Promise.all([
-          supabase!.from('agencies').select('id', { count: 'exact' }),
-          supabase!.from('agency_subscriptions').select('agency_id, status, monthly_fee'),
-          supabase!.from('properties').select('id', { count: 'exact' }),
-          supabase!.from('contracts').select('id, commission_amount')
+          supabase.from('agencies').select('id', { count: 'exact' }),
+          supabase.from('agency_subscriptions').select('agency_id, status, monthly_fee'),
+          supabase.from('properties').select('id', { count: 'exact' }),
+          supabase.from('contracts').select('id, commission_amount')
         ]);
 
         if (agenciesResult.error) throw agenciesResult.error;
@@ -752,15 +726,14 @@ export const dbService = {
           subscriptionRevenue
         };
       },
-      'getPlatformStats',
-      false
+      'getPlatformStats'
     );
   },
 
   async getRecentAgencies() {
     return await forceDbOperation(
       async () => {
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('agencies')
           .select('id, name, city, created_at')
           .order('created_at', { ascending: false })
@@ -769,8 +742,7 @@ export const dbService = {
         if (error) throw error;
         return data || [];
       },
-      'getRecentAgencies',
-      false
+      'getRecentAgencies'
     );
   },
 
@@ -780,7 +752,7 @@ export const dbService = {
         const alerts = [];
 
         // Vérifier les abonnements en retard
-        const { data: overdueAgencies } = await supabase!
+        const { data: overdueAgencies } = await supabase
           .from('agency_subscriptions')
           .select('agency_id')
           .eq('status', 'overdue');
@@ -794,7 +766,7 @@ export const dbService = {
         }
 
         // Vérifier les agences suspendues
-        const { data: suspendedAgencies } = await supabase!
+        const { data: suspendedAgencies } = await supabase
           .from('agency_subscriptions')
           .select('agency_id')
           .eq('status', 'suspended');
@@ -817,8 +789,7 @@ export const dbService = {
 
         return alerts;
       },
-      'getSystemAlerts',
-      false
+      'getSystemAlerts'
     );
   },
 
@@ -826,7 +797,7 @@ export const dbService = {
   async searchOwnersHistory(searchTerm: string) {
     return await forceDbOperation(
       async () => {
-        const { data, error } = await supabase!
+        const { data, error } = await supabase
           .from('owners')
           .select(`
             *,
@@ -837,15 +808,14 @@ export const dbService = {
         if (error) throw error;
         return data || [];
       },
-      'searchOwnersHistory',
-      false
+      'searchOwnersHistory'
     );
   },
 
   async searchTenantsHistory(searchTerm: string, paymentStatus?: string) {
     return await forceDbOperation(
       async () => {
-        let query = supabase!
+        let query = supabase
           .from('tenants')
           .select(`
             *,
@@ -861,8 +831,7 @@ export const dbService = {
         if (error) throw error;
         return data || [];
       },
-      'searchTenantsHistory',
-      false
+      'searchTenantsHistory'
     );
   }
 };

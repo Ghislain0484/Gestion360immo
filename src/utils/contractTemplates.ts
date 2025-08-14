@@ -454,7 +454,7 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
 }
 
 // Fonction d'impression de contrat
-export const printContract = (contract: any, agencyData: any, clientData: any) => {
+export const printContract = (contractData: any, agencyData: any, clientData: any) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
 
@@ -462,7 +462,7 @@ export const printContract = (contract: any, agencyData: any, clientData: any) =
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Contrat ${contract.type} - ${agencyData.name}</title>
+        <title>Contrat ${contractData.type} - ${agencyData.name}</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
           .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
@@ -481,21 +481,21 @@ export const printContract = (contract: any, agencyData: any, clientData: any) =
           <div>${agencyData.address}</div>
           <div>Tél: ${agencyData.phone}</div>
           <div>Email: ${agencyData.email}</div>
-          ${agencyData.commercial_register ? `<div>RC: ${agencyData.commercial_register}</div>` : ''}
+          ${agencyData.commercialRegister || agencyData.commercial_register ? `<div>RC: ${agencyData.commercialRegister || agencyData.commercial_register}</div>` : ''}
         </div>
         
         <div class="contract-title">
-          <strong>${contract.type === 'gestion' ? 'CONTRAT DE MANDAT DE GESTION IMMOBILIÈRE' : 'CONTRAT DE BAIL D\'HABITATION'}</strong>
+          <strong>${contractData.type === 'gestion' ? 'CONTRAT DE MANDAT DE GESTION IMMOBILIÈRE' : 'CONTRAT DE BAIL D\'HABITATION'}</strong>
         </div>
         
         <div class="content">
-          ${contract.terms.replace(/\n/g, '<br>')}
+          ${contractData.terms.replace(/\n/g, '<br>')}
         </div>
         
         <div class="signature-section">
           <div class="signature-box">
-            <p><strong>${contract.type === 'gestion' ? 'LE PROPRIÉTAIRE' : 'LE LOCATAIRE'}</strong></p>
-            <p>${clientData.firstName} ${clientData.lastName}</p>
+            <p><strong>${contractData.type === 'gestion' ? 'LE PROPRIÉTAIRE' : 'LE LOCATAIRE'}</strong></p>
+            <p>${clientData.firstName || clientData.first_name} ${clientData.lastName || clientData.last_name}</p>
             <br><br><br>
             <p>Signature: ________________</p>
           </div>
