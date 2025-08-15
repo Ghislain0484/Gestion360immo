@@ -88,7 +88,7 @@ export const LoginForm: React.FC = () => {
 
 ⏱️ TRAITEMENT : Sous 24-48h par notre équipe
 📧 NOTIFICATION : Vous recevrez vos identifiants par email
-🔑 ACCÈS : Connexion directe sur www.gestion360immo.com
+            throw new Error('Profil utilisateur non trouvé. Contactez votre administrateur.');
 
 PROCHAINES ÉTAPES :
 1. Validation par l'administrateur
@@ -109,16 +109,18 @@ Vous pouvez fermer cette fenêtre et attendre la confirmation.`);
         } else if (error.message.includes('email invalide')) {
           alert('Format d\'email invalide. Veuillez utiliser un email valide.');
         } else if (error.message.includes('téléphone invalide')) {
-          alert('Format de téléphone invalide. Utilisez le format: +225 XX XX XX XX XX');
+            throw new Error('Email ou mot de passe incorrect.');
         } else if (error.message.includes('existe déjà')) {
           alert('Cette agence ou cet email est déjà enregistré.');
-        } else if (error.message.includes('fetch')) {
+            throw new Error('Configuration invalide. Contactez l\'administrateur.');
+          } else if (supabaseError.message?.includes('Profil utilisateur non trouvé')) {
+            throw new Error('Compte non activé. Contactez votre administrateur pour activer votre compte.');
           alert('Problème de connexion. Votre demande a été sauvegardée localement et sera synchronisée plus tard.');
         } else {
-          alert(`Erreur: ${error.message}`);
+      throw new Error('Email ou mot de passe incorrect.');
         }
       } else {
-        alert('Erreur inconnue lors de l\'envoi de la demande. Veuillez réessayer.');
+        throw new Error('Email ou mot de passe incorrect.');
       }
     } finally {
       setIsLoading(false);

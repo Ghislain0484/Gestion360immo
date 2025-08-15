@@ -70,7 +70,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     updateAgencyData({ logo: url });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation des données
@@ -89,7 +89,53 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
       return;
     }
     
-    onSubmit(agencyData, directorData);
+    try {
+      // Préparer les données pour l'enregistrement
+      const requestData = {
+        agency: agencyData,
+        director: directorData,
+        status: 'pending',
+        submittedAt: new Date().toISOString(),
+      };
+      
+      console.log('Envoi de la demande avec les données:', requestData);
+      
+      // Enregistrer la demande dans la base de données
+      const result = await dbService.createRegistrationRequest(requestData);
+      
+      console.log('Résultat de l\'enregistrement:', result);
+      
+      alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE AVEC SUCCÈS !
+      
+🏢 AGENCE : ${agencyData.name}
+👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
+📧 EMAIL : ${directorData.email}
+📱 TÉLÉPHONE : ${agencyData.phone}
+🏙️ VILLE : ${agencyData.city}
+
+✅ Votre demande a été enregistrée avec l'ID : ${result.id}
+
+⏱️ TRAITEMENT : Validation par l'administrateur sous 24-48h
+🔑 ACCÈS : Vos identifiants saisis seront activés après approbation
+🌐 CONNEXION : www.gestion360immo.com
+
+PROCHAINES ÉTAPES :
+1. ⏳ Validation par l'administrateur (24-48h)
+2. ✅ Activation automatique de votre compte directeur
+3. 🎁 Démarrage de votre abonnement d'essai (30 jours gratuits)
+4. 🚀 Connexion immédiate possible avec vos identifiants
+
+IMPORTANT : Conservez vos identifiants de connexion !
+Email : ${directorData.email}
+Mot de passe : [celui que vous avez saisi]
+
+Vous pourrez vous connecter dès que votre demande sera approuvée.`);
+      
+      onClose();
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement:', error);
+      alert('❌ Erreur lors de l\'envoi de la demande. Veuillez réessayer.');
+    }
   };
 
   const steps = [
