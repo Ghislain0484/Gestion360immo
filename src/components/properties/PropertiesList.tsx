@@ -11,9 +11,13 @@ import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 
+import { PropertyDetailsModal } from './PropertyDetailsModal';
+
 export const PropertiesList: React.FC = () => {
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterStanding, setFilterStanding] = useState('all');
@@ -76,6 +80,43 @@ export const PropertiesList: React.FC = () => {
       } catch (error) {
         console.error('Error deleting property:', error);
       }
+    }
+  };
+
+  const handleViewProperty = (property: Property) => {
+    setSelectedProperty(property);
+    setShowDetailsModal(true);
+  };
+
+  const handleEditProperty = (property: Property) => {
+    setSelectedProperty(property);
+    setShowDetailsModal(true);
+  };
+
+  const handleUpdateProperty = async (updatedData: any) => {
+    if (!selectedProperty) return;
+    
+    try {
+      await dbService.updateProperty(selectedProperty.id, {
+        title: updatedData.title,
+        description: updatedData.description,
+        location: updatedData.location,
+        details: updatedData.details,
+        standing: updatedData.standing,
+        rooms: updatedData.rooms,
+        images: updatedData.images,
+        is_available: updatedData.isAvailable,
+        for_sale: updatedData.forSale,
+        for_rent: updatedData.forRent,
+      });
+      
+      refetch();
+      setShowDetailsModal(false);
+      setSelectedProperty(null);
+      alert('✅ Propriété mise à jour avec succès !');
+    } catch (error) {
+      console.error('Error updating property:', error);
+      alert('❌ Erreur lors de la mise à jour');
     }
   };
 
@@ -249,10 +290,20 @@ export const PropertiesList: React.FC = () => {
                 </div>
                 
                 <div className="flex space-x-1">
-                  <Button variant="ghost" size="sm">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleViewProperty(property)}
+                    title="Voir les détails"
+                  >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleEditProperty(property)}
+                    title="Modifier"
+                  >
                     <Edit className="h-4 w-4" />
                   </Button>
                   <Button 
@@ -261,6 +312,7 @@ export const PropertiesList: React.FC = () => {
                     className="text-red-600 hover:text-red-700"
                     onClick={() => handleDeleteProperty(property.id)}
                     disabled={deleting}
+                    title="Supprimer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -295,6 +347,16 @@ export const PropertiesList: React.FC = () => {
         isOpen={showForm}
         onClose={() => setShowForm(false)}
         onSubmit={handleAddProperty}
+      />
+
+      <PropertyDetailsModal
+        isOpen={showDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedProperty(null);
+        }}
+        property={selectedProperty}
+        onUpdate={handleUpdateProperty}
       />
     </div>
   );
