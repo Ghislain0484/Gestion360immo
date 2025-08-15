@@ -167,9 +167,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Check for approved agencies in localStorage first
       const approvedAgencies = JSON.parse(localStorage.getItem('approved_agencies') || '[]');
+      console.log('🔍 Vérification agences approuvées:', approvedAgencies.length);
+      console.log('🔍 Recherche pour email:', email.trim());
+      
       const approvedUser = approvedAgencies.find((agency: any) => 
-        agency.director_email === email.trim() && agency.director_password === password.trim()
+        agency.director_email?.trim() === email.trim() && agency.director_password?.trim() === password.trim()
       );
+      
+      console.log('🔍 Utilisateur approuvé trouvé:', !!approvedUser);
       
       if (approvedUser) {
         console.log('✅ Connexion avec compte agence approuvée:', email, 'ID:', approvedUser.agency_id);

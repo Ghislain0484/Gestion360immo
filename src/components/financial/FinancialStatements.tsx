@@ -19,9 +19,28 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('2024-03');
   const [showDetails, setShowDetails] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [realData, setRealData] = useState<any>(null);
 
-  // Mock financial data
-  const statement: FinancialStatement = {
+  useEffect(() => {
+    const fetchRealFinancialData = async () => {
+      setLoading(true);
+      try {
+        // Récupérer les vraies données financières depuis la base
+        const data = await dbService.getFinancialStatements(entityId, entityType, selectedPeriod);
+        setRealData(data);
+      } catch (error) {
+        console.error('Erreur chargement données financières:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRealFinancialData();
+  }, [entityId, entityType, selectedPeriod]);
+
+  // Utiliser les vraies données ou fallback
+  const statement: FinancialStatement = realData || {
     id: `statement_${entityId}_${selectedPeriod}`,
     entityId,
     entityType,

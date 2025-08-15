@@ -1163,6 +1163,55 @@ export const dbService = {
     );
   },
 
+  // Financial statements
+  async getFinancialStatements(entityId: string, entityType: 'owner' | 'tenant', period: string) {
+    return await safeDbOperation(
+      async () => {
+        const { data, error } = await supabase!
+          .from('financial_statements')
+          .select('*')
+          .eq('entity_id', entityId)
+          .eq('entity_type', entityType)
+          .order('generated_at', { ascending: false })
+          .limit(1)
+          .single();
+        if (error) throw error;
+        return data;
+      },
+      'getFinancialStatements',
+      () => {
+        // Générer des données financières basées sur les contrats réels
+        const contracts = JSON.parse(localStorage.getItem(demoStorage.contracts) || '[]');
+        const entityContracts = contracts.filter((c: any) => 
+          (entityType === 'owner' && c.owner_id === entityId) ||
+          (entityType === 'tenant' && c.tenant_id === entityId)
+        );
+        
+        const totalIncome = entityContracts.reduce((sum: number, c: any) => 
+          sum + (entityType === 'owner' ? (c.monthly_rent || 0) - (c.commission_amount || 0) : 0), 0
+        );
+        
+        const totalExpenses = entityContracts.reduce((sum: number, c: any) => 
+          sum + (entityType === 'tenant' ? (c.monthly_rent || 0) : (c.commission_amount || 0)), 0
+        );
+        
+        return {
+          id: `statement_${entityId}_${period}`,
+          entity_id: entityId,
+          entity_type: entityType,
+          period_start: new Date(`${period}-01`),
+          period_end: new Date(`${period}-31`),
+          total_income: totalIncome,
+          total_expenses: totalExpenses,
+          net_balance: totalIncome - totalExpenses,
+          pending_payments: 0,
+          transactions: [],
+          generated_at: new Date().toISOString()
+        };
+      }
+    );
+  },
+
   // Real-time subscriptions avec fallback
   async subscribeToChanges(table: string, callback: (payload: any) => void) {
     if (!supabase || !isSupabaseConfigured) {

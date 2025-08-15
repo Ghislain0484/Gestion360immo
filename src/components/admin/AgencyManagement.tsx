@@ -161,7 +161,7 @@ export const AgencyManagement: React.FC = () => {
           agency_name: request.agency_name,
           director_id: result.user.id,
           director_email: request.director_email,
-          director_password: request.director_password,
+          director_password: request.director_password || 'TempPass2024!',
           director_first_name: request.director_first_name,
           director_last_name: request.director_last_name,
           approved_at: new Date().toISOString()
@@ -188,7 +188,7 @@ export const AgencyManagement: React.FC = () => {
 🏢 AGENCE : ${request.agency_name}
 👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
 📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : ${request.director_password || '[Mot de passe choisi]'}
+🔑 MOT DE PASSE : ${request.director_password || 'TempPass2024!'}
 
 ✅ L'agence a été créée et le compte directeur activé
 ✅ Le compte directeur est activé
@@ -197,11 +197,11 @@ export const AgencyManagement: React.FC = () => {
 
 RAPPEL IDENTIFIANTS :
 Email : ${request.director_email}
-Mot de passe : ${request.director_password || '[Mot de passe choisi]'}
+Mot de passe : ${request.director_password || 'TempPass2024!'}
 
 🌐 CONNEXION : www.gestion360immo.com
 
-Le directeur peut maintenant se connecter avec les identifiants qu'il a choisis lors de l'inscription !`);
+Le directeur peut maintenant se connecter avec ces identifiants !`);
       
     } catch (error) {
       console.error('Error approving registration:', error);
