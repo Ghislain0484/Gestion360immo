@@ -110,26 +110,31 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 🏢 AGENCE : ${agencyData.name}
 👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
 📧 EMAIL : ${directorData.email}
+🔑 MOT DE PASSE : [Celui que vous avez saisi - CONSERVEZ-LE !]
 📱 TÉLÉPHONE : ${agencyData.phone}
 🏙️ VILLE : ${agencyData.city}
 
 ✅ Votre demande a été enregistrée avec l'ID : ${result.id}
 
-⏱️ TRAITEMENT : Validation par l'administrateur sous 24-48h
-🔑 ACCÈS : Vos identifiants saisis seront activés après approbation
+⏱️ TRAITEMENT : Validation sous 24-48h par notre équipe
+🔑 IDENTIFIANTS : Ceux que vous avez saisis seront activés
 🌐 CONNEXION : www.gestion360immo.com
 
 PROCHAINES ÉTAPES :
 1. ⏳ Validation par l'administrateur (24-48h)
-2. ✅ Activation automatique de votre compte directeur
+2. Activation de votre compte avec vos identifiants
 3. 🎁 Démarrage de votre abonnement d'essai (30 jours gratuits)
 4. 🚀 Connexion immédiate possible avec vos identifiants
 
 IMPORTANT : Conservez vos identifiants de connexion !
 Email : ${directorData.email}
-Mot de passe : [celui que vous avez saisi]
+4. Connexion immédiate avec vos identifiants
 
-Vous pourrez vous connecter dès que votre demande sera approuvée.`);
+IMPORTANT : CONSERVEZ VOS IDENTIFIANTS !
+Email : ${directorData.email}
+Mot de passe : [Celui que vous avez saisi]
+
+Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
       
       onClose();
     } catch (error) {
