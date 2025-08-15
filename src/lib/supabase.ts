@@ -545,20 +545,42 @@ export const dbService = {
   async createRegistrationRequest(request: any) {
     return await safeDbOperation(
       async () => {
+        console.log('🔄 Création demande inscription en base:', request);
         const { data, error } = await supabase!
           .from('agency_registration_requests')
-          .insert(request)
+          .insert({
+            agency_name: request.agency_name,
+            commercial_register: request.commercial_register,
+            director_first_name: request.director_first_name,
+            director_last_name: request.director_last_name,
+            director_email: request.director_email,
+            director_password: request.director_password,
+            phone: request.phone,
+            city: request.city,
+            address: request.address,
+            logo_url: request.logo_url,
+            is_accredited: request.is_accredited || false,
+            accreditation_number: request.accreditation_number,
+            status: 'pending'
+          })
           .select()
           .single();
         if (error) throw error;
+        console.log('✅ Demande créée en base avec ID:', data.id);
         return data;
       },
       'createRegistrationRequest',
       () => {
-        const newRequest = { ...request, id: generateId(), created_at: new Date().toISOString() };
+        const newRequest = { 
+          ...request, 
+          id: generateId(), 
+          created_at: new Date().toISOString(),
+          status: 'pending'
+        };
         const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
         stored.unshift(newRequest);
         localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
+        console.log('✅ Demande sauvegardée localement avec ID:', newRequest.id);
         return newRequest;
       }
     );

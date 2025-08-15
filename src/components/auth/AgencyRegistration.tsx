@@ -92,10 +92,18 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     try {
       // Préparer les données pour l'enregistrement
       const requestData = {
-        agency: agencyData,
-        director: directorData,
-        status: 'pending',
-        submittedAt: new Date().toISOString(),
+        agency_name: agencyData.name,
+        commercial_register: agencyData.commercialRegister,
+        director_first_name: directorData.firstName,
+        director_last_name: directorData.lastName,
+        director_email: directorData.email,
+        director_password: directorData.password,
+        phone: agencyData.phone,
+        city: agencyData.city,
+        address: agencyData.address,
+        logo_url: agencyData.logo,
+        is_accredited: agencyData.isAccredited,
+        accreditation_number: agencyData.accreditationNumber,
       };
       
       console.log('Envoi de la demande avec les données:', requestData);

@@ -168,11 +168,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Check for approved agencies in localStorage first
       const approvedAgencies = JSON.parse(localStorage.getItem('approved_agencies') || '[]');
       const approvedUser = approvedAgencies.find((agency: any) => 
-        agency.director_email === email && agency.director_password === password
+        agency.director_email === email.trim() && agency.director_password === password.trim()
       );
       
       if (approvedUser) {
-        console.log('✅ Connexion avec compte agence approuvée:', email);
+        console.log('✅ Connexion avec compte agence approuvée:', email, 'ID:', approvedUser.agency_id);
         const user: User = {
           id: approvedUser.director_id || `approved_${Date.now()}`,
           email: approvedUser.director_email,
@@ -186,6 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setUser(user);
         localStorage.setItem('user', JSON.stringify(user));
+        console.log('✅ Utilisateur connecté avec agence ID:', user.agencyId);
         return;
       }
 
