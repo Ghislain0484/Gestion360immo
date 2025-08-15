@@ -463,9 +463,14 @@ export const dbService = {
 
   // Registration requests
   async createRegistrationRequest(request: any) {
-    return await safeDbOperation(async () => {
-      console.log('🔄 Création demande inscription en base:', request);
-      const { data, error } = await supabase!
+    console.log('🔄 Création demande inscription:', request);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
+    
+    try {
+      const { data, error } = await supabase
         .from('agency_registration_requests')
         .insert({
           agency_name: request.agency_name,
@@ -484,10 +489,18 @@ export const dbService = {
         })
         .select()
         .single();
-      if (error) throw error;
+        
+      if (error) {
+        console.error('❌ Erreur Supabase:', error);
+        throw error;
+      }
+      
       console.log('✅ Demande créée en base avec ID:', data.id);
       return data;
-    }, 'createRegistrationRequest');
+    } catch (error) {
+      console.error('❌ Erreur création demande:', error);
+      throw error;
+    }
   },
 
   async getRegistrationRequests() {

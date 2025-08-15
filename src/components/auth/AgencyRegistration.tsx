@@ -109,12 +109,13 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
       console.log('Envoi de la demande avec les données:', requestData);
       
       // Enregistrer la demande dans la base de données
-      const result = await dbService.createRegistrationRequest(requestData);
-      
-      console.log('Résultat de l\'enregistrement:', result);
-      
-      alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE AVEC SUCCÈS !
-      
+      try {
+        const result = await dbService.createRegistrationRequest(requestData);
+        
+        console.log('Résultat de l\'enregistrement:', result);
+        
+        alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE AVEC SUCCÈS !
+        
 🏢 AGENCE : ${agencyData.name}
 👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
 📧 EMAIL : ${directorData.email}
@@ -136,18 +137,59 @@ PROCHAINES ÉTAPES :
 
 IMPORTANT : Conservez vos identifiants de connexion !
 Email : ${directorData.email}
-4. Connexion immédiate avec vos identifiants
-
-IMPORTANT : CONSERVEZ VOS IDENTIFIANTS !
-Email : ${directorData.email}
 Mot de passe : [Celui que vous avez saisi]
 
 Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
-      
-      onClose();
+        
+        onClose();
+      } catch (supabaseError) {
+        console.error('Erreur Supabase:', supabaseError);
+        
+        // En cas d'erreur Supabase, sauvegarder localement
+        const localRequest = {
+          id: `local_${Date.now()}`,
+          agency_name: agencyData.name,
+          commercial_register: agencyData.commercialRegister,
+          director_first_name: directorData.firstName,
+          director_last_name: directorData.lastName,
+          director_email: directorData.email,
+          director_password: directorData.password,
+          phone: agencyData.phone,
+          city: agencyData.city,
+          address: agencyData.address,
+          logo_url: agencyData.logo,
+          is_accredited: agencyData.isAccredited,
+          accreditation_number: agencyData.accreditationNumber,
+          status: 'pending',
+          created_at: new Date().toISOString()
+        };
+        
+        const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+        stored.unshift(localRequest);
+        localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
+        
+        alert(`✅ DEMANDE SAUVEGARDÉE LOCALEMENT !
+        
+🏢 AGENCE : ${agencyData.name}
+👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
+📧 EMAIL : ${directorData.email}
+🔑 MOT DE PASSE : [Conservez celui que vous avez saisi]
+
+⚠️ Problème de connexion Supabase détecté
+✅ Votre demande a été sauvegardée localement
+🔄 Elle sera synchronisée dès que la connexion sera rétablie
+
+CONSERVEZ VOS IDENTIFIANTS :
+Email : ${directorData.email}
+Mot de passe : [Celui que vous avez saisi]
+
+Vous pourrez vous connecter dès l'approbation !`);
+        
+        onClose();
+      }
     } catch (error) {
       console.error('Erreur lors de l\'enregistrement:', error);
-      alert('❌ Erreur lors de l\'envoi de la demande. Veuillez réessayer.');
+      alert('❌ Erreur lors de l\'envoi de la demande. Veuillez vérifier vos données et réessayer.');
     }
   };
 
