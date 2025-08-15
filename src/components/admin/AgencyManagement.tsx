@@ -97,68 +97,100 @@ export const AgencyManagement: React.FC = () => {
     try {
       console.log('Approbation de la demande:', requestId);
       
-      // Vérifier si c'est une demande démo
-      const demoRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-      const isDemoRequest = demoRequests.some((req: any) => req.id === requestId);
+      // 1. Récupérer la demande d'inscription
+      const requests = await dbService.getRegistrationRequests();
+      const request = requests.find(r => r.id === requestId);
       
-      if (isDemoRequest) {
-        console.log('Approbation d\'une demande démo');
-        const updatedRequests = demoRequests.map((req: any) => 
-          req.id === requestId ? { 
-            ...req, 
-            status: 'approved',
-            processed_at: new Date().toISOString(),
-            processed_by: 'admin_demo'
-          } : req
-        );
-        localStorage.setItem('demo_registration_requests', JSON.stringify(updatedRequests));
-        setRegistrationRequests(updatedRequests);
-        
-        const approvedRequest = updatedRequests.find(r => r.id === requestId);
-        alert(`Demande démo approuvée avec succès !
-        
-Agence: ${approvedRequest?.agency_name || 'Inconnue'}
-
-Cette demande de démonstration a été approuvée localement.
-Dans un environnement de production, l'agence recevrait ses identifiants par email.`);
-        return;
+      // Récupérer la demande d'inscription
+      if (!request) {
+        throw new Error('Demande d\'inscription non trouvée');
       }
       
-      const result = await dbService.updateRegistrationRequest(requestId, {
-        status: 'approved',
-        processed_at: new Date().toISOString(),
-        processed_by: 'admin_production_001' // ID de l'admin actuel
+      console.log('🔄 Création agence et directeur en production...');
+      
+      // Créer l'agence et le directeur automatiquement
+      const result = await dbService.createAgencyWithDirector({
+        agency_name: request.agency_name,
+        commercial_register: request.commercial_register,
+        address: request.address,
+        city: request.city,
+        phone: request.phone,
+        director_email: request.director_email,
+        logo_url: request.logo_url,
+        is_accredited: request.is_accredited,
+        accreditation_number: request.accreditation_number,
+      }, {
+        director_first_name: request.director_first_name,
+        director_last_name: request.director_last_name,
+        director_email: request.director_email,
+        password: 'TempPass2024!' // Mot de passe temporaire
       });
       
-      console.log('Résultat de l\'approbation:', result);
+      console.log('✅ Agence et directeur créés:', result);
+      
+      // Marquer la demande comme approuvée
+      await dbService.updateRegistrationRequest(requestId, {
+        status: 'approved',
+        processed_at: new Date().toISOString(),
+        processed_by: 'admin_production_001'
+      });
       
       // Refresh data
       const requestsData = await dbService.getRegistrationRequests();
+      const agenciesData = await dbService.getAllAgencies();
       setRegistrationRequests(requestsData);
+      setAgencies(agenciesData);
       
-      alert(`Demande approuvée avec succès !
+      alert(`✅ AGENCE CRÉÉE AVEC SUCCÈS !
       
-Agence: ${requestsData.find(r => r.id === requestId)?.agency_name || 'Inconnue'}
+🏢 AGENCE : ${request.agency_name}
+👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
+📧 EMAIL : ${request.director_email}
+🔑 MOT DE PASSE : TempPass2024!
 
-L'agence peut maintenant se connecter avec ses identifiants.
-Un email de confirmation sera envoyé automatiquement.`);
+✅ L'agence a été créée en base de données
+✅ Le compte directeur est activé
+✅ L'abonnement d'essai (30 jours) est démarré
+✅ Le directeur peut maintenant se connecter sur www.gestion360immo.com
+
+IDENTIFIANTS DE CONNEXION :
+Email : ${request.director_email}
+Mot de passe : TempPass2024!
+
+Le directeur devra changer son mot de passe à la première connexion.`);
       
     } catch (error) {
       console.error('Error approving registration:', error);
       
       // Messages d'erreur spécifiques
       if (error instanceof Error) {
-        if (error.message.includes('permission denied')) {
-          alert('Erreur de permissions - veuillez vérifier vos droits d\'administrateur');
-        } else if (error.message.includes('not found')) {
-          alert('Demande non trouvée - elle a peut-être déjà été traitée');
-        } else if (error.message.includes('network') || error.message.includes('fetch')) {
-          alert('Problème de connexion - la demande a été approuvée localement');
+        if (error.message.includes('Invalid API key')) {
+          alert(`❌ ERREUR CONFIGURATION SUPABASE
+          
+🔑 Clé API invalide détectée
+
+SOLUTION IMMÉDIATE :
+1. Vérifiez les variables d'environnement sur Vercel
+2. VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY doivent être correctes
+3. Redéployez l'application après correction
+
+La demande d'inscription est en attente et sera traitée après correction.`);
+        } else if (error.message.includes('email already exists')) {
+          alert(`❌ EMAIL DÉJÀ UTILISÉ
+          
+L'email ${request?.director_email} est déjà utilisé par un autre compte.
+
+SOLUTION :
+Demandez au directeur d'utiliser un autre email ou contactez le support.`);
         } else {
-          alert(`Erreur lors de l'approbation: ${error.message}`);
+          alert(`❌ ERREUR LORS DE LA CRÉATION
+          
+Erreur: ${error.message}
+
+Veuillez réessayer ou contacter le support technique.`);
         }
       } else {
-        alert('Erreur inconnue lors de l\'approbation');
+        alert('❌ Erreur inconnue lors de la création de l\'agence');
       }
     }
   };

@@ -76,17 +76,27 @@ export const LoginForm: React.FC = () => {
       
       console.log('Résultat de l\'enregistrement:', result);
       
-      alert(`Demande d'inscription envoyée avec succès !
+      alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE !
       
-Agence: ${agencyData.name}
-Directeur: ${directorData.firstName} ${directorData.lastName}
-Email: ${directorData.email}
+🏢 AGENCE : ${agencyData.name}
+👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
+📧 EMAIL : ${directorData.email}
+📱 TÉLÉPHONE : ${agencyData.phone}
+🏙️ VILLE : ${agencyData.city}
 
-Votre demande a été enregistrée avec l'ID: ${result.id}
+✅ Votre demande a été enregistrée avec l'ID : ${result.id}
 
-Elle sera traitée sous 24-48h. Vous recevrez un email de confirmation avec vos identifiants de connexion.
+⏱️ TRAITEMENT : Sous 24-48h par notre équipe
+📧 NOTIFICATION : Vous recevrez vos identifiants par email
+🔑 ACCÈS : Connexion directe sur www.gestion360immo.com
 
-Vous pouvez maintenant fermer cette fenêtre.`);
+PROCHAINES ÉTAPES :
+1. Validation par l'administrateur
+2. Création automatique de votre compte directeur
+3. Activation de votre abonnement d'essai (30 jours gratuits)
+4. Réception de vos identifiants de connexion
+
+Vous pouvez fermer cette fenêtre et attendre la confirmation.`);
       
       setShowRegistration(false);
     } catch (error) {

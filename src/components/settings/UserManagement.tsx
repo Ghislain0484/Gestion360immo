@@ -106,23 +106,88 @@ export const UserManagement: React.FC = () => {
     setLoading(true);
 
     try {
+      // Validation des données
+      if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim()) {
+        throw new Error('Tous les champs obligatoires doivent être remplis');
+      }
+      
+      if (!editingUser && (!formData.password || formData.password.length < 8)) {
+        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+      }
+      
+      // Validation email
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        throw new Error('Format d\'email invalide');
+      }
+      
       if (editingUser) {
-        // Update user
+        // Mise à jour utilisateur existant
+        console.log('🔄 Mise à jour utilisateur:', editingUser.id);
+        
+        const updateData = {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          email: formData.email,
+          role: formData.role,
+          permissions: formData.permissions,
+          is_active: formData.isActive,
+        };
+        
+        await dbService.updateUser(editingUser.id, updateData);
+        
+        // Mettre à jour la liste locale
         setUsers(prev => prev.map(u => 
           u.id === editingUser.id 
-            ? { ...u, ...formData, updatedAt: new Date() }
+            ? { ...u, ...updateData, updatedAt: new Date() }
             : u
         ));
-        alert('Utilisateur mis à jour avec succès !');
+        
+        alert('✅ Utilisateur mis à jour avec succès !');
       } else {
-        // Create new user
-        const newUser = {
-          id: Date.now().toString(),
-          ...formData,
-          createdAt: new Date(),
+        // Création nouvel utilisateur
+        console.log('🔄 Création nouvel utilisateur...');
+        
+        const userData = {
+          email: formData.email,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          role: formData.role,
+          agency_id: user?.agencyId || '',
+          permissions: formData.permissions,
+          is_active: formData.isActive,
+          password: formData.password
         };
-        setUsers(prev => [...prev, newUser]);
-        alert('Utilisateur créé avec succès !');
+        
+        const newUser = await dbService.createUser(userData);
+        
+        // Ajouter à la liste locale
+        setUsers(prev => [...prev, {
+          id: newUser.id,
+          email: newUser.email,
+          firstName: newUser.first_name,
+          lastName: newUser.last_name,
+          role: newUser.role,
+          isActive: newUser.is_active,
+          permissions: newUser.permissions,
+          createdAt: new Date(newUser.created_at),
+        }]);
+        
+        alert(`✅ UTILISATEUR CRÉÉ AVEC SUCCÈS !
+        
+👤 NOM : ${formData.firstName} ${formData.lastName}
+📧 EMAIL : ${formData.email}
+🔑 MOT DE PASSE : ${formData.password}
+👔 RÔLE : ${roleLabels[formData.role]}
+
+✅ Le compte a été créé en base de données
+✅ L'utilisateur peut maintenant se connecter
+✅ Permissions configurées selon le rôle
+
+IDENTIFIANTS DE CONNEXION :
+Email : ${formData.email}
+Mot de passe : ${formData.password}
+
+L'utilisateur devra changer son mot de passe à la première connexion.`);
       }
       
       setShowUserForm(false);

@@ -64,13 +64,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             // Get user profile from database using Supabase auth user ID
-            const { data: userData, error } = await supabase
+            console.log('📋 Récupération profil utilisateur...');
+            const { data: userData, error: userError } = await supabase
               .from('users')
               .select('*')
               .eq('id', session.user.id)
               .single();
 
-            if (!error && userData) {
+            if (userError || !userData) {
               const user: User = {
                 id: userData.id,
                 email: userData.email,
@@ -81,8 +82,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 avatar: userData.avatar,
                 createdAt: new Date(userData.created_at),
               };
-              setUser(user);
+              throw new Error('Profil utilisateur non trouvé. Contactez votre administrateur.');
+            } else if (supabaseError.message?.includes('Profil utilisateur non trouvé')) {
+              throw new Error('Compte non activé. Contactez votre administrateur pour activer votre compte.');
             }
+            
+            console.log('✅ Profil utilisateur récupéré:', userData.email);
           }
         } else if (!isSupabaseConfigured) {
           console.warn('⚠️ Supabase non configuré - mode démo uniquement');
