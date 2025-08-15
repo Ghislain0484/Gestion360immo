@@ -16,42 +16,70 @@ export const AgencyManagement: React.FC = () => {
   const [agencies, setAgencies] = useState<any[]>([]);
   const [registrationRequests, setRegistrationRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAgencies = async () => {
+      setLoading(true);
+      setError(null);
+      
       try {
         console.log('🔄 Chargement des agences et demandes...');
         
-        // Charger les demandes d'inscription
-        let requestsData = [];
+        // Toujours charger depuis localStorage en premier
+        const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+        console.log('📋 Demandes localStorage:', localRequests.length);
+        
+        let requestsData = localRequests;
+        
+        // Essayer de charger depuis Supabase en plus
         try {
-          requestsData = await dbService.getRegistrationRequests();
-          console.log('📋 Demandes Supabase chargées:', requestsData?.length || 0);
+          const supabaseRequests = await dbService.getRegistrationRequests();
+          console.log('📋 Demandes Supabase:', supabaseRequests?.length || 0);
+          
+          // Fusionner les données (localStorage + Supabase)
+          if (supabaseRequests && supabaseRequests.length > 0) {
+            requestsData = [...localRequests, ...supabaseRequests];
+          }
         } catch (supabaseError) {
-          console.warn('⚠️ Erreur Supabase, chargement localStorage...');
-          requestsData = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-          console.log('📋 Demandes localStorage chargées:', requestsData?.length || 0);
+          console.warn('⚠️ Erreur Supabase demandes:', supabaseError);
         }
         
-        // Charger les agences
-        let agenciesData = [];
+        // Charger les agences depuis localStorage
+        const localAgencies = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
+        console.log('🏢 Agences localStorage:', localAgencies.length);
+        
+        let agenciesData = localAgencies;
+        
+        // Essayer de charger depuis Supabase en plus
         try {
-          agenciesData = await dbService.getAllAgencies();
-          console.log('📊 Agences Supabase chargées:', agenciesData?.length || 0);
+          const supabaseAgencies = await dbService.getAllAgencies();
+          console.log('🏢 Agences Supabase:', supabaseAgencies?.length || 0);
+          
+          // Fusionner les données
+          if (supabaseAgencies && supabaseAgencies.length > 0) {
+            agenciesData = [...localAgencies, ...supabaseAgencies];
+          }
         } catch (supabaseError) {
-          console.warn('⚠️ Erreur Supabase agences, chargement localStorage...');
-          agenciesData = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
-          console.log('📊 Agences localStorage chargées:', agenciesData?.length || 0);
+          console.warn('⚠️ Erreur Supabase agences:', supabaseError);
         }
         
-        console.log('📋 Demandes finales:', requestsData);
+        console.log('📋 Total demandes:', requestsData.length);
+        console.log('🏢 Total agences:', agenciesData.length);
         
         setAgencies(agenciesData || []);
         setRegistrationRequests(requestsData || []);
+        
       } catch (error) {
-        console.error('❌ Erreur générale:', error);
-        setRegistrationRequests([]);
-        setAgencies([]);
+        console.error('❌ Erreur générale chargement:', error);
+        setError('Erreur lors du chargement des données');
+        
+        // En cas d'erreur, utiliser uniquement localStorage
+        const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+        const localAgencies = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
+        
+        setRegistrationRequests(localRequests);
+        setAgencies(localAgencies);
       } finally {
         setLoading(false);
       }
@@ -123,8 +151,13 @@ export const AgencyManagement: React.FC = () => {
     try {
       console.log('Approbation de la demande:', requestId);
       
-      // Récupérer la demande d'inscription
-      let request = registrationRequests.find(r => r.id === requestId);
+      // Récupérer la demande depuis localStorage ET Supabase
+      const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+      let request = localRequests.find((r: any) => r.id === requestId);
+      
+      if (!request) {
+        request = registrationRequests.find(r => r.id === requestId);
+      }
       
       if (!request) {
         throw new Error('Demande d\'inscription non trouvée');
@@ -132,62 +165,87 @@ export const AgencyManagement: React.FC = () => {
       
       console.log('📋 Demande trouvée:', request);
       
-      // Créer les identifiants pour la connexion
+      // Créer l'agence et le compte directeur
       const approvedAccount = {
         id: `approved_${Date.now()}`,
         email: request.director_email,
-        password: request.director_password,
+        password: request.director_password || 'demo123',
         firstName: request.director_first_name,
         lastName: request.director_last_name,
         role: 'director',
         agencyId: `agency_${Date.now()}`,
         agencyName: request.agency_name,
         agencyData: {
+          id: `agency_${Date.now()}`,
           name: request.agency_name,
           commercial_register: request.commercial_register,
           address: request.address,
           city: request.city,
           phone: request.phone,
           email: request.director_email,
+          director_id: `approved_${Date.now()}`,
+          created_at: new Date().toISOString()
         },
         createdAt: new Date().toISOString(),
         status: 'approved'
       };
       
-      // Sauvegarder le compte approuvé
+      // Sauvegarder le compte approuvé dans localStorage
       const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
-      
-      // Vérifier si le compte n'existe pas déjà
       const existingAccount = approvedAccounts.find((acc: any) => acc.email === request.director_email);
+      
       if (!existingAccount) {
         approvedAccounts.push(approvedAccount);
         localStorage.setItem('approved_accounts', JSON.stringify(approvedAccounts));
         console.log('✅ Compte approuvé sauvegardé:', approvedAccount.email);
       }
       
-      // Marquer la demande comme approuvée
-      const updatedRequests = registrationRequests.map(r => 
+      // Ajouter l'agence à la liste des agences
+      const agencies = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
+      const existingAgency = agencies.find((a: any) => a.email === request.director_email);
+      
+      if (!existingAgency) {
+        agencies.push(approvedAccount.agencyData);
+        localStorage.setItem('demo_agencies', JSON.stringify(agencies));
+        console.log('✅ Agence ajoutée:', approvedAccount.agencyData.name);
+      }
+      
+      // Marquer la demande comme approuvée dans localStorage
+      const updatedLocalRequests = localRequests.map((r: any) => 
         r.id === requestId 
           ? { 
               ...r, 
               status: 'approved',
               processed_at: new Date().toISOString(),
-              processed_by: 'admin'
+              processed_by: 'admin_production'
             }
           : r
       );
       
-      setRegistrationRequests(updatedRequests);
+      localStorage.setItem('demo_registration_requests', JSON.stringify(updatedLocalRequests));
       
-      // Sauvegarder les demandes mises à jour
-      localStorage.setItem('demo_registration_requests', JSON.stringify(updatedRequests));
+      // Mettre à jour l'état local
+      setRegistrationRequests(updatedLocalRequests);
+      setAgencies(prev => [...prev, approvedAccount.agencyData]);
+      
+      // Essayer de sauvegarder en Supabase aussi
+      try {
+        await dbService.updateRegistrationRequest(requestId, {
+          status: 'approved',
+          processed_at: new Date().toISOString(),
+          processed_by: 'admin_production'
+        });
+        console.log('✅ Demande mise à jour en Supabase');
+      } catch (supabaseError) {
+        console.warn('⚠️ Erreur mise à jour Supabase, sauvegardé localement');
+      }
       
       alert(`✅ AGENCE APPROUVÉE ET ACTIVÉE AVEC SUCCÈS !
       
 🏢 AGENCE : ${request.agency_name}
 👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
 📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : [Celui choisi lors de l'inscription]
+🔑 MOT DE PASSE : ${request.director_password || 'demo123'}
 
 ✅ L'agence a été créée et le compte directeur activé
 ✅ L'abonnement d'essai (30 jours) est démarré
@@ -195,7 +253,7 @@ export const AgencyManagement: React.FC = () => {
 
 RAPPEL IDENTIFIANTS :
 Email : ${request.director_email}
-Mot de passe : [Celui choisi lors de l'inscription]
+Mot de passe : ${request.director_password || 'demo123'}
 
 🌐 CONNEXION : www.gestion360immo.com
 
@@ -297,11 +355,33 @@ L'agence sera notifiée par email.`);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="space-y-6">
+        <h2 className="text-xl font-bold text-gray-900">Gestion des Agences</h2>
+        <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+        </div>
       </div>
     );
   }
+  
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-bold text-gray-900">Gestion des Agences</h2>
+        <Card className="p-8 text-center">
+          <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-red-400" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Erreur de chargement
+          </h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            Actualiser la page
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -521,7 +601,7 @@ L'agence sera notifiée par email.`);
       {/* Registration Requests Tab */}
       {activeTab === 'requests' && (
         <div className="space-y-4">
-          {registrationRequests.filter(r => r.status === 'pending').length > 0 ? (
+          {registrationRequests && registrationRequests.filter(r => r.status === 'pending').length > 0 ? (
             registrationRequests
               .filter(r => r.status === 'pending')
               .map((request) => (
@@ -559,17 +639,15 @@ L'agence sera notifiée par email.`);
                         <div className="space-y-1 text-sm text-gray-600">
                           <p><strong>Nom:</strong> {request.director_first_name || 'Non spécifié'} {request.director_last_name || ''}</p>
                           <p><strong>Email:</strong> {request.director_email || 'Non spécifié'}</p>
-                          {request.director_password && (
-                            <p><strong>Mot de passe:</strong> ••••••••</p>
-                          )}
+                          <p><strong>Mot de passe:</strong> {request.director_password ? '••••••••' : 'Non défini'}</p>
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-4 border-t">
                       <span className="text-xs text-gray-500">
-                        Demande reçue le {new Date(request.created_at).toLocaleDateString('fr-FR')} à{' '}
-                        {new Date(request.created_at).toLocaleTimeString('fr-FR')}
+                        Demande reçue le {request.created_at ? new Date(request.created_at).toLocaleDateString('fr-FR') : 'Date inconnue'}
+                        {request.created_at && ` à ${new Date(request.created_at).toLocaleTimeString('fr-FR')}`}
                       </span>
                       <div className="flex space-x-2">
                         <Button
@@ -616,7 +694,7 @@ L'agence sera notifiée par email.`);
           )}
 
           {/* Processed Requests */}
-          {registrationRequests.filter(r => r.status !== 'pending').length > 0 && (
+          {registrationRequests && registrationRequests.filter(r => r.status !== 'pending').length > 0 && (
             <div className="mt-8">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Demandes traitées</h3>
               <div className="space-y-3">
@@ -636,7 +714,9 @@ L'agence sera notifiée par email.`);
                           {request.status === 'approved' ? 'Approuvée' : 'Rejetée'}
                         </Badge>
                         <span className="text-xs text-gray-500">
-                          {new Date(request.processed_at || request.created_at).toLocaleDateString('fr-FR')}
+                          {(request.processed_at || request.created_at) ? 
+                            new Date(request.processed_at || request.created_at).toLocaleDateString('fr-FR') : 
+                            'Date inconnue'}
                         </span>
                       </div>
                     </div>

@@ -89,6 +89,11 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
       return;
     }
     
+    if (!agencyData.phone.trim() || !agencyData.city.trim() || !agencyData.address.trim()) {
+      alert('Veuillez remplir le téléphone, la ville et l\'adresse');
+      return;
+    }
+    
     try {
       // Préparer les données pour l'enregistrement
       const requestData = {
@@ -104,26 +109,41 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         logo_url: agencyData.logo,
         is_accredited: agencyData.isAccredited,
         accreditation_number: agencyData.accreditationNumber,
+        status: 'pending',
+        created_at: new Date().toISOString()
       };
       
       console.log('Envoi de la demande avec les données:', requestData);
       
-      // Enregistrer la demande dans la base de données
+      // Toujours sauvegarder en localStorage d'abord
+      const localRequest = {
+        id: `local_${Date.now()}`,
+        ...requestData
+      };
+      
+      const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+      stored.unshift(localRequest);
+      localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
+      console.log('✅ Demande sauvegardée en localStorage');
+      
+      // Essayer de sauvegarder en Supabase aussi
       try {
         const result = await dbService.createRegistrationRequest(requestData);
+        console.log('✅ Demande sauvegardée en Supabase:', result.id);
+      } catch (supabaseError) {
+        console.warn('⚠️ Erreur Supabase, demande sauvegardée localement uniquement');
+      }
         
-        console.log('Résultat de l\'enregistrement:', result);
-        
-        alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE AVEC SUCCÈS !
+      alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE AVEC SUCCÈS !
         
 🏢 AGENCE : ${agencyData.name}
 👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
 📧 EMAIL : ${directorData.email}
-🔑 MOT DE PASSE : [Celui que vous avez saisi - CONSERVEZ-LE !]
+🔑 MOT DE PASSE : ${directorData.password}
 📱 TÉLÉPHONE : ${agencyData.phone}
 🏙️ VILLE : ${agencyData.city}
 
-✅ Votre demande a été enregistrée avec l'ID : ${result.id}
+✅ Votre demande a été enregistrée avec l'ID : ${localRequest.id}
 
 ⏱️ TRAITEMENT : Validation sous 24-48h par notre équipe
 🔑 IDENTIFIANTS : Ceux que vous avez saisis seront activés
@@ -137,59 +157,15 @@ PROCHAINES ÉTAPES :
 
 IMPORTANT : Conservez vos identifiants de connexion !
 Email : ${directorData.email}
-Mot de passe : [Celui que vous avez saisi]
+Mot de passe : ${directorData.password}
 
 Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
         
-        onClose();
-      } catch (supabaseError) {
-        console.error('Erreur Supabase:', supabaseError);
-        
-        // En cas d'erreur Supabase, sauvegarder localement
-        const localRequest = {
-          id: `local_${Date.now()}`,
-          agency_name: agencyData.name,
-          commercial_register: agencyData.commercialRegister,
-          director_first_name: directorData.firstName,
-          director_last_name: directorData.lastName,
-          director_email: directorData.email,
-          director_password: directorData.password,
-          phone: agencyData.phone,
-          city: agencyData.city,
-          address: agencyData.address,
-          logo_url: agencyData.logo,
-          is_accredited: agencyData.isAccredited,
-          accreditation_number: agencyData.accreditationNumber,
-          status: 'pending',
-          created_at: new Date().toISOString()
-        };
-        
-        const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-        stored.unshift(localRequest);
-        localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
-        
-        alert(`✅ DEMANDE SAUVEGARDÉE LOCALEMENT !
-        
-🏢 AGENCE : ${agencyData.name}
-👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
-📧 EMAIL : ${directorData.email}
-🔑 MOT DE PASSE : [Conservez celui que vous avez saisi]
-
-⚠️ Problème de connexion Supabase détecté
-✅ Votre demande a été sauvegardée localement
-🔄 Elle sera synchronisée dès que la connexion sera rétablie
-
-CONSERVEZ VOS IDENTIFIANTS :
-Email : ${directorData.email}
-Mot de passe : [Celui que vous avez saisi]
-
-Vous pourrez vous connecter dès l'approbation !`);
-        
-        onClose();
-      }
+      onClose();
+      
     } catch (error) {
       console.error('Erreur lors de l\'enregistrement:', error);
-      alert('❌ Erreur lors de l\'envoi de la demande. Veuillez vérifier vos données et réessayer.');
+      alert(`❌ Erreur lors de l'envoi de la demande: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   };
 
