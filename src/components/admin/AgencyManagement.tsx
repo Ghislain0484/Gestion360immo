@@ -1,16 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, Search, Eye, Settings, Ban, CheckCircle, AlertTriangle, Users, MapPin, Clock, UserPlus } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
-import { dbService, supabase } from '../../lib/supabase';
-import { useEffect } from 'react';
+import { dbService } from '../../lib/supabase';
 
 export const AgencyManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [activeTab, setActiveTab] = useState<'agencies' | 'requests'>('agencies');
+  const [activeTab, setActiveTab] = useState<'agencies' | 'requests'>('requests');
   const [selectedAgency, setSelectedAgency] = useState<any>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [agencies, setAgencies] = useState<any[]>([]);
@@ -19,74 +18,162 @@ export const AgencyManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchAgencies = async () => {
+    const fetchData = async () => {
+      console.log('🔄 Chargement données admin...');
       setLoading(true);
       setError(null);
       
       try {
-        console.log('🔄 Chargement des agences et demandes...');
-        
-        // Toujours charger depuis localStorage en premier
+        // Charger les demandes d'inscription depuis localStorage
         const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
         console.log('📋 Demandes localStorage:', localRequests.length);
         
-        let requestsData = localRequests;
-        
-        // Essayer de charger depuis Supabase en plus
-        try {
-          const supabaseRequests = await dbService.getRegistrationRequests();
-          console.log('📋 Demandes Supabase:', supabaseRequests?.length || 0);
-          
-          // Fusionner les données (localStorage + Supabase)
-          if (supabaseRequests && supabaseRequests.length > 0) {
-            requestsData = [...localRequests, ...supabaseRequests];
-          }
-        } catch (supabaseError) {
-          console.warn('⚠️ Erreur Supabase demandes:', supabaseError);
-        }
-        
-        // Charger les agences depuis localStorage
-        const localAgencies = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
-        console.log('🏢 Agences localStorage:', localAgencies.length);
-        
-        let agenciesData = localAgencies;
-        
-        // Essayer de charger depuis Supabase en plus
-        try {
-          const supabaseAgencies = await dbService.getAllAgencies();
-          console.log('🏢 Agences Supabase:', supabaseAgencies?.length || 0);
-          
-          // Fusionner les données
-          if (supabaseAgencies && supabaseAgencies.length > 0) {
-            agenciesData = [...localAgencies, ...supabaseAgencies];
-          }
-        } catch (supabaseError) {
-          console.warn('⚠️ Erreur Supabase agences:', supabaseError);
-        }
-        
-        console.log('📋 Total demandes:', requestsData.length);
-        console.log('🏢 Total agences:', agenciesData.length);
-        
-        setAgencies(agenciesData || []);
-        setRegistrationRequests(requestsData || []);
-        
-      } catch (error) {
-        console.error('❌ Erreur générale chargement:', error);
-        setError('Erreur lors du chargement des données');
-        
-        // En cas d'erreur, utiliser uniquement localStorage
-        const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-        const localAgencies = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
+        // Charger les agences approuvées depuis localStorage
+        const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
+        const agenciesFromApproved = approvedAccounts.map((acc: any) => acc.agencyData).filter(Boolean);
+        console.log('🏢 Agences approuvées:', agenciesFromApproved.length);
         
         setRegistrationRequests(localRequests);
-        setAgencies(localAgencies);
+        setAgencies(agenciesFromApproved);
+        
+        console.log('✅ Données chargées avec succès');
+        
+      } catch (error) {
+        console.error('❌ Erreur chargement données admin:', error);
+        setError('Erreur lors du chargement des données');
+        
+        // En cas d'erreur, initialiser avec des tableaux vides
+        setRegistrationRequests([]);
+        setAgencies([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAgencies();
+    fetchData();
   }, []);
+
+  const approveRegistration = async (requestId: string) => {
+    try {
+      console.log('🔄 Approbation demande:', requestId);
+      
+      // Trouver la demande
+      const request = registrationRequests.find(r => r.id === requestId);
+      if (!request) {
+        throw new Error('Demande non trouvée');
+      }
+      
+      console.log('📋 Demande trouvée:', request.agency_name);
+      
+      // Créer le compte approuvé
+      const approvedAccount = {
+        id: `approved_${Date.now()}`,
+        email: request.director_email,
+        password: request.director_password || 'demo123',
+        firstName: request.director_first_name,
+        lastName: request.director_last_name,
+        role: 'director',
+        agencyId: `agency_${Date.now()}`,
+        agencyData: {
+          id: `agency_${Date.now()}`,
+          name: request.agency_name,
+          commercial_register: request.commercial_register,
+          address: request.address,
+          city: request.city,
+          phone: request.phone,
+          email: request.director_email,
+          director_id: `approved_${Date.now()}`,
+          created_at: new Date().toISOString(),
+          subscription_status: 'trial',
+          plan_type: 'basic',
+          monthly_fee: 25000
+        },
+        createdAt: new Date().toISOString()
+      };
+      
+      // Sauvegarder le compte approuvé
+      const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
+      approvedAccounts.push(approvedAccount);
+      localStorage.setItem('approved_accounts', JSON.stringify(approvedAccounts));
+      
+      // Marquer la demande comme approuvée
+      const updatedRequests = registrationRequests.map(r => 
+        r.id === requestId 
+          ? { 
+              ...r, 
+              status: 'approved',
+              processed_at: new Date().toISOString(),
+              processed_by: 'admin_production'
+            }
+          : r
+      );
+      
+      localStorage.setItem('demo_registration_requests', JSON.stringify(updatedRequests));
+      
+      // Mettre à jour les états
+      setRegistrationRequests(updatedRequests);
+      setAgencies(prev => [...prev, approvedAccount.agencyData]);
+      
+      console.log('✅ Agence approuvée:', approvedAccount.agencyData.name);
+      
+      alert(`✅ AGENCE APPROUVÉE AVEC SUCCÈS !
+      
+🏢 AGENCE : ${request.agency_name}
+👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
+📧 EMAIL : ${request.director_email}
+🔑 MOT DE PASSE : ${request.director_password || 'demo123'}
+
+✅ L'agence a été créée et activée
+✅ Le compte directeur est opérationnel
+✅ Abonnement d'essai de 30 jours démarré
+
+IDENTIFIANTS DE CONNEXION :
+Email : ${request.director_email}
+Mot de passe : ${request.director_password || 'demo123'}
+
+🌐 Le directeur peut maintenant se connecter sur :
+www.gestion360immo.com
+
+L'agence apparaîtra dans l'onglet "Agences Actives".`);
+      
+    } catch (error) {
+      console.error('❌ Erreur approbation:', error);
+      alert(`❌ Erreur lors de l'approbation: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    }
+  };
+
+  const rejectRegistration = async (requestId: string) => {
+    const reason = prompt('Raison du rejet (optionnel):');
+    
+    try {
+      console.log('🔄 Rejet demande:', requestId);
+      
+      const updatedRequests = registrationRequests.map(r => 
+        r.id === requestId 
+          ? { 
+              ...r, 
+              status: 'rejected',
+              admin_notes: reason || null,
+              processed_at: new Date().toISOString(),
+              processed_by: 'admin_production'
+            }
+          : r
+      );
+      
+      localStorage.setItem('demo_registration_requests', JSON.stringify(updatedRequests));
+      setRegistrationRequests(updatedRequests);
+      
+      alert(`✅ Demande rejetée avec succès.
+      
+${reason ? `Raison: ${reason}` : 'Aucune raison spécifiée'}
+
+L'agence sera notifiée du rejet.`);
+      
+    } catch (error) {
+      console.error('❌ Erreur rejet:', error);
+      alert(`❌ Erreur lors du rejet: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -117,225 +204,6 @@ export const AgencyManagement: React.FC = () => {
     }
   };
 
-  const toggleAgencyStatus = async (agencyId: string) => {
-    try {
-      // Get current subscription status
-      const { data: subscription, error: fetchError } = await supabase
-        .from('agency_subscriptions')
-        .select('status')
-        .eq('agency_id', agencyId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const newStatus = subscription.status === 'active' ? 'suspended' : 'active';
-
-      // Update subscription status
-      const { error: updateError } = await supabase
-        .from('agency_subscriptions')
-        .update({ status: newStatus })
-        .eq('agency_id', agencyId);
-
-      if (updateError) throw updateError;
-
-      // Refresh agencies list
-      const agenciesData = await dbService.getAllAgencies();
-      setAgencies(agenciesData);
-    } catch (error) {
-      console.error('Error toggling agency status:', error);
-      alert('Erreur lors de la modification du statut');
-    }
-  };
-
-  const approveRegistration = async (requestId: string) => {
-    try {
-      console.log('Approbation de la demande:', requestId);
-      
-      // Récupérer la demande depuis localStorage ET Supabase
-      const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-      let request = localRequests.find((r: any) => r.id === requestId);
-      
-      if (!request) {
-        request = registrationRequests.find(r => r.id === requestId);
-      }
-      
-      if (!request) {
-        throw new Error('Demande d\'inscription non trouvée');
-      }
-      
-      console.log('📋 Demande trouvée:', request);
-      
-      // Créer l'agence et le compte directeur
-      const approvedAccount = {
-        id: `approved_${Date.now()}`,
-        email: request.director_email,
-        password: request.director_password || 'demo123',
-        firstName: request.director_first_name,
-        lastName: request.director_last_name,
-        role: 'director',
-        agencyId: `agency_${Date.now()}`,
-        agencyName: request.agency_name,
-        agencyData: {
-          id: `agency_${Date.now()}`,
-          name: request.agency_name,
-          commercial_register: request.commercial_register,
-          address: request.address,
-          city: request.city,
-          phone: request.phone,
-          email: request.director_email,
-          director_id: `approved_${Date.now()}`,
-          created_at: new Date().toISOString()
-        },
-        createdAt: new Date().toISOString(),
-        status: 'approved'
-      };
-      
-      // Sauvegarder le compte approuvé dans localStorage
-      const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
-      const existingAccount = approvedAccounts.find((acc: any) => acc.email === request.director_email);
-      
-      if (!existingAccount) {
-        approvedAccounts.push(approvedAccount);
-        localStorage.setItem('approved_accounts', JSON.stringify(approvedAccounts));
-        console.log('✅ Compte approuvé sauvegardé:', approvedAccount.email);
-      }
-      
-      // Ajouter l'agence à la liste des agences
-      const agencies = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
-      const existingAgency = agencies.find((a: any) => a.email === request.director_email);
-      
-      if (!existingAgency) {
-        agencies.push(approvedAccount.agencyData);
-        localStorage.setItem('demo_agencies', JSON.stringify(agencies));
-        console.log('✅ Agence ajoutée:', approvedAccount.agencyData.name);
-      }
-      
-      // Marquer la demande comme approuvée dans localStorage
-      const updatedLocalRequests = localRequests.map((r: any) => 
-        r.id === requestId 
-          ? { 
-              ...r, 
-              status: 'approved',
-              processed_at: new Date().toISOString(),
-              processed_by: 'admin_production'
-            }
-          : r
-      );
-      
-      localStorage.setItem('demo_registration_requests', JSON.stringify(updatedLocalRequests));
-      
-      // Mettre à jour l'état local
-      setRegistrationRequests(updatedLocalRequests);
-      setAgencies(prev => [...prev, approvedAccount.agencyData]);
-      
-      // Essayer de sauvegarder en Supabase aussi
-      try {
-        await dbService.updateRegistrationRequest(requestId, {
-          status: 'approved',
-          processed_at: new Date().toISOString(),
-          processed_by: 'admin_production'
-        });
-        console.log('✅ Demande mise à jour en Supabase');
-      } catch (supabaseError) {
-        console.warn('⚠️ Erreur mise à jour Supabase, sauvegardé localement');
-      }
-      
-      alert(`✅ AGENCE APPROUVÉE ET ACTIVÉE AVEC SUCCÈS !
-      
-🏢 AGENCE : ${request.agency_name}
-👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
-📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : ${request.director_password || 'demo123'}
-
-✅ L'agence a été créée et le compte directeur activé
-✅ L'abonnement d'essai (30 jours) est démarré
-✅ Le directeur peut SE CONNECTER IMMÉDIATEMENT avec ses identifiants
-
-RAPPEL IDENTIFIANTS :
-Email : ${request.director_email}
-Mot de passe : ${request.director_password || 'demo123'}
-
-🌐 CONNEXION : www.gestion360immo.com
-
-Le directeur peut maintenant se connecter avec ces identifiants !`);
-      
-    } catch (error) {
-      console.error('Error approving registration:', error);
-      alert(`❌ Erreur lors de l'approbation: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
-    }
-  };
-
-  const rejectRegistration = async (requestId: string) => {
-    const reason = prompt('Raison du rejet (optionnel):');
-    
-    try {
-      console.log('Rejet de la demande:', requestId, 'Raison:', reason);
-      
-      // Vérifier si c'est une demande démo
-      const demoRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-      const isDemoRequest = demoRequests.some((req: any) => req.id === requestId);
-      
-      if (isDemoRequest) {
-        console.log('Rejet d\'une demande démo');
-        const updatedRequests = demoRequests.map((req: any) => 
-          req.id === requestId ? { 
-            ...req, 
-            status: 'rejected',
-            admin_notes: reason || null,
-            processed_at: new Date().toISOString(),
-            processed_by: 'admin_demo'
-          } : req
-        );
-        localStorage.setItem('demo_registration_requests', JSON.stringify(updatedRequests));
-        setRegistrationRequests(updatedRequests);
-        
-        alert(`Demande démo rejetée avec succès.
-        
-${reason ? `Raison: ${reason}` : 'Aucune raison spécifiée'}
-
-Cette demande de démonstration a été rejetée localement.`);
-        return;
-      }
-      
-      const result = await dbService.updateRegistrationRequest(requestId, {
-        status: 'rejected',
-        admin_notes: reason || null,
-        processed_at: new Date().toISOString(),
-        processed_by: 'admin_production_001'
-      });
-      
-      console.log('Résultat du rejet:', result);
-      
-      // Refresh data
-      const requestsData = await dbService.getRegistrationRequests();
-      setRegistrationRequests(requestsData);
-      
-      alert(`Demande rejetée avec succès.
-      
-${reason ? `Raison: ${reason}` : 'Aucune raison spécifiée'}
-
-L'agence sera notifiée par email.`);
-      
-    } catch (error) {
-      console.error('Error rejecting registration:', error);
-      
-      // Messages d'erreur spécifiques
-      if (error instanceof Error) {
-        if (error.message.includes('permission denied')) {
-          alert('Erreur de permissions - veuillez vérifier vos droits d\'administrateur');
-        } else if (error.message.includes('not found')) {
-          alert('Demande non trouvée - elle a peut-être déjà été traitée');
-        } else if (error.message.includes('network') || error.message.includes('fetch')) {
-          alert('Problème de connexion - la demande a été rejetée localement');
-        } else {
-          alert(`Erreur lors du rejet: ${error.message}`);
-        }
-      } else {
-        alert('Erreur inconnue lors du rejet');
-      }
-    }
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -344,51 +212,27 @@ L'agence sera notifiée par email.`);
     }).format(amount);
   };
 
-  const filteredAgencies = agencies.filter(agency => {
-    const matchesSearch = agency.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         agency.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (agency.director_name && agency.director_name.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = filterStatus === 'all' || agency.subscription_status === filterStatus;
-    
-    return matchesSearch && matchesStatus;
-  });
+  const pendingRequests = registrationRequests.filter(r => r.status === 'pending');
+  const processedRequests = registrationRequests.filter(r => r.status !== 'pending');
 
   if (loading) {
     return (
       <div className="space-y-6">
         <h2 className="text-xl font-bold text-gray-900">Gestion des Agences</h2>
         <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
         </div>
       </div>
     );
   }
-  
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <h2 className="text-xl font-bold text-gray-900">Gestion des Agences</h2>
-        <Card className="p-8 text-center">
-          <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-red-400" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Erreur de chargement
-          </h3>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>
-            Actualiser la page
-          </Button>
-        </Card>
-      </div>
-    );
-  }
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Gestion des Agences</h2>
         <div className="flex items-center space-x-3">
           <Badge variant="warning" size="sm">
-            {registrationRequests.filter(r => r.status === 'pending').length} demande(s) en attente
+            {pendingRequests.length} demande(s) en attente
           </Badge>
           <Badge variant="info" size="sm">
             {agencies.length} agences inscrites
@@ -400,6 +244,17 @@ L'agence sera notifiée par email.`);
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
+            onClick={() => setActiveTab('requests')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+              activeTab === 'requests'
+                ? 'border-red-500 text-red-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>Demandes d'Inscription ({pendingRequests.length})</span>
+          </button>
+          <button
             onClick={() => setActiveTab('agencies')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
               activeTab === 'agencies'
@@ -410,319 +265,250 @@ L'agence sera notifiée par email.`);
             <Building2 className="h-4 w-4" />
             <span>Agences Actives ({agencies.length})</span>
           </button>
-          <button
-            onClick={() => setActiveTab('requests')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-              activeTab === 'requests'
-                ? 'border-red-500 text-red-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <UserPlus className="h-4 w-4" />
-            <span>Demandes d'Inscription ({registrationRequests.filter(r => r.status === 'pending').length})</span>
-          </button>
         </nav>
       </div>
-
-      {/* Filters */}
-      {activeTab === 'agencies' && (
-      <Card>
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Rechercher par nom, ville ou directeur..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-              />
-            </div>
-          </div>
-          
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="active">Actif</option>
-            <option value="suspended">Suspendu</option>
-            <option value="trial">Essai</option>
-            <option value="cancelled">Annulé</option>
-          </select>
-        </div>
-      </Card>
-      )}
-
-      {/* Agencies Tab */}
-      {activeTab === 'agencies' && (
-        agencies.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredAgencies.map((agency) => (
-          <Card key={agency.id} className="hover:shadow-lg transition-shadow">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Building2 className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{agency.name}</h3>
-                    <p className="text-sm text-gray-500">{agency.commercial_register}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Badge variant={getStatusColor(agency.subscription_status)} size="sm">
-                    {getStatusLabel(agency.subscription_status)}
-                  </Badge>
-                  {agency.plan_type && (
-                    <Badge variant="secondary" size="sm">
-                      {getPlanLabel(agency.plan_type)}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-3 mb-4">
-                <div className="flex items-center text-sm text-gray-600">
-                  <MapPin className="h-4 w-4 mr-2" />
-                  <span>{agency.city}</span>
-                </div>
-                {agency.director_name && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Users className="h-4 w-4 mr-2" />
-                    <span>Directeur: {agency.director_name}</span>
-                  </div>
-                )}
-                <div className="text-sm text-gray-600">
-                  <span>Email: {agency.email}</span>
-                </div>
-                <div className="text-sm text-gray-600">
-                  <span>Téléphone: {agency.phone}</span>
-                </div>
-              </div>
-
-              {/* Stats */}
-              {agency.stats && (
-                <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-900">{agency.stats.total_properties || 0}</div>
-                    <div className="text-xs text-gray-500">Propriétés</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-900">{agency.stats.total_contracts || 0}</div>
-                    <div className="text-xs text-gray-500">Contrats</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-900">{agency.stats.total_users || 0}</div>
-                    <div className="text-xs text-gray-500">Utilisateurs</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-900">
-                      {formatCurrency(agency.stats.monthly_revenue || 0).replace(' FCFA', '')}
-                    </div>
-                    <div className="text-xs text-gray-500">CA (FCFA)</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Subscription Info */}
-              {agency.monthly_fee && (
-                <div className="p-3 bg-blue-50 rounded-lg mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-blue-800">Abonnement mensuel:</span>
-                    <span className="font-medium text-blue-900">
-                      {formatCurrency(agency.monthly_fee)}
-                    </span>
-                  </div>
-                  {agency.next_payment_date && (
-                    <div className="flex items-center justify-between text-sm mt-1">
-                      <span className="text-blue-800">Prochain paiement:</span>
-                      <span className="font-medium text-blue-900">
-                        {new Date(agency.next_payment_date).toLocaleDateString('fr-FR')}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">
-                  Inscrite le {new Date(agency.created_at).toLocaleDateString('fr-FR')}
-                </span>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedAgency(agency);
-                      setShowDetails(true);
-                    }}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleAgencyStatus(agency.id)}
-                    className={agency.subscription_status === 'active' ? 'text-red-600' : 'text-green-600'}
-                  >
-                    {agency.subscription_status === 'active' ? (
-                      <Ban className="h-4 w-4" />
-                    ) : (
-                      <CheckCircle className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
-        </div>
-        ) : (
-        <Card className="p-8 text-center">
-          <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Aucune agence inscrite
-          </h3>
-          <p className="text-gray-600">
-            Les nouvelles agences apparaîtront ici après leur inscription.
-          </p>
-        </Card>
-        )
-      )}
 
       {/* Registration Requests Tab */}
       {activeTab === 'requests' && (
         <div className="space-y-4">
-          {registrationRequests && registrationRequests.filter(r => r.status === 'pending').length > 0 ? (
-            registrationRequests
-              .filter(r => r.status === 'pending')
-              .map((request) => (
-                <Card key={request.id} className="border-l-4 border-l-yellow-500">
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                          <Clock className="h-6 w-6 text-yellow-600" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{request.agency_name || 'Nom non spécifié'}</h3>
-                          <p className="text-sm text-gray-500">Demande d'inscription</p>
-                        </div>
-                      </div>
-                      <Badge variant="warning" size="sm">En attente</Badge>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-2">Informations agence</h4>
-                        <div className="space-y-1 text-sm text-gray-600">
-                          <p><strong>Nom:</strong> {request.agency_name || 'Non spécifié'}</p>
-                          <p><strong>Registre:</strong> {request.commercial_register || 'Non spécifié'}</p>
-                          <p><strong>Ville:</strong> {request.city || 'Non spécifiée'}</p>
-                          <p><strong>Adresse:</strong> {request.address || 'Non spécifiée'}</p>
-                          <p><strong>Téléphone:</strong> {request.phone || 'Non spécifié'}</p>
-                          {request.is_accredited && (
-                            <p><strong>Agrément:</strong> {request.accreditation_number || 'Oui'}</p>
-                          )}
-                        </div>
+          {pendingRequests.length > 0 ? (
+            pendingRequests.map((request) => (
+              <Card key={request.id} className="border-l-4 border-l-yellow-500">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <Clock className="h-6 w-6 text-yellow-600" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-gray-900 mb-2">Directeur</h4>
-                        <div className="space-y-1 text-sm text-gray-600">
-                          <p><strong>Nom:</strong> {request.director_first_name || 'Non spécifié'} {request.director_last_name || ''}</p>
-                          <p><strong>Email:</strong> {request.director_email || 'Non spécifié'}</p>
-                          <p><strong>Mot de passe:</strong> {request.director_password ? '••••••••' : 'Non défini'}</p>
-                        </div>
+                        <h3 className="font-semibold text-gray-900">
+                          {request.agency_name || 'Nom non spécifié'}
+                        </h3>
+                        <p className="text-sm text-gray-500">Demande d'inscription</p>
                       </div>
                     </div>
+                    <Badge variant="warning" size="sm">En attente</Badge>
+                  </div>
 
-                    <div className="flex items-center justify-between pt-4 border-t">
-                      <span className="text-xs text-gray-500">
-                        Demande reçue le {request.created_at ? new Date(request.created_at).toLocaleDateString('fr-FR') : 'Date inconnue'}
-                        {request.created_at && ` à ${new Date(request.created_at).toLocaleTimeString('fr-FR')}`}
-                      </span>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => approveRegistration(request.id)}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Approuver
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => rejectRegistration(request.id)}
-                        >
-                          <Ban className="h-4 w-4 mr-1" />
-                          Rejeter
-                        </Button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Informations agence</h4>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <p><strong>Nom:</strong> {request.agency_name || 'Non spécifié'}</p>
+                        <p><strong>Registre:</strong> {request.commercial_register || 'Non spécifié'}</p>
+                        <p><strong>Ville:</strong> {request.city || 'Non spécifiée'}</p>
+                        <p><strong>Adresse:</strong> {request.address || 'Non spécifiée'}</p>
+                        <p><strong>Téléphone:</strong> {request.phone || 'Non spécifié'}</p>
+                        {request.is_accredited && (
+                          <p><strong>Agrément:</strong> {request.accreditation_number || 'Oui'}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Directeur</h4>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <p><strong>Nom:</strong> {request.director_first_name || 'Non spécifié'} {request.director_last_name || ''}</p>
+                        <p><strong>Email:</strong> {request.director_email || 'Non spécifié'}</p>
+                        <p><strong>Mot de passe:</strong> {request.director_password ? '••••••••' : 'Non défini'}</p>
                       </div>
                     </div>
                   </div>
-                </Card>
-              ))
+
+                  <div className="flex items-center justify-between pt-4 border-t">
+                    <span className="text-xs text-gray-500">
+                      Demande reçue le {request.created_at ? new Date(request.created_at).toLocaleDateString('fr-FR') : 'Date inconnue'}
+                    </span>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => approveRegistration(request.id)}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Approuver
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => rejectRegistration(request.id)}
+                      >
+                        <Ban className="h-4 w-4 mr-1" />
+                        Rejeter
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))
           ) : (
             <Card className="p-8 text-center">
               <UserPlus className="h-16 w-16 mx-auto mb-4 text-gray-400" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Aucune demande en attente
               </h3>
-              <p className="text-gray-600">
-                {loading ? 'Chargement des demandes...' : 'Les nouvelles demandes d\'inscription apparaîtront ici.'}
+              <p className="text-gray-600 mb-4">
+                Les nouvelles demandes d'inscription apparaîtront ici.
               </p>
-              {!loading && (
-                <div className="mt-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => window.location.reload()}
-                  >
-                    Actualiser
-                  </Button>
-                </div>
-              )}
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.reload()}
+              >
+                Actualiser
+              </Button>
             </Card>
           )}
 
           {/* Processed Requests */}
-          {registrationRequests && registrationRequests.filter(r => r.status !== 'pending').length > 0 && (
+          {processedRequests.length > 0 && (
             <div className="mt-8">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Demandes traitées</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Demandes traitées récemment</h3>
               <div className="space-y-3">
-                {registrationRequests
-                  .filter(r => r.status !== 'pending')
-                  .slice(0, 5)
-                  .map((request) => (
-                    <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">{request.agency_name}</p>
-                        <p className="text-sm text-gray-500">
-                          {request.director_first_name} {request.director_last_name} • {request.director_email}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={request.status === 'approved' ? 'success' : 'danger'} size="sm">
-                          {request.status === 'approved' ? 'Approuvée' : 'Rejetée'}
-                        </Badge>
-                        <span className="text-xs text-gray-500">
-                          {(request.processed_at || request.created_at) ? 
-                            new Date(request.processed_at || request.created_at).toLocaleDateString('fr-FR') : 
-                            'Date inconnue'}
-                        </span>
-                      </div>
+                {processedRequests.slice(0, 5).map((request) => (
+                  <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900">{request.agency_name}</p>
+                      <p className="text-sm text-gray-500">
+                        {request.director_first_name} {request.director_last_name} • {request.director_email}
+                      </p>
                     </div>
-                  ))}
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={request.status === 'approved' ? 'success' : 'danger'} size="sm">
+                        {request.status === 'approved' ? 'Approuvée' : 'Rejetée'}
+                      </Badge>
+                      <span className="text-xs text-gray-500">
+                        {request.processed_at ? 
+                          new Date(request.processed_at).toLocaleDateString('fr-FR') : 
+                          'Date inconnue'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Agencies Tab */}
+      {activeTab === 'agencies' && (
+        <div className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Rechercher par nom, ville..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  />
+                </div>
+              </div>
+              
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="all">Tous les statuts</option>
+                <option value="active">Actif</option>
+                <option value="trial">Essai</option>
+                <option value="suspended">Suspendu</option>
+              </select>
+            </div>
+          </Card>
+
+          {agencies.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {agencies
+                .filter(agency => {
+                  const matchesSearch = agency.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                     agency.city.toLowerCase().includes(searchTerm.toLowerCase());
+                  const matchesStatus = filterStatus === 'all' || agency.subscription_status === filterStatus;
+                  return matchesSearch && matchesStatus;
+                })
+                .map((agency) => (
+                  <Card key={agency.id} className="hover:shadow-lg transition-shadow">
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Building2 className="h-6 w-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{agency.name}</h3>
+                            <p className="text-sm text-gray-500">{agency.commercial_register}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant={getStatusColor(agency.subscription_status)} size="sm">
+                            {getStatusLabel(agency.subscription_status)}
+                          </Badge>
+                          <Badge variant="secondary" size="sm">
+                            {getPlanLabel(agency.plan_type)}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <MapPin className="h-4 w-4 mr-2" />
+                          <span>{agency.city}</span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <span>Email: {agency.email}</span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <span>Téléphone: {agency.phone}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-blue-50 rounded-lg mb-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-blue-800">Abonnement mensuel:</span>
+                          <span className="font-medium text-blue-900">
+                            {formatCurrency(agency.monthly_fee)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">
+                          Inscrite le {new Date(agency.created_at).toLocaleDateString('fr-FR')}
+                        </span>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedAgency(agency);
+                              setShowDetails(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+            </div>
+          ) : (
+            <Card className="p-8 text-center">
+              <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Aucune agence active
+              </h3>
+              <p className="text-gray-600">
+                Les agences approuvées apparaîtront ici.
+              </p>
+            </Card>
           )}
         </div>
       )}
@@ -746,47 +532,21 @@ L'agence sera notifiée par email.`);
                   <p><strong>Nom:</strong> {selectedAgency.name}</p>
                   <p><strong>Registre:</strong> {selectedAgency.commercial_register}</p>
                   <p><strong>Ville:</strong> {selectedAgency.city}</p>
-                  {selectedAgency.director_name && (
-                    <p><strong>Directeur:</strong> {selectedAgency.director_name}</p>
-                  )}
                   <p><strong>Email:</strong> {selectedAgency.email}</p>
                   <p><strong>Téléphone:</strong> {selectedAgency.phone}</p>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Statistiques</h4>
-                {selectedAgency.stats ? (
-                  <div className="space-y-2 text-sm">
-                    <p><strong>Propriétés gérées:</strong> {selectedAgency.stats.total_properties || 0}</p>
-                    <p><strong>Contrats actifs:</strong> {selectedAgency.stats.total_contracts || 0}</p>
-                    <p><strong>Utilisateurs:</strong> {selectedAgency.stats.total_users || 0}</p>
-                    <p><strong>Chiffre d'affaires:</strong> {formatCurrency(selectedAgency.stats.monthly_revenue || 0)}</p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">Statistiques en cours de calcul...</p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <h4 className="font-medium text-gray-900 mb-3">Abonnement</h4>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p><strong>Plan:</strong> {getPlanLabel(selectedAgency.plan_type || 'basic')}</p>
-                    <p><strong>Statut:</strong> 
-                      <Badge variant={getStatusColor(selectedAgency.subscription_status)} size="sm" className="ml-2">
-                        {getStatusLabel(selectedAgency.subscription_status)}
-                      </Badge>
-                    </p>
-                  </div>
-                  <div>
-                    <p><strong>Montant mensuel:</strong> {formatCurrency(selectedAgency.monthly_fee || 0)}</p>
-                    {selectedAgency.next_payment_date && (
-                      <p><strong>Prochain paiement:</strong> {new Date(selectedAgency.next_payment_date).toLocaleDateString('fr-FR')}</p>
-                    )}
-                  </div>
+                <h4 className="font-medium text-gray-900 mb-3">Abonnement</h4>
+                <div className="space-y-2 text-sm">
+                  <p><strong>Plan:</strong> {getPlanLabel(selectedAgency.plan_type)}</p>
+                  <p><strong>Statut:</strong> 
+                    <Badge variant={getStatusColor(selectedAgency.subscription_status)} size="sm" className="ml-2">
+                      {getStatusLabel(selectedAgency.subscription_status)}
+                    </Badge>
+                  </p>
+                  <p><strong>Montant mensuel:</strong> {formatCurrency(selectedAgency.monthly_fee)}</p>
                 </div>
               </div>
             </div>
@@ -794,12 +554,6 @@ L'agence sera notifiée par email.`);
             <div className="flex items-center justify-end space-x-3 pt-4 border-t">
               <Button variant="ghost" onClick={() => setShowDetails(false)}>
                 Fermer
-              </Button>
-              <Button 
-                variant={selectedAgency.subscription_status === 'active' ? 'danger' : 'secondary'}
-                onClick={() => toggleAgencyStatus(selectedAgency.id)}
-              >
-                {selectedAgency.subscription_status === 'active' ? 'Suspendre' : 'Activer'}
               </Button>
             </div>
           </div>
