@@ -4,6 +4,8 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 
+import { useEffect } from 'react';
+
 export const AppearanceSettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({
@@ -14,6 +16,41 @@ export const AppearanceSettings: React.FC = () => {
     sidebarCollapsed: false,
     animations: true,
   });
+
+  useEffect(() => {
+    // Charger les paramètres sauvegardés
+    const savedSettings = localStorage.getItem('appearanceSettings');
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      setSettings(parsed);
+      applySettings(parsed);
+    }
+  }, []);
+
+  const applySettings = (newSettings: typeof settings) => {
+    const root = document.documentElement;
+    
+    // Appliquer le thème
+    if (newSettings.theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    
+    // Appliquer la taille de police
+    root.style.fontSize = newSettings.fontSize === 'small' ? '14px' : 
+                         newSettings.fontSize === 'large' ? '18px' : '16px';
+    
+    // Appliquer la densité
+    root.setAttribute('data-density', newSettings.density);
+    
+    // Appliquer les animations
+    if (!newSettings.animations) {
+      root.style.setProperty('--animation-duration', '0s');
+    } else {
+      root.style.removeProperty('--animation-duration');
+    }
+  };
 
   const themes = [
     { id: 'light', name: 'Clair', icon: Sun, preview: 'bg-white border-gray-200' },
@@ -39,16 +76,31 @@ export const AppearanceSettings: React.FC = () => {
   ];
 
   const updateSetting = (key: string, value: any) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    
+    // Appliquer immédiatement les changements
+    applySettings(newSettings);
+    
+    // Sauvegarder automatiquement
+    localStorage.setItem('appearanceSettings', JSON.stringify(newSettings));
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
       // Save appearance settings
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
       localStorage.setItem('appearanceSettings', JSON.stringify(settings));
-      alert('Paramètres d\'apparence mis à jour !');
+      applySettings(settings);
+      
+      // Sauvegarder aussi en base si possible
+      try {
+        await dbService.updateUser(user?.id || '', { appearance_settings: settings });
+      } catch (error) {
+        console.warn('Sauvegarde locale uniquement');
+      }
+      
+      alert('✅ Paramètres d\'apparence appliqués et sauvegardés !');
     } catch (error) {
       alert('Erreur lors de la sauvegarde');
     } finally {

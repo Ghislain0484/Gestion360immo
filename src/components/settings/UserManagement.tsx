@@ -13,52 +13,58 @@ export const UserManagement: React.FC = () => {
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [realUsers, setRealUsers] = useState<any[]>([]);
 
-  // Mock users data
-  const [users, setUsers] = useState([
-    {
-      id: '1',
-      email: 'marie.kouassi@agence.com',
-      firstName: 'Marie',
-      lastName: 'Kouassi',
-      role: 'manager',
-      isActive: true,
-      permissions: {
-        dashboard: true,
-        properties: true,
-        owners: true,
-        tenants: true,
-        contracts: true,
-        collaboration: false,
-        reports: true,
-        notifications: true,
-        settings: false,
-        userManagement: false,
-      },
-      createdAt: new Date('2024-01-15'),
-    },
-    {
-      id: '2',
-      email: 'jean.bamba@agence.com',
-      firstName: 'Jean',
-      lastName: 'Bamba',
-      role: 'agent',
-      isActive: true,
-      permissions: {
-        dashboard: true,
-        properties: true,
-        owners: true,
-        tenants: true,
-        contracts: false,
-        collaboration: false,
-        reports: false,
-        notifications: true,
-        settings: false,
-        userManagement: false,
-      },
-      createdAt: new Date('2024-02-10'),
-    },
-  ]);
+  useEffect(() => {
+    const loadRealUsers = async () => {
+      if (!user?.agencyId) return;
+      
+      try {
+        // Charger les utilisateurs réels de l'agence depuis Supabase
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('agency_id', user.agencyId)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
+        
+        const formattedUsers = data.map(u => ({
+          id: u.id,
+          email: u.email,
+          firstName: u.first_name,
+          lastName: u.last_name,
+          role: u.role,
+          isActive: u.is_active,
+          permissions: u.permissions || {},
+          createdAt: new Date(u.created_at),
+        }));
+        
+        setRealUsers(formattedUsers);
+        console.log('✅ Utilisateurs réels chargés:', formattedUsers.length);
+        
+      } catch (error) {
+        console.error('❌ Erreur chargement utilisateurs:', error);
+        
+        // Fallback : charger depuis localStorage
+        const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
+        const agencyUsers = approvedAccounts.filter((acc: any) => acc.agencyId === user.agencyId);
+        
+        setRealUsers(agencyUsers.map((acc: any) => ({
+          id: acc.id,
+          email: acc.email,
+          firstName: acc.firstName,
+          lastName: acc.lastName,
+          role: acc.role,
+          isActive: true,
+          permissions: acc.permissions || {},
+          createdAt: new Date(acc.createdAt),
+        })));
+      }
+    };
+    
+    loadRealUsers();
+  }, [user?.agencyId]);
 
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
@@ -161,7 +167,7 @@ export const UserManagement: React.FC = () => {
         const newUser = await dbService.createUser(userData);
         
         // Ajouter à la liste locale
-        setUsers(prev => [...prev, {
+        setRealUsers(prev => [...prev, {
           id: newUser.id,
           email: newUser.email,
           firstName: newUser.first_name,
@@ -194,6 +200,7 @@ L'utilisateur devra changer son mot de passe à la première connexion.`);
       setEditingUser(null);
       resetForm();
     } catch (error) {
+      console.error('❌ Erreur création utilisateur:', error);
       alert('Erreur lors de la sauvegarde');
     } finally {
       setLoading(false);
@@ -240,14 +247,14 @@ L'utilisateur devra changer son mot de passe à la première connexion.`);
   };
 
   const toggleUserStatus = (userId: string) => {
-    setUsers(prev => prev.map(u => 
+    setRealUsers(prev => prev.map(u => 
       u.id === userId ? { ...u, isActive: !u.isActive } : u
     ));
   };
 
   const deleteUser = (userId: string) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-      setUsers(prev => prev.filter(u => u.id !== userId));
+      setRealUsers(prev => prev.filter(u => u.id !== userId));
     }
   };
 
@@ -338,7 +345,7 @@ L'utilisateur devra changer son mot de passe à la première connexion.`);
 
       {/* Users List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {users.map((userData) => (
+        {realUsers.length > 0 ? realUsers.map((userData) => (
           <Card key={userData.id}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
@@ -425,7 +432,21 @@ L'utilisateur devra changer son mot de passe à la première connexion.`);
               </div>
             </div>
           </Card>
-        ))}
+        )) : (
+          <div className="col-span-2 text-center py-8">
+            <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Aucun utilisateur dans votre agence
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Commencez par créer des comptes pour vos employés.
+            </p>
+            <Button onClick={() => setShowUserForm(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Créer le premier utilisateur
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* User Form Modal */}

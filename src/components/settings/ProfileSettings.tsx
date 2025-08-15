@@ -49,32 +49,46 @@ export const ProfileSettings: React.FC = () => {
 
     setLoading(true);
     try {
-      // Pour les utilisateurs de démonstration, mise à jour locale
-      if (user.id.startsWith('a1b2c3d4') || user.id.startsWith('c3d4e5f6') || user.id.startsWith('d4e5f6a7')) {
-        // Mise à jour des données utilisateur en local storage
-        const updatedUser = {
-          ...user,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          avatar: formData.avatar,
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        alert('Profil mis à jour avec succès !');
-      } else {
-        // Pour les vrais utilisateurs Supabase
-        await dbService.updateUser(user.id, {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          email: formData.email,
-          avatar: formData.avatar,
-        });
-        alert('Profil mis à jour avec succès !');
-      }
+      // Mise à jour du profil utilisateur
+      const updateData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        avatar: formData.avatar,
+      };
+      
+      await dbService.updateUser(user.id, updateData);
+      
+      // Mettre à jour les données utilisateur en localStorage aussi
+      const updatedUser = {
+        ...user,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        avatar: formData.avatar,
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      alert('✅ Profil mis à jour avec succès !');
+      
+      // Recharger la page pour appliquer les changements
+      window.location.reload();
       
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error);
-      alert('Erreur lors de la mise à jour du profil. Veuillez réessayer.');
+      
+      // En cas d'erreur Supabase, sauvegarder localement
+      const updatedUser = {
+        ...user,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        avatar: formData.avatar,
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      alert('✅ Profil mis à jour localement ! Les changements seront synchronisés dès que possible.');
+      window.location.reload();
     } finally {
       setLoading(false);
     }

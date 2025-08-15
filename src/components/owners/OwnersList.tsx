@@ -13,12 +13,14 @@ import { Modal } from '../ui/Modal';
 import { DollarSign } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 
+import { OwnerDetailsModal } from './OwnerDetailsModal';
+
 export const OwnersList: React.FC = () => {
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [showFinancialStatements, setShowFinancialStatements] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
-  const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMaritalStatus, setFilterMaritalStatus] = useState('all');
@@ -137,12 +139,12 @@ export const OwnersList: React.FC = () => {
 
   const handleViewOwner = (owner: Owner) => {
     setSelectedOwner(owner);
-    setShowViewModal(true);
+    setShowDetailsModal(true);
   };
 
   const handleEditOwner = (owner: Owner) => {
     setSelectedOwner(owner);
-    setShowEditModal(true);
+    setShowDetailsModal(true);
   };
 
   const handleUpdateOwner = async (ownerData: OwnerFormData) => {
@@ -463,87 +465,15 @@ export const OwnersList: React.FC = () => {
         onSubmit={handleAddOwner}
       />
 
-      {/* View Owner Modal */}
-      <Modal
-        isOpen={showViewModal}
+      <OwnerDetailsModal
+        isOpen={showDetailsModal}
         onClose={() => {
-          setShowViewModal(false);
+          setShowDetailsModal(false);
           setSelectedOwner(null);
         }}
-        title="Détails du propriétaire"
-        size="lg"
-      >
-        {selectedOwner && (
-          <div className="space-y-6">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-blue-600 font-semibold text-xl">
-                  {selectedOwner.first_name[0]}{selectedOwner.last_name[0]}
-                </span>
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900">
-                  {selectedOwner.first_name} {selectedOwner.last_name}
-                </h3>
-                <p className="text-gray-600">{selectedOwner.phone}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Informations personnelles</h4>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Téléphone:</strong> {selectedOwner.phone}</p>
-                  {selectedOwner.email && <p><strong>Email:</strong> {selectedOwner.email}</p>}
-                  <p><strong>Adresse:</strong> {selectedOwner.address}</p>
-                  <p><strong>Ville:</strong> {selectedOwner.city}</p>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Titre de propriété</h4>
-                <div className="space-y-2">
-                  <Badge variant={getPropertyTitleColor(selectedOwner.property_title)} size="md">
-                    {getPropertyTitleLabel(selectedOwner.property_title)}
-                  </Badge>
-                  {selectedOwner.property_title_details && (
-                    <p className="text-sm text-gray-600 mt-2">
-                      <strong>Détails:</strong> {selectedOwner.property_title_details}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="font-medium text-gray-900 mb-3">Situation familiale</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Badge variant={getMaritalStatusColor(selectedOwner.marital_status)} size="sm">
-                    {getMaritalStatusLabel(selectedOwner.marital_status)}
-                  </Badge>
-                  {selectedOwner.marital_status === 'marie' && selectedOwner.spouse_name && (
-                    <div className="mt-2 p-3 bg-pink-50 rounded-lg text-sm">
-                      <p><strong>Conjoint:</strong> {selectedOwner.spouse_name}</p>
-                      <p><strong>Téléphone:</strong> {selectedOwner.spouse_phone}</p>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">
-                    <strong>Nombre d'enfants:</strong> {selectedOwner.children_count}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="text-xs text-gray-500 pt-4 border-t">
-              <p>Créé le {new Date(selectedOwner.created_at).toLocaleDateString('fr-FR')}</p>
-              <p>ID: {selectedOwner.id}</p>
-            </div>
-          </div>
-        )}
-      </Modal>
+        owner={selectedOwner}
+        onUpdate={handleUpdateOwner}
+      />
 
       {/* Edit Owner Modal */}
       <OwnerForm
