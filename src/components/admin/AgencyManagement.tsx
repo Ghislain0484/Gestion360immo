@@ -145,36 +145,16 @@ export const AgencyManagement: React.FC = () => {
         is_accredited: request.is_accredited,
         accreditation_number: request.accreditation_number,
       }, {
-        password: request.director_password || 'TempPass2024!' // Utiliser le mot de passe choisi
+        password: request.director_password
       });
       
       console.log('✅ Agence et directeur créés:', result);
-      
-      // Sauvegarder les identifiants approuvés pour la connexion
-      const approvedAgencies = JSON.parse(localStorage.getItem('approved_agencies') || '[]');
-      
-      // Vérifier si l'agence n'est pas déjà approuvée
-      const existingApproval = approvedAgencies.find((a: any) => a.director_email === request.director_email);
-      if (!existingApproval) {
-        approvedAgencies.push({
-          agency_id: result.agency.id,
-          agency_name: request.agency_name,
-          director_id: result.user.id,
-          director_email: request.director_email,
-          director_password: request.director_password || 'TempPass2024!',
-          director_first_name: request.director_first_name,
-          director_last_name: request.director_last_name,
-          approved_at: new Date().toISOString()
-        });
-        localStorage.setItem('approved_agencies', JSON.stringify(approvedAgencies));
-        console.log('✅ Agence sauvegardée pour connexion:', request.director_email);
-      }
       
       // Marquer la demande comme approuvée
       await dbService.updateRegistrationRequest(requestId, {
         status: 'approved',
         processed_at: new Date().toISOString(),
-        processed_by: 'admin_production_001'
+        processed_by: 'gagohi06@gmail.com'
       });
       
       // Refresh data
@@ -188,7 +168,7 @@ export const AgencyManagement: React.FC = () => {
 🏢 AGENCE : ${request.agency_name}
 👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
 📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : ${request.director_password || 'TempPass2024!'}
+🔑 MOT DE PASSE : ${request.director_password}
 
 ✅ L'agence a été créée et le compte directeur activé
 ✅ Le compte directeur est activé
@@ -197,7 +177,7 @@ export const AgencyManagement: React.FC = () => {
 
 RAPPEL IDENTIFIANTS :
 Email : ${request.director_email}
-Mot de passe : ${request.director_password || 'TempPass2024!'}
+Mot de passe : ${request.director_password}
 
 🌐 CONNEXION : www.gestion360immo.com
 
@@ -205,43 +185,7 @@ Le directeur peut maintenant se connecter avec ces identifiants !`);
       
     } catch (error) {
       console.error('Error approving registration:', error);
-      
-      // Messages d'erreur spécifiques
-      if (error instanceof Error) {
-        if (error.message.includes('User already registered') || error.message.includes('email already exists')) {
-          alert(`❌ EMAIL DÉJÀ UTILISÉ
-          
-L'email ${request?.director_email} est déjà utilisé par un autre compte.
-
-SOLUTIONS :
-1. Demandez au directeur d'utiliser un autre email
-2. Ou vérifiez si le compte existe déjà
-3. Contactez le support si nécessaire`);
-        } else if (error.message.includes('Configuration Supabase')) {
-          alert(`⚠️ CONFIGURATION SUPABASE REQUISE
-          
-Pour créer des agences en production, Supabase doit être configuré.
-
-SOLUTIONS :
-1. Vérifiez les variables d'environnement sur Vercel
-2. VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY doivent être valides
-3. Redéployez l'application après correction
-
-En attendant, l'agence a été approuvée en mode démo.`);
-        } else {
-          alert(`❌ ERREUR LORS DE L'APPROBATION
-          
-Erreur: ${error.message}
-
-SOLUTIONS :
-1. Vérifiez la configuration Supabase sur Vercel
-2. Redéployez l'application si nécessaire
-3. Réessayez l'approbation
-4. Contactez le support si le problème persiste`);
-        }
-      } else {
-        alert('❌ Erreur inconnue lors de l\'approbation de l\'agence');
-      }
+      alert(`Erreur lors de l'approbation: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   };
 
