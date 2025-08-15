@@ -165,10 +165,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       ];
 
-      // Always check demo users first
+      // Check for approved agencies in localStorage first
+      const approvedAgencies = JSON.parse(localStorage.getItem('approved_agencies') || '[]');
+      const approvedUser = approvedAgencies.find((agency: any) => 
+        agency.director_email === email && agency.director_password === password
+      );
+      
+      if (approvedUser) {
+        console.log('✅ Connexion avec compte agence approuvée:', email);
+        const user: User = {
+          id: approvedUser.director_id || `approved_${Date.now()}`,
+          email: approvedUser.director_email,
+          firstName: approvedUser.director_first_name,
+          lastName: approvedUser.director_last_name,
+          role: 'director',
+          agencyId: approvedUser.agency_id,
+          avatar: null,
+          createdAt: new Date(),
+        };
+        
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        return;
+      }
+
+      // Then check demo users
       const demoUser = demoUsers.find(u => u.email === email && u.password === password);
       
       if (demoUser) {
+        console.log('✅ Connexion avec compte démo:', email);
         const user: User = {
           id: demoUser.id,
           email: demoUser.email,
@@ -259,6 +284,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Supabase auth error:', supabaseError);
           // If Supabase auth fails, show specific error message
           if (supabaseError.message === 'Invalid login credentials') {
+            // Vérifier si c'est un compte en attente d'approbation
+            const pendingRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+            const pendingRequest = pendingRequests.find((req: any) => 
+              req.director_email === email && req.status === 'pending'
+            );
+            
+            if (pendingRequest) {
+              throw new Error(`Votre demande d'inscription est en cours de validation.
+              
+🏢 AGENCE : ${pendingRequest.agency_name}
+📧 EMAIL : ${pendingRequest.director_email}
+⏱️ STATUT : En attente d'approbation
+
+Vous pourrez vous connecter après validation par l'administrateur.`);
+            }
+            
             throw new Error('Email ou mot de passe incorrect. Vérifiez vos identifiants ou utilisez les comptes démo : marie.kouassi@agence.com / demo123');
           } else if (supabaseError.message.includes('en cours de validation')) {
             throw new Error(supabaseError.message);
@@ -274,6 +315,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (!isSupabaseConfigured) {
         // If Supabase is not configured, only demo users are available
         console.warn('⚠️ Supabase non configuré - comptes démo uniquement');
+        
+        // Vérifier si c'est un compte en attente d'approbation
+        const pendingRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+        const pendingRequest = pendingRequests.find((req: any) => 
+          req.director_email === email && req.status === 'pending'
+        );
+        
+        if (pendingRequest) {
+          throw new Error(`Votre demande d'inscription est en cours de validation.
+          
+🏢 AGENCE : ${pendingRequest.agency_name}
+📧 EMAIL : ${pendingRequest.director_email}
+⏱️ STATUT : En attente d'approbation
+
+Vous pourrez vous connecter après validation par l'administrateur.`);
+        }
+        
         throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
       }
       

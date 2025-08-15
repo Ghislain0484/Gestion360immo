@@ -183,7 +183,7 @@ Vous pouvez le finaliser en attribuant une propriété dans la section "Contrats
 Voulez-vous imprimer le contrat maintenant ?`);
 
         if (shouldPrint) {
-          printContract(contractResult, agencyData, tenantForContract);
+          OHADAContractGenerator.printContract(contractResult, agencyData, tenantForContract);
         }
 
       } catch (contractError) {
