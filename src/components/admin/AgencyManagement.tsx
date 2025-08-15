@@ -20,35 +20,29 @@ export const AgencyManagement: React.FC = () => {
   useEffect(() => {
     const fetchAgencies = async () => {
       try {
-        // Sauvegarder les identifiants approuvés pour la connexion
-        const approvedAgencies = JSON.parse(localStorage.getItem('approved_agencies') || '[]');
-        
-        // Vérifier si l'agence n'est pas déjà approuvée
-        const existingApproval = approvedAgencies.find((a: any) => a.director_email === request.director_email);
-        if (existingApproval) {
-          alert('Cette agence a déjà été approuvée.');
-          return;
-        }
-        
-        approvedAgencies.push({
-          agency_id: result.agency.id,
-          agency_name: request.agency_name,
-          director_id: result.user.id,
-          director_email: request.director_email,
-          director_password: request.director_password,
-          director_first_name: request.director_first_name,
-          director_last_name: request.director_last_name,
-          approved_at: new Date().toISOString()
-        });
-        localStorage.setItem('approved_agencies', JSON.stringify(approvedAgencies));
-        console.log('✅ Agence sauvegardée pour connexion:', request.director_email);
-        
+        console.log('🔄 Chargement des agences et demandes...');
         const agenciesData = await dbService.getAllAgencies();
         const requestsData = await dbService.getRegistrationRequests();
+        
+        console.log('📊 Agences chargées:', agenciesData?.length || 0);
+        console.log('📋 Demandes chargées:', requestsData?.length || 0);
+        console.log('📋 Demandes détails:', requestsData);
+        
         setAgencies(agenciesData);
         setRegistrationRequests(requestsData);
       } catch (error) {
         console.error('Error fetching agencies:', error);
+        
+        // En cas d'erreur, charger depuis localStorage
+        console.log('🔄 Chargement depuis localStorage...');
+        const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+        const localAgencies = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
+        
+        console.log('📋 Demandes locales:', localRequests?.length || 0);
+        console.log('📊 Agences locales:', localAgencies?.length || 0);
+        
+        setRegistrationRequests(localRequests);
+        setAgencies(localAgencies);
       } finally {
         setLoading(false);
       }
@@ -121,12 +115,19 @@ export const AgencyManagement: React.FC = () => {
       console.log('Approbation de la demande:', requestId);
       
       // 1. Récupérer la demande d'inscription
-      const requests = await dbService.getRegistrationRequests();
-      const request = requests.find(r => r.id === requestId);
+      let request = registrationRequests.find(r => r.id === requestId);
       
       if (!request) {
-        throw new Error('Demande d\'inscription non trouvée');
+        console.log('🔍 Demande non trouvée dans state, rechargement...');
+        const requests = await dbService.getRegistrationRequests();
+        request = requests.find(r => r.id === requestId);
+        
+        if (!request) {
+          throw new Error('Demande d\'inscription non trouvée');
+        }
       }
+      
+      console.log('📋 Demande trouvée:', request);
       
       console.log('🔄 Création agence et directeur en production...');
       
@@ -148,6 +149,26 @@ export const AgencyManagement: React.FC = () => {
       });
       
       console.log('✅ Agence et directeur créés:', result);
+      
+      // Sauvegarder les identifiants approuvés pour la connexion
+      const approvedAgencies = JSON.parse(localStorage.getItem('approved_agencies') || '[]');
+      
+      // Vérifier si l'agence n'est pas déjà approuvée
+      const existingApproval = approvedAgencies.find((a: any) => a.director_email === request.director_email);
+      if (!existingApproval) {
+        approvedAgencies.push({
+          agency_id: result.agency.id,
+          agency_name: request.agency_name,
+          director_id: result.user.id,
+          director_email: request.director_email,
+          director_password: request.director_password,
+          director_first_name: request.director_first_name,
+          director_last_name: request.director_last_name,
+          approved_at: new Date().toISOString()
+        });
+        localStorage.setItem('approved_agencies', JSON.stringify(approvedAgencies));
+        console.log('✅ Agence sauvegardée pour connexion:', request.director_email);
+      }
       
       // Marquer la demande comme approuvée
       await dbService.updateRegistrationRequest(requestId, {
@@ -550,7 +571,7 @@ L'agence sera notifiée par email.`);
                           <Clock className="h-6 w-6 text-yellow-600" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900">{request.agency_name}</h3>
+                          <h3 className="font-semibold text-gray-900">{request.agency_name || 'Nom non spécifié'}</h3>
                           <p className="text-sm text-gray-500">Demande d'inscription</p>
                         </div>
                       </div>
@@ -577,7 +598,7 @@ L'agence sera notifiée par email.`);
                           <p><strong>Nom:</strong> {request.director_first_name || 'Non spécifié'} {request.director_last_name || ''}</p>
                           <p><strong>Email:</strong> {request.director_email || 'Non spécifié'}</p>
                           {request.director_password && (
-                            <p><strong>Mot de passe:</strong> [Défini par l'utilisateur]</p>
+                            <p><strong>Mot de passe:</strong> ••••••••</p>
                           )}
                         </div>
                       </div>
@@ -617,8 +638,18 @@ L'agence sera notifiée par email.`);
                 Aucune demande en attente
               </h3>
               <p className="text-gray-600">
-                Les nouvelles demandes d'inscription apparaîtront ici.
+                {loading ? 'Chargement des demandes...' : 'Les nouvelles demandes d\'inscription apparaîtront ici.'}
               </p>
+              {!loading && (
+                <div className="mt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.location.reload()}
+                  >
+                    Actualiser
+                  </Button>
+                </div>
+              )}
             </Card>
           )}
 
