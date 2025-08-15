@@ -15,7 +15,14 @@ export function useRealtimeData<T>(
 
   const fetchData = async () => {
     try {
-      const agencyId = user?.agencyId || 'demo_agency';
+      const agencyId = user?.agencyId;
+      
+      if (!agencyId) {
+        console.warn('⚠️ Aucun agencyId trouvé pour l\'utilisateur:', user);
+        setData([]);
+        setLoading(false);
+        return;
+      }
       
       setLoading(true);
       setError(null);

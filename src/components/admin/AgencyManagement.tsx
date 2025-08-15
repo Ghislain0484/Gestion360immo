@@ -22,6 +22,14 @@ export const AgencyManagement: React.FC = () => {
       try {
         // Sauvegarder les identifiants approuvés pour la connexion
         const approvedAgencies = JSON.parse(localStorage.getItem('approved_agencies') || '[]');
+        
+        // Vérifier si l'agence n'est pas déjà approuvée
+        const existingApproval = approvedAgencies.find((a: any) => a.director_email === request.director_email);
+        if (existingApproval) {
+          alert('Cette agence a déjà été approuvée.');
+          return;
+        }
+        
         approvedAgencies.push({
           agency_id: result.agency.id,
           agency_name: request.agency_name,
@@ -33,6 +41,7 @@ export const AgencyManagement: React.FC = () => {
           approved_at: new Date().toISOString()
         });
         localStorage.setItem('approved_agencies', JSON.stringify(approvedAgencies));
+        console.log('✅ Agence sauvegardée pour connexion:', request.director_email);
         
         const agenciesData = await dbService.getAllAgencies();
         const requestsData = await dbService.getRegistrationRequests();
@@ -552,20 +561,24 @@ L'agence sera notifiée par email.`);
                       <div>
                         <h4 className="font-medium text-gray-900 mb-2">Informations agence</h4>
                         <div className="space-y-1 text-sm text-gray-600">
-                          <p><strong>Registre:</strong> {request.commercial_register}</p>
-                          <p><strong>Ville:</strong> {request.city}</p>
-                          <p><strong>Adresse:</strong> {request.address}</p>
-                          <p><strong>Téléphone:</strong> {request.phone}</p>
+                          <p><strong>Nom:</strong> {request.agency_name || 'Non spécifié'}</p>
+                          <p><strong>Registre:</strong> {request.commercial_register || 'Non spécifié'}</p>
+                          <p><strong>Ville:</strong> {request.city || 'Non spécifiée'}</p>
+                          <p><strong>Adresse:</strong> {request.address || 'Non spécifiée'}</p>
+                          <p><strong>Téléphone:</strong> {request.phone || 'Non spécifié'}</p>
                           {request.is_accredited && (
-                            <p><strong>Agrément:</strong> {request.accreditation_number}</p>
+                            <p><strong>Agrément:</strong> {request.accreditation_number || 'Oui'}</p>
                           )}
                         </div>
                       </div>
                       <div>
                         <h4 className="font-medium text-gray-900 mb-2">Directeur</h4>
                         <div className="space-y-1 text-sm text-gray-600">
-                          <p><strong>Nom:</strong> {request.director_first_name} {request.director_last_name}</p>
-                          <p><strong>Email:</strong> {request.director_email}</p>
+                          <p><strong>Nom:</strong> {request.director_first_name || 'Non spécifié'} {request.director_last_name || ''}</p>
+                          <p><strong>Email:</strong> {request.director_email || 'Non spécifié'}</p>
+                          {request.director_password && (
+                            <p><strong>Mot de passe:</strong> [Défini par l'utilisateur]</p>
+                          )}
                         </div>
                       </div>
                     </div>

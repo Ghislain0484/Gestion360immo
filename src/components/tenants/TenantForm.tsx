@@ -10,7 +10,6 @@ import { AgencyIdGenerator } from '../../utils/idGenerator';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { dbService } from '../../lib/supabase';
-import { printContract } from '../../utils/contractTemplates';
 
 interface TenantFormProps {
   isOpen: boolean;
