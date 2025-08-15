@@ -101,7 +101,6 @@ export const AgencyManagement: React.FC = () => {
       const requests = await dbService.getRegistrationRequests();
       const request = requests.find(r => r.id === requestId);
       
-      // Récupérer la demande d'inscription
       if (!request) {
         throw new Error('Demande d\'inscription non trouvée');
       }
@@ -120,9 +119,6 @@ export const AgencyManagement: React.FC = () => {
         is_accredited: request.is_accredited,
         accreditation_number: request.accreditation_number,
       }, {
-        director_first_name: request.director_first_name,
-        director_last_name: request.director_last_name,
-        director_email: request.director_email,
         password: 'TempPass2024!' // Mot de passe temporaire
       });
       
@@ -141,56 +137,53 @@ export const AgencyManagement: React.FC = () => {
       setRegistrationRequests(requestsData);
       setAgencies(agenciesData);
       
-      alert(`✅ AGENCE CRÉÉE AVEC SUCCÈS !
+      alert(`✅ AGENCE APPROUVÉE ET CRÉÉE AVEC SUCCÈS !
       
 🏢 AGENCE : ${request.agency_name}
 👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
 📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : TempPass2024!
+🔑 MOT DE PASSE : ${result.credentials.password}
 
-✅ L'agence a été créée en base de données
+✅ L'agence a été créée et activée en base de données
 ✅ Le compte directeur est activé
 ✅ L'abonnement d'essai (30 jours) est démarré
-✅ Le directeur peut maintenant se connecter sur www.gestion360immo.com
+✅ Le directeur peut SE CONNECTER IMMÉDIATEMENT
 
 IDENTIFIANTS DE CONNEXION :
 Email : ${request.director_email}
-Mot de passe : TempPass2024!
+Mot de passe : ${result.credentials.password}
 
-Le directeur devra changer son mot de passe à la première connexion.`);
+🌐 CONNEXION : www.gestion360immo.com
+
+Le directeur peut maintenant se connecter et commencer à utiliser la plateforme !`);
       
     } catch (error) {
       console.error('Error approving registration:', error);
       
       // Messages d'erreur spécifiques
       if (error instanceof Error) {
-        if (error.message.includes('Invalid API key')) {
-          alert(`❌ ERREUR CONFIGURATION SUPABASE
-          
-🔑 Clé API invalide détectée
-
-SOLUTION IMMÉDIATE :
-1. Vérifiez les variables d'environnement sur Vercel
-2. VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY doivent être correctes
-3. Redéployez l'application après correction
-
-La demande d'inscription est en attente et sera traitée après correction.`);
-        } else if (error.message.includes('email already exists')) {
+        if (error.message.includes('email already exists')) {
           alert(`❌ EMAIL DÉJÀ UTILISÉ
           
-L'email ${request?.director_email} est déjà utilisé par un autre compte.
+L'email ${request.director_email} est déjà utilisé par un autre compte.
 
-SOLUTION :
-Demandez au directeur d'utiliser un autre email ou contactez le support.`);
+SOLUTIONS :
+1. Demandez au directeur d'utiliser un autre email
+2. Ou vérifiez si le compte existe déjà
+3. Contactez le support si nécessaire`);
         } else {
-          alert(`❌ ERREUR LORS DE LA CRÉATION
+          alert(`❌ ERREUR LORS DE L'APPROBATION
           
 Erreur: ${error.message}
 
-Veuillez réessayer ou contacter le support technique.`);
+SOLUTIONS :
+1. Vérifiez la configuration Supabase sur Vercel
+2. Redéployez l'application si nécessaire
+3. Réessayez l'approbation
+4. Contactez le support si le problème persiste`);
         }
       } else {
-        alert('❌ Erreur inconnue lors de la création de l\'agence');
+        alert('❌ Erreur inconnue lors de l\'approbation de l\'agence');
       }
     }
   };

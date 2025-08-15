@@ -804,216 +804,277 @@ export const dbService = {
 
   // Agency and User Management
   async createAgencyWithDirector(agencyData: any, directorData: any) {
-    if (!supabase) {
-      throw new Error('🔑 Configuration Supabase requise pour créer une agence en production');
-    }
-    
-    console.log('🔄 Création agence et directeur en production...');
-    
-    try {
-      // 1. Créer l'agence
-      console.log('📝 Création de l\'agence...');
-      const { data: agency, error: agencyError } = await supabase
-        .from('agencies')
-        .insert({
+    return await safeDbOperation(
+      async () => {
+        console.log('🔄 Création agence et directeur en production...');
+        
+        // 1. Créer l'agence
+        console.log('📝 Création de l\'agence...');
+        const { data: agency, error: agencyError } = await supabase!
+          .from('agencies')
+          .insert({
+            name: agencyData.agency_name,
+            commercial_register: agencyData.commercial_register,
+            address: agencyData.address,
+            city: agencyData.city,
+            phone: agencyData.phone,
+            email: agencyData.director_email,
+            logo: agencyData.logo_url,
+            is_accredited: agencyData.is_accredited,
+            accreditation_number: agencyData.accreditation_number,
+          })
+          .select()
+          .single();
+
+        if (agencyError) {
+          console.error('❌ Erreur création agence:', agencyError);
+          throw agencyError;
+        }
+        
+        console.log('✅ Agence créée:', agency.name);
+
+        // 2. Créer le compte directeur dans Supabase Auth
+        console.log('👤 Création compte directeur...');
+        const { data: authUser, error: authError } = await supabase!.auth.admin.createUser({
+          email: agencyData.director_email,
+          password: directorData.password || 'TempPass2024!',
+          email_confirm: true,
+          user_metadata: {
+            first_name: agencyData.director_first_name,
+            last_name: agencyData.director_last_name,
+            role: 'director'
+          }
+        });
+
+        if (authError) {
+          console.error('❌ Erreur création auth:', authError);
+          throw authError;
+        }
+        
+        console.log('✅ Compte auth créé pour:', agencyData.director_email);
+
+        // 3. Créer le profil utilisateur
+        console.log('📋 Création profil utilisateur...');
+        const { data: user, error: userError } = await supabase!
+          .from('users')
+          .insert({
+            id: authUser.user.id,
+            email: agencyData.director_email,
+            first_name: agencyData.director_first_name,
+            last_name: agencyData.director_last_name,
+            role: 'director',
+            agency_id: agency.id,
+            is_active: true,
+            permissions: {
+              dashboard: true,
+              properties: true,
+              owners: true,
+              tenants: true,
+              contracts: true,
+              collaboration: true,
+              reports: true,
+              notifications: true,
+              settings: true,
+              userManagement: true
+            }
+          })
+          .select()
+          .single();
+
+        if (userError) {
+          console.error('❌ Erreur création profil:', userError);
+          throw userError;
+        }
+        
+        console.log('✅ Profil utilisateur créé');
+
+        // 4. Créer l'abonnement d'essai
+        console.log('💰 Création abonnement...');
+        const { data: subscription, error: subscriptionError } = await supabase!
+          .from('agency_subscriptions')
+          .insert({
+            agency_id: agency.id,
+            plan_type: 'basic',
+            status: 'trial',
+            monthly_fee: 25000,
+            trial_days_remaining: 30
+          })
+          .select()
+          .single();
+
+        if (subscriptionError) {
+          console.error('❌ Erreur création abonnement:', subscriptionError);
+          throw subscriptionError;
+        }
+        
+        console.log('✅ Abonnement créé');
+
+        return {
+          agency,
+          user,
+          subscription,
+          credentials: {
+            email: agencyData.director_email,
+            password: directorData.password || 'TempPass2024!'
+          }
+        };
+      },
+      'createAgencyWithDirector',
+      () => {
+        // Mode démo - Créer agence localement
+        const agencyId = generateId();
+        const userId = generateId();
+        
+        const agency = {
+          id: agencyId,
           name: agencyData.agency_name,
           commercial_register: agencyData.commercial_register,
           address: agencyData.address,
           city: agencyData.city,
           phone: agencyData.phone,
           email: agencyData.director_email,
-          logo: agencyData.logo_url,
-          is_accredited: agencyData.is_accredited,
-          accreditation_number: agencyData.accreditation_number,
-        })
-        .select()
-        .single();
-
-      if (agencyError) {
-        console.error('❌ Erreur création agence:', agencyError);
-        throw agencyError;
-      }
-      
-      console.log('✅ Agence créée:', agency.name);
-
-      // 2. Créer le compte directeur dans Supabase Auth
-      console.log('👤 Création compte directeur...');
-      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email: agencyData.director_email,
-        password: directorData.password || 'TempPass2024!',
-        email_confirm: true,
-        user_metadata: {
-          first_name: agencyData.director_first_name,
-          last_name: agencyData.director_last_name,
-          role: 'director'
-        }
-      });
-
-      if (authError) {
-        console.error('❌ Erreur création auth:', authError);
-        throw authError;
-      }
-      
-      console.log('✅ Compte auth créé pour:', agencyData.director_email);
-
-      // 3. Créer le profil utilisateur
-      console.log('📋 Création profil utilisateur...');
-      const { data: user, error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authUser.user.id,
+          created_at: new Date().toISOString()
+        };
+        
+        const user = {
+          id: userId,
           email: agencyData.director_email,
           first_name: agencyData.director_first_name,
           last_name: agencyData.director_last_name,
           role: 'director',
-          agency_id: agency.id,
+          agency_id: agencyId,
           is_active: true,
-          permissions: {
-            dashboard: true,
-            properties: true,
-            owners: true,
-            tenants: true,
-            contracts: true,
-            collaboration: true,
-            reports: true,
-            notifications: true,
-            settings: true,
-            userManagement: true
+          created_at: new Date().toISOString()
+        };
+        
+        // Stocker en localStorage
+        const agencies = JSON.parse(localStorage.getItem(demoStorage.agencies) || '[]');
+        agencies.unshift(agency);
+        localStorage.setItem(demoStorage.agencies, JSON.stringify(agencies));
+        
+        const users = JSON.parse(localStorage.getItem('demo_users') || '[]');
+        users.unshift(user);
+        localStorage.setItem('demo_users', JSON.stringify(users));
+        
+        return {
+          agency,
+          user,
+          subscription: { id: generateId(), agency_id: agencyId, status: 'trial' },
+          credentials: {
+            email: agencyData.director_email,
+            password: directorData.password || 'demo123'
           }
-        })
-        .select()
-        .single();
-
-      if (userError) {
-        console.error('❌ Erreur création profil:', userError);
-        throw userError;
+        };
       }
-      
-      console.log('✅ Profil utilisateur créé');
-
-      // 4. Créer l'abonnement d'essai
-      console.log('💰 Création abonnement...');
-      const { data: subscription, error: subscriptionError } = await supabase
-        .from('agency_subscriptions')
-        .insert({
-          agency_id: agency.id,
-          plan_type: 'basic',
-          status: 'trial',
-          monthly_fee: 25000,
-          trial_days_remaining: 30
-        })
-        .select()
-        .single();
-
-      if (subscriptionError) {
-        console.error('❌ Erreur création abonnement:', subscriptionError);
-        throw subscriptionError;
-      }
-      
-      console.log('✅ Abonnement créé');
-
-      return {
-        agency,
-        user,
-        subscription,
-        credentials: {
-          email: agencyData.director_email,
-          password: directorData.password || 'TempPass2024!'
-        }
-      };
-      
-    } catch (error) {
-      console.error('❌ Erreur création agence complète:', error);
-      throw error;
-    }
+    );
   },
 
   async createUser(userData: any) {
-    if (!supabase) {
-      throw new Error('🔑 Configuration Supabase requise pour créer un utilisateur');
-    }
-    
-    console.log('🔄 Création utilisateur en production...');
-    
-    try {
-      // 1. Créer le compte dans Supabase Auth
-      console.log('👤 Création compte auth pour:', userData.email);
-      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email: userData.email,
-        password: userData.password,
-        email_confirm: true,
-        user_metadata: {
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          role: userData.role
+    return await safeDbOperation(
+      async () => {
+        console.log('🔄 Création utilisateur en production...');
+        
+        // 1. Créer le compte dans Supabase Auth
+        console.log('👤 Création compte auth pour:', userData.email);
+        const { data: authUser, error: authError } = await supabase!.auth.admin.createUser({
+          email: userData.email,
+          password: userData.password,
+          email_confirm: true,
+          user_metadata: {
+            first_name: userData.first_name,
+            last_name: userData.last_name,
+            role: userData.role
+          }
+        });
+
+        if (authError) {
+          console.error('❌ Erreur création auth:', authError);
+          throw authError;
         }
-      });
+        
+        console.log('✅ Compte auth créé avec ID:', authUser.user.id);
 
-      if (authError) {
-        console.error('❌ Erreur création auth:', authError);
-        throw authError;
-      }
-      
-      console.log('✅ Compte auth créé avec ID:', authUser.user.id);
+        // 2. Créer le profil utilisateur
+        console.log('📋 Création profil utilisateur...');
+        const { data: user, error: userError } = await supabase!
+          .from('users')
+          .insert({
+            id: authUser.user.id,
+            email: userData.email,
+            first_name: userData.first_name,
+            last_name: userData.last_name,
+            role: userData.role,
+            agency_id: userData.agency_id,
+            is_active: true,
+            permissions: userData.permissions || {}
+          })
+          .select()
+          .single();
 
-      // 2. Créer le profil utilisateur
-      console.log('📋 Création profil utilisateur...');
-      const { data: user, error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authUser.user.id,
+        if (userError) {
+          console.error('❌ Erreur création profil:', userError);
+          throw userError;
+        }
+        
+        console.log('✅ Profil utilisateur créé');
+        return user;
+      },
+      'createUser',
+      () => {
+        // Mode démo - Créer utilisateur localement
+        const newUser = {
+          id: generateId(),
           email: userData.email,
           first_name: userData.first_name,
           last_name: userData.last_name,
           role: userData.role,
           agency_id: userData.agency_id,
           is_active: true,
-          permissions: userData.permissions || {}
-        })
-        .select()
-        .single();
-
-      if (userError) {
-        console.error('❌ Erreur création profil:', userError);
-        throw userError;
+          permissions: userData.permissions || {},
+          created_at: new Date().toISOString()
+        };
+        
+        const users = JSON.parse(localStorage.getItem('demo_users') || '[]');
+        users.unshift(newUser);
+        localStorage.setItem('demo_users', JSON.stringify(users));
+        
+        return newUser;
       }
-      
-      console.log('✅ Profil utilisateur créé');
-      return user;
-      
-    } catch (error) {
-      console.error('❌ Erreur création utilisateur complète:', error);
-      throw error;
-    }
+    );
   },
 
   async updateUser(id: string, updates: any) {
-    if (!supabase) {
-      throw new Error('🔑 Configuration Supabase requise pour mettre à jour un utilisateur');
-    }
-    
-    console.log('🔄 Mise à jour utilisateur:', id);
-    
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
+    return await safeDbOperation(
+      async () => {
+        console.log('🔄 Mise à jour utilisateur:', id);
         
-      if (error) {
-        console.error('❌ Erreur mise à jour utilisateur:', error);
-        throw error;
+        const { data, error } = await supabase!
+          .from('users')
+          .update(updates)
+          .eq('id', id)
+          .select()
+          .single();
+          
+        if (error) {
+          console.error('❌ Erreur mise à jour utilisateur:', error);
+          throw error;
+        }
+        
+        console.log('✅ Utilisateur mis à jour');
+        return data;
+      },
+      'updateUser',
+      () => {
+        const users = JSON.parse(localStorage.getItem('demo_users') || '[]');
+        const index = users.findIndex((u: any) => u.id === id);
+        if (index !== -1) {
+          users[index] = { ...users[index], ...updates, updated_at: new Date().toISOString() };
+          localStorage.setItem('demo_users', JSON.stringify(users));
+          return users[index];
+        }
+        throw new Error('Utilisateur non trouvé');
       }
-      
-      console.log('✅ Utilisateur mis à jour');
-      return data;
-      
-    } catch (error) {
-      console.error('❌ Erreur mise à jour utilisateur complète:', error);
-      throw error;
-    }
+    );
   },
 
   // Search functions
