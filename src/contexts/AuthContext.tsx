@@ -196,6 +196,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (authError) {
             console.error('❌ Erreur authentification Supabase:', authError);
+            
+            // Si erreur "Invalid login credentials", vérifier si c'est un compte en attente
+            if (authError.message === 'Invalid login credentials') {
+              console.log('🔍 Vérification compte en attente...');
+              
+              // Vérifier dans les demandes d'inscription
+              const { data: pendingRequest } = await supabase
+                .from('agency_registration_requests')
+                .select('*')
+                .eq('director_email', email)
+                .eq('status', 'pending')
+                .single();
+              
+              if (pendingRequest) {
+                throw new Error('Votre demande d\'inscription est en cours de validation. Vous pourrez vous connecter après approbation par l\'administrateur.');
+              }
+              
+              // Vérifier dans les demandes approuvées récemment
+              const { data: approvedRequest } = await supabase
+                .from('agency_registration_requests')
+                .select('*')
+                .eq('director_email', email)
+                .eq('status', 'approved')
+                .single();
+              
+              if (approvedRequest) {
+                throw new Error('Votre compte a été approuvé mais il y a un problème d\'activation. Contactez le support technique.');
+              }
+            }
+            
             throw authError;
           }
 
@@ -229,7 +259,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Supabase auth error:', supabaseError);
           // If Supabase auth fails, show specific error message
           if (supabaseError.message === 'Invalid login credentials') {
-            throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
+            throw new Error('Email ou mot de passe incorrect. Vérifiez vos identifiants ou utilisez les comptes démo : marie.kouassi@agence.com / demo123');
+          } else if (supabaseError.message.includes('en cours de validation')) {
+            throw new Error(supabaseError.message);
+          } else if (supabaseError.message.includes('problème d\'activation')) {
+            throw new Error(supabaseError.message);
           } else if (supabaseError.message?.includes('Invalid API key')) {
             console.error('🔑 Clé API invalide - Vérifiez la configuration Supabase');
             throw new Error('Configuration invalide. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');

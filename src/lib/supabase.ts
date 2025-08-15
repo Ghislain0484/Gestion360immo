@@ -833,11 +833,11 @@ export const dbService = {
         
         console.log('✅ Agence créée:', agency.name);
 
-        // 2. Créer le compte directeur dans Supabase Auth
+        // 2. Créer le compte directeur dans Supabase Auth avec le mot de passe choisi
         console.log('👤 Création compte directeur...');
         const { data: authUser, error: authError } = await supabase!.auth.admin.createUser({
           email: agencyData.director_email,
-          password: directorData.password || 'TempPass2024!',
+          password: directorData.password, // Utiliser le mot de passe choisi par l'utilisateur
           email_confirm: true,
           user_metadata: {
             first_name: agencyData.director_first_name,
@@ -915,7 +915,7 @@ export const dbService = {
           subscription,
           credentials: {
             email: agencyData.director_email,
-            password: directorData.password || 'TempPass2024!'
+            password: directorData.password // Retourner le mot de passe choisi
           }
         };
       },
@@ -962,7 +962,7 @@ export const dbService = {
           subscription: { id: generateId(), agency_id: agencyId, status: 'trial' },
           credentials: {
             email: agencyData.director_email,
-            password: directorData.password || 'demo123'
+            password: directorData.password // Utiliser le mot de passe choisi
           }
         };
       }

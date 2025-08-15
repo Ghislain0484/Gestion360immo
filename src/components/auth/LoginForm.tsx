@@ -115,7 +115,45 @@ Vous pouvez fermer cette fenêtre et attendre la confirmation.`);
             throw new Error('Configuration invalide. Contactez l\'administrateur.');
           } else if (supabaseError.message?.includes('Profil utilisateur non trouvé')) {
             throw new Error('Compte non activé. Contactez votre administrateur pour activer votre compte.');
-          alert('Problème de connexion. Votre demande a été sauvegardée localement et sera synchronisée plus tard.');
+          // En cas d'erreur de connexion, sauvegarder localement avec le mot de passe
+          const localRequest = {
+            id: `demo_${Date.now()}`,
+            agency_name: agencyData.name,
+            commercial_register: agencyData.commercialRegister,
+            director_first_name: directorData.firstName,
+            director_last_name: directorData.lastName,
+            director_email: directorData.email,
+            director_password: directorData.password, // Sauvegarder le mot de passe
+            phone: agencyData.phone,
+            city: agencyData.city,
+            address: agencyData.address,
+            logo_url: agencyData.logo,
+            is_accredited: agencyData.isAccredited,
+            accreditation_number: agencyData.accreditationNumber,
+            status: 'pending',
+            created_at: new Date().toISOString()
+          };
+          
+          const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+          stored.unshift(localRequest);
+          localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
+          
+          alert(`✅ DEMANDE SAUVEGARDÉE LOCALEMENT !
+          
+🏢 AGENCE : ${agencyData.name}
+👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
+📧 EMAIL : ${directorData.email}
+🔑 MOT DE PASSE : [Conservez celui que vous avez saisi]
+
+⚠️ Problème de connexion détecté
+✅ Votre demande a été sauvegardée localement
+🔄 Elle sera synchronisée dès que la connexion sera rétablie
+
+CONSERVEZ VOS IDENTIFIANTS :
+Email : ${directorData.email}
+Mot de passe : [Celui que vous avez saisi]
+
+Vous pourrez vous connecter dès l'approbation !`);
         } else {
       throw new Error('Email ou mot de passe incorrect.');
         }

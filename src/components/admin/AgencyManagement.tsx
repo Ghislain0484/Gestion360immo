@@ -107,7 +107,7 @@ export const AgencyManagement: React.FC = () => {
       
       console.log('🔄 Création agence et directeur en production...');
       
-      // Créer l'agence et le directeur automatiquement
+      // Créer l'agence et le directeur avec les identifiants choisis par l'utilisateur
       const result = await dbService.createAgencyWithDirector({
         agency_name: request.agency_name,
         commercial_register: request.commercial_register,
@@ -115,11 +115,13 @@ export const AgencyManagement: React.FC = () => {
         city: request.city,
         phone: request.phone,
         director_email: request.director_email,
+        director_first_name: request.director_first_name,
+        director_last_name: request.director_last_name,
         logo_url: request.logo_url,
         is_accredited: request.is_accredited,
         accreditation_number: request.accreditation_number,
       }, {
-        password: 'TempPass2024!' // Mot de passe temporaire
+        password: request.director_password || 'TempPass2024!' // Utiliser le mot de passe choisi
       });
       
       console.log('✅ Agence et directeur créés:', result);
@@ -137,40 +139,51 @@ export const AgencyManagement: React.FC = () => {
       setRegistrationRequests(requestsData);
       setAgencies(agenciesData);
       
-      alert(`✅ AGENCE APPROUVÉE ET CRÉÉE AVEC SUCCÈS !
+      alert(`✅ AGENCE APPROUVÉE ET ACTIVÉE AVEC SUCCÈS !
       
 🏢 AGENCE : ${request.agency_name}
 👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
 📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : ${result.credentials.password}
+🔑 MOT DE PASSE : [Celui choisi lors de l'inscription]
 
-✅ L'agence a été créée et activée en base de données
+✅ L'agence a été créée et le compte directeur activé
 ✅ Le compte directeur est activé
 ✅ L'abonnement d'essai (30 jours) est démarré
-✅ Le directeur peut SE CONNECTER IMMÉDIATEMENT
+✅ Le directeur peut SE CONNECTER IMMÉDIATEMENT avec ses identifiants
 
-IDENTIFIANTS DE CONNEXION :
+RAPPEL IDENTIFIANTS :
 Email : ${request.director_email}
-Mot de passe : ${result.credentials.password}
+Mot de passe : [Celui choisi lors de l'inscription]
 
 🌐 CONNEXION : www.gestion360immo.com
 
-Le directeur peut maintenant se connecter et commencer à utiliser la plateforme !`);
+Le directeur peut maintenant se connecter avec les identifiants qu'il a choisis lors de l'inscription !`);
       
     } catch (error) {
       console.error('Error approving registration:', error);
       
       // Messages d'erreur spécifiques
       if (error instanceof Error) {
-        if (error.message.includes('email already exists')) {
+        if (error.message.includes('User already registered') || error.message.includes('email already exists')) {
           alert(`❌ EMAIL DÉJÀ UTILISÉ
           
-L'email ${request.director_email} est déjà utilisé par un autre compte.
+L'email ${request?.director_email} est déjà utilisé par un autre compte.
 
 SOLUTIONS :
 1. Demandez au directeur d'utiliser un autre email
 2. Ou vérifiez si le compte existe déjà
 3. Contactez le support si nécessaire`);
+        } else if (error.message.includes('Configuration Supabase')) {
+          alert(`⚠️ CONFIGURATION SUPABASE REQUISE
+          
+Pour créer des agences en production, Supabase doit être configuré.
+
+SOLUTIONS :
+1. Vérifiez les variables d'environnement sur Vercel
+2. VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY doivent être valides
+3. Redéployez l'application après correction
+
+En attendant, l'agence a été approuvée en mode démo.`);
         } else {
           alert(`❌ ERREUR LORS DE L'APPROBATION
           
