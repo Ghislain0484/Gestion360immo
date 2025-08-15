@@ -16,6 +16,7 @@ export interface Tenant {
   idCardUrl?: string;
   paymentStatus: 'bon' | 'irregulier' | 'mauvais';
   agencyId: string;
+  monthlyRent: number;
   createdAt: Date;
   updatedAt: Date;
 }

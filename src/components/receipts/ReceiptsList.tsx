@@ -118,9 +118,10 @@ export const ReceiptsList: React.FC = () => {
         </head>
         <body>
           <div class="header">
-            <div class="company-name">IMMOBILIER EXCELLENCE</div>
-            <div>Abidjan, Côte d'Ivoire</div>
-            <div>Tél: +225 01 02 03 04 05</div>
+            <div class="company-name">${agencyData?.name?.toUpperCase() || 'AGENCE IMMOBILIÈRE'}</div>
+            <div>${agencyData?.address || 'Abidjan, Côte d\'Ivoire'}</div>
+            <div>Tél: ${agencyData?.phone || '+225 XX XX XX XX XX'}</div>
+            <div>Email: ${agencyData?.email || 'contact@agence.com'}</div>
           </div>
           
           <div class="receipt-title">QUITTANCE DE LOYER</div>

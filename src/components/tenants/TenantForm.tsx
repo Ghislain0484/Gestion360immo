@@ -47,6 +47,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({
     idCardUrl: '',
     paymentStatus: 'bon',
     agencyId: '1',
+    monthlyRent: 0,
     ...initialData,
   });
 
@@ -145,10 +146,11 @@ export const TenantForm: React.FC<TenantFormProps> = ({
           agencyData,
           null, // Propriété à définir plus tard
           {
-            monthlyRent: 350000,
-            deposit: 700000,
+            monthlyRent: formData.monthlyRent,
+            deposit: formData.monthlyRent * 2,
             charges: 25000,
-            duration: 12
+            duration: 12,
+            startDate: new Date()
           }
         );
 
@@ -169,8 +171,9 @@ export const TenantForm: React.FC<TenantFormProps> = ({
 
 📋 CONTRAT DE LOCATION AUTOMATIQUE :
 • Type : Bail d'habitation
-• Loyer : 350,000 FCFA/mois (modifiable)
-• Caution : 700,000 FCFA
+• Loyer : ${formData.monthlyRent.toLocaleString()} FCFA/mois
+• Caution : ${(formData.monthlyRent * 2).toLocaleString()} FCFA
+• Total à la signature : ${(formData.monthlyRent * 5).toLocaleString()} FCFA
 • Durée : 12 mois
 • Conforme : Loi ivoirienne n°96-669 et OHADA
 • Statut : Créé en base de données
@@ -393,10 +396,21 @@ Vous pouvez créer manuellement un contrat dans la section "Contrats".`);
           <Card className="bg-white/80 backdrop-blur-sm border-yellow-200">
             <div className="flex items-center mb-4">
               <Phone className="h-5 w-5 text-yellow-600 mr-2" />
-              <h3 className="text-lg font-medium text-gray-900">Statut de paiement</h3>
+              <h3 className="text-lg font-medium text-gray-900">Informations locatives</h3>
             </div>
             
-            <div>
+            <div className="space-y-4">
+              <Input
+                label="Loyer mensuel (FCFA)"
+                type="number"
+                value={formData.monthlyRent || ''}
+                onChange={(e) => updateFormData({ monthlyRent: parseInt(e.target.value) || 0 })}
+                required
+                min="0"
+                placeholder="450000"
+                helperText="Montant du loyer mensuel en francs CFA"
+              />
+              
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Historique de paiement
               </label>
@@ -417,6 +431,30 @@ Vous pouvez créer manuellement un contrat dans la section "Contrats".`);
                 <p><strong>Payeur irrégulier :</strong> Retards occasionnels mais à jour</p>
                 <p><strong>Mauvais payeur :</strong> Plus de 2 mois d'impayés</p>
               </div>
+              
+              {formData.monthlyRent > 0 && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <h4 className="font-medium text-blue-900 mb-2">Calcul automatique - Montant à la signature</h4>
+                  <div className="space-y-1 text-sm text-blue-800">
+                    <div className="flex justify-between">
+                      <span>2 mois de loyer d'avance :</span>
+                      <span>{(formData.monthlyRent * 2).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>2 mois de caution :</span>
+                      <span>{(formData.monthlyRent * 2).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>1 mois de frais d'agence :</span>
+                      <span>{formData.monthlyRent.toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between font-bold border-t border-blue-300 pt-2">
+                      <span>TOTAL À PAYER :</span>
+                      <span>{(formData.monthlyRent * 5).toLocaleString()} FCFA</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
