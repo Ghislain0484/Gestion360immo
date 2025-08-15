@@ -20,6 +20,20 @@ export const AgencyManagement: React.FC = () => {
   useEffect(() => {
     const fetchAgencies = async () => {
       try {
+        // Sauvegarder les identifiants approuvés pour la connexion
+        const approvedAgencies = JSON.parse(localStorage.getItem('approved_agencies') || '[]');
+        approvedAgencies.push({
+          agency_id: result.agency.id,
+          agency_name: request.agency_name,
+          director_id: result.user.id,
+          director_email: request.director_email,
+          director_password: request.director_password,
+          director_first_name: request.director_first_name,
+          director_last_name: request.director_last_name,
+          approved_at: new Date().toISOString()
+        });
+        localStorage.setItem('approved_agencies', JSON.stringify(approvedAgencies));
+        
         const agenciesData = await dbService.getAllAgencies();
         const requestsData = await dbService.getRegistrationRequests();
         setAgencies(agenciesData);
@@ -144,7 +158,7 @@ export const AgencyManagement: React.FC = () => {
 🏢 AGENCE : ${request.agency_name}
 👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
 📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : [Celui choisi lors de l'inscription]
+🔑 MOT DE PASSE : ${request.director_password || '[Mot de passe choisi]'}
 
 ✅ L'agence a été créée et le compte directeur activé
 ✅ Le compte directeur est activé
@@ -153,7 +167,7 @@ export const AgencyManagement: React.FC = () => {
 
 RAPPEL IDENTIFIANTS :
 Email : ${request.director_email}
-Mot de passe : [Celui choisi lors de l'inscription]
+Mot de passe : ${request.director_password || '[Mot de passe choisi]'}
 
 🌐 CONNEXION : www.gestion360immo.com
 
