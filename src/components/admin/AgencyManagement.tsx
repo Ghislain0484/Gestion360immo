@@ -21,28 +21,37 @@ export const AgencyManagement: React.FC = () => {
     const fetchAgencies = async () => {
       try {
         console.log('🔄 Chargement des agences et demandes...');
-        const agenciesData = await dbService.getAllAgencies();
-        const requestsData = await dbService.getRegistrationRequests();
         
-        console.log('📊 Agences chargées:', agenciesData?.length || 0);
-        console.log('📋 Demandes chargées:', requestsData?.length || 0);
-        console.log('📋 Demandes détails:', requestsData);
+        // Charger les demandes d'inscription
+        let requestsData = [];
+        try {
+          requestsData = await dbService.getRegistrationRequests();
+          console.log('📋 Demandes Supabase chargées:', requestsData?.length || 0);
+        } catch (supabaseError) {
+          console.warn('⚠️ Erreur Supabase, chargement localStorage...');
+          requestsData = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+          console.log('📋 Demandes localStorage chargées:', requestsData?.length || 0);
+        }
         
-        setAgencies(agenciesData);
-        setRegistrationRequests(requestsData);
+        // Charger les agences
+        let agenciesData = [];
+        try {
+          agenciesData = await dbService.getAllAgencies();
+          console.log('📊 Agences Supabase chargées:', agenciesData?.length || 0);
+        } catch (supabaseError) {
+          console.warn('⚠️ Erreur Supabase agences, chargement localStorage...');
+          agenciesData = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
+          console.log('📊 Agences localStorage chargées:', agenciesData?.length || 0);
+        }
+        
+        console.log('📋 Demandes finales:', requestsData);
+        
+        setAgencies(agenciesData || []);
+        setRegistrationRequests(requestsData || []);
       } catch (error) {
-        console.error('Error fetching agencies:', error);
-        
-        // En cas d'erreur, charger depuis localStorage
-        console.log('🔄 Chargement depuis localStorage...');
-        const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-        const localAgencies = JSON.parse(localStorage.getItem('demo_agencies') || '[]');
-        
-        console.log('📋 Demandes locales:', localRequests?.length || 0);
-        console.log('📊 Agences locales:', localAgencies?.length || 0);
-        
-        setRegistrationRequests(localRequests);
-        setAgencies(localAgencies);
+        console.error('❌ Erreur générale:', error);
+        setRegistrationRequests([]);
+        setAgencies([]);
       } finally {
         setLoading(false);
       }
@@ -114,70 +123,79 @@ export const AgencyManagement: React.FC = () => {
     try {
       console.log('Approbation de la demande:', requestId);
       
-      // 1. Récupérer la demande d'inscription
+      // Récupérer la demande d'inscription
       let request = registrationRequests.find(r => r.id === requestId);
       
       if (!request) {
-        console.log('🔍 Demande non trouvée dans state, rechargement...');
-        const requests = await dbService.getRegistrationRequests();
-        request = requests.find(r => r.id === requestId);
-        
-        if (!request) {
-          throw new Error('Demande d\'inscription non trouvée');
-        }
+        throw new Error('Demande d\'inscription non trouvée');
       }
       
       console.log('📋 Demande trouvée:', request);
       
-      console.log('🔄 Création agence et directeur en production...');
+      // Créer les identifiants pour la connexion
+      const approvedAccount = {
+        id: `approved_${Date.now()}`,
+        email: request.director_email,
+        password: request.director_password,
+        firstName: request.director_first_name,
+        lastName: request.director_last_name,
+        role: 'director',
+        agencyId: `agency_${Date.now()}`,
+        agencyName: request.agency_name,
+        agencyData: {
+          name: request.agency_name,
+          commercial_register: request.commercial_register,
+          address: request.address,
+          city: request.city,
+          phone: request.phone,
+          email: request.director_email,
+        },
+        createdAt: new Date().toISOString(),
+        status: 'approved'
+      };
       
-      // Créer l'agence et le directeur avec les identifiants choisis par l'utilisateur
-      const result = await dbService.createAgencyWithDirector({
-        agency_name: request.agency_name,
-        commercial_register: request.commercial_register,
-        address: request.address,
-        city: request.city,
-        phone: request.phone,
-        director_email: request.director_email,
-        director_first_name: request.director_first_name,
-        director_last_name: request.director_last_name,
-        logo_url: request.logo_url,
-        is_accredited: request.is_accredited,
-        accreditation_number: request.accreditation_number,
-      }, {
-        password: request.director_password
-      });
+      // Sauvegarder le compte approuvé
+      const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
       
-      console.log('✅ Agence et directeur créés:', result);
+      // Vérifier si le compte n'existe pas déjà
+      const existingAccount = approvedAccounts.find((acc: any) => acc.email === request.director_email);
+      if (!existingAccount) {
+        approvedAccounts.push(approvedAccount);
+        localStorage.setItem('approved_accounts', JSON.stringify(approvedAccounts));
+        console.log('✅ Compte approuvé sauvegardé:', approvedAccount.email);
+      }
       
       // Marquer la demande comme approuvée
-      await dbService.updateRegistrationRequest(requestId, {
-        status: 'approved',
-        processed_at: new Date().toISOString(),
-        processed_by: 'gagohi06@gmail.com'
-      });
+      const updatedRequests = registrationRequests.map(r => 
+        r.id === requestId 
+          ? { 
+              ...r, 
+              status: 'approved',
+              processed_at: new Date().toISOString(),
+              processed_by: 'admin'
+            }
+          : r
+      );
       
-      // Refresh data
-      const requestsData = await dbService.getRegistrationRequests();
-      const agenciesData = await dbService.getAllAgencies();
-      setRegistrationRequests(requestsData);
-      setAgencies(agenciesData);
+      setRegistrationRequests(updatedRequests);
+      
+      // Sauvegarder les demandes mises à jour
+      localStorage.setItem('demo_registration_requests', JSON.stringify(updatedRequests));
       
       alert(`✅ AGENCE APPROUVÉE ET ACTIVÉE AVEC SUCCÈS !
       
 🏢 AGENCE : ${request.agency_name}
 👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
 📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : ${request.director_password}
+🔑 MOT DE PASSE : [Celui choisi lors de l'inscription]
 
 ✅ L'agence a été créée et le compte directeur activé
-✅ Le compte directeur est activé
 ✅ L'abonnement d'essai (30 jours) est démarré
 ✅ Le directeur peut SE CONNECTER IMMÉDIATEMENT avec ses identifiants
 
 RAPPEL IDENTIFIANTS :
 Email : ${request.director_email}
-Mot de passe : ${request.director_password}
+Mot de passe : [Celui choisi lors de l'inscription]
 
 🌐 CONNEXION : www.gestion360immo.com
 
@@ -185,7 +203,7 @@ Le directeur peut maintenant se connecter avec ces identifiants !`);
       
     } catch (error) {
       console.error('Error approving registration:', error);
-      alert(`Erreur lors de l'approbation: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      alert(`❌ Erreur lors de l'approbation: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   };
 

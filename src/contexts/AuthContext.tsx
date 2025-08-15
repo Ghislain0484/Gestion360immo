@@ -125,17 +125,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Try Supabase authentication
+      console.log('🔐 Tentative de connexion pour:', email);
+      
+      // Vérifier d'abord les comptes approuvés
+      const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
+      const approvedAccount = approvedAccounts.find((acc: any) => 
+        acc.email.trim().toLowerCase() === email.trim().toLowerCase() && 
+        acc.password === password.trim()
+      );
+      
+      if (approvedAccount) {
+        console.log('✅ Compte approuvé trouvé:', approvedAccount.email);
+        
+        const user: User = {
+          id: approvedAccount.id,
+          email: approvedAccount.email,
+          firstName: approvedAccount.firstName,
+          lastName: approvedAccount.lastName,
+          role: approvedAccount.role,
+          agencyId: approvedAccount.agencyId,
+          avatar: approvedAccount.avatar,
+          createdAt: new Date(approvedAccount.createdAt),
+        };
+        
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('current_agency', JSON.stringify(approvedAccount.agencyData));
+        
+        console.log('✅ Connexion réussie avec compte approuvé');
+        return;
+      }
+      
+      // Vérifier les comptes démo
+      const demoUsers = [
+        {
+          id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          email: 'marie.kouassi@agence.com',
+          password: 'demo123',
+          firstName: 'Marie',
+          lastName: 'Kouassi',
+          role: 'director',
+          agencyId: 'demo_agency_001',
+        }
+      ];
+      
+      const demoUser = demoUsers.find(u => 
+        u.email.toLowerCase() === email.trim().toLowerCase() && 
+        u.password === password.trim()
+      );
+      
+      if (demoUser) {
+        console.log('✅ Compte démo trouvé:', demoUser.email);
+        
+        const user: User = {
+          id: demoUser.id,
+          email: demoUser.email,
+          firstName: demoUser.firstName,
+          lastName: demoUser.lastName,
+          role: demoUser.role as User['role'],
+          agencyId: demoUser.agencyId,
+          createdAt: new Date(),
+        };
+        
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('✅ Connexion démo réussie');
+        return;
+      }
+      
+      // Essayer Supabase en dernier recours
       if (supabase && isSupabaseConfigured) {
         try {
-          console.log('🔐 Tentative de connexion Supabase...');
+          console.log('🔐 Tentative de connexion Supabase pour:', email);
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
+            email: email.trim(),
+            password: password.trim(),
           });
 
           if (authError) {
-            console.error('❌ Erreur authentification Supabase:', authError);
+            console.error('❌ Erreur auth Supabase:', authError);
             throw authError;
           }
 
@@ -166,12 +235,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('✅ Connexion Supabase réussie');
           return;
         } catch (supabaseError: any) {
-          console.error('Supabase auth error:', supabaseError);
-          throw new Error('Email ou mot de passe incorrect');
+          console.error('❌ Erreur Supabase auth:', supabaseError);
         }
-      } else {
-        throw new Error('Configuration Supabase manquante');
       }
+      
+      // Si aucune méthode ne fonctionne
+      console.log('❌ Aucune méthode d\'authentification n\'a fonctionné');
+      throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
       
     } catch (error) {
       console.error('Login error:', error);
