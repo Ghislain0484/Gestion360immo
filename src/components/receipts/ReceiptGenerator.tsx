@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { RentReceipt } from '../../types/receipt';
 import { AgencyIdGenerator } from '../../utils/idGenerator';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ReceiptGeneratorProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   tenantId,
   ownerId
 }) => {
+  const { user } = useAuth();
   const [receiptData, setReceiptData] = useState({
     month: new Date().toISOString().slice(0, 7), // YYYY-MM format
     rentAmount: 0,
@@ -76,6 +78,13 @@ export const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+
+    const agencyData = {
+      name: user?.firstName + ' ' + user?.lastName + ' Agency',
+      address: 'Abidjan, Côte d\'Ivoire',
+      phone: '+225 XX XX XX XX XX',
+      email: 'contact@agence.com'
+    };
 
     const receiptHtml = `
       <!DOCTYPE html>
