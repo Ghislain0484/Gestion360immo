@@ -54,42 +54,38 @@ export const ContractForm: React.FC<ContractFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation des données requises
-    if (!formData.property_id.trim() || !formData.owner_id.trim() || !formData.tenant_id.trim()) {
-      alert('Veuillez sélectionner une propriété, un propriétaire et un locataire');
-      return;
-    }
-    
-    // Validation des montants
-    if (formData.type === 'location') {
-      if (!formData.monthly_rent || formData.monthly_rent <= 0) {
-        alert('Veuillez saisir un loyer mensuel valide');
-        return;
-      }
-    } else if (formData.type === 'vente') {
-      if (!formData.sale_price || formData.sale_price <= 0) {
-        alert('Veuillez saisir un prix de vente valide');
-        return;
-      }
-    }
-    
-    // Validation du taux de commission
-    if (!formData.commission_rate || formData.commission_rate < 0 || formData.commission_rate > 100) {
-      alert('Veuillez saisir un taux de commission valide (0-100%)');
-      return;
-    }
-    
-    // Validation des termes
-    if (!formData.terms.trim()) {
-      alert('Veuillez saisir les termes du contrat');
-      return;
-    }
-    
     try {
+      // Validation des données requises
+      if (!formData.property_id.trim() || !formData.owner_id.trim() || !formData.tenant_id.trim()) {
+        throw new Error('Veuillez sélectionner une propriété, un propriétaire et un locataire');
+      }
+      
+      // Validation des montants
+      if (formData.type === 'location') {
+        if (!formData.monthly_rent || formData.monthly_rent <= 0) {
+          throw new Error('Veuillez saisir un loyer mensuel valide');
+        }
+      } else if (formData.type === 'vente') {
+        if (!formData.sale_price || formData.sale_price <= 0) {
+          throw new Error('Veuillez saisir un prix de vente valide');
+        }
+      }
+      
+      // Validation du taux de commission
+      if (!formData.commission_rate || formData.commission_rate < 0 || formData.commission_rate > 100) {
+        throw new Error('Veuillez saisir un taux de commission valide (0-100%)');
+      }
+      
+      // Validation des termes
+      if (!formData.terms.trim()) {
+        throw new Error('Veuillez saisir les termes du contrat');
+      }
+      
       onSubmit(formData);
+      alert('✅ Contrat créé avec succès !');
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
-      alert('Erreur lors de l\'enregistrement. Veuillez réessayer.');
+      alert(error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement');
     }
   };
 

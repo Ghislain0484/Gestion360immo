@@ -1,96 +1,187 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Database, Download, Upload, Trash2, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
+import { useAuth } from '../../contexts/AuthContext';
+import { dbService } from '../../lib/supabase';
 
 export const DataSettings: React.FC = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [backupStatus, setBackupStatus] = useState('success'); // success, warning, error
+  const [agencyData, setAgencyData] = useState({
+    properties: 0,
+    owners: 0,
+    tenants: 0,
+    contracts: 0,
+    users: 0,
+    totalSize: '0 MB',
+    lastBackup: new Date(),
+  });
 
-  const dataStats = {
-    properties: 247,
-    owners: 89,
-    tenants: 198,
-    contracts: 176,
-    totalSize: '2.4 GB',
-    lastBackup: new Date('2024-03-10T14:30:00'),
-  };
+  useEffect(() => {
+    const loadAgencyData = async () => {
+      if (!user?.agencyId) return;
+      
+      try {
+        // Charger les données réelles de l'agence
+        const [properties, owners, tenants, contracts] = await Promise.all([
+          dbService.getProperties(user.agencyId),
+          dbService.getOwners(user.agencyId),
+          dbService.getTenants(user.agencyId),
+          dbService.getContracts(user.agencyId),
+        ]);
+        
+        // Charger les utilisateurs de l'agence
+        const agencyUsersKey = `agency_users_${user.agencyId}`;
+        const users = JSON.parse(localStorage.getItem(agencyUsersKey) || '[]');
+        
+        // Calculer la taille approximative des données
+        const dataSize = JSON.stringify({
+          properties,
+          owners,
+          tenants,
+          contracts,
+          users
+        }).length;
+        
+        const sizeInMB = (dataSize / (1024 * 1024)).toFixed(2);
+        
+        setAgencyData({
+          properties: properties.length,
+          owners: owners.length,
+          tenants: tenants.length,
+          contracts: contracts.length,
+          users: users.length,
+          totalSize: `${sizeInMB} MB`,
+          lastBackup: new Date(),
+        });
+        
+      } catch (error) {
+        console.error('Erreur chargement données agence:', error);
+      }
+    };
+    
+    loadAgencyData();
+  }, [user?.agencyId]);
 
   const handleExportData = async () => {
+    if (!user?.agencyId) return;
+    
     setLoading(true);
     try {
-      // Export data logic
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate export
+      // Exporter toutes les données de l'agence
+      const [properties, owners, tenants, contracts] = await Promise.all([
+        dbService.getProperties(user.agencyId),
+        dbService.getOwners(user.agencyId),
+        dbService.getTenants(user.agencyId),
+        dbService.getContracts(user.agencyId),
+      ]);
       
-      // Create and download a mock file
-      const data = JSON.stringify({
+      const agencyUsersKey = `agency_users_${user.agencyId}`;
+      const users = JSON.parse(localStorage.getItem(agencyUsersKey) || '[]');
+      
+      const exportData = {
         exported_at: new Date().toISOString(),
-        properties: dataStats.properties,
-        owners: dataStats.owners,
-        tenants: dataStats.tenants,
-        contracts: dataStats.contracts,
-      }, null, 2);
+        agency_id: user.agencyId,
+        agency_name: user.firstName + ' ' + user.lastName + ' Agency',
+        data: {
+          properties,
+          owners,
+          tenants,
+          contracts,
+          users: users.map(u => ({ ...u, password: undefined })) // Exclure les mots de passe
+        },
+        statistics: agencyData
+      };
       
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `immobilier-export-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `agence-export-${user.agencyId}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      alert('Export terminé avec succès !');
+      alert('✅ Export terminé avec succès !');
     } catch (error) {
-      alert('Erreur lors de l\'export');
+      alert('❌ Erreur lors de l\'export');
     } finally {
       setLoading(false);
     }
   };
 
   const handleBackup = async () => {
+    if (!user?.agencyId) return;
+    
     setLoading(true);
     try {
-      // Backup logic
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate backup
-      setBackupStatus('success');
-      alert('Sauvegarde créée avec succès !');
+      // Créer une sauvegarde des données de l'agence
+      const backupKey = `backup_${user.agencyId}_${Date.now()}`;
+      const [properties, owners, tenants, contracts] = await Promise.all([
+        dbService.getProperties(user.agencyId),
+        dbService.getOwners(user.agencyId),
+        dbService.getTenants(user.agencyId),
+        dbService.getContracts(user.agencyId),
+      ]);
+      
+      const backupData = {
+        created_at: new Date().toISOString(),
+        agency_id: user.agencyId,
+        data: { properties, owners, tenants, contracts }
+      };
+      
+      localStorage.setItem(backupKey, JSON.stringify(backupData));
+      
+      // Mettre à jour la date de dernière sauvegarde
+      setAgencyData(prev => ({ ...prev, lastBackup: new Date() }));
+      
+      alert('✅ Sauvegarde créée avec succès !');
     } catch (error) {
-      setBackupStatus('error');
-      alert('Erreur lors de la sauvegarde');
+      alert('❌ Erreur lors de la sauvegarde');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteAllData = async () => {
+    if (!user?.agencyId) return;
+    
     setLoading(true);
     try {
-      // Delete all data logic
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate deletion
-      alert('Toutes les données ont été supprimées !');
+      // Supprimer toutes les données de l'agence
+      const agencyUsersKey = `agency_users_${user.agencyId}`;
+      
+      // Supprimer de localStorage
+      localStorage.removeItem(`demo_owners_${user.agencyId}`);
+      localStorage.removeItem(`demo_tenants_${user.agencyId}`);
+      localStorage.removeItem(`demo_properties_${user.agencyId}`);
+      localStorage.removeItem(`demo_contracts_${user.agencyId}`);
+      localStorage.removeItem(agencyUsersKey);
+      
+      // Réinitialiser les compteurs
+      setAgencyData({
+        properties: 0,
+        owners: 0,
+        tenants: 0,
+        contracts: 0,
+        users: 0,
+        totalSize: '0 MB',
+        lastBackup: new Date(),
+      });
+      
+      alert('✅ Toutes les données de l\'agence ont été supprimées !');
       setShowDeleteModal(false);
     } catch (error) {
-      alert('Erreur lors de la suppression');
+      alert('❌ Erreur lors de la suppression');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getBackupStatusBadge = () => {
-    switch (backupStatus) {
-      case 'success':
-        return <Badge variant="success" size="sm">À jour</Badge>;
-      case 'warning':
-        return <Badge variant="warning" size="sm">Attention</Badge>;
-      case 'error':
-        return <Badge variant="danger" size="sm">Erreur</Badge>;
-      default:
-        return <Badge variant="secondary" size="sm">Inconnu</Badge>;
     }
   };
 
@@ -101,33 +192,39 @@ export const DataSettings: React.FC = () => {
         <div className="p-6">
           <div className="flex items-center mb-4">
             <Database className="h-5 w-5 text-blue-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Vue d'ensemble des données</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Données de votre agence</h3>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600 mb-1">
-                {dataStats.properties}
+                {agencyData.properties}
               </div>
               <p className="text-sm text-blue-800">Propriétés</p>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600 mb-1">
-                {dataStats.owners}
+                {agencyData.owners}
               </div>
               <p className="text-sm text-green-800">Propriétaires</p>
             </div>
             <div className="text-center p-4 bg-yellow-50 rounded-lg">
               <div className="text-2xl font-bold text-yellow-600 mb-1">
-                {dataStats.tenants}
+                {agencyData.tenants}
               </div>
               <p className="text-sm text-yellow-800">Locataires</p>
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg">
               <div className="text-2xl font-bold text-purple-600 mb-1">
-                {dataStats.contracts}
+                {agencyData.contracts}
               </div>
               <p className="text-sm text-purple-800">Contrats</p>
+            </div>
+            <div className="text-center p-4 bg-indigo-50 rounded-lg">
+              <div className="text-2xl font-bold text-indigo-600 mb-1">
+                {agencyData.users}
+              </div>
+              <p className="text-sm text-indigo-800">Utilisateurs</p>
             </div>
           </div>
 
@@ -135,10 +232,10 @@ export const DataSettings: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-gray-900">Taille totale des données</p>
-                <p className="text-sm text-gray-500">Incluant les images et documents</p>
+                <p className="text-sm text-gray-500">Données de votre agence uniquement</p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-semibold text-gray-900">{dataStats.totalSize}</p>
+                <p className="text-lg font-semibold text-gray-900">{agencyData.totalSize}</p>
                 <p className="text-sm text-gray-500">Utilisé</p>
               </div>
             </div>
@@ -161,8 +258,8 @@ export const DataSettings: React.FC = () => {
                 <div>
                   <p className="font-medium text-gray-900">Dernière sauvegarde</p>
                   <p className="text-sm text-gray-500">
-                    {dataStats.lastBackup.toLocaleDateString('fr-FR')} à{' '}
-                    {dataStats.lastBackup.toLocaleTimeString('fr-FR', { 
+                    {agencyData.lastBackup.toLocaleDateString('fr-FR')} à{' '}
+                    {agencyData.lastBackup.toLocaleTimeString('fr-FR', { 
                       hour: '2-digit', 
                       minute: '2-digit' 
                     })}
@@ -170,37 +267,10 @@ export const DataSettings: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                {getBackupStatusBadge()}
+                <Badge variant="success" size="sm">À jour</Badge>
                 <Button variant="outline" size="sm" onClick={handleBackup} isLoading={loading}>
                   Sauvegarder maintenant
                 </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-2">Sauvegarde automatique</h4>
-                <p className="text-sm text-gray-500 mb-3">
-                  Sauvegarde quotidienne à 2h00 du matin
-                </p>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" defaultChecked className="sr-only peer" />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  <span className="ml-3 text-sm text-gray-700">Activé</span>
-                </label>
-              </div>
-
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-2">Rétention</h4>
-                <p className="text-sm text-gray-500 mb-3">
-                  Conserver les sauvegardes pendant 30 jours
-                </p>
-                <select className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="7">7 jours</option>
-                  <option value="30" selected>30 jours</option>
-                  <option value="90">90 jours</option>
-                  <option value="365">1 an</option>
-                </select>
               </div>
             </div>
           </div>
@@ -219,7 +289,7 @@ export const DataSettings: React.FC = () => {
             <div className="p-4 border border-gray-200 rounded-lg">
               <h4 className="font-medium text-gray-900 mb-2">Exporter les données</h4>
               <p className="text-sm text-gray-500 mb-4">
-                Téléchargez toutes vos données au format JSON
+                Téléchargez toutes les données de votre agence au format JSON
               </p>
               <Button 
                 variant="outline" 
@@ -291,7 +361,7 @@ export const DataSettings: React.FC = () => {
               <div>
                 <h4 className="font-medium text-red-900">Zone de danger</h4>
                 <p className="text-sm text-red-700">
-                  Supprimer définitivement toutes les données de l'agence
+                  Supprimer définitivement toutes les données de votre agence
                 </p>
               </div>
               <Button 
@@ -325,10 +395,11 @@ export const DataSettings: React.FC = () => {
                   Cette action supprimera définitivement toutes les données de votre agence :
                 </p>
                 <ul className="text-sm text-red-700 mt-2 ml-4 list-disc">
-                  <li>Toutes les propriétés ({dataStats.properties})</li>
-                  <li>Tous les propriétaires ({dataStats.owners})</li>
-                  <li>Tous les locataires ({dataStats.tenants})</li>
-                  <li>Tous les contrats ({dataStats.contracts})</li>
+                  <li>Toutes les propriétés ({agencyData.properties})</li>
+                  <li>Tous les propriétaires ({agencyData.owners})</li>
+                  <li>Tous les locataires ({agencyData.tenants})</li>
+                  <li>Tous les contrats ({agencyData.contracts})</li>
+                  <li>Tous les utilisateurs ({agencyData.users})</li>
                   <li>Tous les documents et images</li>
                 </ul>
               </div>

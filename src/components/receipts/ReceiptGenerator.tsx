@@ -10,6 +10,7 @@ import { AgencyIdGenerator } from '../../utils/idGenerator';
 interface ReceiptGeneratorProps {
   isOpen: boolean;
   onClose: () => void;
+  onReceiptGenerated?: (receipt: RentReceipt) => void;
   propertyId?: string;
   tenantId?: string;
   ownerId?: string;
@@ -18,6 +19,7 @@ interface ReceiptGeneratorProps {
 export const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   isOpen,
   onClose,
+  onReceiptGenerated,
   propertyId,
   tenantId,
   ownerId
@@ -34,6 +36,8 @@ export const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   const [generatedReceipt, setGeneratedReceipt] = useState<RentReceipt | null>(null);
 
   const generateReceipt = () => {
+    if (!user?.agencyId) return;
+    
     const [year, month] = receiptData.month.split('-');
     const monthNames = [
       'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -42,8 +46,8 @@ export const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
 
     const receipt: RentReceipt = {
       id: `receipt_${Date.now()}`,
-      receiptNumber: AgencyIdGenerator.generateReceiptNumber('agency1', 'Immobilier Excellence', monthNames[parseInt(month) - 1], parseInt(year)),
-      agencyId: 'agency1',
+      receiptNumber: AgencyIdGenerator.generateReceiptNumber(user.agencyId, user.firstName + ' ' + user.lastName + ' Agency', monthNames[parseInt(month) - 1], parseInt(year)),
+      agencyId: user.agencyId,
       propertyId: propertyId || 'property1',
       ownerId: ownerId || 'owner1',
       tenantId: tenantId || 'tenant1',
@@ -55,11 +59,16 @@ export const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
       paymentDate: new Date(receiptData.paymentDate),
       paymentMethod: receiptData.paymentMethod,
       notes: receiptData.notes,
-      issuedBy: 'Marie Kouassi',
+      issuedBy: `${user.firstName} ${user.lastName}`,
       createdAt: new Date()
     };
 
     setGeneratedReceipt(receipt);
+    
+    // Sauvegarder la quittance
+    if (onReceiptGenerated) {
+      onReceiptGenerated(receipt);
+    }
   };
 
   const printReceipt = () => {

@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Palette, Monitor, Sun, Moon, Smartphone, Layout, Type, Eye } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService } from '../../lib/supabase';
-import { useEffect } from 'react';
 
 export const AppearanceSettings: React.FC = () => {
   const { user } = useAuth();
@@ -20,14 +18,15 @@ export const AppearanceSettings: React.FC = () => {
   });
 
   useEffect(() => {
-    // Charger les paramètres sauvegardés
-    const savedSettings = localStorage.getItem('appearanceSettings');
+    // Charger les paramètres sauvegardés pour cette agence
+    const settingsKey = `appearance_settings_${user?.agencyId}`;
+    const savedSettings = localStorage.getItem(settingsKey);
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
       setSettings(parsed);
       applySettings(parsed);
     }
-  }, []);
+  }, [user?.agencyId]);
 
   const applySettings = (newSettings: typeof settings) => {
     const root = document.documentElement;
@@ -35,23 +34,36 @@ export const AppearanceSettings: React.FC = () => {
     // Appliquer le thème
     if (newSettings.theme === 'dark') {
       root.classList.add('dark');
+      document.body.style.background = 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)';
     } else {
       root.classList.remove('dark');
+      document.body.style.background = 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)';
     }
     
     // Appliquer la taille de police
-    root.style.fontSize = newSettings.fontSize === 'small' ? '14px' : 
-                         newSettings.fontSize === 'large' ? '18px' : '16px';
+    const fontSizes = {
+      small: '14px',
+      medium: '16px',
+      large: '18px'
+    };
+    root.style.fontSize = fontSizes[newSettings.fontSize as keyof typeof fontSizes];
     
     // Appliquer la densité
-    root.setAttribute('data-density', newSettings.density);
+    const densities = {
+      compact: '0.75rem',
+      comfortable: '1rem',
+      spacious: '1.5rem'
+    };
+    root.style.setProperty('--spacing-unit', densities[newSettings.density as keyof typeof densities]);
     
     // Appliquer les animations
     if (!newSettings.animations) {
       root.style.setProperty('--animation-duration', '0s');
     } else {
-      root.style.removeProperty('--animation-duration');
+      root.style.setProperty('--animation-duration', '0.3s');
     }
+    
+    console.log('✅ Paramètres d\'apparence appliqués:', newSettings);
   };
 
   const themes = [
@@ -84,28 +96,20 @@ export const AppearanceSettings: React.FC = () => {
     // Appliquer immédiatement les changements
     applySettings(newSettings);
     
-    // Sauvegarder automatiquement en localStorage
-    localStorage.setItem('appearanceSettings', JSON.stringify(newSettings));
+    // Sauvegarder automatiquement pour cette agence
+    const settingsKey = `appearance_settings_${user?.agencyId}`;
+    localStorage.setItem(settingsKey, JSON.stringify(newSettings));
     
-    console.log('✅ Paramètres d\'apparence appliqués et sauvegardés:', newSettings);
+    console.log('✅ Paramètres sauvegardés pour agence:', user?.agencyId);
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      // Sauvegarder les paramètres d'apparence
-      localStorage.setItem('appearanceSettings', JSON.stringify(settings));
+      // Sauvegarder les paramètres d'apparence pour cette agence
+      const settingsKey = `appearance_settings_${user?.agencyId}`;
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
       applySettings(settings);
-      
-      // Essayer de sauvegarder en Supabase aussi
-      try {
-        if (user?.id) {
-          await dbService.updateUser(user.id, { appearance_settings: settings });
-          console.log('✅ Paramètres sauvegardés en Supabase');
-        }
-      } catch (error) {
-        console.warn('⚠️ Sauvegarde Supabase échouée, localStorage utilisé');
-      }
       
       alert('✅ Paramètres d\'apparence appliqués et sauvegardés !');
     } catch (error) {
@@ -326,7 +330,23 @@ export const AppearanceSettings: React.FC = () => {
 
       {/* Action Buttons */}
       <div className="flex items-center justify-end space-x-3">
-        <Button variant="ghost">
+        <Button 
+          variant="ghost"
+          onClick={() => {
+            const defaultSettings = {
+              theme: 'light',
+              fontSize: 'medium',
+              density: 'comfortable',
+              language: 'fr',
+              sidebarCollapsed: false,
+              animations: true,
+            };
+            setSettings(defaultSettings);
+            applySettings(defaultSettings);
+            const settingsKey = `appearance_settings_${user?.agencyId}`;
+            localStorage.setItem(settingsKey, JSON.stringify(defaultSettings));
+          }}
+        >
           Réinitialiser
         </Button>
         <Button onClick={handleSave} isLoading={loading}>

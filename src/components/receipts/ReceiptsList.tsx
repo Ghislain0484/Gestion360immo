@@ -8,70 +8,36 @@ import { ReceiptGenerator } from './ReceiptGenerator';
 import { RentReceipt } from '../../types/receipt';
 
 export const ReceiptsList: React.FC = () => {
+  const { user } = useAuth();
   const [showGenerator, setShowGenerator] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
   const [selectedReceipt, setSelectedReceipt] = useState<RentReceipt | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [realReceipts, setRealReceipts] = useState<RentReceipt[]>([]);
 
-  // Mock receipts data
-  const receipts: RentReceipt[] = [
-    {
-      id: '1',
-      receiptNumber: 'IMEX-202403-001',
-      agencyId: 'agency1',
-      propertyId: 'property1',
-      ownerId: 'owner1',
-      tenantId: 'tenant1',
-      month: 'Mars',
-      year: 2024,
-      rentAmount: 450000,
-      charges: 25000,
-      totalAmount: 475000,
-      paymentDate: new Date('2024-03-05'),
-      paymentMethod: 'virement',
-      notes: 'Paiement régulier',
-      issuedBy: 'Marie Kouassi',
-      createdAt: new Date('2024-03-05')
-    },
-    {
-      id: '2',
-      receiptNumber: 'IMEX-202403-002',
-      agencyId: 'agency1',
-      propertyId: 'property2',
-      ownerId: 'owner2',
-      tenantId: 'tenant2',
-      month: 'Mars',
-      year: 2024,
-      rentAmount: 320000,
-      charges: 15000,
-      totalAmount: 335000,
-      paymentDate: new Date('2024-03-08'),
-      paymentMethod: 'especes',
-      notes: '',
-      issuedBy: 'Jean Bamba',
-      createdAt: new Date('2024-03-08')
-    },
-    {
-      id: '3',
-      receiptNumber: 'IMEX-202402-015',
-      agencyId: 'agency1',
-      propertyId: 'property3',
-      ownerId: 'owner3',
-      tenantId: 'tenant3',
-      month: 'Février',
-      year: 2024,
-      rentAmount: 280000,
-      charges: 20000,
-      totalAmount: 300000,
-      paymentDate: new Date('2024-02-10'),
-      paymentMethod: 'mobile_money',
-      notes: 'Paiement via Orange Money',
-      issuedBy: 'Marie Kouassi',
-      createdAt: new Date('2024-02-10')
-    }
-  ];
+  useEffect(() => {
+    const loadAgencyReceipts = () => {
+      if (!user?.agencyId) return;
+      
+      // Charger les quittances de cette agence uniquement
+      const receiptsKey = `agency_receipts_${user.agencyId}`;
+      const storedReceipts = JSON.parse(localStorage.getItem(receiptsKey) || '[]');
+      setRealReceipts(storedReceipts);
+    };
+    
+    loadAgencyReceipts();
+  }, [user?.agencyId]);
+
+  const addNewReceipt = (receipt: RentReceipt) => {
+    if (!user?.agencyId) return;
+    
+    const receiptsKey = `agency_receipts_${user.agencyId}`;
+    const updatedReceipts = [receipt, ...realReceipts];
+    localStorage.setItem(receiptsKey, JSON.stringify(updatedReceipts));
+    setRealReceipts(updatedReceipts);
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -197,7 +163,7 @@ export const ReceiptsList: React.FC = () => {
     printWindow.print();
   };
 
-  const filteredReceipts = receipts.filter(receipt => {
+  const filteredReceipts = realReceipts.filter(receipt => {
     const matchesSearch = receipt.receiptNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          receipt.tenantId.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          receipt.propertyId.toLowerCase().includes(searchTerm.toLowerCase());
@@ -232,7 +198,7 @@ export const ReceiptsList: React.FC = () => {
         <Card>
           <div className="p-6 text-center">
             <div className="text-2xl font-bold text-green-600 mb-2">
-              {receipts.length}
+              {realReceipts.length}
             </div>
             <p className="text-sm text-gray-600">Total quittances</p>
           </div>
@@ -241,7 +207,7 @@ export const ReceiptsList: React.FC = () => {
         <Card>
           <div className="p-6 text-center">
             <div className="text-2xl font-bold text-blue-600 mb-2">
-              {formatCurrency(receipts.reduce((sum, r) => sum + r.totalAmount, 0))}
+              {formatCurrency(realReceipts.reduce((sum, r) => sum + r.totalAmount, 0))}
             </div>
             <p className="text-sm text-gray-600">Montant total</p>
           </div>
@@ -250,7 +216,7 @@ export const ReceiptsList: React.FC = () => {
         <Card>
           <div className="p-6 text-center">
             <div className="text-2xl font-bold text-yellow-600 mb-2">
-              {receipts.filter(r => r.month === 'Mars' && r.year === 2024).length}
+              {realReceipts.filter(r => r.month === new Date().toLocaleDateString('fr-FR', { month: 'long' }).charAt(0).toUpperCase() + new Date().toLocaleDateString('fr-FR', { month: 'long' }).slice(1) && r.year === new Date().getFullYear()).length}
             </div>
             <p className="text-sm text-gray-600">Ce mois</p>
           </div>
@@ -259,7 +225,7 @@ export const ReceiptsList: React.FC = () => {
         <Card>
           <div className="p-6 text-center">
             <div className="text-2xl font-bold text-purple-600 mb-2">
-              {formatCurrency(receipts.filter(r => r.month === 'Mars' && r.year === 2024).reduce((sum, r) => sum + r.totalAmount, 0))}
+              {formatCurrency(realReceipts.filter(r => r.month === new Date().toLocaleDateString('fr-FR', { month: 'long' }).charAt(0).toUpperCase() + new Date().toLocaleDateString('fr-FR', { month: 'long' }).slice(1) && r.year === new Date().getFullYear()).reduce((sum, r) => sum + r.totalAmount, 0))}
             </div>
             <p className="text-sm text-gray-600">Revenus du mois</p>
           </div>
@@ -457,6 +423,7 @@ export const ReceiptsList: React.FC = () => {
       <ReceiptGenerator
         isOpen={showGenerator}
         onClose={() => setShowGenerator(false)}
+        onReceiptGenerated={addNewReceipt}
       />
 
       {/* Receipt Details Modal */}

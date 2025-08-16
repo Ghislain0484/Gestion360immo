@@ -60,80 +60,64 @@ export const UserManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    const loadRealUsers = async () => {
+    const loadAgencyUsers = async () => {
       if (!user?.agencyId) {
         setError('Aucune agence associée');
         setLoadingUsers(false);
         return;
       }
       
-      console.log('🔄 Chargement utilisateurs pour agence:', user.agencyId);
       setLoadingUsers(true);
       setError(null);
       
       try {
-        // Essayer de charger depuis Supabase d'abord
-        console.log('📡 Tentative chargement Supabase...');
-        const { data, error: supabaseError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('agency_id', user.agencyId)
-          .order('created_at', { ascending: false });
-          
-        if (!supabaseError && data) {
-          const formattedUsers = data.map(u => ({
-            id: u.id,
-            email: u.email,
-            firstName: u.first_name,
-            lastName: u.last_name,
-            role: u.role,
-            isActive: u.is_active,
-            permissions: u.permissions || {},
-            createdAt: new Date(u.created_at),
-          }));
-          
-          setRealUsers(formattedUsers);
-          console.log('✅ Utilisateurs Supabase chargés:', formattedUsers.length);
-          return;
+        // Charger les utilisateurs de cette agence uniquement
+        const agencyUsersKey = `agency_users_${user.agencyId}`;
+        const storedUsers = JSON.parse(localStorage.getItem(agencyUsersKey) || '[]');
+        
+        // Ajouter l'utilisateur connecté s'il n'est pas dans la liste
+        const currentUserExists = storedUsers.find((u: any) => u.id === user.id);
+        if (!currentUserExists) {
+          const currentUserData = {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            agencyId: user.agencyId,
+            isActive: true,
+            permissions: {
+              dashboard: true,
+              properties: true,
+              owners: true,
+              tenants: true,
+              contracts: true,
+              collaboration: true,
+              reports: true,
+              notifications: true,
+              settings: true,
+              userManagement: user.role === 'director',
+            },
+            createdAt: new Date(),
+          };
+          storedUsers.unshift(currentUserData);
+          localStorage.setItem(agencyUsersKey, JSON.stringify(storedUsers));
         }
         
-        console.warn('⚠️ Erreur Supabase:', supabaseError);
-        throw new Error('Supabase non disponible');
+        setRealUsers(storedUsers);
+        console.log(`✅ ${storedUsers.length} utilisateur(s) chargé(s) pour l'agence ${user.agencyId}`);
         
       } catch (error) {
-        console.warn('⚠️ Erreur Supabase, chargement localStorage:', error);
-        
-        // Fallback : charger les utilisateurs créés localement pour cette agence
-        const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
-        const localUsers = JSON.parse(localStorage.getItem('agency_users') || '[]');
-        
-        // Filtrer les utilisateurs de cette agence uniquement
-        const agencyUsers = [
-          // Utilisateurs approuvés (directeurs)
-          ...approvedAccounts.filter((acc: any) => acc.agencyId === user.agencyId),
-          // Utilisateurs créés localement
-          ...localUsers.filter((u: any) => u.agency_id === user.agencyId)
-        ];
-        
-        setRealUsers(agencyUsers.map((acc: any) => ({
-          id: acc.id,
-          email: acc.email,
-          firstName: acc.firstName || acc.first_name,
-          lastName: acc.lastName || acc.last_name,
-          role: acc.role,
-          isActive: acc.isActive !== false,
-          permissions: acc.permissions || {},
-          createdAt: new Date(acc.createdAt || acc.created_at),
-        })));
-        
-        console.log('📦 Utilisateurs localStorage chargés:', agencyUsers.length);
+        console.error('❌ Erreur chargement utilisateurs:', error);
+        setError('Erreur lors du chargement des utilisateurs');
+        setRealUsers([]);
       } finally {
         setLoadingUsers(false);
       }
     };
     
-    loadRealUsers();
-  }, [user?.agencyId]);
+    loadAgencyUsers();
+  }, [user?.agencyId, user?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,8 +129,8 @@ export const UserManagement: React.FC = () => {
         throw new Error('Tous les champs obligatoires doivent être remplis');
       }
       
-      if (!editingUser && (!formData.password || formData.password.length < 8)) {
-        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+      if (!editingUser && (!formData.password || formData.password.length < 6)) {
+        throw new Error('Le mot de passe doit contenir au moins 6 caractères');
       }
       
       // Validation email
@@ -154,98 +138,57 @@ export const UserManagement: React.FC = () => {
         throw new Error('Format d\'email invalide');
       }
       
+      // Vérifier que l'email n'existe pas déjà
+      const agencyUsersKey = `agency_users_${user?.agencyId}`;
+      const existingUsers = JSON.parse(localStorage.getItem(agencyUsersKey) || '[]');
+      const emailExists = existingUsers.find((u: any) => 
+        u.email.toLowerCase() === formData.email.toLowerCase() && 
+        (!editingUser || u.id !== editingUser.id)
+      );
+      
+      if (emailExists) {
+        throw new Error('Cet email est déjà utilisé par un autre utilisateur');
+      }
+      
       if (editingUser) {
         // Mise à jour utilisateur existant
-        console.log('🔄 Mise à jour utilisateur:', editingUser.id);
-        
         const updateData = {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
           email: formData.email,
           role: formData.role,
           permissions: formData.permissions,
-          is_active: formData.isActive,
+          isActive: formData.isActive,
+          updatedAt: new Date(),
         };
         
-        try {
-          await dbService.updateUser(editingUser.id, updateData);
-          console.log('✅ Utilisateur mis à jour en Supabase');
-        } catch (supabaseError) {
-          console.warn('⚠️ Erreur Supabase, mise à jour locale');
-          
-          // Mise à jour locale
-          const localUsers = JSON.parse(localStorage.getItem('agency_users') || '[]');
-          const index = localUsers.findIndex((u: any) => u.id === editingUser.id);
-          if (index !== -1) {
-            localUsers[index] = { ...localUsers[index], ...updateData, updated_at: new Date().toISOString() };
-            localStorage.setItem('agency_users', JSON.stringify(localUsers));
-          }
-        }
+        const updatedUsers = existingUsers.map((u: any) => 
+          u.id === editingUser.id ? { ...u, ...updateData } : u
+        );
         
-        // Mettre à jour la liste locale
-        setRealUsers(prev => prev.map(u => 
-          u.id === editingUser.id 
-            ? { ...u, ...updateData, updatedAt: new Date() }
-            : u
-        ));
+        localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
+        setRealUsers(updatedUsers);
         
         alert('✅ Utilisateur mis à jour avec succès !');
       } else {
         // Création nouvel utilisateur
-        console.log('🔄 Création nouvel utilisateur...');
-        
-        const newUserId = `user_${Date.now()}`;
+        const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const userData = {
           id: newUserId,
           email: formData.email,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
           role: formData.role,
-          agency_id: user?.agencyId || '',
+          agencyId: user?.agencyId || '',
           permissions: formData.permissions,
-          is_active: formData.isActive,
+          isActive: formData.isActive,
           password: formData.password,
-          created_at: new Date().toISOString()
+          createdAt: new Date(),
         };
         
-        try {
-          const newUser = await dbService.createUser(userData);
-          console.log('✅ Utilisateur créé en Supabase');
-          
-          // Ajouter à la liste locale
-          setRealUsers(prev => [...prev, {
-            id: newUser.id,
-            email: newUser.email,
-            firstName: newUser.first_name,
-            lastName: newUser.last_name,
-            role: newUser.role,
-            isActive: newUser.is_active,
-            permissions: newUser.permissions,
-            createdAt: new Date(newUser.created_at),
-          }]);
-          
-        } catch (supabaseError) {
-          console.warn('⚠️ Erreur Supabase, création locale:', supabaseError);
-          
-          // Fallback : créer localement
-          const localUsers = JSON.parse(localStorage.getItem('agency_users') || '[]');
-          localUsers.push(userData);
-          localStorage.setItem('agency_users', JSON.stringify(localUsers));
-          
-          // Ajouter à la liste affichée
-          setRealUsers(prev => [...prev, {
-            id: userData.id,
-            email: userData.email,
-            firstName: userData.first_name,
-            lastName: userData.last_name,
-            role: userData.role,
-            isActive: userData.is_active,
-            permissions: userData.permissions,
-            createdAt: new Date(userData.created_at),
-          }]);
-          
-          console.log('💾 Utilisateur créé localement');
-        }
+        const updatedUsers = [userData, ...existingUsers];
+        localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
+        setRealUsers(updatedUsers);
         
         alert(`✅ UTILISATEUR CRÉÉ AVEC SUCCÈS !
         
@@ -254,7 +197,7 @@ export const UserManagement: React.FC = () => {
 🔑 MOT DE PASSE : ${formData.password}
 👔 RÔLE : ${roleLabels[formData.role]}
 
-✅ Le compte a été créé et configuré
+✅ Le compte a été créé et sauvegardé
 ✅ L'utilisateur peut maintenant se connecter
 ✅ Permissions configurées selon le rôle
 
@@ -269,7 +212,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
       setEditingUser(null);
       resetForm();
     } catch (error) {
-      console.error('❌ Erreur création utilisateur:', error);
+      console.error('❌ Erreur gestion utilisateur:', error);
       alert(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     } finally {
       setLoading(false);
@@ -316,19 +259,29 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
   };
 
   const toggleUserStatus = (userId: string) => {
-    setRealUsers(prev => prev.map(u => 
-      u.id === userId ? { ...u, isActive: !u.isActive } : u
-    ));
+    const agencyUsersKey = `agency_users_${user?.agencyId}`;
+    const updatedUsers = realUsers.map(u => 
+      u.id === userId ? { ...u, isActive: !u.isActive, updatedAt: new Date() } : u
+    );
+    
+    localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
+    setRealUsers(updatedUsers);
   };
 
   const deleteUser = (userId: string) => {
+    if (userId === user?.id) {
+      alert('Vous ne pouvez pas supprimer votre propre compte');
+      return;
+    }
+    
     if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-      setRealUsers(prev => prev.filter(u => u.id !== userId));
+      const agencyUsersKey = `agency_users_${user?.agencyId}`;
+      const updatedUsers = realUsers.filter(u => u.id !== userId);
       
-      // Supprimer aussi du localStorage
-      const localUsers = JSON.parse(localStorage.getItem('agency_users') || '[]');
-      const filtered = localUsers.filter((u: any) => u.id !== userId);
-      localStorage.setItem('agency_users', JSON.stringify(filtered));
+      localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
+      setRealUsers(updatedUsers);
+      
+      alert('✅ Utilisateur supprimé avec succès');
     }
   };
 
@@ -438,7 +391,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
             Gestion des utilisateurs
           </h3>
           <p className="text-sm text-gray-500 mt-1">
-            Créez et gérez les comptes de vos employés
+            Créez et gérez les comptes de vos employés ({realUsers.length} utilisateur{realUsers.length > 1 ? 's' : ''})
           </p>
         </div>
         <Button onClick={() => setShowUserForm(true)}>
@@ -462,13 +415,16 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
                   <div>
                     <h4 className="font-medium text-gray-900">
                       {userData.firstName} {userData.lastName}
+                      {userData.id === user?.id && (
+                        <span className="text-xs text-blue-600 ml-2">(Vous)</span>
+                      )}
                     </h4>
                     <p className="text-sm text-gray-500">{userData.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Badge 
-                    variant={userData.role === 'manager' ? 'warning' : 'info'} 
+                    variant={userData.role === 'director' ? 'success' : userData.role === 'manager' ? 'warning' : 'info'} 
                     size="sm"
                   >
                     {roleLabels[userData.role as keyof typeof roleLabels]}
@@ -485,7 +441,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
               <div className="mb-3">
                 <p className="text-xs text-gray-500 mb-2">Permissions actives :</p>
                 <div className="flex flex-wrap gap-1">
-                  {Object.entries(userData.permissions)
+                  {Object.entries(userData.permissions || {})
                     .filter(([_, enabled]) => enabled)
                     .slice(0, 4)
                     .map(([key]) => (
@@ -493,9 +449,9 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
                         {permissionLabels[key as keyof typeof permissionLabels]}
                       </Badge>
                     ))}
-                  {Object.values(userData.permissions).filter(Boolean).length > 4 && (
+                  {Object.values(userData.permissions || {}).filter(Boolean).length > 4 && (
                     <Badge variant="secondary" size="sm">
-                      +{Object.values(userData.permissions).filter(Boolean).length - 4}
+                      +{Object.values(userData.permissions || {}).filter(Boolean).length - 4}
                     </Badge>
                   )}
                 </div>
@@ -503,35 +459,39 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
 
               <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                 <span className="text-xs text-gray-500">
-                  Créé le {userData.createdAt.toLocaleDateString('fr-FR')}
+                  Créé le {new Date(userData.createdAt).toLocaleDateString('fr-FR')}
                 </span>
                 <div className="flex space-x-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleUserStatus(userData.id)}
-                  >
-                    {userData.isActive ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEdit(userData)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteUser(userData.id)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {userData.id !== user?.id && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleUserStatus(userData.id)}
+                      >
+                        {userData.isActive ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(userData)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteUser(userData.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

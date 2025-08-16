@@ -1,58 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Check, Trash2, Settings, AlertTriangle, MessageSquare, Home, Calendar } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { Notification } from '../../types/notification';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const NotificationsCenter: React.FC = () => {
+  const { user } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [realNotifications, setRealNotifications] = useState<Notification[]>([]);
 
-  // Mock notifications data
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      userId: '1',
-      type: 'payment_reminder',
-      title: 'Rappel de paiement',
-      message: 'Le loyer de la Villa Cocody est en retard de 5 jours',
-      priority: 'high',
-      isRead: false,
-      createdAt: new Date('2024-03-10T10:30:00')
-    },
-    {
-      id: '2',
-      userId: '1',
-      type: 'new_message',
-      title: 'Nouveau message',
-      message: 'Agence Immobilier Plus vous a envoyé un message concernant la Villa Angré',
-      priority: 'medium',
-      isRead: false,
-      createdAt: new Date('2024-03-10T09:15:00')
-    },
-    {
-      id: '3',
-      userId: '1',
-      type: 'contract_expiry',
-      title: 'Contrat bientôt expiré',
-      message: 'Le contrat de location de l\'Appartement Plateau expire dans 30 jours',
-      priority: 'medium',
-      isRead: true,
-      createdAt: new Date('2024-03-09T14:20:00')
-    },
-    {
-      id: '4',
-      userId: '1',
-      type: 'new_interest',
-      title: 'Nouvel intérêt',
-      message: 'Une agence a manifesté son intérêt pour votre annonce Villa Moderne',
-      priority: 'low',
-      isRead: true,
-      createdAt: new Date('2024-03-08T16:45:00')
-    }
-  ]);
+  useEffect(() => {
+    const loadAgencyNotifications = () => {
+      if (!user?.id) return;
+      
+      // Charger les notifications de cet utilisateur uniquement
+      const notificationsKey = `user_notifications_${user.id}`;
+      const storedNotifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
+      
+      // Ajouter quelques notifications par défaut si aucune
+      if (storedNotifications.length === 0) {
+        const defaultNotifications = [
+          {
+            id: `notif_${Date.now()}_1`,
+            userId: user.id,
+            type: 'property_update',
+            title: 'Bienvenue sur Gestion360Immo',
+            message: 'Votre compte a été configuré avec succès. Vous pouvez maintenant gérer vos biens immobiliers.',
+            priority: 'medium',
+            isRead: false,
+            createdAt: new Date()
+          }
+        ];
+        
+        localStorage.setItem(notificationsKey, JSON.stringify(defaultNotifications));
+        setRealNotifications(defaultNotifications);
+      } else {
+        setRealNotifications(storedNotifications);
+      }
+    };
+    
+    loadAgencyNotifications();
+  }, [user?.id]);
+
+  const addNotification = (notification: Notification) => {
+    if (!user?.id) return;
+    
+    const notificationsKey = `user_notifications_${user.id}`;
+    const updatedNotifications = [notification, ...realNotifications];
+    localStorage.setItem(notificationsKey, JSON.stringify(updatedNotifications));
+    setRealNotifications(updatedNotifications);
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -81,32 +82,44 @@ export const NotificationsCenter: React.FC = () => {
   };
 
   const markAsRead = (notificationId: string) => {
-    setNotifications(prev =>
-      prev.map(notif =>
-        notif.id === notificationId ? { ...notif, isRead: true } : notif
-      )
+    if (!user?.id) return;
+    
+    const updatedNotifications = realNotifications.map(notif =>
+      notif.id === notificationId ? { ...notif, isRead: true } : notif
     );
+    
+    const notificationsKey = `user_notifications_${user.id}`;
+    localStorage.setItem(notificationsKey, JSON.stringify(updatedNotifications));
+    setRealNotifications(updatedNotifications);
   };
 
   const markAllAsRead = () => {
-    setNotifications(prev =>
-      prev.map(notif => ({ ...notif, isRead: true }))
-    );
+    if (!user?.id) return;
+    
+    const updatedNotifications = realNotifications.map(notif => ({ ...notif, isRead: true }));
+    
+    const notificationsKey = `user_notifications_${user.id}`;
+    localStorage.setItem(notificationsKey, JSON.stringify(updatedNotifications));
+    setRealNotifications(updatedNotifications);
   };
 
   const deleteNotification = (notificationId: string) => {
-    setNotifications(prev =>
-      prev.filter(notif => notif.id !== notificationId)
-    );
+    if (!user?.id) return;
+    
+    const updatedNotifications = realNotifications.filter(notif => notif.id !== notificationId);
+    
+    const notificationsKey = `user_notifications_${user.id}`;
+    localStorage.setItem(notificationsKey, JSON.stringify(updatedNotifications));
+    setRealNotifications(updatedNotifications);
   };
 
-  const filteredNotifications = notifications.filter(notif => {
+  const filteredNotifications = realNotifications.filter(notif => {
     if (filter === 'unread') return !notif.isRead;
     if (filter === 'high') return notif.priority === 'high';
     return true;
   });
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = realNotifications.filter(n => !n.isRead).length;
 
   return (
     <div className="space-y-6">
@@ -143,7 +156,7 @@ export const NotificationsCenter: React.FC = () => {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Toutes ({notifications.length})
+              Toutes ({realNotifications.length})
             </button>
             <button
               onClick={() => setFilter('unread')}
