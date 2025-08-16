@@ -5,7 +5,7 @@ import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService } from '../../lib/supabase';
+import { dbService, supabase } from '../../lib/supabase';
 
 export const ProfileSettings: React.FC = () => {
   const { user } = useAuth();
@@ -49,46 +49,86 @@ export const ProfileSettings: React.FC = () => {
 
     setLoading(true);
     try {
+      console.log('🔄 Mise à jour profil utilisateur...');
+      
+      let avatarUrl = formData.avatar;
+      
+      // Upload de l'avatar si fichier présent et Supabase configuré
+      if (avatarFile && supabase) {
+        try {
+          console.log('📤 Upload avatar vers Supabase Storage...');
+          const fileName = `avatars/${user.id}-${Date.now()}.${avatarFile.name.split('.').pop()}`;
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, avatarFile, {
+              cacheControl: '3600',
+              upsert: true
+            });
+            
+          if (uploadError) {
+            console.warn('⚠️ Erreur upload avatar:', uploadError);
+          } else {
+            const { data: { publicUrl } } = supabase.storage
+              .from('avatars')
+              .getPublicUrl(fileName);
+            avatarUrl = publicUrl;
+            console.log('✅ Avatar uploadé:', publicUrl);
+          }
+        } catch (uploadError) {
+          console.warn('⚠️ Erreur upload avatar, utilisation URL locale');
+        }
+      }
+      
       // Mise à jour du profil utilisateur
       const updateData = {
         first_name: formData.firstName,
         last_name: formData.lastName,
         email: formData.email,
-        avatar: formData.avatar,
+        avatar: avatarUrl,
       };
       
-      await dbService.updateUser(user.id, updateData);
+      console.log('📝 Données à sauvegarder:', updateData);
       
-      // Mettre à jour les données utilisateur en localStorage aussi
-      const updatedUser = {
-        ...user,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        avatar: formData.avatar,
-      };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-      
-      alert('✅ Profil mis à jour avec succès !');
-      
-      // Recharger la page pour appliquer les changements
-      window.location.reload();
+      try {
+        const result = await dbService.updateUser(user.id, updateData);
+        console.log('✅ Profil sauvegardé:', result);
+        
+        // Mettre à jour les données utilisateur en localStorage
+        const updatedUser = {
+          ...user,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          avatar: avatarUrl,
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        
+        alert('✅ Profil mis à jour avec succès !');
+        
+        // Recharger la page pour appliquer les changements
+        window.location.reload();
+        
+      } catch (updateError) {
+        console.error('❌ Erreur mise à jour profil:', updateError);
+        
+        // Sauvegarder localement en cas d'erreur
+        const updatedUser = {
+          ...user,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          avatar: avatarUrl,
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        
+        alert('✅ Profil mis à jour localement ! Les changements seront synchronisés dès que possible.');
+        window.location.reload();
+      }
       
     } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
-      
-      // En cas d'erreur Supabase, sauvegarder localement
-      const updatedUser = {
-        ...user,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        avatar: formData.avatar,
-      };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-      
-      alert('✅ Profil mis à jour localement ! Les changements seront synchronisés dès que possible.');
-      window.location.reload();
+      console.error('❌ Erreur générale mise à jour profil:', error);
+      alert('❌ Erreur lors de la mise à jour du profil. Veuillez réessayer.');
     } finally {
       setLoading(false);
     }
@@ -151,14 +191,12 @@ export const ProfileSettings: React.FC = () => {
               value={formData.firstName}
               onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
               required
-              icon={<User className="h-4 w-4" />}
             />
             <Input
               label="Nom"
               value={formData.lastName}
               onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
               required
-              icon={<User className="h-4 w-4" />}
             />
           </div>
 
@@ -168,7 +206,6 @@ export const ProfileSettings: React.FC = () => {
             value={formData.email}
             onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
             required
-            icon={<Mail className="h-4 w-4" />}
           />
 
           <Input
@@ -177,7 +214,6 @@ export const ProfileSettings: React.FC = () => {
             value={formData.phone}
             onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
             placeholder="+225 XX XX XX XX XX"
-            icon={<Phone className="h-4 w-4" />}
           />
 
           {/* Role Information */}

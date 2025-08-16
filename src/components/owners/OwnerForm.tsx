@@ -136,112 +136,41 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       return;
     }
     
+    console.log('🔄 Début création propriétaire avec données:', {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      phone: formData.phone,
+      email: formData.email,
+      city: formData.city,
+      propertyTitle: formData.propertyTitle,
+      maritalStatus: formData.maritalStatus
+    });
+    
     try {
+      console.log('📝 Appel fonction onSubmit...');
       await onSubmit(formData);
+      console.log('✅ onSubmit terminé avec succès');
       
-      // Créer un objet propriétaire pour le contrat
-      const ownerForContract = {
-        id: `owner_${Date.now()}`,
-        ...formData,
-        createdAt: new Date(),
-      };
-      setCreatedOwner(ownerForContract);
+      // Message de succès et fermeture
+      alert(`✅ Propriétaire créé avec succès !
       
-      // Générer automatiquement le contrat de gestion OHADA
-      try {
-        if (!user?.agencyId) {
-          throw new Error('❌ Aucune agence associée à votre compte');
-        }
-        
-        console.log('🔄 Génération contrat de gestion pour propriétaire:', ownerForContract.id);
-        
-        // Récupérer les données de l'agence OBLIGATOIREMENT
-        const agencyData = await dbService.getAgency(user.agencyId);
-        if (!agencyData) {
-          throw new Error('❌ Impossible de récupérer les données de l\'agence');
-        }
-        
-        console.log('✅ Données agence récupérées:', agencyData.name);
+👤 ${formData.firstName} ${formData.lastName}
+📱 ${formData.phone}
+🏠 ${formData.city}
+📋 Titre: ${formData.propertyTitle}
 
-        const managementContract = await OHADAContractGenerator.generateManagementContractForOwner(
-          ownerForContract,
-          agencyData,
-          10 // 10% de commission
-        );
-
-        // Créer le contrat OBLIGATOIREMENT en base
-        console.log('🔄 Création contrat en base de données...');
-        const contractResult = await dbService.createContract({
-          ...managementContract,
-          property_id: null, // Sera défini lors de l'ajout de propriété
-          owner_id: ownerForContract.id,
-          tenant_id: null,
-          agency_id: user.agencyId,
-        });
-        
-        console.log('✅ Contrat de gestion créé en base:', contractResult);
-
-        // Proposition d'impression immédiate
-        const shouldPrint = confirm(`✅ Propriétaire créé avec succès !
-
-📋 CONTRAT DE GESTION AUTOMATIQUE :
-• Type : Mandat de gestion immobilière
-• Commission : 10% des loyers encaissés
-• Conforme : Législation ivoirienne et OHADA
-• Statut : Créé en base de données
-• ID Contrat : ${contractResult.id}
-
-Le contrat de gestion a été créé automatiquement en base de données selon la réglementation OHADA.
-Vous pouvez le consulter et le modifier dans la section "Contrats".
-
-Voulez-vous imprimer le contrat maintenant ?`);
-
-        if (shouldPrint) {
-          OHADAContractGenerator.printContract(contractResult, agencyData, ownerForContract);
-        }
-
-      } catch (contractError) {
-        console.error('Erreur génération contrat:', contractError);
-        
-        // Message d'erreur spécifique selon le type d'erreur
-        let errorMessage = '';
-        if (contractError instanceof Error) {
-          if (contractError.message.includes('Invalid API key')) {
-            errorMessage = `🔑 Configuration Supabase invalide
-            
-SOLUTION :
-1. Vérifiez les variables d'environnement sur Vercel
-2. VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY doivent être correctes
-3. Redéployez l'application après correction
-
-Le propriétaire a été créé mais le contrat n'a pas pu être généré.`;
-          } else if (contractError.message.includes('agence associée')) {
-            errorMessage = `👤 Aucune agence associée à votre compte
-            
-SOLUTION :
-Veuillez vous reconnecter à votre compte.`;
-          } else {
-            errorMessage = `⚠️ Erreur technique lors de la génération du contrat
-            
-Erreur: ${contractError.message}
-
-Le propriétaire a été créé mais le contrat doit être créé manuellement.`;
-          }
-        }
-
-        alert(`✅ Propriétaire créé avec succès !
-
-❌ ERREUR CONTRAT AUTOMATIQUE :
-${errorMessage}
-
-Vous pouvez créer manuellement un contrat dans la section "Contrats".`);
-      }
+Le propriétaire a été enregistré et est maintenant disponible dans votre liste.`);
       
       onClose();
       
     } catch (error) {
-      console.error('Erreur lors de la soumission:', error);
-      alert('Erreur lors de l\'enregistrement du propriétaire. Veuillez vérifier vos données et réessayer.');
+      console.error('❌ Erreur création propriétaire:', error);
+      
+      if (error instanceof Error) {
+        alert(`❌ Erreur: ${error.message}`);
+      } else {
+        alert('❌ Erreur inconnue lors de la création du propriétaire');
+      }
     }
   };
 

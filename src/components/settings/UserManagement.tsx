@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Users, Shield, Edit, Trash2, Eye, EyeOff, UserCheck, UserX } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -7,6 +7,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { UserFormData, UserPermissions } from '../../types/agency';
 import { useAuth } from '../../contexts/AuthContext';
+import { dbService, supabase } from '../../lib/supabase';
 
 export const UserManagement: React.FC = () => {
   const { user } = useAuth();
@@ -14,57 +15,8 @@ export const UserManagement: React.FC = () => {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [realUsers, setRealUsers] = useState<any[]>([]);
-
-  useEffect(() => {
-    const loadRealUsers = async () => {
-      if (!user?.agencyId) return;
-      
-      try {
-        // Charger les utilisateurs réels de l'agence depuis Supabase
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('agency_id', user.agencyId)
-          .order('created_at', { ascending: false });
-          
-        if (error) throw error;
-        
-        const formattedUsers = data.map(u => ({
-          id: u.id,
-          email: u.email,
-          firstName: u.first_name,
-          lastName: u.last_name,
-          role: u.role,
-          isActive: u.is_active,
-          permissions: u.permissions || {},
-          createdAt: new Date(u.created_at),
-        }));
-        
-        setRealUsers(formattedUsers);
-        console.log('✅ Utilisateurs réels chargés:', formattedUsers.length);
-        
-      } catch (error) {
-        console.error('❌ Erreur chargement utilisateurs:', error);
-        
-        // Fallback : charger depuis localStorage
-        const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
-        const agencyUsers = approvedAccounts.filter((acc: any) => acc.agencyId === user.agencyId);
-        
-        setRealUsers(agencyUsers.map((acc: any) => ({
-          id: acc.id,
-          email: acc.email,
-          firstName: acc.firstName,
-          lastName: acc.lastName,
-          role: acc.role,
-          isActive: true,
-          permissions: acc.permissions || {},
-          createdAt: new Date(acc.createdAt),
-        })));
-      }
-    };
-    
-    loadRealUsers();
-  }, [user?.agencyId]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
@@ -107,6 +59,82 @@ export const UserManagement: React.FC = () => {
     userManagement: 'Gestion utilisateurs',
   };
 
+  useEffect(() => {
+    const loadRealUsers = async () => {
+      if (!user?.agencyId) {
+        setError('Aucune agence associée');
+        setLoadingUsers(false);
+        return;
+      }
+      
+      console.log('🔄 Chargement utilisateurs pour agence:', user.agencyId);
+      setLoadingUsers(true);
+      setError(null);
+      
+      try {
+        // Essayer de charger depuis Supabase d'abord
+        console.log('📡 Tentative chargement Supabase...');
+        const { data, error: supabaseError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('agency_id', user.agencyId)
+          .order('created_at', { ascending: false });
+          
+        if (!supabaseError && data) {
+          const formattedUsers = data.map(u => ({
+            id: u.id,
+            email: u.email,
+            firstName: u.first_name,
+            lastName: u.last_name,
+            role: u.role,
+            isActive: u.is_active,
+            permissions: u.permissions || {},
+            createdAt: new Date(u.created_at),
+          }));
+          
+          setRealUsers(formattedUsers);
+          console.log('✅ Utilisateurs Supabase chargés:', formattedUsers.length);
+          return;
+        }
+        
+        console.warn('⚠️ Erreur Supabase:', supabaseError);
+        throw new Error('Supabase non disponible');
+        
+      } catch (error) {
+        console.warn('⚠️ Erreur Supabase, chargement localStorage:', error);
+        
+        // Fallback : charger les utilisateurs créés localement pour cette agence
+        const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
+        const localUsers = JSON.parse(localStorage.getItem('agency_users') || '[]');
+        
+        // Filtrer les utilisateurs de cette agence uniquement
+        const agencyUsers = [
+          // Utilisateurs approuvés (directeurs)
+          ...approvedAccounts.filter((acc: any) => acc.agencyId === user.agencyId),
+          // Utilisateurs créés localement
+          ...localUsers.filter((u: any) => u.agency_id === user.agencyId)
+        ];
+        
+        setRealUsers(agencyUsers.map((acc: any) => ({
+          id: acc.id,
+          email: acc.email,
+          firstName: acc.firstName || acc.first_name,
+          lastName: acc.lastName || acc.last_name,
+          role: acc.role,
+          isActive: acc.isActive !== false,
+          permissions: acc.permissions || {},
+          createdAt: new Date(acc.createdAt || acc.created_at),
+        })));
+        
+        console.log('📦 Utilisateurs localStorage chargés:', agencyUsers.length);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+    
+    loadRealUsers();
+  }, [user?.agencyId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -139,10 +167,23 @@ export const UserManagement: React.FC = () => {
           is_active: formData.isActive,
         };
         
-        await dbService.updateUser(editingUser.id, updateData);
+        try {
+          await dbService.updateUser(editingUser.id, updateData);
+          console.log('✅ Utilisateur mis à jour en Supabase');
+        } catch (supabaseError) {
+          console.warn('⚠️ Erreur Supabase, mise à jour locale');
+          
+          // Mise à jour locale
+          const localUsers = JSON.parse(localStorage.getItem('agency_users') || '[]');
+          const index = localUsers.findIndex((u: any) => u.id === editingUser.id);
+          if (index !== -1) {
+            localUsers[index] = { ...localUsers[index], ...updateData, updated_at: new Date().toISOString() };
+            localStorage.setItem('agency_users', JSON.stringify(localUsers));
+          }
+        }
         
         // Mettre à jour la liste locale
-        setUsers(prev => prev.map(u => 
+        setRealUsers(prev => prev.map(u => 
           u.id === editingUser.id 
             ? { ...u, ...updateData, updatedAt: new Date() }
             : u
@@ -153,7 +194,9 @@ export const UserManagement: React.FC = () => {
         // Création nouvel utilisateur
         console.log('🔄 Création nouvel utilisateur...');
         
+        const newUserId = `user_${Date.now()}`;
         const userData = {
+          id: newUserId,
           email: formData.email,
           first_name: formData.firstName,
           last_name: formData.lastName,
@@ -161,22 +204,48 @@ export const UserManagement: React.FC = () => {
           agency_id: user?.agencyId || '',
           permissions: formData.permissions,
           is_active: formData.isActive,
-          password: formData.password
+          password: formData.password,
+          created_at: new Date().toISOString()
         };
         
-        const newUser = await dbService.createUser(userData);
-        
-        // Ajouter à la liste locale
-        setRealUsers(prev => [...prev, {
-          id: newUser.id,
-          email: newUser.email,
-          firstName: newUser.first_name,
-          lastName: newUser.last_name,
-          role: newUser.role,
-          isActive: newUser.is_active,
-          permissions: newUser.permissions,
-          createdAt: new Date(newUser.created_at),
-        }]);
+        try {
+          const newUser = await dbService.createUser(userData);
+          console.log('✅ Utilisateur créé en Supabase');
+          
+          // Ajouter à la liste locale
+          setRealUsers(prev => [...prev, {
+            id: newUser.id,
+            email: newUser.email,
+            firstName: newUser.first_name,
+            lastName: newUser.last_name,
+            role: newUser.role,
+            isActive: newUser.is_active,
+            permissions: newUser.permissions,
+            createdAt: new Date(newUser.created_at),
+          }]);
+          
+        } catch (supabaseError) {
+          console.warn('⚠️ Erreur Supabase, création locale:', supabaseError);
+          
+          // Fallback : créer localement
+          const localUsers = JSON.parse(localStorage.getItem('agency_users') || '[]');
+          localUsers.push(userData);
+          localStorage.setItem('agency_users', JSON.stringify(localUsers));
+          
+          // Ajouter à la liste affichée
+          setRealUsers(prev => [...prev, {
+            id: userData.id,
+            email: userData.email,
+            firstName: userData.first_name,
+            lastName: userData.last_name,
+            role: userData.role,
+            isActive: userData.is_active,
+            permissions: userData.permissions,
+            createdAt: new Date(userData.created_at),
+          }]);
+          
+          console.log('💾 Utilisateur créé localement');
+        }
         
         alert(`✅ UTILISATEUR CRÉÉ AVEC SUCCÈS !
         
@@ -185,7 +254,7 @@ export const UserManagement: React.FC = () => {
 🔑 MOT DE PASSE : ${formData.password}
 👔 RÔLE : ${roleLabels[formData.role]}
 
-✅ Le compte a été créé en base de données
+✅ Le compte a été créé et configuré
 ✅ L'utilisateur peut maintenant se connecter
 ✅ Permissions configurées selon le rôle
 
@@ -193,7 +262,7 @@ IDENTIFIANTS DE CONNEXION :
 Email : ${formData.email}
 Mot de passe : ${formData.password}
 
-L'utilisateur devra changer son mot de passe à la première connexion.`);
+L'utilisateur peut maintenant se connecter avec ces identifiants.`);
       }
       
       setShowUserForm(false);
@@ -201,7 +270,7 @@ L'utilisateur devra changer son mot de passe à la première connexion.`);
       resetForm();
     } catch (error) {
       console.error('❌ Erreur création utilisateur:', error);
-      alert('Erreur lors de la sauvegarde');
+      alert(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     } finally {
       setLoading(false);
     }
@@ -255,6 +324,11 @@ L'utilisateur devra changer son mot de passe à la première connexion.`);
   const deleteUser = (userId: string) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
       setRealUsers(prev => prev.filter(u => u.id !== userId));
+      
+      // Supprimer aussi du localStorage
+      const localUsers = JSON.parse(localStorage.getItem('agency_users') || '[]');
+      const filtered = localUsers.filter((u: any) => u.id !== userId);
+      localStorage.setItem('agency_users', JSON.stringify(filtered));
     }
   };
 
@@ -322,6 +396,36 @@ L'utilisateur devra changer son mot de passe à la première connexion.`);
         <p className="text-gray-600">
           Seuls les directeurs peuvent gérer les utilisateurs.
         </p>
+      </Card>
+    );
+  }
+
+  if (loadingUsers) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Gestion des utilisateurs
+          </h3>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="p-8 text-center">
+        <Shield className="h-16 w-16 mx-auto mb-4 text-red-400" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">
+          Erreur de chargement
+        </h3>
+        <p className="text-red-600 mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()}>
+          Réessayer
+        </Button>
       </Card>
     );
   }

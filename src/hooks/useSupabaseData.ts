@@ -17,27 +17,15 @@ export function useRealtimeData<T>(
     try {
       const agencyId = user?.agencyId || 'demo_agency_001';
       
-      if (!agencyId) {
-        console.warn('⚠️ Aucun agencyId trouvé pour l\'utilisateur:', user);
-        // Utiliser un ID par défaut pour éviter les erreurs
-        console.log('🔄 Utilisation agencyId par défaut');
-      }
-      
       setLoading(true);
       setError(null);
-      
-      console.log(`🔄 Chargement ${tableName} pour agence:`, agencyId, 'utilisateur:', user?.email);
       
       const result = await fetchFunction(agencyId);
       setData(result || []);
       
-      console.log(`✅ ${tableName} chargées:`, result?.length || 0, 'éléments');
     } catch (err) {
-      console.warn(`⚠️ Erreur chargement ${tableName}:`, err);
-      
-      // En cas d'erreur, continuer avec des données vides mais pas d'erreur bloquante
-      console.log(`📊 ${tableName} - Données vides suite à erreur`);
-      setError(null);
+      console.error(`Error loading ${tableName}:`, err);
+      setError(err instanceof Error ? err.message : 'Erreur de chargement');
       setData([]);
     } finally {
       setLoading(false);
@@ -51,10 +39,7 @@ export function useRealtimeData<T>(
     let subscription: any = null;
     
     if (tableName) {
-      console.log(`📡 Configuration souscription temps réel pour: ${tableName}`);
       subscription = dbService.subscribeToChanges(tableName, (payload) => {
-        console.log(`📡 Mise à jour temps réel ${tableName}:`, payload);
-        
         // Actualiser les données lors des changements
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
           fetchData();
@@ -90,15 +75,11 @@ export function useDashboardStats() {
     setError(null);
     
     try {
-      console.log('🔄 Chargement statistiques pour agence:', agencyId);
       const result = await dbService.getDashboardStats(agencyId);
       setStats(result);
-      console.log('✅ Statistiques chargées:', result);
     } catch (err) {
-      console.error('❌ Erreur statistiques:', err);
-      
-      // En cas d'erreur, utiliser des stats par défaut
-      console.warn('⚠️ Statistiques - Mode démo activé');
+      console.error('Error loading stats:', err);
+      setError(err instanceof Error ? err.message : 'Erreur de chargement');
       setStats({
         totalProperties: 0,
         totalOwners: 0,
@@ -108,7 +89,6 @@ export function useDashboardStats() {
         activeContracts: 0,
         occupancyRate: 0
       });
-      setError(null);
     } finally {
       setLoading(false);
     }
@@ -125,7 +105,6 @@ export function useDashboardStats() {
       
       tables.forEach(table => {
         const subscription = dbService.subscribeToChanges(table, () => {
-          console.log(`📡 Actualisation stats suite changement ${table}`);
           setTimeout(fetchStats, 500);
         });
         if (subscription) subscriptions.push(subscription);
@@ -198,17 +177,12 @@ export function useSupabaseCreate<T>(
     setError(null);
     
     try {
-      console.log('🔄 Création en cours:', data);
       const result = await createFunction(data);
-      console.log('✅ Création réussie:', result);
       onSuccess?.(result);
       return result;
     } catch (err) {
-      console.error('❌ Erreur création:', err);
-      
-      // En cas d'erreur, continuer sans bloquer
-      console.warn('⚠️ Création - Mode démo activé');
-      setError(null);
+      console.error('Error in create:', err);
+      setError(err instanceof Error ? err.message : 'Erreur inconnue');
       throw err;
     } finally {
       setLoading(false);

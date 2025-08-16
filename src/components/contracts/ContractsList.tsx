@@ -41,34 +41,32 @@ export const ContractsList: React.FC = () => {
     
     try {
       // Validation des données avant envoi
-      if (!contractData.propertyId || !contractData.ownerId || !contractData.tenantId) {
+      if (!contractData.property_id || !contractData.owner_id || !contractData.tenant_id) {
         throw new Error('Données obligatoires manquantes');
       }
       
       await createContract({
         agency_id: user.agencyId,
-        property_id: contractData.propertyId,
-        owner_id: contractData.ownerId,
-        tenant_id: contractData.tenantId,
+        property_id: contractData.property_id,
+        owner_id: contractData.owner_id,
+        tenant_id: contractData.tenant_id,
         type: contractData.type,
-        start_date: contractData.startDate,
-        end_date: contractData.endDate || null,
-        monthly_rent: contractData.monthlyRent || null,
-        sale_price: contractData.salePrice || null,
+        start_date: contractData.start_date,
+        end_date: contractData.end_date || null,
+        monthly_rent: contractData.monthly_rent || null,
+        sale_price: contractData.sale_price || null,
         deposit: contractData.deposit || null,
         charges: contractData.charges || null,
-        commission_rate: contractData.commissionRate,
-        commission_amount: contractData.commissionAmount,
+        commission_rate: contractData.commission_rate,
+        commission_amount: contractData.commission_amount,
         status: contractData.status,
         terms: contractData.terms,
         documents: contractData.documents || [],
       });
       
-      // Fermer le formulaire après succès
-      setShowForm(false);
     } catch (error) {
       console.error('Error creating contract:', error);
-      alert('Erreur lors de la création du contrat. Veuillez réessayer.');
+      throw error;
     }
   };
 

@@ -28,10 +28,10 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   };
 
   return (
-    <Card className="relative overflow-hidden">
+    <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-gray-50">
       <div className="flex items-center">
         <div className="flex-shrink-0">
-          <div className={`inline-flex items-center justify-center p-3 rounded-lg ${colorClasses[color]}`}>
+          <div className={`inline-flex items-center justify-center p-3 rounded-xl shadow-lg ${colorClasses[color]}`}>
             <Icon className="h-6 w-6 text-white" />
           </div>
         </div>

@@ -3,10 +3,12 @@ import { Palette, Monitor, Sun, Moon, Smartphone, Layout, Type, Eye } from 'luci
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-
+import { useAuth } from '../../contexts/AuthContext';
+import { dbService } from '../../lib/supabase';
 import { useEffect } from 'react';
 
 export const AppearanceSettings: React.FC = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({
     theme: 'light',
@@ -82,27 +84,33 @@ export const AppearanceSettings: React.FC = () => {
     // Appliquer immédiatement les changements
     applySettings(newSettings);
     
-    // Sauvegarder automatiquement
+    // Sauvegarder automatiquement en localStorage
     localStorage.setItem('appearanceSettings', JSON.stringify(newSettings));
+    
+    console.log('✅ Paramètres d\'apparence appliqués et sauvegardés:', newSettings);
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      // Save appearance settings
+      // Sauvegarder les paramètres d'apparence
       localStorage.setItem('appearanceSettings', JSON.stringify(settings));
       applySettings(settings);
       
-      // Sauvegarder aussi en base si possible
+      // Essayer de sauvegarder en Supabase aussi
       try {
-        await dbService.updateUser(user?.id || '', { appearance_settings: settings });
+        if (user?.id) {
+          await dbService.updateUser(user.id, { appearance_settings: settings });
+          console.log('✅ Paramètres sauvegardés en Supabase');
+        }
       } catch (error) {
-        console.warn('Sauvegarde locale uniquement');
+        console.warn('⚠️ Sauvegarde Supabase échouée, localStorage utilisé');
       }
       
       alert('✅ Paramètres d\'apparence appliqués et sauvegardés !');
     } catch (error) {
-      alert('Erreur lors de la sauvegarde');
+      console.error('❌ Erreur sauvegarde paramètres:', error);
+      alert('❌ Erreur lors de la sauvegarde des paramètres');
     } finally {
       setLoading(false);
     }
