@@ -151,14 +151,23 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     try {
       onSubmit(formData);
       
-      // Generate unique ID for the property
-      if (user?.agencyId) {
-        const propertyId = AgencyIdGenerator.generatePropertyId(user.agencyId, 'Agence');
-        console.log('Generated Property ID:', propertyId);
-      }
+      alert(`✅ Propriété créée avec succès !
+      
+🏠 ${formData.title}
+📍 ${formData.location.commune}, ${formData.location.quartier}
+⭐ Standing: ${formData.standing}
+🏠 ${formData.rooms.length} pièce(s) décrite(s)
+
+La propriété a été enregistrée et est maintenant disponible.`);
+      
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
-      alert('Erreur lors de l\'enregistrement. Veuillez réessayer.');
+      
+      if (error instanceof Error) {
+        alert(`❌ Erreur: ${error.message}`);
+      } else {
+        alert('Erreur lors de l\'enregistrement. Veuillez réessayer.');
+      }
     }
   };
 

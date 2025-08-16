@@ -201,7 +201,9 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Verset Biblique du Jour */}
-      <BibleVerseCard showRefresh={true} />
+      <div className="bg-gradient-soft rounded-xl p-1">
+        <BibleVerseCard showRefresh={true} />
+      </div>
 
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Tableau de bord</h1>
@@ -220,27 +222,27 @@ export const Dashboard: React.FC = () => {
       )}
 
       {dashboardStats && (
-        <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+        <Card className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border-emerald-200 shadow-elegant">
           <div className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Résumé Financier</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-3xl font-bold text-emerald-600">
                   {formatCurrency(dashboardStats.monthlyRevenue)}
                 </div>
-                <p className="text-sm text-green-700">Revenus mensuels</p>
+                <p className="text-sm text-emerald-700 font-medium">Revenus mensuels</p>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-3xl font-bold text-blue-600">
                   {dashboardStats.occupancyRate}%
                 </div>
-                <p className="text-sm text-blue-700">Taux d'occupation</p>
+                <p className="text-sm text-blue-700 font-medium">Taux d'occupation</p>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
+                <div className="text-3xl font-bold text-purple-600">
                   {formatCurrency(dashboardStats.monthlyRevenue * 0.1)}
                 </div>
-                <p className="text-sm text-purple-700">Commissions mensuelles</p>
+                <p className="text-sm text-purple-700 font-medium">Commissions mensuelles</p>
               </div>
             </div>
           </div>
@@ -396,7 +398,7 @@ export const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <button 
             onClick={() => navigate('/properties')}
-            className="flex items-center space-x-3 p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            className="flex items-center space-x-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl hover:from-blue-100 hover:to-cyan-100 transition-smooth shadow-soft hover:shadow-elegant"
           >
             <Building2 className="h-8 w-8 text-blue-600" />
             <div className="text-left">
@@ -407,7 +409,7 @@ export const Dashboard: React.FC = () => {
           
           <button 
             onClick={() => navigate('/owners')}
-            className="flex items-center space-x-3 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+            className="flex items-center space-x-3 p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl hover:from-emerald-100 hover:to-teal-100 transition-smooth shadow-soft hover:shadow-elegant"
           >
             <Users className="h-8 w-8 text-green-600" />
             <div className="text-left">
@@ -418,7 +420,7 @@ export const Dashboard: React.FC = () => {
           
           <button 
             onClick={() => navigate('/tenants')}
-            className="flex items-center space-x-3 p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
+            className="flex items-center space-x-3 p-4 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl hover:from-amber-100 hover:to-yellow-100 transition-smooth shadow-soft hover:shadow-elegant"
           >
             <UserCheck className="h-8 w-8 text-yellow-600" />
             <div className="text-left">
@@ -429,7 +431,7 @@ export const Dashboard: React.FC = () => {
           
           <button 
             onClick={() => navigate('/contracts')}
-            className="flex items-center space-x-3 p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+            className="flex items-center space-x-3 p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl hover:from-violet-100 hover:to-purple-100 transition-smooth shadow-soft hover:shadow-elegant"
           >
             <FileText className="h-8 w-8 text-purple-600" />
             <div className="text-left">

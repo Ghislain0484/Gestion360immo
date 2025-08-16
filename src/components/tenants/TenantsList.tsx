@@ -70,11 +70,9 @@ export const TenantsList: React.FC = () => {
         payment_status: tenantData.paymentStatus,
       });
       
-      // Fermer le formulaire après succès
-      setShowForm(false);
     } catch (error) {
       console.error('Error creating tenant:', error);
-      alert('Erreur lors de la création du locataire. Veuillez réessayer.');
+      throw error;
     }
   };
 

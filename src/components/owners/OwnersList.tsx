@@ -47,7 +47,7 @@ export const OwnersList: React.FC = () => {
 
   const handleAddOwner = async (ownerData: OwnerFormData) => {
     if (!user?.agencyId) {
-      alert('Erreur: Aucune agence associée à votre compte');
+      alert('❌ Aucune agence associée à votre compte. Veuillez vous reconnecter.');
       return;
     }
     
@@ -61,7 +61,7 @@ export const OwnersList: React.FC = () => {
       // Validation du téléphone
       const phoneRegex = /^(\+225)?[0-9\s-]{8,15}$/;
       if (!phoneRegex.test(ownerData.phone)) {
-        alert('Format de téléphone invalide. Utilisez le format: +225 XX XX XX XX XX');
+        alert('Format de téléphone invalide. Utilisez: +225 XX XX XX XX XX');
         return;
       }
       
@@ -74,7 +74,7 @@ export const OwnersList: React.FC = () => {
       // Validation des données du conjoint si marié
       if (ownerData.maritalStatus === 'marie') {
         if (!ownerData.spouseName?.trim() || !ownerData.spousePhone?.trim()) {
-          alert('Veuillez remplir les informations du conjoint pour une personne mariée');
+          alert('Informations du conjoint obligatoires pour une personne mariée');
           return;
         }
         if (!phoneRegex.test(ownerData.spousePhone)) {
@@ -99,31 +99,11 @@ export const OwnersList: React.FC = () => {
         children_count: ownerData.childrenCount,
       };
       
-      console.log('Création du propriétaire avec les données:', ownerPayload);
-      
       await createOwner(ownerPayload);
-      
-      alert('Propriétaire créé avec succès !');
       
     } catch (error) {
       console.error('Error creating owner:', error);
-      
-      // Messages d'erreur spécifiques
-      if (error instanceof Error) {
-        if (error.message.includes('duplicate key')) {
-          alert('Ce propriétaire existe déjà (téléphone ou email en double)');
-        } else if (error.message.includes('invalid input syntax')) {
-          alert('Données invalides. Vérifiez le format des champs');
-        } else if (error.message.includes('permission denied')) {
-          alert('Accès refusé. Vérifiez vos permissions');
-        } else if (error.message.includes('connection')) {
-          alert('Problème de connexion. Vérifiez votre connexion internet');
-        } else {
-          alert(`Erreur: ${error.message}`);
-        }
-      } else {
-        alert('Erreur inconnue lors de la création du propriétaire');
-      }
+      alert('Erreur lors de la création du propriétaire. Veuillez réessayer.');
     }
   };
 

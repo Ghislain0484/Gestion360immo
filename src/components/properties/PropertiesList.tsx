@@ -65,11 +65,9 @@ export const PropertiesList: React.FC = () => {
         for_rent: propertyData.forRent,
       });
       
-      // Fermer le formulaire après succès
-      setShowForm(false);
     } catch (error) {
       console.error('Error creating property:', error);
-      alert('Erreur lors de la création de la propriété. Veuillez réessayer.');
+      throw error;
     }
   };
 

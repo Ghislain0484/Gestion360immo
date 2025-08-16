@@ -117,119 +117,25 @@ export const TenantForm: React.FC<TenantFormProps> = ({
     try {
       await onSubmit(formData);
       
-      // Créer un objet locataire pour le contrat
-      const tenantForContract = {
-        id: `tenant_${Date.now()}`,
-        ...formData,
-        createdAt: new Date(),
-      };
-      setCreatedTenant(tenantForContract);
+      alert(`✅ Locataire créé avec succès !
       
-      // Générer automatiquement le contrat de location OHADA
-      try {
-        if (!user?.agencyId) {
-          throw new Error('❌ Aucune agence associée à votre compte');
-        }
-        
-        console.log('🔄 Génération contrat de location pour locataire:', tenantForContract.id);
-        
-        // Récupérer les données de l'agence OBLIGATOIREMENT
-        const agencyData = await dbService.getAgency(user.agencyId);
-        if (!agencyData) {
-          throw new Error('❌ Impossible de récupérer les données de l\'agence');
-        }
-        
-        console.log('✅ Données agence récupérées:', agencyData.name);
+👤 ${formData.firstName} ${formData.lastName}
+📱 ${formData.phone}
+🏠 ${formData.city}
+💰 Loyer: ${formData.monthlyRent.toLocaleString()} FCFA/mois
 
-        const rentalContract = await OHADAContractGenerator.generateRentalContractForTenant(
-          tenantForContract,
-          agencyData,
-          null, // Propriété à définir plus tard
-          {
-            monthlyRent: formData.monthlyRent,
-            deposit: formData.monthlyRent * 2,
-            charges: 25000,
-            duration: 12,
-            startDate: new Date()
-          }
-        );
-
-        // Créer le contrat OBLIGATOIREMENT en base
-        console.log('🔄 Création contrat en base de données...');
-        const contractResult = await dbService.createContract({
-          ...rentalContract,
-          property_id: null, // Sera défini lors de l'attribution
-          owner_id: null, // Sera défini lors de l'attribution
-          tenant_id: tenantForContract.id,
-          agency_id: user.agencyId,
-        });
-        
-        console.log('✅ Contrat de location créé en base:', contractResult);
-
-        // Proposition d'impression immédiate
-        const shouldPrint = confirm(`✅ Locataire créé avec succès !
-
-📋 CONTRAT DE LOCATION AUTOMATIQUE :
-• Type : Bail d'habitation
-• Loyer : ${formData.monthlyRent.toLocaleString()} FCFA/mois
-• Caution : ${(formData.monthlyRent * 2).toLocaleString()} FCFA
-• Total à la signature : ${(formData.monthlyRent * 5).toLocaleString()} FCFA
-• Durée : 12 mois
-• Conforme : Loi ivoirienne n°96-669 et OHADA
-• Statut : Créé en base de données
-• ID Contrat : ${contractResult.id}
-
-Le contrat de location a été créé automatiquement en base de données selon la réglementation OHADA.
-Vous pouvez le finaliser en attribuant une propriété dans la section "Contrats".
-
-Voulez-vous imprimer le contrat maintenant ?`);
-
-        if (shouldPrint) {
-          OHADAContractGenerator.printContract(contractResult, agencyData, tenantForContract);
-        }
-
-      } catch (contractError) {
-        console.error('Erreur génération contrat:', contractError);
-        
-        // Message d'erreur spécifique selon le type d'erreur
-        let errorMessage = '';
-        if (contractError instanceof Error) {
-          if (contractError.message.includes('Invalid API key')) {
-            errorMessage = `🔑 Configuration Supabase invalide
-            
-SOLUTION :
-1. Vérifiez les variables d'environnement sur Vercel
-2. VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY doivent être correctes
-3. Redéployez l'application après correction
-
-Le locataire a été créé mais le contrat n'a pas pu être généré.`;
-          } else if (contractError.message.includes('agence associée')) {
-            errorMessage = `👤 Aucune agence associée à votre compte
-            
-SOLUTION :
-Veuillez vous reconnecter à votre compte.`;
-          } else {
-            errorMessage = `⚠️ Erreur technique lors de la génération du contrat
-            
-Erreur: ${contractError.message}
-
-Le locataire a été créé mais le contrat doit être créé manuellement.`;
-          }
-        }
-
-        alert(`✅ Locataire créé avec succès !
-
-❌ ERREUR CONTRAT AUTOMATIQUE :
-${errorMessage}
-
-Vous pouvez créer manuellement un contrat dans la section "Contrats".`);
-      }
+Le locataire a été enregistré et est maintenant disponible dans votre liste.`);
       
       onClose();
       
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
-      alert('Erreur lors de l\'enregistrement. Veuillez réessayer.');
+      
+      if (error instanceof Error) {
+        alert(`❌ Erreur: ${error.message}`);
+      } else {
+        alert('Erreur lors de l\'enregistrement. Veuillez réessayer.');
+      }
     }
   };
 
