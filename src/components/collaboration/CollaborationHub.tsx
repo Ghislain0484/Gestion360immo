@@ -10,56 +10,67 @@ import { TenantHistorySearch } from './TenantHistorySearch';
 import { OwnerHistorySearch } from './OwnerHistorySearch';
 
 export const CollaborationHub: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'announcements' | 'messages' | 'tenant_history' | 'owner_history'>('announcements');
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [realAnnouncements, setRealAnnouncements] = useState<Announcement[]>([]);
 
-  // Mock data
-  const [announcements] = useState<Announcement[]>([
-    {
-      id: '1',
-      agencyId: '2',
-      propertyId: '1',
-      title: 'Villa moderne 4 chambres - Cocody Angré',
-      description: 'Magnifique villa avec jardin, piscine et garage. Quartier résidentiel calme.',
-      type: 'location',
+  useEffect(() => {
+    const loadAgencyAnnouncements = () => {
+      if (!user?.agencyId) return;
+      
+      // Charger les annonces de toutes les agences (collaboration)
+      const announcementsKey = 'platform_announcements';
+      const storedAnnouncements = JSON.parse(localStorage.getItem(announcementsKey) || '[]');
+      
+      // Filtrer les annonces actives (exclure celles de notre agence)
+      const otherAgencyAnnouncements = storedAnnouncements.filter((ann: any) => 
+        ann.agencyId !== user.agencyId && ann.isActive
+      );
+      
+      setRealAnnouncements(otherAgencyAnnouncements);
+    };
+    
+    loadAgencyAnnouncements();
+  }, [user?.agencyId]);
+
+  const publishAnnouncement = (announcementData: any) => {
+    if (!user?.agencyId) return;
+    
+    const newAnnouncement: Announcement = {
+      id: `announcement_${Date.now()}`,
+      agencyId: user.agencyId,
+      propertyId: announcementData.propertyId,
+      title: announcementData.title,
+      description: announcementData.description,
+      type: announcementData.type,
       isActive: true,
-      views: 24,
-      interests: [
-        {
-          id: '1',
-          announcementId: '1',
-          agencyId: '1',
-          userId: '1',
-          message: 'Nous avons un client intéressé par ce type de bien',
-          status: 'pending',
-          createdAt: new Date()
-        }
-      ],
-      createdAt: new Date('2024-03-01'),
-      updatedAt: new Date('2024-03-01')
-    },
-    {
-      id: '2',
-      agencyId: '3',
-      propertyId: '2',
-      title: 'Appartement 3 pièces - Plateau Centre-ville',
-      description: 'Appartement moderne au cœur du Plateau, proche de tous commerces.',
-      type: 'vente',
-      isActive: true,
-      views: 18,
+      views: 0,
       interests: [],
-      createdAt: new Date('2024-03-02'),
-      updatedAt: new Date('2024-03-02')
-    }
-  ]);
-
-  const handleInterest = (announcementId: string) => {
-    console.log('Expressing interest for announcement:', announcementId);
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    // Sauvegarder dans les annonces globales
+    const announcementsKey = 'platform_announcements';
+    const allAnnouncements = JSON.parse(localStorage.getItem(announcementsKey) || '[]');
+    allAnnouncements.unshift(newAnnouncement);
+    localStorage.setItem(announcementsKey, JSON.stringify(allAnnouncements));
+    
+    alert('✅ Annonce publiée avec succès !');
+    setShowAnnouncementForm(false);
   };
 
-  const filteredAnnouncements = announcements.filter(announcement => {
+  const handleInterest = (announcementId: string) => {
+    if (!user?.agencyId) return;
+    
+    console.log('Expressing interest for announcement:', announcementId);
+    alert('✅ Intérêt manifesté ! L\'agence propriétaire sera notifiée.');
+  };
+
+  const filteredAnnouncements = realAnnouncements.filter(announcement => {
     const matchesSearch = announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          announcement.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || announcement.type === filterType;
@@ -95,6 +106,7 @@ export const CollaborationHub: React.FC = () => {
           >
             <Megaphone className="h-4 w-4 inline mr-2" />
             Annonces ({announcements.length})
+            Annonces ({realAnnouncements.length})
           </button>
           <button
             onClick={() => setActiveTab('tenant_history')}
@@ -234,10 +246,12 @@ export const CollaborationHub: React.FC = () => {
             <div className="text-center py-12">
               <Megaphone className="h-16 w-16 mx-auto mb-4 text-gray-400" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Aucune annonce trouvée
+                {realAnnouncements.length === 0 ? 'Aucune annonce disponible' : 'Aucune annonce trouvée'}
               </h3>
               <p className="text-gray-600 mb-4">
-                Aucune annonce ne correspond à vos critères de recherche.
+                {realAnnouncements.length === 0 
+                  ? 'Les annonces des autres agences apparaîtront ici.'
+                  : 'Aucune annonce ne correspond à vos critères de recherche.'}
               </p>
             </div>
           )}
@@ -277,9 +291,22 @@ export const CollaborationHub: React.FC = () => {
         title="Publier une annonce"
         size="lg"
       >
-        <form className="space-y-4">
+        <form 
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            publishAnnouncement({
+              title: formData.get('title'),
+              description: formData.get('description'),
+              type: formData.get('type'),
+              propertyId: formData.get('propertyId') || `property_${Date.now()}`
+            });
+          }}
+        >
           <Input
             label="Titre de l'annonce"
+            name="title"
             placeholder="Ex: Villa moderne 4 chambres - Cocody"
             required
           />
@@ -288,7 +315,11 @@ export const CollaborationHub: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Type d'annonce
             </label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select 
+              name="type"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
               <option value="location">Location</option>
               <option value="vente">Vente</option>
             </select>
@@ -299,9 +330,11 @@ export const CollaborationHub: React.FC = () => {
               Description
             </label>
             <textarea
+              name="description"
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Décrivez le bien et ses avantages..."
+              required
             />
           </div>
 

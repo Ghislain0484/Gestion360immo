@@ -150,9 +150,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setUser(user);
         localStorage.setItem('user', JSON.stringify(user));
-        localStorage.setItem('current_agency', JSON.stringify(approvedAccount.agencyData));
         
         console.log('✅ Connexion réussie avec compte approuvé');
+        return;
+      }
+      
+      // Vérifier les utilisateurs créés dans les agences
+      const allAgencyUsers = Object.keys(localStorage)
+        .filter(key => key.startsWith('agency_users_'))
+        .flatMap(key => JSON.parse(localStorage.getItem(key) || '[]'));
+      
+      const agencyUser = allAgencyUsers.find((u: any) => 
+        u.email.trim().toLowerCase() === email.trim().toLowerCase() && 
+        u.password === password.trim()
+      );
+      
+      if (agencyUser) {
+        console.log('✅ Utilisateur d\'agence trouvé:', agencyUser.email);
+        
+        const user: User = {
+          id: agencyUser.id,
+          email: agencyUser.email,
+          firstName: agencyUser.firstName,
+          lastName: agencyUser.lastName,
+          role: agencyUser.role,
+          agencyId: agencyUser.agencyId,
+          avatar: agencyUser.avatar,
+          createdAt: new Date(agencyUser.createdAt),
+        };
+        
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('✅ Connexion réussie avec utilisateur d\'agence');
         return;
       }
       
