@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { MessageSquare, Megaphone, Search, Eye, Heart, Send, Filter, Users, UserCheck, History } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -8,6 +9,7 @@ import { Input } from '../ui/Input';
 import { Announcement, AnnouncementInterest } from '../../types/collaboration';
 import { TenantHistorySearch } from './TenantHistorySearch';
 import { OwnerHistorySearch } from './OwnerHistorySearch';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const CollaborationHub: React.FC = () => {
   const { user } = useAuth();
@@ -105,7 +107,6 @@ export const CollaborationHub: React.FC = () => {
             }`}
           >
             <Megaphone className="h-4 w-4 inline mr-2" />
-            Annonces ({announcements.length})
             Annonces ({realAnnouncements.length})
           </button>
           <button

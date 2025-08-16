@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { Receipt, Search, Eye, Edit, Printer, Download, Plus, Filter, Calendar, DollarSign } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -6,6 +7,7 @@ import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { ReceiptGenerator } from './ReceiptGenerator';
 import { RentReceipt } from '../../types/receipt';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const ReceiptsList: React.FC = () => {
   const { user } = useAuth();
@@ -60,6 +62,13 @@ export const ReceiptsList: React.FC = () => {
   const printReceipt = (receipt: RentReceipt) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+
+    const agencyData = {
+      name: user?.firstName + ' ' + user?.lastName + ' Agency',
+      address: 'Abidjan, Côte d\'Ivoire',
+      phone: '+225 XX XX XX XX XX',
+      email: 'contact@agence.com'
+    };
 
     const receiptHtml = `
       <!DOCTYPE html>
