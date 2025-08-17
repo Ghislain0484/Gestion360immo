@@ -23,16 +23,18 @@ export const CollaborationHub: React.FC = () => {
     const loadAgencyAnnouncements = () => {
       if (!user?.agencyId) return;
       
-      // Charger les annonces de toutes les agences (collaboration)
-      const announcementsKey = 'platform_announcements';
-      const storedAnnouncements = JSON.parse(localStorage.getItem(announcementsKey) || '[]');
+      // Charger les vraies annonces depuis Supabase
+      const loadRealAnnouncements = async () => {
+        try {
+          const announcements = await dbService.getAnnouncements(user.agencyId);
+          setRealAnnouncements(announcements);
+        } catch (error) {
+          console.error('Erreur chargement annonces:', error);
+          setRealAnnouncements([]);
+        }
+      };
       
-      // Filtrer les annonces actives (exclure celles de notre agence)
-      const otherAgencyAnnouncements = storedAnnouncements.filter((ann: any) => 
-        ann.agencyId !== user.agencyId && ann.isActive
-      );
-      
-      setRealAnnouncements(otherAgencyAnnouncements);
+      loadRealAnnouncements();
     };
     
     loadAgencyAnnouncements();

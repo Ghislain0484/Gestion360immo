@@ -23,10 +23,18 @@ export const ReceiptsList: React.FC = () => {
     const loadAgencyReceipts = () => {
       if (!user?.agencyId) return;
       
-      // Charger les quittances de cette agence uniquement
-      const receiptsKey = `agency_receipts_${user.agencyId}`;
-      const storedReceipts = JSON.parse(localStorage.getItem(receiptsKey) || '[]');
-      setRealReceipts(storedReceipts);
+      // Charger les vraies quittances depuis Supabase
+      const loadRealReceipts = async () => {
+        try {
+          const receipts = await dbService.getRentReceipts(user.agencyId);
+          setRealReceipts(receipts);
+        } catch (error) {
+          console.error('Erreur chargement quittances:', error);
+          setRealReceipts([]);
+        }
+      };
+      
+      loadRealReceipts();
     };
     
     loadAgencyReceipts();

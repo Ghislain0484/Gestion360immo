@@ -17,30 +17,18 @@ export const NotificationsCenter: React.FC = () => {
     const loadAgencyNotifications = () => {
       if (!user?.id) return;
       
-      // Charger les notifications de cet utilisateur uniquement
-      const notificationsKey = `user_notifications_${user.id}`;
-      const storedNotifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
+      // Charger les vraies notifications depuis Supabase
+      const loadRealNotifications = async () => {
+        try {
+          const notifications = await dbService.getNotifications(user.id);
+          setRealNotifications(notifications);
+        } catch (error) {
+          console.error('Erreur chargement notifications:', error);
+          setRealNotifications([]);
+        }
+      };
       
-      // Ajouter quelques notifications par défaut si aucune
-      if (storedNotifications.length === 0) {
-        const defaultNotifications = [
-          {
-            id: `notif_${Date.now()}_1`,
-            userId: user.id,
-            type: 'property_update',
-            title: 'Bienvenue sur Gestion360Immo',
-            message: 'Votre compte a été configuré avec succès. Vous pouvez maintenant gérer vos biens immobiliers.',
-            priority: 'medium',
-            isRead: false,
-            createdAt: new Date()
-          }
-        ];
-        
-        localStorage.setItem(notificationsKey, JSON.stringify(defaultNotifications));
-        setRealNotifications(defaultNotifications);
-      } else {
-        setRealNotifications(storedNotifications);
-      }
+      loadRealNotifications();
     };
     
     loadAgencyNotifications();
