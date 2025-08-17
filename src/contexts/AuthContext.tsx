@@ -225,7 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       // Essayer Supabase en dernier recours
-      if (supabase && isSupabaseConfigured) {
+      if (supabase) {
         try {
           console.log('🔐 Tentative de connexion Supabase pour:', email);
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -265,7 +265,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('✅ Connexion Supabase réussie');
           return;
         } catch (supabaseError: any) {
-          console.error('❌ Erreur Supabase auth:', supabaseError);
+          console.error('❌ Erreur Supabase auth:', supabaseError.message);
         }
       }
       

@@ -9,25 +9,33 @@ console.log('🔧 Configuration Supabase PRODUCTION:', {
   environment: import.meta.env.MODE
 });
 
-// FORCER LA CONFIGURATION PRODUCTION
-export const supabase = createClient(
-  'https://myqrdndqphfpzwadsrci.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15cXJkbmRxcGhmcHp3YWRzcmNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwODIzMzIsImV4cCI6MjA3MDY1ODMzMn0.vG7GmNNlzE7-i0bJeMTEXX0Ho9V7nCssD0SmWfDExfE',
+// Configuration Supabase avec variables d'environnement
+export const supabase = supabaseUrl && supabaseAnonKey ? createClient(
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
     },
   }
-);
+) : null;
 
-console.log('✅ Client Supabase PRODUCTION créé avec succès');
+if (supabase) {
+  console.log('✅ Client Supabase créé avec succès');
+} else {
+  console.error('❌ Configuration Supabase manquante - vérifiez les variables d\'environnement');
+}
 
 // Database service functions - PRODUCTION UNIQUEMENT
 export const dbService = {
   // Owners
   async createOwner(owner: any) {
     console.log('🔄 PRODUCTION - Création propriétaire:', owner);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré - vérifiez les variables d\'environnement');
+    }
     
     if (!owner.agency_id) {
       throw new Error('agency_id manquant dans les données');
@@ -55,6 +63,11 @@ export const dbService = {
   async getOwners(agencyId?: string) {
     console.log('🔄 PRODUCTION - Récupération propriétaires pour agence:', agencyId);
     
+    if (!supabase) {
+      console.error('❌ Supabase non configuré');
+      return [];
+    }
+    
     let query = supabase.from('owners').select('*');
     if (agencyId) {
       query = query.eq('agency_id', agencyId);
@@ -72,6 +85,10 @@ export const dbService = {
 
   async updateOwner(id: string, updates: any) {
     console.log('🔄 PRODUCTION - Mise à jour propriétaire:', id);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
     
     const { data, error } = await supabase
       .from('owners')
@@ -92,6 +109,10 @@ export const dbService = {
   async deleteOwner(id: string) {
     console.log('🔄 PRODUCTION - Suppression propriétaire:', id);
     
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
+    
     const { error } = await supabase.from('owners').delete().eq('id', id);
     
     if (error) {
@@ -106,6 +127,10 @@ export const dbService = {
   // Tenants
   async createTenant(tenant: any) {
     console.log('🔄 PRODUCTION - Création locataire:', tenant);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
     
     if (!tenant.agency_id) {
       throw new Error('agency_id manquant');
@@ -129,6 +154,11 @@ export const dbService = {
   async getTenants(agencyId?: string) {
     console.log('🔄 PRODUCTION - Récupération locataires pour agence:', agencyId);
     
+    if (!supabase) {
+      console.error('❌ Supabase non configuré');
+      return [];
+    }
+    
     let query = supabase.from('tenants').select('*');
     if (agencyId) {
       query = query.eq('agency_id', agencyId);
@@ -146,6 +176,10 @@ export const dbService = {
 
   async updateTenant(id: string, updates: any) {
     console.log('🔄 PRODUCTION - Mise à jour locataire:', id);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
     
     const { data, error } = await supabase
       .from('tenants')
@@ -166,6 +200,10 @@ export const dbService = {
   async deleteTenant(id: string) {
     console.log('🔄 PRODUCTION - Suppression locataire:', id);
     
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
+    
     const { error } = await supabase.from('tenants').delete().eq('id', id);
     
     if (error) {
@@ -180,6 +218,10 @@ export const dbService = {
   // Properties
   async createProperty(property: any) {
     console.log('🔄 PRODUCTION - Création propriété:', property);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
     
     if (!property.agency_id) {
       throw new Error('agency_id manquant');
@@ -203,6 +245,11 @@ export const dbService = {
   async getProperties(agencyId?: string) {
     console.log('🔄 PRODUCTION - Récupération propriétés pour agence:', agencyId);
     
+    if (!supabase) {
+      console.error('❌ Supabase non configuré');
+      return [];
+    }
+    
     let query = supabase.from('properties').select('*');
     if (agencyId) {
       query = query.eq('agency_id', agencyId);
@@ -220,6 +267,10 @@ export const dbService = {
 
   async updateProperty(id: string, updates: any) {
     console.log('🔄 PRODUCTION - Mise à jour propriété:', id);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
     
     const { data, error } = await supabase
       .from('properties')
@@ -240,6 +291,10 @@ export const dbService = {
   async deleteProperty(id: string) {
     console.log('🔄 PRODUCTION - Suppression propriété:', id);
     
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
+    
     const { error } = await supabase.from('properties').delete().eq('id', id);
     
     if (error) {
@@ -254,6 +309,10 @@ export const dbService = {
   // Contracts
   async createContract(contract: any) {
     console.log('🔄 PRODUCTION - Création contrat:', contract);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
     
     if (!contract.agency_id) {
       throw new Error('agency_id manquant');
@@ -277,6 +336,11 @@ export const dbService = {
   async getContracts(agencyId?: string) {
     console.log('🔄 PRODUCTION - Récupération contrats pour agence:', agencyId);
     
+    if (!supabase) {
+      console.error('❌ Supabase non configuré');
+      return [];
+    }
+    
     let query = supabase.from('contracts').select('*');
     if (agencyId) {
       query = query.eq('agency_id', agencyId);
@@ -294,6 +358,10 @@ export const dbService = {
 
   async updateContract(id: string, updates: any) {
     console.log('🔄 PRODUCTION - Mise à jour contrat:', id);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
     
     const { data, error } = await supabase
       .from('contracts')
@@ -313,6 +381,10 @@ export const dbService = {
 
   async deleteContract(id: string) {
     console.log('🔄 PRODUCTION - Suppression contrat:', id);
+    
+    if (!supabase) {
+      throw new Error('Supabase non configuré');
+    }
     
     const { error } = await supabase.from('contracts').delete().eq('id', id);
     
@@ -450,6 +522,19 @@ export const dbService = {
   // Dashboard stats
   async getDashboardStats(agencyId: string) {
     console.log('🔄 PRODUCTION - Calcul stats dashboard pour agence:', agencyId);
+    
+    if (!supabase) {
+      console.error('❌ Supabase non configuré');
+      return {
+        totalProperties: 0,
+        totalOwners: 0,
+        totalTenants: 0,
+        totalContracts: 0,
+        monthlyRevenue: 0,
+        activeContracts: 0,
+        occupancyRate: 0
+      };
+    }
     
     if (!agencyId) throw new Error('Agency ID manquant');
     
