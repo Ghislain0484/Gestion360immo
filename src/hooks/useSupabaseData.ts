@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { dbService } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
-// Hook simplifié pour le chargement des données
+// Hook robuste pour le chargement des données avec gestion d'erreurs
 export function useRealtimeData<T>(
   fetchFunction: (agencyId: string) => Promise<T[]>,
   tableName: string
@@ -14,6 +14,7 @@ export function useRealtimeData<T>(
 
   const fetchData = async () => {
     if (!user?.agencyId) {
+      console.log(`⚠️ Pas d'agencyId pour ${tableName}`);
       setData([]);
       setLoading(false);
       return;
@@ -23,12 +24,27 @@ export function useRealtimeData<T>(
       setLoading(true);
       setError(null);
       
+      console.log(`🔄 Chargement ${tableName} pour agence:`, user.agencyId);
+      
       const result = await fetchFunction(user.agencyId);
+      console.log(`✅ ${tableName} chargés:`, result?.length || 0);
       setData(result || []);
       
     } catch (err) {
-      console.error(`Erreur chargement ${tableName}:`, err);
-      setError(`Erreur de chargement des ${tableName}`);
+      console.error(`❌ Erreur chargement ${tableName}:`, err);
+      
+      // Messages d'erreur spécifiques
+      if (err instanceof Error) {
+        if (err.message.includes('Supabase non configuré')) {
+          setError('Configuration Supabase manquante. Vérifiez les variables d\'environnement.');
+        } else if (err.message.includes('JWT')) {
+          setError('Session expirée. Reconnectez-vous.');
+        } else {
+          setError(`Erreur: ${err.message}`);
+        }
+      } else {
+        setError(`Erreur de chargement des ${tableName}`);
+      }
       setData([]);
     } finally {
       setLoading(false);
@@ -36,8 +52,9 @@ export function useRealtimeData<T>(
   };
 
   useEffect(() => {
+    console.log(`🔄 useRealtimeData effect pour ${tableName}, agencyId:`, user?.agencyId);
     fetchData();
-  }, [user?.agencyId]);
+  }, [user?.agencyId, tableName]);
 
   const refetch = () => {
     fetchData();
