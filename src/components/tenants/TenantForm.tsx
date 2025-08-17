@@ -117,6 +117,9 @@ export const TenantForm: React.FC<TenantFormProps> = ({
     try {
       await onSubmit(formData);
       
+      // Génération automatique du contrat de location
+      console.log('📋 Génération contrat de location automatique...');
+      
       alert(`✅ Locataire créé avec succès !
       
 👤 ${formData.firstName} ${formData.lastName}

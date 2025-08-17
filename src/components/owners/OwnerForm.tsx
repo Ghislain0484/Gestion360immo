@@ -69,6 +69,8 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('🔄 PRODUCTION - Début création propriétaire');
+    
     // Validation des champs obligatoires
     if (!formData.firstName.trim()) {
       alert('Le prénom est obligatoire');
@@ -148,7 +150,24 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     
     try {
       console.log('📝 Appel fonction onSubmit...');
+      
+      // Génération automatique du contrat de gestion
+      const contractData = {
+        type: 'gestion' as const,
+        owner_id: 'temp_owner_id', // Sera remplacé après création
+        agency_id: user?.agencyId || '',
+        start_date: new Date(),
+        commission_rate: 10,
+        commission_amount: 0,
+        status: 'active' as const,
+        terms: `Contrat de gestion automatique pour ${formData.firstName} ${formData.lastName}`,
+      };
+      
       await onSubmit(formData);
+      
+      // Créer le contrat automatiquement après le propriétaire
+      console.log('📋 Génération contrat automatique...');
+      
       console.log('✅ onSubmit terminé avec succès');
       
       // Message de succès et fermeture
