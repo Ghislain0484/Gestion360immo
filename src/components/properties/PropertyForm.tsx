@@ -10,9 +10,8 @@ import { LocationSelector } from './LocationSelector';
 import { RoomDetailsForm } from './RoomDetailsForm';
 import { ImageUploader } from './ImageUploader';
 import { StandingCalculator } from '../../utils/standingCalculator';
-import { AgencyIdGenerator } from '../../utils/idGenerator';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSupabaseData } from '../../hooks/useSupabaseData';
+import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 
 interface PropertyFormProps {
@@ -59,7 +58,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   const [ownerSearch, setOwnerSearch] = useState('');
 
   // Load owners for selection
-  const { data: owners } = useSupabaseData(dbService.getOwners);
+  const { data: owners } = useRealtimeData(dbService.getOwners, 'owners');
 
   const filteredOwners = owners.filter(owner =>
     `${owner.first_name} ${owner.last_name}`.toLowerCase().includes(ownerSearch.toLowerCase()) ||

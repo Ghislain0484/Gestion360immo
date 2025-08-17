@@ -6,12 +6,11 @@ import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { TenantForm } from './TenantForm';
 import { Tenant, TenantFormData } from '../../types/tenant';
-import { useSupabaseData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
+import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { ReceiptGenerator } from '../receipts/ReceiptGenerator';
 import { FinancialStatements } from '../financial/FinancialStatements';
-import { useRealtimeData } from '../../hooks/useSupabaseData';
 
 export const TenantsList: React.FC = () => {
   const { user } = useAuth();

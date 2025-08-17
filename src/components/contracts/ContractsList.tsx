@@ -4,11 +4,9 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { ContractForm } from './ContractForm';
-import { Contract, ContractFormData } from '../../types/contract';
-import { useSupabaseData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
+import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { useRealtimeData } from '../../hooks/useSupabaseData';
 
 export const ContractsList: React.FC = () => {
   const { user } = useAuth();
@@ -18,7 +16,7 @@ export const ContractsList: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('all');
 
   // Supabase data hooks
-  const { data: contracts, loading, error, refetch, setData } = useRealtimeData<Contract>(
+  const { data: contracts, loading, error, refetch, setData } = useRealtimeData(
     dbService.getContracts,
     'contracts'
   );
@@ -36,7 +34,7 @@ export const ContractsList: React.FC = () => {
     () => refetch()
   );
 
-  const handleAddContract = async (contractData: ContractFormData) => {
+  const handleAddContract = async (contractData: any) => {
     if (!user?.agencyId) return;
     
     try {
