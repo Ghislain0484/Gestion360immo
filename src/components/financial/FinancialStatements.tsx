@@ -6,6 +6,8 @@ import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { FinancialStatement, FinancialTransaction } from '../../types/receipt';
 
+import { useEffect } from 'react';
+
 interface FinancialStatementsProps {
   entityId: string;
   entityType: 'owner' | 'tenant';
