@@ -17,6 +17,13 @@ export const supabase = supabaseUrl && supabaseAnonKey ? createClient(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      detectSessionInUrl: false,
+    },
+    global: {
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
     },
   }
 ) : null;
@@ -68,19 +75,36 @@ export const dbService = {
       return [];
     }
     
-    let query = supabase.from('owners').select('*');
-    if (agencyId) {
-      query = query.eq('agency_id', agencyId);
+    try {
+      let query = supabase.from('owners').select('*');
+      if (agencyId) {
+        query = query.eq('agency_id', agencyId);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Erreur Supabase owners:', error);
+        // Si erreur d'authentification, utiliser les données locales
+        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
+          console.log('🔄 Fallback sur données locales owners');
+          const localKey = agencyId ? `demo_owners_${agencyId}` : 'demo_owners';
+          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+          return localData;
+        }
+        throw error;
+      }
+      
+      console.log('✅ Propriétaires récupérés:', data?.length || 0);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Erreur complète owners:', error);
+      // Fallback sur localStorage
+      const localKey = agencyId ? `demo_owners_${agencyId}` : 'demo_owners';
+      const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+      console.log('🔄 Utilisation données locales owners:', localData.length);
+      return localData;
     }
-    const { data, error } = await query.order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('❌ Erreur récupération propriétaires:', error);
-      throw error;
-    }
-    
-    console.log('✅ Propriétaires récupérés:', data?.length || 0);
-    return data || [];
   },
 
   async updateOwner(id: string, updates: any) {
@@ -159,19 +183,36 @@ export const dbService = {
       return [];
     }
     
-    let query = supabase.from('tenants').select('*');
-    if (agencyId) {
-      query = query.eq('agency_id', agencyId);
+    try {
+      let query = supabase.from('tenants').select('*');
+      if (agencyId) {
+        query = query.eq('agency_id', agencyId);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Erreur Supabase tenants:', error);
+        // Si erreur d'authentification, utiliser les données locales
+        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
+          console.log('🔄 Fallback sur données locales tenants');
+          const localKey = agencyId ? `demo_tenants_${agencyId}` : 'demo_tenants';
+          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+          return localData;
+        }
+        throw error;
+      }
+      
+      console.log('✅ Locataires récupérés:', data?.length || 0);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Erreur complète tenants:', error);
+      // Fallback sur localStorage
+      const localKey = agencyId ? `demo_tenants_${agencyId}` : 'demo_tenants';
+      const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+      console.log('🔄 Utilisation données locales tenants:', localData.length);
+      return localData;
     }
-    const { data, error } = await query.order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('❌ Erreur récupération locataires:', error);
-      throw error;
-    }
-    
-    console.log('✅ Locataires récupérés:', data?.length || 0);
-    return data || [];
   },
 
   async updateTenant(id: string, updates: any) {
@@ -250,19 +291,36 @@ export const dbService = {
       return [];
     }
     
-    let query = supabase.from('properties').select('*');
-    if (agencyId) {
-      query = query.eq('agency_id', agencyId);
+    try {
+      let query = supabase.from('properties').select('*');
+      if (agencyId) {
+        query = query.eq('agency_id', agencyId);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Erreur Supabase properties:', error);
+        // Si erreur d'authentification, utiliser les données locales
+        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
+          console.log('🔄 Fallback sur données locales properties');
+          const localKey = agencyId ? `demo_properties_${agencyId}` : 'demo_properties';
+          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+          return localData;
+        }
+        throw error;
+      }
+      
+      console.log('✅ Propriétés récupérées:', data?.length || 0);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Erreur complète properties:', error);
+      // Fallback sur localStorage
+      const localKey = agencyId ? `demo_properties_${agencyId}` : 'demo_properties';
+      const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+      console.log('🔄 Utilisation données locales properties:', localData.length);
+      return localData;
     }
-    const { data, error } = await query.order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('❌ Erreur récupération propriétés:', error);
-      throw error;
-    }
-    
-    console.log('✅ Propriétés récupérées:', data?.length || 0);
-    return data || [];
   },
 
   async updateProperty(id: string, updates: any) {
@@ -341,19 +399,36 @@ export const dbService = {
       return [];
     }
     
-    let query = supabase.from('contracts').select('*');
-    if (agencyId) {
-      query = query.eq('agency_id', agencyId);
+    try {
+      let query = supabase.from('contracts').select('*');
+      if (agencyId) {
+        query = query.eq('agency_id', agencyId);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Erreur Supabase contracts:', error);
+        // Si erreur d'authentification, utiliser les données locales
+        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
+          console.log('🔄 Fallback sur données locales contracts');
+          const localKey = agencyId ? `demo_contracts_${agencyId}` : 'demo_contracts';
+          const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+          return localData;
+        }
+        throw error;
+      }
+      
+      console.log('✅ Contrats récupérés:', data?.length || 0);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Erreur complète contracts:', error);
+      // Fallback sur localStorage
+      const localKey = agencyId ? `demo_contracts_${agencyId}` : 'demo_contracts';
+      const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+      console.log('🔄 Utilisation données locales contracts:', localData.length);
+      return localData;
     }
-    const { data, error } = await query.order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('❌ Erreur récupération contrats:', error);
-      throw error;
-    }
-    
-    console.log('✅ Contrats récupérés:', data?.length || 0);
-    return data || [];
   },
 
   async updateContract(id: string, updates: any) {

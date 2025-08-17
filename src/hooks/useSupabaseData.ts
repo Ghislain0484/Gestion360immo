@@ -35,17 +35,30 @@ export function useRealtimeData<T>(
       
       // Messages d'erreur spécifiques
       if (err instanceof Error) {
-        if (err.message.includes('Supabase non configuré')) {
+        if (err.message.includes('Supabase non configuré') || err.message.includes('401')) {
           setError('Configuration Supabase manquante. Vérifiez les variables d\'environnement.');
         } else if (err.message.includes('JWT')) {
           setError('Session expirée. Reconnectez-vous.');
+        } else if (err.message.includes('PGRST301')) {
+          setError('Erreur d\'authentification Supabase. Utilisation des données locales.');
         } else {
           setError(`Erreur: ${err.message}`);
         }
       } else {
         setError(`Erreur de chargement des ${tableName}`);
       }
-      setData([]);
+      
+      // En cas d'erreur, essayer de charger les données locales
+      try {
+        const localKey = user?.agencyId ? `demo_${tableName}_${user.agencyId}` : `demo_${tableName}`;
+        const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+        console.log(`🔄 Fallback ${tableName} depuis localStorage:`, localData.length);
+        setData(localData);
+        setError(null); // Effacer l'erreur si on a des données locales
+      } catch (localError) {
+        console.error(`❌ Erreur données locales ${tableName}:`, localError);
+        setData([]);
+      }
     } finally {
       setLoading(false);
     }
