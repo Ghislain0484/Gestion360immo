@@ -5,10 +5,7 @@ import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
 import { OwnerFormData } from '../../types/owner';
-import { ContractForm } from '../contracts/ContractForm';
-import { AgencyIdGenerator } from '../../utils/idGenerator';
 import { useAuth } from '../../contexts/AuthContext';
-import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { dbService } from '../../lib/supabase';
 
 interface OwnerFormProps {
@@ -25,8 +22,6 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
   initialData,
 }) => {
   const { user } = useAuth();
-  const [showContractForm, setShowContractForm] = useState(false);
-  const [createdOwner, setCreatedOwner] = useState<any>(null);
   
   const [formData, setFormData] = useState<OwnerFormData>({
     firstName: '',
@@ -41,7 +36,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     spouseName: '',
     spousePhone: '',
     childrenCount: 0,
-    agencyId: '1',
+    agencyId: user?.agencyId || '',
     ...initialData,
   });
 
@@ -151,22 +146,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     try {
       console.log('📝 Appel fonction onSubmit...');
       
-      // Génération automatique du contrat de gestion
-      const contractData = {
-        type: 'gestion' as const,
-        owner_id: 'temp_owner_id', // Sera remplacé après création
-        agency_id: user?.agencyId || '',
-        start_date: new Date(),
-        commission_rate: 10,
-        commission_amount: 0,
-        status: 'active' as const,
-        terms: `Contrat de gestion automatique pour ${formData.firstName} ${formData.lastName}`,
-      };
-      
       await onSubmit(formData);
-      
-      // Créer le contrat automatiquement après le propriétaire
-      console.log('📋 Génération contrat automatique...');
       
       console.log('✅ onSubmit terminé avec succès');
       
@@ -196,7 +176,7 @@ Le propriétaire a été enregistré et est maintenant disponible dans votre lis
   const isMarried = formData.maritalStatus === 'marie';
 
   return (
-    <>
+    <div>
       <Modal isOpen={isOpen} onClose={onClose} size="lg" title="Ajouter un propriétaire">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Informations personnelles */}
@@ -385,35 +365,6 @@ Le propriétaire a été enregistré et est maintenant disponible dans votre lis
           </div>
         </form>
       </Modal>
-
-      {/* Contract Form Modal */}
-      {createdOwner && (
-        <ContractForm
-          isOpen={showContractForm}
-          onClose={() => {
-            setShowContractForm(false);
-            setCreatedOwner(null);
-            onClose();
-          }}
-          onSubmit={(contractData) => {
-            console.log('Contrat créé pour le propriétaire:', createdOwner.id);
-            setShowContractForm(false);
-            setCreatedOwner(null);
-            onClose();
-          }}
-          initialData={{
-            ownerId: createdOwner.id,
-            agencyId: user?.agencyId || '',
-            type: 'location',
-            status: 'draft',
-            commissionRate: 10,
-            commissionAmount: 0,
-            terms: `Contrat de location pour ${createdOwner.firstName} ${createdOwner.lastName}`,
-            documents: [],
-            renewalHistory: [],
-          }}
-        />
-      )}
-    </>
+    </div>
   );
 };

@@ -171,7 +171,6 @@ export function useSupabaseCreate<T>(
     if (!data) {
       throw new Error('Données manquantes');
     }
-    
 
     setLoading(true);
     setError(null);

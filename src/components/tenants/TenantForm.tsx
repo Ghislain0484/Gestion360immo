@@ -5,10 +5,7 @@ import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
 import { TenantFormData } from '../../types/tenant';
-import { ContractForm } from '../contracts/ContractForm';
-import { AgencyIdGenerator } from '../../utils/idGenerator';
 import { useAuth } from '../../contexts/AuthContext';
-import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { dbService } from '../../lib/supabase';
 
 interface TenantFormProps {
@@ -25,8 +22,6 @@ export const TenantForm: React.FC<TenantFormProps> = ({
   initialData,
 }) => {
   const { user } = useAuth();
-  const [showContractForm, setShowContractForm] = useState(false);
-  const [createdTenant, setCreatedTenant] = useState<any>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
   
@@ -46,8 +41,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({
     photoUrl: '',
     idCardUrl: '',
     paymentStatus: 'bon',
-    agencyId: '1',
-    monthlyRent: 0,
+    agencyId: user?.agencyId || '',
     ...initialData,
   });
 
@@ -117,15 +111,11 @@ export const TenantForm: React.FC<TenantFormProps> = ({
     try {
       await onSubmit(formData);
       
-      // Génération automatique du contrat de location
-      console.log('📋 Génération contrat de location automatique...');
-      
       alert(`✅ Locataire créé avec succès !
       
 👤 ${formData.firstName} ${formData.lastName}
 📱 ${formData.phone}
 🏠 ${formData.city}
-💰 Loyer: ${formData.monthlyRent.toLocaleString()} FCFA/mois
 
 Le locataire a été enregistré et est maintenant disponible dans votre liste.`);
       
@@ -145,7 +135,7 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
   const isMarried = formData.maritalStatus === 'marie';
 
   return (
-    <>
+    <div>
       <Modal isOpen={isOpen} onClose={onClose} size="lg" title="Ajouter un locataire">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Informations personnelles */}
@@ -309,17 +299,6 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
             </div>
             
             <div className="space-y-4">
-              <Input
-                label="Loyer mensuel (FCFA)"
-                type="number"
-                value={formData.monthlyRent || ''}
-                onChange={(e) => updateFormData({ monthlyRent: parseInt(e.target.value) || 0 })}
-                required
-                min="0"
-                placeholder="450000"
-                helperText="Montant du loyer mensuel en francs CFA"
-              />
-              
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Historique de paiement
               </label>
@@ -340,30 +319,6 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
                 <p><strong>Payeur irrégulier :</strong> Retards occasionnels mais à jour</p>
                 <p><strong>Mauvais payeur :</strong> Plus de 2 mois d'impayés</p>
               </div>
-              
-              {formData.monthlyRent > 0 && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Calcul automatique - Montant à la signature</h4>
-                  <div className="space-y-1 text-sm text-blue-800">
-                    <div className="flex justify-between">
-                      <span>2 mois de loyer d'avance :</span>
-                      <span>{(formData.monthlyRent * 2).toLocaleString()} FCFA</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>2 mois de caution :</span>
-                      <span>{(formData.monthlyRent * 2).toLocaleString()} FCFA</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>1 mois de frais d'agence :</span>
-                      <span>{formData.monthlyRent.toLocaleString()} FCFA</span>
-                    </div>
-                    <div className="flex justify-between font-bold border-t border-blue-300 pt-2">
-                      <span>TOTAL À PAYER :</span>
-                      <span>{(formData.monthlyRent * 5).toLocaleString()} FCFA</span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </Card>
 
@@ -491,35 +446,6 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
           </div>
         </form>
       </Modal>
-
-      {/* Contract Form Modal */}
-      {createdTenant && (
-        <ContractForm
-          isOpen={showContractForm}
-          onClose={() => {
-            setShowContractForm(false);
-            setCreatedTenant(null);
-            onClose();
-          }}
-          onSubmit={(contractData) => {
-            console.log('Contrat créé pour le locataire:', createdTenant.id);
-            setShowContractForm(false);
-            setCreatedTenant(null);
-            onClose();
-          }}
-          initialData={{
-            tenantId: createdTenant.id,
-            agencyId: user?.agencyId || '',
-            type: 'location',
-            status: 'draft',
-            commissionRate: 10,
-            commissionAmount: 0,
-            terms: `Contrat de location pour ${createdTenant.firstName} ${createdTenant.lastName}`,
-            documents: [],
-            renewalHistory: [],
-          }}
-        />
-      )}
-    </>
+    </div>
   );
 };

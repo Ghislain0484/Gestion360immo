@@ -5,13 +5,12 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { OwnerForm } from './OwnerForm';
 import { Owner, OwnerFormData } from '../../types/owner';
-import { useSupabaseData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
+import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { FinancialStatements } from '../financial/FinancialStatements';
 import { Modal } from '../ui/Modal';
 import { DollarSign } from 'lucide-react';
-import { useRealtimeData } from '../../hooks/useSupabaseData';
 
 import { OwnerDetailsModal } from './OwnerDetailsModal';
 

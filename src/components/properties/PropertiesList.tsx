@@ -6,10 +6,9 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { PropertyForm } from './PropertyForm';
 import { Property, PropertyFormData } from '../../types/property';
-import { useSupabaseData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
+import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { useRealtimeData } from '../../hooks/useSupabaseData';
 
 import { PropertyDetailsModal } from './PropertyDetailsModal';
 
