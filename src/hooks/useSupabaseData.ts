@@ -1,69 +1,50 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+// src/hooks/useSupabaseData.ts
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-/**
- * Harmonized data hook:
- * - Never uses demo/local data in production
- * - Works for both platform admins (no agency scope) and agency users (scoped by agency_id)
- * - Subscribes to realtime changes when possible
- */
+type TableName = 'owners' | 'tenants' | 'properties' | 'contracts';
 
 type FetchOptions = {
-  table: 'owners' | 'tenants' | 'properties' | 'contracts';
-  agencyScoped?: boolean; // default true; if false, no agency filter
+  table: TableName;
+  agencyScoped?: boolean; // default true
   orderBy?: { column: string; ascending?: boolean };
 };
 
 export function useSupabaseData<T = any>({ table, agencyScoped = true, orderBy }: FetchOptions) {
   const { user, admin } = useAuth();
   const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const subRef = useRef<ReturnType<typeof supabase['channel']> | null>(null);
 
-  const isProd = import.meta.env.MODE === 'production';
   const isConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+  const agencyId = useMemo(() => (admin ? null : user?.agencyId ?? null), [admin, user?.agencyId]);
 
-  const agencyId = useMemo(() => {
-    // Platform admin: no agency filter by default unless explicitly requested
-    if (admin) return null; // admin sees cross-agency views in admin screens
-    return user?.agencyId ?? null;
-  }, [admin, user?.agencyId]);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (!isConfigured || !supabase) throw new Error('Supabase non configuré');
+      let query = supabase.from(table).select('*');
+      if (!admin && agencyScoped && agencyId) query = query.eq('agency_id', agencyId);
+      if (orderBy) query = query.order(orderBy.column, { ascending: orderBy.ascending ?? false });
+      const { data: rows, error: qErr } = await query;
+      if (qErr) throw qErr;
+      setData((rows ?? []) as T[]);
+    } catch (e: any) {
+      setError(e?.message ?? 'Erreur de chargement');
+    } finally {
+      setLoading(false);
+    }
+  }, [admin, agencyScoped, agencyId, isConfigured, orderBy?.ascending, orderBy?.column, table]);
 
   useEffect(() => {
-    if (!isConfigured || !supabase) {
-      if (isProd) {
-        setError('Supabase non configuré');
-        return;
-      }
-    }
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await fetchData();
+    })();
 
-    let isCancelled = false;
-
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        if (!supabase) throw new Error('Supabase non disponible');
-        let query = supabase.from(table).select('*');
-        if (agencyScoped && agencyId) query = query.eq('agency_id', agencyId);
-        if (orderBy) query = query.order(orderBy.column, { ascending: orderBy.ascending ?? false });
-
-        const { data: rows, error: qErr } = await query;
-        if (qErr) throw qErr;
-        if (!isCancelled) setData((rows ?? []) as T[]);
-      } catch (e: any) {
-        if (!isCancelled) setError(e?.message ?? 'Erreur de chargement');
-      } finally {
-        if (!isCancelled) setLoading(false);
-      }
-    };
-
-    // Initial fetch once we know the agency scope (or admin)
-    fetchData();
-
-    // Realtime subscription
     try {
       if (subRef.current) {
         supabase.removeChannel(subRef.current);
@@ -71,22 +52,123 @@ export function useSupabaseData<T = any>({ table, agencyScoped = true, orderBy }
       }
       const channel = supabase
         .channel(`${table}_changes`)
-        .on('postgres_changes', { event: '*', schema: 'public', table }, (_payload) => {
-          // naive refetch on any change; can be optimized with patching
-          fetchData();
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table }, () => fetchData())
         .subscribe();
       subRef.current = channel;
     } catch {}
 
     return () => {
-      isCancelled = true;
+      cancelled = true;
       try {
         if (subRef.current) supabase.removeChannel(subRef.current);
       } catch {}
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, agencyScoped, agencyId, orderBy?.column, orderBy?.ascending, isConfigured]);
+  }, [fetchData, table]);
 
-  return { data, loading, error };
+  return { data, loading, error, refetch: fetchData };
+}
+
+export function useRealtimeData(table: TableName, onChange?: () => void) {
+  const [subscribed, setSubscribed] = useState(false);
+  useEffect(() => {
+    try {
+      const channel = supabase
+        .channel(`${table}_rt`)
+        .on('postgres_changes', { event: '*', schema: 'public', table }, () => onChange?.())
+        .subscribe(() => setSubscribed(true));
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch {
+      setSubscribed(false);
+    }
+  }, [table, onChange]);
+  return { subscribed };
+}
+
+type DashboardStats = { owners: number; tenants: number; properties: number; contracts: number };
+
+export function useDashboardStats() {   // 👈👈👈 l’export manquant
+  const { user, admin } = useAuth();
+  const [stats, setStats] = useState<DashboardStats>({ owners: 0, tenants: 0, properties: 0, contracts: 0 });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const agencyId = admin ? null : user?.agencyId ?? null;
+
+  const fetchCounts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const tables: TableName[] = ['owners', 'tenants', 'properties', 'contracts'];
+      const results = await Promise.all(
+        tables.map(async (t) => {
+          let q = supabase.from(t).select('*', { count: 'exact', head: true });
+          if (agencyId) q = q.eq('agency_id', agencyId);
+          const { count, error } = await q;
+          if (error) throw error;
+          return count ?? 0;
+        })
+      );
+      setStats({ owners: results[0], tenants: results[1], properties: results[2], contracts: results[3] });
+    } catch (e: any) {
+      setError(e?.message ?? 'Erreur chargement statistiques');
+    } finally {
+      setLoading(false);
+    }
+  }, [agencyId]);
+
+  useEffect(() => {
+    fetchCounts();
+    const channels = (['owners', 'tenants', 'properties', 'contracts'] as TableName[]).map((t) =>
+      supabase
+        .channel(`dash_${t}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: t }, () => fetchCounts())
+        .subscribe()
+    );
+    return () => {
+      channels.forEach((c) => {
+        try { supabase.removeChannel(c); } catch {}
+      });
+    };
+  }, [fetchCounts]);
+
+  return { stats, loading, error, refetch: fetchCounts };
+}
+
+type CreatePayload = Record<string, any>;
+
+export function useSupabaseCreate(table: TableName, options?: { agencyScoped?: boolean }) {
+  const { user, admin } = useAuth();
+  const agencyScoped = options?.agencyScoped ?? true;
+
+  const create = useCallback(async (payload: CreatePayload) => {
+    if (!supabase) throw new Error('Supabase non configuré');
+    let toInsert = { ...payload };
+    if (!admin && agencyScoped) {
+      const agencyId = user?.agencyId;
+      if (!agencyId) throw new Error("Aucune agence liée à l'utilisateur");
+      toInsert = { ...toInsert, agency_id: toInsert.agency_id ?? agencyId };
+    }
+    const { data, error } = await supabase.from(table).insert(toInsert).select().single();
+    if (error) throw error;
+    return data;
+  }, [admin, agencyScoped, table, user?.agencyId]);
+
+  return { create };
+}
+
+export function useSupabaseDelete(table: TableName, options?: { agencyScoped?: boolean }) {
+  const { user, admin } = useAuth();
+  const agencyScoped = options?.agencyScoped ?? true;
+
+  const remove = useCallback(async (id: string) => {
+    if (!supabase) throw new Error('Supabase non configuré');
+    let q = supabase.from(table).delete().eq('id', id);
+    if (!admin && agencyScoped && user?.agencyId) q = q.eq('agency_id', user.agencyId);
+    const { error } = await q;
+    if (error) throw error;
+    return true;
+  }, [admin, agencyScoped, table, user?.agencyId]);
+
+  return { remove };
 }
