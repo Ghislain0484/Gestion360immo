@@ -1,136 +1,73 @@
+// src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-const isConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-const isProd = import.meta.env.MODE === 'production';
-const allowDemo = !isProd;
-
-if (!isConfigured && isProd) {
-  // En production, on ne permet pas de tourner sans config
-  // (évite le mode démo / données locales)
-  console.error('❌ Supabase non configuré en production.');
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('Supabase env vars manquantes. Vérifie VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY');
 }
 
-export const supabase = isConfigured
-  ? createClient(supabaseUrl!, supabaseAnonKey!, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-      global: {
-        headers: {
-          apikey: supabaseAnonKey!,
-          Authorization: `Bearer ${supabaseAnonKey!}`,
-        },
-      },
-    })
-  : null;
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-if (supabase) {
-  console.log('✅ Client Supabase OK');
-} else {
-  console.warn('⚠️ Supabase non initialisé (mode/dev uniquement).');
+/**
+ * dbService: helpers minimes utilisés par les écrans (ajuste selon ton schéma)
+ */
+type OwnerPayload = {
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email?: string | null;
+  agency_id?: string | null;
+};
+type TenantPayload = {
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email?: string | null;
+  agency_id?: string | null;
+};
+type PropertyPayload = {
+  title: string;
+  address?: string | null;
+  rent?: number | null;
+  agency_id?: string | null;
+};
+type ContractPayload = {
+  owner_id?: string | null;
+  tenant_id?: string | null;
+  property_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  amount?: number | null;
+  agency_id?: string | null;
+};
+
+async function insertOne<T>(table: string, payload: Record<string, any>) {
+  const { data, error } = await supabase.from(table).insert(payload).select().single();
+  if (error) throw error;
+  return data as T;
 }
-
-type InsertResult<T> = { data: T | null; error: any | null };
 
 export const dbService = {
-  // OWNERS
-  async createOwner(owner: any) {
-    if (!supabase || !isConfigured) throw new Error('Supabase non configuré');
-    if (!owner?.agency_id) throw new Error('agency_id manquant');
-    if (!owner.first_name || !owner.last_name || !owner.phone) {
-      throw new Error('Champs obligatoires manquants: first_name, last_name, phone');
-    }
-    const { data, error } = await supabase.from('owners').insert(owner).select().single();
-    if (error) throw error;
-    return data;
+  // propriétaires
+  async createOwner(payload: OwnerPayload) {
+    if (!payload.agency_id) throw new Error('agency_id requis pour createOwner');
+    return insertOne('owners', payload);
   },
-
-  async getOwners(agencyId?: string) {
-    if (!supabase || !isConfigured) throw new Error('Supabase non configuré');
-    let query = supabase.from('owners').select('*');
-    if (agencyId) query = query.eq('agency_id', agencyId);
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (error) throw error;
-    return data ?? [];
+  // locataires
+  async createTenant(payload: TenantPayload) {
+    if (!payload.agency_id) throw new Error('agency_id requis pour createTenant');
+    return insertOne('tenants', payload);
   },
-
-  // TENANTS
-  async createTenant(tenant: any) {
-    if (!supabase || !isConfigured) throw new Error('Supabase non configuré');
-    if (!tenant?.agency_id) throw new Error('agency_id manquant');
-    const { data, error } = await supabase.from('tenants').insert(tenant).select().single();
-    if (error) throw error;
-    return data;
+  // biens
+  async createProperty(payload: PropertyPayload) {
+    if (!payload.agency_id) throw new Error('agency_id requis pour createProperty');
+    return insertOne('properties', payload);
   },
-
-  async getTenants(agencyId?: string) {
-    if (!supabase || !isConfigured) throw new Error('Supabase non configuré');
-    let query = supabase.from('tenants').select('*');
-    if (agencyId) query = query.eq('agency_id', agencyId);
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (error) throw error;
-    return data ?? [];
-  },
-
-  // PROPERTIES
-  async createProperty(property: any) {
-    if (!supabase || !isConfigured) throw new Error('Supabase non configuré');
-    if (!property?.agency_id) throw new Error('agency_id manquant');
-    if (!property?.owner_id) throw new Error('owner_id manquant');
-    const { data, error } = await supabase.from('properties').insert(property).select().single();
-    if (error) throw error;
-    return data;
-  },
-
-  async getProperties(agencyId?: string) {
-    if (!supabase || !isConfigured) throw new Error('Supabase non configuré');
-    let query = supabase.from('properties').select('*');
-    if (agencyId) query = query.eq('agency_id', agencyId);
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (error) throw error;
-    return data ?? [];
-  },
-
-  // CONTRACTS
-  async createContract(contract: any) {
-    if (!supabase || !isConfigured) throw new Error('Supabase non configuré');
-    if (!contract?.agency_id) throw new Error('agency_id manquant');
-    if (!contract?.property_id) throw new Error('property_id manquant');
-    if (!contract?.tenant_id && !contract?.owner_id) {
-      throw new Error('tenant_id ou owner_id requis');
-    }
-    const { data, error } = await supabase.from('contracts').insert(contract).select().single();
-    if (error) throw error;
-    return data;
-  },
-
-  async getContracts(agencyId?: string) {
-    if (!supabase || !isConfigured) throw new Error('Supabase non configuré');
-    let query = supabase.from('contracts').select('*');
-    if (agencyId) query = query.eq('agency_id', agencyId);
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (error) throw error;
-    return data ?? [];
-  },
-
-  // TEMPS RÉEL
-  subscribeToChanges(table: string, callback: (payload: any) => void) {
-    if (!supabase || !isConfigured) return { unsubscribe() {} };
-    return supabase
-      .channel(`${table}_changes`)
-      .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
-        callback(payload);
-      })
-      .subscribe();
-  },
-
-  unsubscribeFromChanges(subscription: any) {
-    try {
-      if (subscription?.unsubscribe) subscription.unsubscribe();
-    } catch {}
+  // contrats
+  async createContract(payload: ContractPayload) {
+    if (!payload.agency_id) throw new Error('agency_id requis pour createContract');
+    return insertOne('contracts', payload);
   },
 };
