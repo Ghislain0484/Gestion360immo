@@ -1,7 +1,9 @@
+// src/components/auth/AdminLoginForm.tsx
 import React, { useState } from "react";
-import { loginAdmin } from "../lib/auth";
+import { useAuth } from "@/contexts/AuthContext"; // 👈 au lieu de ../lib/auth
 
 const AdminLoginForm: React.FC = () => {
+  const { loginAdmin } = useAuth(); // 👈 on récupère loginAdmin du contexte
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,16 +22,15 @@ const AdminLoginForm: React.FC = () => {
       if (/invalid login credentials/i.test(raw)) {
         setError("Email ou mot de passe incorrect");
       } else if (/profil administrateur introuvable/i.test(raw)) {
-        setError(
-          "Profil administrateur introuvable. Vérifiez que ce compte est bien autorisé côté plateforme."
-        );
+        setError("Profil administrateur introuvable. Vérifiez que ce compte est bien autorisé côté plateforme.");
       } else if (/jwt expired/i.test(raw)) {
         setError("Session expirée. Réessayez la connexion.");
       } else {
         setError(raw);
       }
 
-      console.debug("Login admin error (raw):", raw);
+      // Optionnel pour debug
+      // console.debug("Login admin error (raw):", raw);
     } finally {
       setIsLoading(false);
     }
