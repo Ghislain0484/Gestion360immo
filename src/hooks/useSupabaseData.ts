@@ -4,14 +4,15 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
- * Hook générique list + temps réel
- * - agencyScoped: true -> filtre agency_id = user.agencyId (pour les users d'agence)
- * - admin plateforme: pas de filtre par défaut (agencyScoped ignoré)
+ * Hook générique de listing + temps réel.
+ * - agencyScoped: true => filtre agency_id = user.agencyId (pour les users d'agence)
+ * - admin plateforme: pas de filtre par défaut
  * Retourne aussi refetch()
  */
+type TableName = 'owners' | 'tenants' | 'properties' | 'contracts';
 
 type FetchOptions = {
-  table: 'owners' | 'tenants' | 'properties' | 'contracts';
+  table: TableName;
   agencyScoped?: boolean; // default true
   orderBy?: { column: string; ascending?: boolean };
 };
@@ -24,11 +25,7 @@ export function useSupabaseData<T = any>({ table, agencyScoped = true, orderBy }
   const subRef = useRef<ReturnType<typeof supabase['channel']> | null>(null);
 
   const isConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
-
-  const agencyId = useMemo(() => {
-    if (admin) return null;            // admin plateforme -> pas de filtre
-    return user?.agencyId ?? null;     // users d'agence -> filtre par agency_id
-  }, [admin, user?.agencyId]);
+  const agencyId = useMemo(() => (admin ? null : user?.agencyId ?? null), [admin, user?.agencyId]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -54,7 +51,7 @@ export function useSupabaseData<T = any>({ table, agencyScoped = true, orderBy }
       if (!cancelled) await fetchData();
     })();
 
-    // realtime
+    // realtime: refetch on any change
     try {
       if (subRef.current) {
         supabase.removeChannel(subRef.current);
@@ -81,34 +78,28 @@ export function useSupabaseData<T = any>({ table, agencyScoped = true, orderBy }
 }
 
 /**
- * Hook léger pour écouter du temps réel sur une table donnée, sans fetch initial.
- * Utile si tu fais ton propre SELECT ailleurs mais veux re-render sur changements.
+ * Temps réel simple: notifie via onChange()
  */
-export function useRealtimeData(table: FetchOptions['table'], onChange?: () => void) {
-  const [ok, setOk] = useState(false);
+export function useRealtimeData(table: TableName, onChange?: () => void) {
+  const [subscribed, setSubscribed] = useState(false);
   useEffect(() => {
     try {
       const channel = supabase
         .channel(`${table}_rt`)
-        .on('postgres_changes', { event: '*', schema: 'public', table }, () => {
-          onChange?.();
-        })
-        .subscribe(() => setOk(true));
+        .on('postgres_changes', { event: '*', schema: 'public', table }, () => onChange?.())
+        .subscribe(() => setSubscribed(true));
       return () => {
         supabase.removeChannel(channel);
       };
     } catch {
-      setOk(false);
+      setSubscribed(false);
     }
   }, [table, onChange]);
-  return { subscribed: ok };
+  return { subscribed };
 }
 
 /**
- * useDashboardStats :
- * - Agrège des compteurs (owners, tenants, properties, contracts)
- * - admin plateforme: pas de filtre
- * - user d'agence: filtre par agency_id
+ * Stats tableau de bord
  */
 type DashboardStats = {
   owners: number;
@@ -129,7 +120,7 @@ export function useDashboardStats() {
     setLoading(true);
     setError(null);
     try {
-      const tables: FetchOptions['table'][] = ['owners', 'tenants', 'properties', 'contracts'];
+      const tables: TableName[] = ['owners', 'tenants', 'properties', 'contracts'];
       const results = await Promise.all(
         tables.map(async (t) => {
           let q = supabase.from(t).select('*', { count: 'exact', head: true });
@@ -139,12 +130,7 @@ export function useDashboardStats() {
           return count ?? 0;
         })
       );
-      setStats({
-        owners: results[0],
-        tenants: results[1],
-        properties: results[2],
-        contracts: results[3],
-      });
+      setStats({ owners: results[0], tenants: results[1], properties: results[2], contracts: results[3] });
     } catch (e: any) {
       setError(e?.message ?? 'Erreur chargement statistiques');
     } finally {
@@ -154,8 +140,7 @@ export function useDashboardStats() {
 
   useEffect(() => {
     fetchCounts();
-    // réécoute en temps réel: si une table change, on recalcule
-    const channels = ['owners', 'tenants', 'properties', 'contracts'].map((t) =>
+    const channels = (['owners', 'tenants', 'properties', 'contracts'] as TableName[]).map((t) =>
       supabase
         .channel(`dash_${t}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: t }, () => fetchCounts())
@@ -163,10 +148,73 @@ export function useDashboardStats() {
     );
     return () => {
       channels.forEach((c) => {
-        try { supabase.removeChannel(c); } catch {}
+        try {
+          supabase.removeChannel(c);
+        } catch {}
       });
     };
   }, [fetchCounts]);
 
   return { stats, loading, error, refetch: fetchCounts };
+}
+
+/**
+ * Création générique (INSERT) avec gestion agency_id.
+ * - Si admin plateforme: insert tel quel (tu peux passer agency_id explicitement si besoin)
+ * - Si user d'agence: injecte automatiquement agency_id = user.agencyId.
+ */
+type CreatePayload = Record<string, any>;
+
+export function useSupabaseCreate(table: TableName, options?: { agencyScoped?: boolean }) {
+  const { user, admin } = useAuth();
+  const agencyScoped = options?.agencyScoped ?? true;
+
+  const create = useCallback(
+    async (payload: CreatePayload) => {
+      if (!supabase) throw new Error('Supabase non configuré');
+      let toInsert = { ...payload };
+
+      if (!admin && agencyScoped) {
+        const agencyId = user?.agencyId;
+        if (!agencyId) throw new Error("Aucune agence liée à l'utilisateur");
+        toInsert = { ...toInsert, agency_id: toInsert.agency_id ?? agencyId };
+      }
+
+      const { data, error } = await supabase.from(table).insert(toInsert).select().single();
+      if (error) throw error;
+      return data;
+    },
+    [admin, agencyScoped, table, user?.agencyId]
+  );
+
+  return { create };
+}
+
+/**
+ * Suppression générique (DELETE) sécurisée par RLS.
+ * - Si user d'agence: la policy doit empêcher de supprimer hors de son agence.
+ * - Si admin plateforme: la policy doit autoriser selon ton modèle (souvent via is_platform_admin()).
+ */
+export function useSupabaseDelete(table: TableName, options?: { agencyScoped?: boolean }) {
+  const { user, admin } = useAuth();
+  const agencyScoped = options?.agencyScoped ?? true;
+
+  const remove = useCallback(
+    async (id: string) => {
+      if (!supabase) throw new Error('Supabase non configuré');
+      let query = supabase.from(table).delete().eq('id', id);
+
+      // Optionnel: forcer un filtre agency_id côté client (RLS reste la protection forte)
+      if (!admin && agencyScoped && user?.agencyId) {
+        query = query.eq('agency_id', user.agencyId);
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+      return true;
+    },
+    [admin, agencyScoped, table, user?.agencyId]
+  );
+
+  return { remove };
 }

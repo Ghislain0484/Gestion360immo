@@ -6,7 +6,7 @@ import { Badge } from '../ui/Badge';
 import { PropertyForm } from './PropertyForm';
 import { PropertyDetailsModal } from './PropertyDetailsModal';
 import { Property, PropertyFormData } from '../../types/property';
-import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
+import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '@/hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
