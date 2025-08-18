@@ -10,6 +10,8 @@ import { PlatformSettings } from './PlatformSettings';
 import { PlatformStats } from '../../types/admin';
 import { dbService } from '../../lib/supabase';
 import { useEffect } from 'react';
+import { getPlatformStats, listPendingRegistrationRequests, updateRegistrationStatus } from "@/lib/adminApi";
+
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -17,6 +19,18 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [recentAgencies, setRecentAgencies] = useState<any[]>([]);
   const [systemAlerts, setSystemAlerts] = useState<any[]>([]);
+  // avant (exemple):
+  // const stats = await ze.getPlatformStats();
+
+  // après :
+  const stats = await getPlatformStats();
+
+  // avant (exemple):
+  // const items = await ze.listPendingRegistrationRequests?.() ?? []
+
+  // après :
+  const items = await listPendingRegistrationRequests();
+
 
   useEffect(() => {
     const fetchPlatformStats = async () => {
