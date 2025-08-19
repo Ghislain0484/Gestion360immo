@@ -1,57 +1,78 @@
 // src/components/admin/AdminDashboard.tsx
-import React, { useEffect, useState } from "react";
-import { getPlatformStats } from "@/lib/adminApi";
-import AgencyRequests from "@/components/admin/AgencyRequests";
+import React, { useEffect, useState } from 'react';
+import { Tabs, TabList, Tab, TabPanel } from '../ui/Tabs';
+import { Card } from '../ui/Card';
+import { Badge } from '../ui/Badge';
+import { AgencyRequests } from './AgencyRequests';
+import { AgencyManagement } from './AgencyManagement';
+import { SubscriptionManagement } from './SubscriptionManagement';
+import { PlatformSettings } from './PlatformSettings';
+import { AgencyRankings } from './AgencyRankings';
+import { dbService } from '../../lib/supabase';
 
-type Stats = { pendingRequests: number; approvedAgencies: number };
-
-export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({ pendingRequests: 0, approvedAgencies: 0 });
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+export const AdminDashboard: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<{ agenciesApproved: number; agenciesPending: number; subscriptions: number } | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    setErr(null);
     (async () => {
       try {
-        const s = await getPlatformStats();
-        if (mounted) setStats(s);
-      } catch (e: any) {
-        if (mounted) setErr(e?.message ?? "Erreur chargement stats");
+        const s = await dbService.getPlatformStats();
+        setStats(s);
+      } catch (e) {
+        console.error('Error fetching platform stats:', e);
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
   }, []);
 
   return (
-    <div className="p-4 space-y-6">
-      <h1 className="text-xl font-bold">Administration — Plateforme</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-lg border p-3">
+    <div className="space-y-6">
+      {/* En-tête KPI */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-5">
+          <div className="text-sm text-gray-500">Agences approuvées</div>
+          <div className="text-2xl font-semibold">{stats?.agenciesApproved ?? (loading ? '…' : 0)}</div>
+        </Card>
+        <Card className="p-5">
           <div className="text-sm text-gray-500">Demandes en attente</div>
           <div className="text-2xl font-semibold">
-            {loading ? "…" : stats.pendingRequests}
+            <Badge variant="warning">{stats?.agenciesPending ?? (loading ? '…' : 0)}</Badge>
           </div>
-        </div>
-        <div className="rounded-lg border p-3">
-          <div className="text-sm text-gray-500">Agences approuvées</div>
-          <div className="text-2xl font-semibold">
-            {loading ? "…" : stats.approvedAgencies}
-          </div>
-        </div>
+        </Card>
+        <Card className="p-5">
+          <div className="text-sm text-gray-500">Abonnements</div>
+          <div className="text-2xl font-semibold">{stats?.subscriptions ?? (loading ? '…' : 0)}</div>
+        </Card>
       </div>
 
-      {err && <div className="text-sm text-red-700 bg-red-100 p-2 rounded">{err}</div>}
+      {/* Tabs Admin */}
+      <Tabs>
+        <TabList>
+          <Tab>Demandes d’agence</Tab>
+          <Tab>Agences</Tab>
+          <Tab>Abonnements</Tab>
+          <Tab>Classements</Tab>
+          <Tab>Paramètres plateforme</Tab>
+        </TabList>
 
-      {/* Liste des demandes avec actions */}
-      <AgencyRequests autoCreateAgencyOnApprove={false} />
+        <TabPanel>
+          <AgencyRequests />
+        </TabPanel>
+        <TabPanel>
+          <AgencyManagement />
+        </TabPanel>
+        <TabPanel>
+          <SubscriptionManagement />
+        </TabPanel>
+        <TabPanel>
+          <AgencyRankings />
+        </TabPanel>
+        <TabPanel>
+          <PlatformSettings />
+        </TabPanel>
+      </Tabs>
     </div>
   );
-}
+};

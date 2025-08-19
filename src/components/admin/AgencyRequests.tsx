@@ -1,149 +1,75 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  listPendingRegistrationRequests,
-  updateRegistrationStatus,
-  approveAndCreateAgency,
-} from "@/lib/adminApi";
+// src/components/admin/AgencyRequests.tsx
+import React, { useEffect, useState } from 'react';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Badge } from '../ui/Badge';
+import { dbService } from '../../lib/supabase';
 
-type RequestItem = {
-  id: string;
-  agency_name: string;
-  commercial_register?: string | null;
-  director_first_name?: string | null;
-  director_last_name?: string | null;
-  director_email?: string | null;
-  phone?: string | null;
-  city?: string | null;
-  address?: string | null;
-  status: string | null;
-  created_at?: string | null;
-};
-
-type Props = {
-  autoCreateAgencyOnApprove?: boolean; // true => approve + insert agencies
-};
-
-const AgencyRequests: React.FC<Props> = ({ autoCreateAgencyOnApprove = false }) => {
-  const [items, setItems] = useState<RequestItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [actionId, setActionId] = useState<string | null>(null);
+export const AgencyRequests: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const hasItems = useMemo(() => items.length > 0, [items]);
-
-  const fetchData = async () => {
+  const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const rows = await listPendingRegistrationRequests(200);
-      setItems(rows as any);
+      const data = await dbService.getPendingAgencyRequests();
+      setRequests(data);
     } catch (e: any) {
-      setError(e?.message ?? "Erreur de chargement");
+      setError(e?.message ?? 'Erreur chargement');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { load(); }, []);
 
-  const onDecision = async (req: RequestItem, status: "approved" | "rejected") => {
-    setError(null);
-    setActionId(req.id);
-
-    // Optimistic UI
-    const prev = items;
-    setItems((s) => s.filter((x) => x.id !== req.id));
+  const approve = async (id: string) => {
     try {
-      if (status === "approved" && autoCreateAgencyOnApprove) {
-        await approveAndCreateAgency(req);
-      } else {
-        await updateRegistrationStatus(req.id, status);
-      }
+      await dbService.approveAgencyRequest(id);
+      await load();
     } catch (e: any) {
-      setItems(prev); // rollback
-      setError(e?.message ?? "Action impossible");
-    } finally {
-      setActionId(null);
+      alert(`Erreur approbation: ${e.message ?? e}`);
     }
   };
 
+  const reject = async (id: string) => {
+    const reason = prompt('Raison du refus ?') ?? undefined;
+    try {
+      await dbService.rejectAgencyRequest(id, reason);
+      await load();
+    } catch (e: any) {
+      alert(`Erreur rejet: ${e.message ?? e}`);
+    }
+  };
+
+  if (loading) return <div className="p-6">Chargement…</div>;
+  if (error) return <div className="p-6 text-red-600">{error}</div>;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Demandes d’inscription d’agence</h2>
-        <button
-          onClick={fetchData}
-          className="text-sm px-3 py-1 rounded bg-gray-100 hover:bg-gray-200"
-          disabled={loading}
-        >
-          {loading ? "Actualisation..." : "Rafraîchir"}
-        </button>
-      </div>
-
-      {error && (
-        <div className="text-sm text-red-700 bg-red-100 p-2 rounded">{error}</div>
+      {requests.length === 0 && (
+        <Card className="p-8 text-center text-gray-600">Aucune demande en attente.</Card>
       )}
-
-      {!hasItems && !loading && (
-        <div className="text-sm text-gray-500">Aucune demande en attente.</div>
-      )}
-
-      <div className="grid gap-3">
-        {items.map((r) => (
-          <div key={r.id} className="rounded-lg border p-3 flex flex-col gap-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-medium">
-                {r.agency_name}
-                {r.city ? <span className="text-gray-500"> — {r.city}</span> : null}
-              </div>
-              <div className="text-xs text-gray-500">
-                {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
-              </div>
+      {requests.map((r) => (
+        <Card key={r.id} className="p-5 flex items-center justify-between">
+          <div>
+            <div className="font-medium">{r.agency_name}</div>
+            <div className="text-sm text-gray-600">{r.city ?? '—'} • {r.phone ?? '—'}</div>
+            <div className="text-sm text-gray-500 mt-1">
+              Directeur: {r.director_first_name} {r.director_last_name} • {r.director_email}
             </div>
-
-            <div className="text-sm text-gray-700">
-              <div>
-                <span className="font-semibold">Dir.:</span>{" "}
-                {[r.director_first_name, r.director_last_name].filter(Boolean).join(" ") || "—"}
-              </div>
-              <div>
-                <span className="font-semibold">Email:</span> {r.director_email || "—"}
-              </div>
-              <div>
-                <span className="font-semibold">Tél.:</span> {r.phone || "—"}
-              </div>
-              <div>
-                <span className="font-semibold">Adresse:</span> {r.address || "—"}
-              </div>
-              <div>
-                <span className="font-semibold">RCCM/Registre:</span> {r.commercial_register || "—"}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => onDecision(r, "approved")}
-                disabled={actionId === r.id}
-                className="px-3 py-1 rounded bg-green-600 text-white disabled:opacity-50"
-              >
-                {actionId === r.id ? "Validation..." : "Approuver"}
-              </button>
-              <button
-                onClick={() => onDecision(r, "rejected")}
-                disabled={actionId === r.id}
-                className="px-3 py-1 rounded bg-red-600 text-white disabled:opacity-50"
-              >
-                {actionId === r.id ? "Refus..." : "Refuser"}
-              </button>
+            <div className="mt-2">
+              <Badge variant="warning">pending</Badge>
             </div>
           </div>
-        ))}
-      </div>
+          <div className="flex gap-2">
+            <Button onClick={() => approve(r.id)}>Approuver</Button>
+            <Button variant="danger" onClick={() => reject(r.id)}>Refuser</Button>
+          </div>
+        </Card>
+      ))}
     </div>
   );
 };
-
-export default AgencyRequests;
-export { AgencyRequests };
