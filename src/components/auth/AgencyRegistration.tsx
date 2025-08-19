@@ -1,13 +1,11 @@
-// src/components/auth/AgencyRegistration.tsx
 import React, { useState } from 'react';
 import { Building2, Upload, Shield, Users, Save } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
-import { AgencyFormData, UserFormData } from '../../types/agency';
+import { AgencyFormData, UserFormData, UserPermissions } from '../../types/agency';
 import { dbService } from '../../lib/supabase';
-import { supabase } from '@/lib/supabase'; // 👈 client supabase (anon) côté front
 
 interface AgencyRegistrationProps {
   isOpen: boolean;
@@ -22,8 +20,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
+  
   const [agencyData, setAgencyData] = useState<AgencyFormData>({
     name: '',
     commercialRegister: '',
@@ -60,11 +57,11 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
   });
 
   const updateAgencyData = (updates: Partial<AgencyFormData>) => {
-    setAgencyData((prev) => ({ ...prev, ...updates }));
+    setAgencyData(prev => ({ ...prev, ...updates }));
   };
 
   const updateDirectorData = (updates: Partial<UserFormData>) => {
-    setDirectorData((prev) => ({ ...prev, ...updates }));
+    setDirectorData(prev => ({ ...prev, ...updates }));
   };
 
   const handleLogoUpload = (file: File) => {
@@ -73,136 +70,107 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     updateAgencyData({ logo: url });
   };
 
-  async function uploadLogoIfAny(): Promise<string | null> {
-    if (!logoFile) return null;
-    const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-    const filePath = `logos/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-
-    const { error: upErr } = await supabase.storage
-      .from('agency_logos') // 👉 crée ce bucket public si pas encore fait
-      .upload(filePath, logoFile, {
-        contentType: logoFile.type || 'image/png',
-        upsert: false,
-      });
-
-    if (upErr) {
-      console.warn('⚠️ Upload logo échoué:', upErr.message);
-      return null;
-    }
-
-    const { data: pub } = supabase.storage.from('agency_logos').getPublicUrl(filePath);
-    return pub?.publicUrl || null;
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
-
+    
+    // Validation des données
+    if (!agencyData.name.trim() || !agencyData.commercialRegister.trim()) {
+      alert('Veuillez remplir le nom de l\'agence et le registre de commerce');
+      return;
+    }
+    
+    if (!directorData.firstName.trim() || !directorData.lastName.trim() || !directorData.email.trim()) {
+      alert('Veuillez remplir les informations du directeur');
+      return;
+    }
+    
+    if (!directorData.password || directorData.password.length < 8) {
+      alert('Le mot de passe doit contenir au moins 8 caractères');
+      return;
+    }
+    
+    if (!agencyData.phone.trim() || !agencyData.city.trim() || !agencyData.address.trim()) {
+      alert('Veuillez remplir le téléphone, la ville et l\'adresse');
+      return;
+    }
+    
     try {
-      // --- 1) Validations de base ---
-      if (!agencyData.name.trim() || !agencyData.commercialRegister.trim()) {
-        throw new Error("Veuillez remplir le nom de l'agence et le registre de commerce.");
-      }
-      if (
-        !directorData.firstName.trim() ||
-        !directorData.lastName.trim() ||
-        !directorData.email.trim()
-      ) {
-        throw new Error('Veuillez remplir les informations du directeur.');
-      }
-      if (!directorData.password || directorData.password.length < 8) {
-        throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
-      }
-      if (!agencyData.phone.trim() || !agencyData.city.trim() || !agencyData.address.trim()) {
-        throw new Error("Veuillez remplir le téléphone, la ville et l'adresse.");
-      }
-
-      // --- 2) Upload logo (facultatif) ---
-      const logoPublicUrl = await uploadLogoIfAny();
-
-      // --- 3) Créer le compte AUTH du directeur (email + password) ---
-      const { data: signup, error: signupErr } = await supabase.auth.signUp({
-        email: directorData.email,
-        password: directorData.password,
-        options: {
-          emailRedirectTo:
-            (window?.location?.origin || 'https://www.gestion360immo.com') + '/login',
-          data: {
-            first_name: directorData.firstName,
-            last_name: directorData.lastName,
-            role: 'director',
-          },
-        },
-      });
-      if (signupErr) throw signupErr;
-      const directorAuthId = signup.user?.id;
-      if (!directorAuthId) throw new Error("Création du compte directeur échouée.");
-
-      // --- 4) Construire la demande pour la table agency_registration_requests ---
-      // ❗️NE JAMAIS ENREGISTRER LE MOT DE PASSE EN BASE
+      // Préparer les données pour l'enregistrement
       const requestData = {
         agency_name: agencyData.name,
         commercial_register: agencyData.commercialRegister,
-        phone: agencyData.phone,
-        city: agencyData.city,
-        address: agencyData.address,
-        email: agencyData.email || directorData.email,
-        logo_url: logoPublicUrl,
-        has_license: agencyData.isAccredited ?? false,
-        license_number: agencyData.accreditationNumber || null,
-
         director_first_name: directorData.firstName,
         director_last_name: directorData.lastName,
         director_email: directorData.email,
-        director_auth_user_id: directorAuthId,
-
+        director_password: directorData.password,
+        phone: agencyData.phone,
+        city: agencyData.city,
+        address: agencyData.address,
+        logo_url: agencyData.logo,
+        is_accredited: agencyData.isAccredited,
+        accreditation_number: agencyData.accreditationNumber,
         status: 'pending',
-        created_at: new Date().toISOString(),
-      } as const;
-
-      // --- 5) Sauvegarde localStorage (fallback UX) ---
-      const localRequest = { id: `local_${Date.now()}`, ...requestData };
+        created_at: new Date().toISOString()
+      };
+      
+      console.log('Envoi de la demande avec les données:', requestData);
+      
+      // Toujours sauvegarder en localStorage d'abord
+      const localRequest = {
+        id: `local_${Date.now()}`,
+        ...requestData
+      };
+      
       const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
       stored.unshift(localRequest);
       localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
-
-      // --- 6) Enregistrer en base (table agency_registration_requests) ---
-      // Si tu préfères utiliser un service centralisé, garde dbService.createRegistrationRequest,
-      // mais il ne doit PAS envoyer le mot de passe.
-      const { error: insErr } = await supabase
-        .from('agency_registration_requests')
-        .insert(requestData);
-      if (insErr) {
-        console.warn('⚠️ Erreur Supabase lors de la création de la demande:', insErr.message);
-        // On laisse néanmoins la demande dans le localStorage
+      console.log('✅ Demande sauvegardée en localStorage');
+      
+      // Essayer de sauvegarder en Supabase aussi
+      try {
+        const result = await dbService.createRegistrationRequest(requestData);
+        console.log('✅ Demande sauvegardée en Supabase:', result.id);
+      } catch (supabaseError) {
+        console.warn('⚠️ Erreur Supabase, demande sauvegardée localement uniquement');
       }
-
-      // --- 7) Callback + UI ---
-      onSubmit?.(agencyData, directorData);
-      alert(
-        `✅ DEMANDE ENVOYÉE !
         
-🏢 Agence : ${agencyData.name}
-👤 Directeur : ${directorData.firstName} ${directorData.lastName}
-📧 Email : ${directorData.email}
-📱 Téléphone : ${agencyData.phone}
-🏙️ Ville : ${agencyData.city}
+      alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE AVEC SUCCÈS !
+        
+🏢 AGENCE : ${agencyData.name}
+👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
+📧 EMAIL : ${directorData.email}
+🔑 MOT DE PASSE : ${directorData.password}
+📱 TÉLÉPHONE : ${agencyData.phone}
+🏙️ VILLE : ${agencyData.city}
 
-Votre compte a été créé. Vous pourrez vous connecter avec l'email et le mot de passe saisis
-dès l'approbation par l'administrateur. Un email de vérification peut vous être envoyé.`
-      );
+✅ Votre demande a été enregistrée avec l'ID : ${localRequest.id}
+
+⏱️ TRAITEMENT : Validation sous 24-48h par notre équipe
+🔑 IDENTIFIANTS : Ceux que vous avez saisis seront activés
+🌐 CONNEXION : www.gestion360immo.com
+
+PROCHAINES ÉTAPES :
+1. ⏳ Validation par l'administrateur (24-48h)
+2. Activation de votre compte avec vos identifiants
+3. 🎁 Démarrage de votre abonnement d'essai (30 jours gratuits)
+4. 🚀 Connexion immédiate possible avec vos identifiants
+
+IMPORTANT : Conservez vos identifiants de connexion !
+Email : ${directorData.email}
+Mot de passe : ${directorData.password}
+
+Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
+        
       onClose();
-    } catch (err: any) {
-      console.error("Erreur lors de l'enregistrement:", err);
-      alert(`❌ ${err?.message || 'Erreur inconnue'}`);
-    } finally {
-      setSubmitting(false);
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement:', error);
+      alert(`❌ Erreur lors de l'envoi de la demande: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   };
 
   const steps = [
-    { id: 1, title: "Informations de l'agence", icon: Building2 },
+    { id: 1, title: 'Informations de l\'agence', icon: Building2 },
     { id: 2, title: 'Compte directeur', icon: Users },
     { id: 3, title: 'Vérification', icon: Shield },
   ];
@@ -214,34 +182,28 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
         <div className="flex items-center justify-between mb-8">
           {steps.map((step, index) => (
             <div key={step.id} className="flex items-center">
-              <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                  currentStep >= step.id
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'border-gray-300 text-gray-500'
-                }`}
-              >
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                currentStep >= step.id 
+                  ? 'bg-blue-600 border-blue-600 text-white' 
+                  : 'border-gray-300 text-gray-500'
+              }`}>
                 <step.icon className="h-5 w-5" />
               </div>
-              <span
-                className={`ml-2 text-sm font-medium ${
-                  currentStep >= step.id ? 'text-blue-600' : 'text-gray-500'
-                }`}
-              >
+              <span className={`ml-2 text-sm font-medium ${
+                currentStep >= step.id ? 'text-blue-600' : 'text-gray-500'
+              }`}>
                 {step.title}
               </span>
               {index < steps.length - 1 && (
-                <div
-                  className={`w-16 h-0.5 mx-4 ${
-                    currentStep > step.id ? 'bg-blue-600' : 'bg-gray-300'
-                  }`}
-                />
+                <div className={`w-16 h-0.5 mx-4 ${
+                  currentStep > step.id ? 'bg-blue-600' : 'bg-gray-300'
+                }`} />
               )}
             </div>
           ))}
         </div>
 
-        {/* Step 1 */}
+        {/* Step 1: Agency Information */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <Card>
@@ -249,7 +211,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
                 <Building2 className="h-5 w-5 text-blue-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Informations de l'agence</h3>
               </div>
-
+              
               <div className="space-y-4">
                 <Input
                   label="Nom de l'agence"
@@ -310,7 +272,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
                 <Shield className="h-5 w-5 text-green-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Agrément</h3>
               </div>
-
+              
               <div className="space-y-4">
                 <label className="flex items-center space-x-3">
                   <input
@@ -341,7 +303,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
                 <Upload className="h-5 w-5 text-purple-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Logo de l'agence</h3>
               </div>
-
+              
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                 {agencyData.logo ? (
                   <div className="space-y-4">
@@ -391,7 +353,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
           </div>
         )}
 
-        {/* Step 2 */}
+        {/* Step 2: Director Account */}
         {currentStep === 2 && (
           <div className="space-y-6">
             <Card>
@@ -399,7 +361,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
                 <Users className="h-5 w-5 text-blue-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Compte du directeur</h3>
               </div>
-
+              
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
@@ -444,7 +406,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
                 <Shield className="h-5 w-5 text-blue-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Permissions du directeur</h3>
               </div>
-
+              
               <div className="text-sm text-blue-800">
                 <p className="mb-2">
                   <strong>En tant que directeur, vous aurez accès à :</strong>
@@ -461,7 +423,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
           </div>
         )}
 
-        {/* Step 3 */}
+        {/* Step 3: Verification */}
         {currentStep === 3 && (
           <div className="space-y-6">
             <Card>
@@ -469,7 +431,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
                 <Shield className="h-5 w-5 text-green-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Vérification des informations</h3>
               </div>
-
+              
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
@@ -482,9 +444,7 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Directeur</p>
-                    <p className="text-gray-600">
-                      {directorData.firstName} {directorData.lastName}
-                    </p>
+                    <p className="text-gray-600">{directorData.firstName} {directorData.lastName}</p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Email</p>
@@ -504,7 +464,9 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
                   <div className="flex">
                     <Shield className="h-5 w-5 text-green-400 mt-0.5" />
                     <div className="ml-3">
-                      <h4 className="text-sm font-medium text-green-800">Inscription sécurisée</h4>
+                      <h4 className="text-sm font-medium text-green-800">
+                        Inscription sécurisée
+                      </h4>
                       <p className="text-sm text-green-700 mt-1">
                         Vos données sont chiffrées et protégées selon les standards de sécurité.
                       </p>
@@ -520,25 +482,36 @@ dès l'approbation par l'administrateur. Un email de vérification peut vous êt
         <div className="flex items-center justify-between pt-6 border-t">
           <div className="flex space-x-3">
             {currentStep > 1 && (
-              <Button type="button" variant="outline" onClick={() => setCurrentStep(currentStep - 1)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStep(currentStep - 1)}
+              >
                 Précédent
               </Button>
             )}
           </div>
-
+          
           <div className="flex space-x-3">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+            >
               Annuler
             </Button>
-
+            
             {currentStep < 3 ? (
-              <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>
+              <Button
+                type="button"
+                onClick={() => setCurrentStep(currentStep + 1)}
+              >
                 Suivant
               </Button>
             ) : (
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit">
                 <Save className="h-4 w-4 mr-2" />
-                {submitting ? 'Création…' : "Créer l'agence"}
+                Créer l'agence
               </Button>
             )}
           </div>
