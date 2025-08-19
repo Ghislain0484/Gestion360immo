@@ -1,22 +1,18 @@
-export interface Agency {
-  id: string;
+// src/types/agency.ts
+export type AgencyFormData = {
   name: string;
   commercialRegister: string;
-  logo?: string;
+  logo: string;
   isAccredited: boolean;
-  accreditationNumber?: string;
+  accreditationNumber?: string | null;
   address: string;
   city: string;
   phone: string;
   email: string;
-  directorId: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+  directorId?: string;
+};
 
-export interface AgencyFormData extends Omit<Agency, 'id' | 'createdAt' | 'updatedAt'> {}
-
-export interface UserPermissions {
+export type UserPermissions = {
   dashboard: boolean;
   properties: boolean;
   owners: boolean;
@@ -27,22 +23,15 @@ export interface UserPermissions {
   notifications: boolean;
   settings: boolean;
   userManagement: boolean;
-}
+};
 
-export interface User {
-  id: string;
+export type UserFormData = {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'director' | 'manager' | 'agent';
-  agencyId: string;
-  avatar?: string;
+  role: 'director' | 'manager' | 'agent' | 'viewer';
+  agencyId?: string;
   permissions: UserPermissions;
   isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface UserFormData extends Omit<User, 'id' | 'createdAt' | 'updatedAt'> {
-  password: string;
-}
+  password?: string;
+};
