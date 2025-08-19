@@ -14,7 +14,7 @@ import { ReportsHub } from './components/reports/ReportsHub';
 import { NotificationsCenter } from './components/notifications/NotificationsCenter';
 import { SettingsHub } from './components/settings/SettingsHub';
 import { ReceiptsList } from './components/receipts/ReceiptsList';
-import { AdminDashboard } from './components/admin/AdminDashboard';
+import AdminDashboard from './components/admin/AdminDashboard';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
