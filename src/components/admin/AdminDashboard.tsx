@@ -1,7 +1,7 @@
 // src/components/admin/AdminDashboard.tsx
 import React, { useEffect, useState } from "react";
 import { getPlatformStats } from "@/lib/adminApi";
-import { AgencyRequests } from "@/components/admin/AgencyRequests";
+import AgencyRequests from "@/components/admin/AgencyRequests";
 
 type Stats = { pendingRequests: number; approvedAgencies: number };
 
