@@ -1,86 +1,171 @@
-// src/hooks/useSupabaseData.ts
-import { useEffect, useMemo, useState } from 'react';
-import { supabase, dbService } from '@/lib/supabase';
+import { useState, useEffect } from 'react';
+import { dbService } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
-type RealtimeOptions = {
-  table: string;
-  filter?: { column: string; value: any };
-};
-
-/** Flux temps-réel simple et fiable (recharge à chaque changement) */
-export function useRealtimeData<T = any>(opts: RealtimeOptions) {
-  const { table, filter } = opts;
-  const [rows, setRows] = useState<T[]>([]);
+// Hook robuste pour le chargement des données avec gestion d'erreurs
+export function useRealtimeData<T>(
+  fetchFunction: (agencyId: string) => Promise<T[]>,
+  tableName: string
+) {
+  const { user } = useAuth();
+  const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const channelName = useMemo(() => `realtime:${table}`, [table]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const load = async () => {
-      setLoading(true);
-      const base = supabase.from(table).select('*');
-      const { data, error } = filter ? await base.eq(filter.column, filter.value) : await base;
-      if (!mounted) return;
-      if (error) {
-        console.error('useRealtimeData init error', error);
-        setRows([]);
-      } else {
-        setRows((data ?? []) as T[]);
-      }
+  const fetchData = async () => {
+    if (!user?.agencyId) {
+      console.log(`⚠️ Pas d'agencyId pour ${tableName}`);
+      setData([]);
       setLoading(false);
-    };
+      return;
+    }
 
-    load();
-
-    const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table }, () => load())
-      .subscribe();
-
-    return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
-    };
-  }, [table, filter?.column, filter?.value, channelName]);
-
-  return { data: rows, loading };
-}
-
-/** Création générique */
-export function useSupabaseCreate<T = any>(table: string) {
-  return async (payload: Partial<T>) => {
-    const { data, error } = await supabase.from(table).insert(payload).select().single();
-    if (error) throw error;
-    return data as T;
-  };
-}
-
-/** Suppression générique */
-export function useSupabaseDelete(table: string) {
-  return async (idColumn: string, idValue: any) => {
-    const { error } = await supabase.from(table).delete().eq(idColumn, idValue);
-    if (error) throw error;
-    return true;
-  };
-}
-
-/** Stats Dashboard admin (évite l’erreur “useDashboardStats is not exported”) */
-export function useDashboardStats() {
-  const [stats, setStats] = useState<{ agenciesApproved: number; agenciesPending: number; subscriptions: number } | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    (async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log(`🔄 Chargement ${tableName} pour agence:`, user.agencyId);
+      
+      const result = await fetchFunction(user.agencyId);
+      console.log(`✅ ${tableName} chargés:`, result?.length || 0);
+      setData(result || []);
+      
+    } catch (err) {
+      console.error(`❌ Erreur chargement ${tableName}:`, err);
+      
+      // Messages d'erreur spécifiques
+      if (err instanceof Error) {
+        if (err.message.includes('Supabase non configuré') || err.message.includes('401')) {
+          setError('Configuration Supabase manquante. Vérifiez les variables d\'environnement.');
+        } else if (err.message.includes('JWT')) {
+          setError('Session expirée. Reconnectez-vous.');
+        } else if (err.message.includes('PGRST301')) {
+          setError('Erreur d\'authentification Supabase. Utilisation des données locales.');
+        } else {
+          setError(`Erreur: ${err.message}`);
+        }
+      } else {
+        setError(`Erreur de chargement des ${tableName}`);
+      }
+      
+      // En cas d'erreur, essayer de charger les données locales
       try {
-        const s = await dbService.getPlatformStats();
-        setStats(s);
-      } catch (e) {
-        console.error('useDashboardStats error', e);
+        const localKey = user?.agencyId ? `demo_${tableName}_${user.agencyId}` : `demo_${tableName}`;
+        const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+        console.log(`🔄 Fallback ${tableName} depuis localStorage:`, localData.length);
+        setData(localData);
+        setError(null); // Effacer l'erreur si on a des données locales
+      } catch (localError) {
+        console.error(`❌ Erreur données locales ${tableName}:`, localError);
+        setData([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log(`🔄 useRealtimeData effect pour ${tableName}, agencyId:`, user?.agencyId);
+    fetchData();
+  }, [user?.agencyId, tableName]);
+
+  const refetch = () => {
+    fetchData();
+  };
+
+  return { data, loading, error, refetch, setData };
+}
+
+// Hook pour les stats du dashboard
+export function useDashboardStats() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user?.agencyId) {
+        setStats({
+          totalProperties: 0,
+          totalOwners: 0,
+          totalTenants: 0,
+          totalContracts: 0,
+          monthlyRevenue: 0,
+          activeContracts: 0,
+          occupancyRate: 0
+        });
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const result = await dbService.getDashboardStats(user.agencyId);
+        setStats(result);
+      } catch (error) {
+        console.error('Erreur stats:', error);
+        setStats({
+          totalProperties: 0,
+          totalOwners: 0,
+          totalTenants: 0,
+          totalContracts: 0,
+          monthlyRevenue: 0,
+          activeContracts: 0,
+          occupancyRate: 0
+        });
       } finally {
         setLoading(false);
       }
-    })();
-  }, []);
+    };
+
+    fetchStats();
+  }, [user?.agencyId]);
+
   return { stats, loading };
+}
+
+// Hook pour création
+export function useSupabaseCreate<T>(
+  createFunction: (data: any) => Promise<T>,
+  onSuccess?: (data: T) => void
+) {
+  const [loading, setLoading] = useState(false);
+
+  const create = async (data: any) => {
+    setLoading(true);
+    try {
+      const result = await createFunction(data);
+      onSuccess?.(result);
+      return result;
+    } catch (err) {
+      console.error('Erreur création:', err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { create, loading };
+}
+
+// Hook pour suppression
+export function useSupabaseDelete(
+  deleteFunction: (id: string) => Promise<any>,
+  onSuccess?: () => void
+) {
+  const [loading, setLoading] = useState(false);
+
+  const deleteItem = async (id: string) => {
+    setLoading(true);
+    try {
+      await deleteFunction(id);
+      onSuccess?.();
+    } catch (err) {
+      console.error('Erreur suppression:', err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { deleteItem, loading };
 }

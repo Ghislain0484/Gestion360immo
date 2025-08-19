@@ -14,8 +14,7 @@ import { ReportsHub } from './components/reports/ReportsHub';
 import { NotificationsCenter } from './components/notifications/NotificationsCenter';
 import { SettingsHub } from './components/settings/SettingsHub';
 import { ReceiptsList } from './components/receipts/ReceiptsList';
-import AdminDashboard from './components/admin/AdminDashboard';
-import { AdminDashboard } from './components/admin';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -187,22 +186,5 @@ function App() {
     </AuthProvider>
   );
 }
-
-const App: React.FC = () => {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Accueil / login etc. */}
-        <Route path="/" element={<Navigate to="/admin" replace />} />
-
-        {/* Admin général */}
-        <Route path="/admin" element={<AdminDashboard />} />
-
-        {/* 404 */}
-        <Route path="*" element={<div className="p-8">Page introuvable</div>} />
-      </Routes>
-    </BrowserRouter>
-  );
-};
 
 export default App;
