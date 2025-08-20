@@ -19,9 +19,8 @@ type UseRealtimeResult<T> = {
   reload: () => Promise<void>;
 };
 
-// Charge tout via RLS (sans agencyId côté front)
 export function useSupabaseData() {
-  useAuth(); // garde la dépendance au contexte si besoin
+  useAuth();
   const [owners, setOwners] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
@@ -43,8 +42,8 @@ export function useSupabaseData() {
       setTenants(t ?? []);
       setContracts(c ?? []);
     } catch (e: any) {
-      console.error('❌ useSupabaseData error:', e);
-      setError(e?.message || 'Erreur inconnue');
+      console.error('❌ useSupabaseData error (RAW):', e);
+      setError(e?.message || String(e) || 'Erreur inconnue');
       setOwners([]); setProperties([]); setTenants([]); setContracts([]);
     } finally {
       setLoading(false);
@@ -73,10 +72,7 @@ export function useSupabaseData() {
     };
   }, [owners, properties, tenants, contracts]);
 
-  return {
-    owners, properties, tenants, contracts,
-    stats, loading, error, reload: fetchAll,
-  };
+  return { owners, properties, tenants, contracts, stats, loading, error, reload: fetchAll };
 }
 
 export function useRealtimeData<T = any>(
@@ -97,8 +93,8 @@ export function useRealtimeData<T = any>(
       else rows = await dbService.getContracts();
       setData((rows ?? []) as T[]);
     } catch (e: any) {
-      console.error('❌ useRealtimeData error:', e);
-      setError(e?.message || 'Erreur inconnue');
+      console.error('❌ useRealtimeData error (RAW):', e);
+      setError(e?.message || String(e) || 'Erreur inconnue');
       setData([]);
     } finally {
       setLoading(false);
@@ -122,8 +118,10 @@ export function useSupabaseCreate() {
       const isFn = typeof tableOrFn === 'function';
       let created: any;
       if (isFn) {
+        console.log('🧪 create() via custom fn, payload:', payload);
         created = await (tableOrFn as CreatorFn)(payload);
       } else {
+        console.log('🧪 create() table:', tableOrFn, 'payload:', payload);
         switch (tableOrFn) {
           case 'owners': created = await dbService.createOwner(payload); break;
           case 'properties': created = await dbService.createProperty(payload); break;
@@ -134,8 +132,8 @@ export function useSupabaseCreate() {
       }
       return created;
     } catch (e: any) {
-      const msg = e?.message || 'Erreur création';
-      console.error('❌ useSupabaseCreate:', e);
+      const msg = e?.message || String(e) || 'Erreur création';
+      console.error('❌ useSupabaseCreate (RAW):', e);
       setError(msg);
       throw new Error(msg);
     } finally {
@@ -161,8 +159,8 @@ export function useSupabaseDelete() {
         default: throw new Error(`Unsupported table for delete: ${table}`);
       }
     } catch (e: any) {
-      const msg = e?.message || 'Erreur suppression';
-      console.error('❌ useSupabaseDelete:', e);
+      const msg = e?.message || String(e) || 'Erreur suppression';
+      console.error('❌ useSupabaseDelete (RAW):', e);
       setError(msg);
       throw new Error(msg);
     } finally {
