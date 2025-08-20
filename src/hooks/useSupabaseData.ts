@@ -2,10 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { dbService } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
-// --- UUID guard helper (production-safe) ---
-const isUuid = (v?: string | null): boolean =>
-  !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-
 type DashboardData = {
   totalProperties: number;
   totalOwners: number;
@@ -24,14 +20,11 @@ type UseRealtimeResult<T> = {
 };
 
 /**
- * Hook unifié: charge les 4 entités + calcule un dashboard simple.
- * - Ne fait rien tant que l'agence n'est pas un UUID valide (évite 22P02)
- * - Peut être appelé sans argument: user lu depuis AuthContext
+ * Hook unifié: charge owners/properties/tenants/contracts + stats
+ * 👉 Ne dépend plus d'un agencyId côté front (RLS uniquement)
  */
-export function useSupabaseData(overrideUser?: { agencyId?: string | null }) {
-  const { user: ctxUser } = useAuth();
-  const user = overrideUser ?? ctxUser;
-
+export function useSupabaseData() {
+  useAuth(); // garde le contexte en dépendance si besoin
   const [owners, setOwners] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
@@ -39,27 +32,14 @@ export function useSupabaseData(overrideUser?: { agencyId?: string | null }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reset = () => {
-    setOwners([]); setProperties([]); setTenants([]); setContracts([]);
-    setError(null);
-  };
-
   const fetchAll = async () => {
-    const agencyId = user?.agencyId ?? null;
-
-    if (!isUuid(agencyId)) {
-      console.warn('⏭️ agencyId invalide/absent — skip requêtes Supabase');
-      reset();
-      return;
-    }
-
     setLoading(true); setError(null);
     try {
       const [o, p, t, c] = await Promise.all([
-        dbService.getOwners(agencyId),
-        dbService.getProperties(agencyId),
-        dbService.getTenants(agencyId),
-        dbService.getContracts(agencyId),
+        dbService.getOwners(),
+        dbService.getProperties(),
+        dbService.getTenants(),
+        dbService.getContracts(),
       ]);
       setOwners(o ?? []);
       setProperties(p ?? []);
@@ -68,16 +48,13 @@ export function useSupabaseData(overrideUser?: { agencyId?: string | null }) {
     } catch (e: any) {
       console.error('❌ useSupabaseData error:', e);
       setError(e?.message || 'Erreur inconnue');
-      reset();
+      setOwners([]); setProperties([]); setTenants([]); setContracts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.agencyId]);
+  useEffect(() => { fetchAll(); }, []);
 
   const stats: DashboardData = useMemo(() => {
     const totalProps = properties.length;
@@ -108,30 +85,27 @@ export function useSupabaseData(overrideUser?: { agencyId?: string | null }) {
 }
 
 /**
- * ✅ Compat: même signature que l'ancien hook
- *   useRealtimeData(fetcher, 'contracts') -> { data, loading, error, reload }
- *   fetcher est typiquement dbService.getContracts (agencyId) => Promise<any[]>
+ * Compat pour l'ancien usage:
+ *   useRealtimeData(fetcher, 'contracts') → { data, loading, error, reload }
+ *   Ici on ignore l'argument `fetcher` et on route selon `key`.
  */
 export function useRealtimeData<T = any>(
-  fetcher: (agencyId?: string) => Promise<T[]>,
-  _key: 'owners' | 'properties' | 'tenants' | 'contracts'
+  _fetcher: (agencyId?: string) => Promise<T[]>,
+  key: 'owners' | 'properties' | 'tenants' | 'contracts'
 ): UseRealtimeResult<T> {
-  const { user } = useAuth();
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    const agencyId = user?.agencyId ?? null;
-    if (!isUuid(agencyId)) {
-      console.warn('⏭️ useRealtimeData: agencyId invalide/absent — skip');
-      setData([]);
-      return;
-    }
     setLoading(true); setError(null);
     try {
-      const rows = await fetcher(agencyId);
-      setData(rows ?? []);
+      let rows: any[] = [];
+      if (key === 'owners') rows = await dbService.getOwners();
+      else if (key === 'properties') rows = await dbService.getProperties();
+      else if (key === 'tenants') rows = await dbService.getTenants();
+      else rows = await dbService.getContracts();
+      setData((rows ?? []) as T[]);
     } catch (e: any) {
       console.error('❌ useRealtimeData error:', e);
       setError(e?.message || 'Erreur inconnue');
@@ -141,38 +115,35 @@ export function useRealtimeData<T = any>(
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [user?.agencyId, fetcher]);
+  useEffect(() => { load(); }, [key]);
   return { data, loading, error, reload: load };
 }
 
-/**
- * ✅ Compat: renvoie { stats, loading, error, reload }
- *   pour correspondre à l'ancien Dashboard.
- */
-export function useDashboardStats() {
-  const { user } = useAuth();
-  const { stats, loading, error, reload } = useSupabaseData(user);
-  return { stats, loading, error, reload };
-}
+type TableKey = 'owners' | 'properties' | 'tenants' | 'contracts';
+type CreatorFn = (payload: any) => Promise<any>;
 
-/* --- Compatibilité: hooks CRUD génériques utilisés par des listes --- */
 export function useSupabaseCreate() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const create = async (
-    table: 'owners' | 'properties' | 'tenants' | 'contracts',
-    payload: any
-  ) => {
+  const create = async (tableOrFn: TableKey | CreatorFn, payload: any) => {
     setLoading(true); setError(null);
     try {
-      switch (table) {
-        case 'owners': return await dbService.createOwner(payload);
-        case 'properties': return await dbService.createProperty(payload);
-        case 'tenants': return await dbService.createTenant(payload);
-        case 'contracts': return await dbService.createContract(payload);
-        default: throw new Error(`Unsupported table for create: ${table}`);
+      const isFn = typeof tableOrFn === 'function';
+      let created: any;
+
+      if (isFn) {
+        created = await (tableOrFn as CreatorFn)(payload);
+      } else {
+        switch (tableOrFn) {
+          case 'owners': created = await dbService.createOwner(payload); break;
+          case 'properties': created = await dbService.createProperty(payload); break;
+          case 'tenants': created = await dbService.createTenant(payload); break;
+          case 'contracts': created = await dbService.createContract(payload); break;
+          default: throw new Error(`Unsupported table for create: ${tableOrFn as any}`);
+        }
       }
+      return created;
     } catch (e: any) {
       setError(e?.message || 'Erreur création');
       throw e;
@@ -188,10 +159,7 @@ export function useSupabaseDelete() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const remove = async (
-    table: 'owners' | 'properties' | 'tenants' | 'contracts',
-    id: string
-  ) => {
+  const remove = async (table: TableKey, id: string) => {
     setLoading(true); setError(null);
     try {
       switch (table) {
@@ -209,7 +177,11 @@ export function useSupabaseDelete() {
     }
   };
 
-  // alias pour compat avec certains composants
-  const del = remove;
+  const del = remove; // alias
   return { remove, del, loading, error };
+}
+
+export function useDashboardStats() {
+  const { stats, loading, error, reload } = useSupabaseData();
+  return { stats, loading, error, reload };
 }
