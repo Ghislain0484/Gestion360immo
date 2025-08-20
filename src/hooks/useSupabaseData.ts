@@ -109,4 +109,16 @@ export function useSupabaseData(user?: { agencyId?: string | null }) {
     reload: fetchData,
   };
 }
+
+/* --- Compatibilité: réexport des anciens hooks --- */
+export function useRealtimeData(user?: { agencyId?: string | null }) {
+  // même logique que useSupabaseData
+  return useSupabaseData(user);
+}
+
+export function useDashboardStats(user?: { agencyId?: string | null }) {
+  // expose uniquement les stats + états
+  const { dashboard, loading, error, reload } = useSupabaseData(user);
+  return { dashboard, loading, error, reload };
+}
 TS
