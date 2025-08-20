@@ -1,171 +1,112 @@
+cat > src/hooks/useSupabaseData.ts <<'TS'
 import { useState, useEffect } from 'react';
 import { dbService } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 
-// Hook robuste pour le chargement des données avec gestion d'erreurs
-export function useRealtimeData<T>(
-  fetchFunction: (agencyId: string) => Promise<T[]>,
-  tableName: string
-) {
-  const { user } = useAuth();
-  const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
+// --- UUID guard helper (production-safe) ---
+const isUuid = (v?: string | null): boolean => !!v &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
+type DashboardData = {
+  totalProperties: number;
+  occupiedProperties: number;
+  unpaidTenants: number;
+  monthlyRevenue: number;
+  activeContracts: number;
+  occupancyRate: number;
+};
+
+export function useSupabaseData(user?: { agencyId?: string | null }) {
+  const [owners, setOwners] = useState<any[]>([]);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardData>({
+    totalProperties: 0,
+    occupiedProperties: 0,
+    unpaidTenants: 0,
+    monthlyRevenue: 0,
+    activeContracts: 0,
+    occupancyRate: 0,
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    if (!user?.agencyId) {
-      console.log(`⚠️ Pas d'agencyId pour ${tableName}`);
-      setData([]);
-      setLoading(false);
-      return;
-    }
-
     try {
-      setLoading(true);
-      setError(null);
-      
-      console.log(`🔄 Chargement ${tableName} pour agence:`, user.agencyId);
-      
-      const result = await fetchFunction(user.agencyId);
-      console.log(`✅ ${tableName} chargés:`, result?.length || 0);
-      setData(result || []);
-      
-    } catch (err) {
-      console.error(`❌ Erreur chargement ${tableName}:`, err);
-      
-      // Messages d'erreur spécifiques
-      if (err instanceof Error) {
-        if (err.message.includes('Supabase non configuré') || err.message.includes('401')) {
-          setError('Configuration Supabase manquante. Vérifiez les variables d\'environnement.');
-        } else if (err.message.includes('JWT')) {
-          setError('Session expirée. Reconnectez-vous.');
-        } else if (err.message.includes('PGRST301')) {
-          setError('Erreur d\'authentification Supabase. Utilisation des données locales.');
-        } else {
-          setError(`Erreur: ${err.message}`);
-        }
-      } else {
-        setError(`Erreur de chargement des ${tableName}`);
-      }
-      
-      // En cas d'erreur, essayer de charger les données locales
-      try {
-        const localKey = user?.agencyId ? `demo_${tableName}_${user.agencyId}` : `demo_${tableName}`;
-        const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
-        console.log(`🔄 Fallback ${tableName} depuis localStorage:`, localData.length);
-        setData(localData);
-        setError(null); // Effacer l'erreur si on a des données locales
-      } catch (localError) {
-        console.error(`❌ Erreur données locales ${tableName}:`, localError);
-        setData([]);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+      // ✅ ne JAMAIS tomber sur un id "demo" en prod
+      const agencyId = user?.agencyId ?? null;
 
-  useEffect(() => {
-    console.log(`🔄 useRealtimeData effect pour ${tableName}, agencyId:`, user?.agencyId);
-    fetchData();
-  }, [user?.agencyId, tableName]);
-
-  const refetch = () => {
-    fetchData();
-  };
-
-  return { data, loading, error, refetch, setData };
-}
-
-// Hook pour les stats du dashboard
-export function useDashboardStats() {
-  const { user } = useAuth();
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      if (!user?.agencyId) {
-        setStats({
+      if (!isUuid(agencyId)) {
+        console.warn('⏭️ agencyId invalide/absent — skip requêtes Supabase');
+        setOwners([]);
+        setProperties([]);
+        setTenants([]);
+        setContracts([]);
+        setDashboard({
           totalProperties: 0,
-          totalOwners: 0,
-          totalTenants: 0,
-          totalContracts: 0,
+          occupiedProperties: 0,
+          unpaidTenants: 0,
           monthlyRevenue: 0,
           activeContracts: 0,
-          occupancyRate: 0
+          occupancyRate: 0,
         });
-        setLoading(false);
         return;
       }
 
-      try {
-        const result = await dbService.getDashboardStats(user.agencyId);
-        setStats(result);
-      } catch (error) {
-        console.error('Erreur stats:', error);
-        setStats({
-          totalProperties: 0,
-          totalOwners: 0,
-          totalTenants: 0,
-          totalContracts: 0,
-          monthlyRevenue: 0,
-          activeContracts: 0,
-          occupancyRate: 0
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+      setLoading(true);
+      setError(null);
 
-    fetchStats();
+      // Chargements parallèles
+      const [ownersRes, propsRes, tenantsRes, contractsRes] = await Promise.all([
+        dbService.getOwners(agencyId),
+        dbService.getProperties(agencyId),
+        dbService.getTenants(agencyId),
+        dbService.getContracts(agencyId),
+      ]);
+
+      setOwners(ownersRes);
+      setProperties(propsRes);
+      setTenants(tenantsRes);
+      setContracts(contractsRes);
+
+      // Calcul dashboard simple
+      const occupied = propsRes.filter((p: any) => p.status === 'occupied').length;
+      const unpaid = tenantsRes.filter((t: any) => t.payment_status === 'late' || t.payment_status === 'irregular').length;
+      const active = contractsRes.filter((c: any) => c.status === 'active').length;
+      const monthlyRevenue = contractsRes.reduce((sum: number, c: any) => sum + (c.monthly_rent || 0), 0);
+
+      setDashboard({
+        totalProperties: propsRes.length,
+        occupiedProperties: occupied,
+        unpaidTenants: unpaid,
+        monthlyRevenue,
+        activeContracts: active,
+        occupancyRate: propsRes.length ? Math.round((occupied / propsRes.length) * 100) : 0,
+      });
+
+    } catch (e: any) {
+      console.error('❌ useSupabaseData error:', e);
+      setError(e?.message || 'Erreur inconnue');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // recharge à chaque changement d’agence
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.agencyId]);
 
-  return { stats, loading };
-}
-
-// Hook pour création
-export function useSupabaseCreate<T>(
-  createFunction: (data: any) => Promise<T>,
-  onSuccess?: (data: T) => void
-) {
-  const [loading, setLoading] = useState(false);
-
-  const create = async (data: any) => {
-    setLoading(true);
-    try {
-      const result = await createFunction(data);
-      onSuccess?.(result);
-      return result;
-    } catch (err) {
-      console.error('Erreur création:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+  return {
+    owners,
+    properties,
+    tenants,
+    contracts,
+    dashboard,
+    loading,
+    error,
+    reload: fetchData,
   };
-
-  return { create, loading };
 }
-
-// Hook pour suppression
-export function useSupabaseDelete(
-  deleteFunction: (id: string) => Promise<any>,
-  onSuccess?: () => void
-) {
-  const [loading, setLoading] = useState(false);
-
-  const deleteItem = async (id: string) => {
-    setLoading(true);
-    try {
-      await deleteFunction(id);
-      onSuccess?.();
-    } catch (err) {
-      console.error('Erreur suppression:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { deleteItem, loading };
-}
+TS
