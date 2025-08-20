@@ -1,4 +1,3 @@
-cat > src/lib/supabase.ts <<'TS'
 import { createClient } from '@supabase/supabase-js';
 
 // --- UUID guard helper (production-safe) ---
@@ -410,4 +409,3 @@ export const dbService = {
     return true;
   },
 };
-TS

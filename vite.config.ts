@@ -6,7 +6,7 @@ export default defineConfig({ build: { sourcemap: true },
   plugins: [react()],
   build: {
     outDir: 'dist',
-    sourcemap: false,
+    sourcemap: true,
     minify: 'terser',
     rollupOptions: {
       output: {

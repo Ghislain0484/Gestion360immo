@@ -1,4 +1,3 @@
-cat > src/hooks/useSupabaseData.ts <<'TS'
 import { useState, useEffect } from 'react';
 import { dbService } from '../lib/supabase';
 
@@ -109,7 +108,6 @@ export function useSupabaseData(user?: { agencyId?: string | null }) {
     reload: fetchData,
   };
 }
-TS
 
 /* --- Compatibilité: réexport des anciens hooks --- */
 export function useRealtimeData(user?: { agencyId?: string | null }) {
