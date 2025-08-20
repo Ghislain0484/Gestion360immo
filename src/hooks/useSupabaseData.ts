@@ -19,12 +19,9 @@ type UseRealtimeResult<T> = {
   reload: () => Promise<void>;
 };
 
-/**
- * Hook unifié: charge owners/properties/tenants/contracts + stats
- * 👉 Ne dépend plus d'un agencyId côté front (RLS uniquement)
- */
+// Charge tout via RLS (sans agencyId côté front)
 export function useSupabaseData() {
-  useAuth(); // garde le contexte en dépendance si besoin
+  useAuth(); // garde la dépendance au contexte si besoin
   const [owners, setOwners] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
@@ -78,17 +75,10 @@ export function useSupabaseData() {
 
   return {
     owners, properties, tenants, contracts,
-    stats,
-    loading, error,
-    reload: fetchAll,
+    stats, loading, error, reload: fetchAll,
   };
 }
 
-/**
- * Compat pour l'ancien usage:
- *   useRealtimeData(fetcher, 'contracts') → { data, loading, error, reload }
- *   Ici on ignore l'argument `fetcher` et on route selon `key`.
- */
 export function useRealtimeData<T = any>(
   _fetcher: (agencyId?: string) => Promise<T[]>,
   key: 'owners' | 'properties' | 'tenants' | 'contracts'
@@ -131,7 +121,6 @@ export function useSupabaseCreate() {
     try {
       const isFn = typeof tableOrFn === 'function';
       let created: any;
-
       if (isFn) {
         created = await (tableOrFn as CreatorFn)(payload);
       } else {
@@ -145,8 +134,10 @@ export function useSupabaseCreate() {
       }
       return created;
     } catch (e: any) {
-      setError(e?.message || 'Erreur création');
-      throw e;
+      const msg = e?.message || 'Erreur création';
+      console.error('❌ useSupabaseCreate:', e);
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
@@ -170,14 +161,16 @@ export function useSupabaseDelete() {
         default: throw new Error(`Unsupported table for delete: ${table}`);
       }
     } catch (e: any) {
-      setError(e?.message || 'Erreur suppression');
-      throw e;
+      const msg = e?.message || 'Erreur suppression';
+      console.error('❌ useSupabaseDelete:', e);
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const del = remove; // alias
+  const del = remove;
   return { remove, del, loading, error };
 }
 
