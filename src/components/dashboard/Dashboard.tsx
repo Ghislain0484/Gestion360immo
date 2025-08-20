@@ -87,7 +87,7 @@ export const Dashboard: React.FC = () => {
     });
 
     // Recent contracts
-    recentContracts.slice(0, 2).forEach(contract => {
+    (recentContracts ?? []).slice(0, 2).forEach(contract => {
       activities.push({
         id: `contract_${contract.id}`,
         type: 'new_contract',
