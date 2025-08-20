@@ -122,3 +122,75 @@ export function useDashboardStats(user?: { agencyId?: string | null }) {
   const { dashboard, loading, error, reload } = useSupabaseData(user);
   return { dashboard, loading, error, reload };
 }
+
+/* --- Compatibilité: réexport des anciens hooks CRUD génériques --- */
+export function useSupabaseCreate() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const create = async (
+    table: 'owners' | 'properties' | 'tenants' | 'contracts',
+    payload: any
+  ) => {
+    setLoading(true);
+    setError(null);
+    try {
+      switch (table) {
+        case 'owners':
+          return await dbService.createOwner(payload);
+        case 'properties':
+          return await dbService.createProperty(payload);
+        case 'tenants':
+          return await dbService.createTenant(payload);
+        case 'contracts':
+          return await dbService.createContract(payload);
+        default:
+          throw new Error(`Unsupported table for create: ${table}`);
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Erreur création');
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { create, loading, error };
+}
+
+export function useSupabaseDelete() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async (
+    table: 'owners' | 'properties' | 'tenants' | 'contracts',
+    id: string
+  ) => {
+    setLoading(true);
+    setError(null);
+    try {
+      switch (table) {
+        case 'owners':
+          return await dbService.deleteOwner(id);
+        case 'properties':
+          return await dbService.deleteProperty(id);
+        case 'tenants':
+          return await dbService.deleteTenant(id);
+        case 'contracts':
+          return await dbService.deleteContract(id);
+        default:
+          throw new Error(`Unsupported table for delete: ${table}`);
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Erreur suppression');
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // alias pour compat avec certains composants qui utilisaient "del"
+  const del = remove;
+
+  return { remove, del, loading, error };
+}
