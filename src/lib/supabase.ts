@@ -16,30 +16,33 @@ console.log('🔧 Configuration Supabase PRODUCTION:', {
 export const supabase: SupabaseClient = createClient(url, anonKey);
 console.log('✅ Client Supabase créé avec succès');
 
-// Normalisations simples
+// -------- util --------
+const nilIfEmpty = (v: any) => (v === '' || v === undefined ? null : v);
+
+// Normalisations: on convertit "" -> null pour éviter des violations uniques/format
 const normalizeOwner = (o: any) => ({
-  first_name: o.firstName ?? o.first_name ?? null,
-  last_name:  o.lastName  ?? o.last_name  ?? null,
-  phone:      o.phone     ?? null,
-  email:      o.email     ?? null,
-  city:       o.city      ?? null,
+  first_name: nilIfEmpty(o.firstName ?? o.first_name),
+  last_name:  nilIfEmpty(o.lastName  ?? o.last_name),
+  phone:      nilIfEmpty(o.phone),
+  email:      nilIfEmpty(o.email),
+  city:       nilIfEmpty(o.city),
   ...o,
 });
 const normalizeTenant = (t: any) => ({
-  first_name: t.firstName ?? t.first_name ?? null,
-  last_name:  t.lastName  ?? t.last_name  ?? null,
-  phone:      t.phone     ?? null,
-  email:      t.email     ?? null,
-  city:       t.city      ?? null,
+  first_name: nilIfEmpty(t.firstName ?? t.first_name),
+  last_name:  nilIfEmpty(t.lastName  ?? t.last_name),
+  phone:      nilIfEmpty(t.phone),
+  email:      nilIfEmpty(t.email),
+  city:       nilIfEmpty(t.city),
   ...t,
 });
 const normalizeProperty = (p: any) => ({
-  title: p.title ?? p.propertyTitle ?? null,
-  city:  p.city ?? null,
+  title: nilIfEmpty(p.title ?? p.propertyTitle),
+  city:  nilIfEmpty(p.city),
   ...p,
 });
 
-// Helper pour formatter proprement les erreurs Supabase
+// Helper erreurs
 function formatSbError(prefix: string, error: any) {
   const parts = [prefix];
   if (error?.code) parts.push(`code=${error.code}`);
@@ -50,7 +53,7 @@ function formatSbError(prefix: string, error: any) {
 }
 
 export const dbService = {
-  // ---- READ (RLS-only: pas de filtre agency côté client) ----
+  // ---- READ (RLS-only) ----
   async getOwners() {
     const { data, error } = await supabase.from('owners').select('*').order('created_at', { ascending: false });
     if (error) throw error;
@@ -76,8 +79,9 @@ export const dbService = {
   async createOwner(owner: any) {
     const payload = normalizeOwner(owner);
     console.log('🔄 PRODUCTION - Création propriétaire (payload):', payload);
-    const { error } = await supabase.from('owners').insert(payload); // pas de .select()
+    const { error } = await supabase.from('owners').insert(payload);
     if (error) {
+      console.error('❌ owners.insert RAW:', error);
       const msg = formatSbError('❌ owners.insert', error);
       console.error(msg);
       throw new Error(msg);
@@ -91,6 +95,7 @@ export const dbService = {
     console.log('🔄 PRODUCTION - Création locataire (payload):', payload);
     const { error } = await supabase.from('tenants').insert(payload);
     if (error) {
+      console.error('❌ tenants.insert RAW:', error);
       const msg = formatSbError('❌ tenants.insert', error);
       console.error(msg);
       throw new Error(msg);
@@ -104,6 +109,7 @@ export const dbService = {
     console.log('🔄 PRODUCTION - Création propriété (payload):', payload);
     const { error } = await supabase.from('properties').insert(payload);
     if (error) {
+      console.error('❌ properties.insert RAW:', error);
       const msg = formatSbError('❌ properties.insert', error);
       console.error(msg);
       throw new Error(msg);
@@ -117,6 +123,7 @@ export const dbService = {
     console.log('🔄 PRODUCTION - Création contrat (payload):', payload);
     const { error } = await supabase.from('contracts').insert(payload);
     if (error) {
+      console.error('❌ contracts.insert RAW:', error);
       const msg = formatSbError('❌ contracts.insert', error);
       console.error(msg);
       throw new Error(msg);
