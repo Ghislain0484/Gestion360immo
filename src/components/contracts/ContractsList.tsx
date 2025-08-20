@@ -15,7 +15,7 @@ export const ContractsList: React.FC = () => {
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  // Chargement des données
+  // Supabase data hooks
   const { data: contracts, loading, error, refetch, setData } = useRealtimeData(
     dbService.getContracts,
     'contracts'
@@ -35,13 +35,15 @@ export const ContractsList: React.FC = () => {
   );
 
   const handleAddContract = async (contractData: any) => {
-    if (!user?.agencyId) {
-      alert('Aucune agence associée');
-      return;
-    }
+    if (!user?.agencyId) return;
     
     try {
-      const contractPayload = {
+      // Validation des données avant envoi
+      if (!contractData.property_id || !contractData.owner_id || !contractData.tenant_id) {
+        throw new Error('Données obligatoires manquantes');
+      }
+      
+      await createContract({
         agency_id: user.agencyId,
         property_id: contractData.property_id,
         owner_id: contractData.owner_id,
@@ -58,22 +60,20 @@ export const ContractsList: React.FC = () => {
         status: contractData.status,
         terms: contractData.terms,
         documents: contractData.documents || [],
-      };
-      
-      await createContract(contractPayload);
+      });
       
     } catch (error) {
-      console.error('Erreur création contrat:', error);
-      alert('Erreur lors de la création');
+      console.error('Error creating contract:', error);
+      throw error;
     }
   };
 
   const handleDeleteContract = async (contractId: string) => {
-    if (confirm('Supprimer ce contrat ?')) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce contrat ?')) {
       try {
         await deleteContract(contractId);
       } catch (error) {
-        console.error('Erreur suppression:', error);
+        console.error('Error deleting contract:', error);
       }
     }
   };
@@ -138,12 +138,12 @@ export const ContractsList: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Contrats</h1>
           <p className="text-gray-600 mt-1">
-            Gestion des contrats ({contracts.length})
+            Gestion des contrats de location et de vente
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nouveau contrat
+        <Button onClick={() => setShowForm(true)} className="flex items-center space-x-2">
+          <Plus className="h-4 w-4" />
+          <span>Nouveau contrat</span>
         </Button>
       </div>
 
@@ -155,36 +155,39 @@ export const ContractsList: React.FC = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Rechercher..."
+                placeholder="Rechercher par ID ou termes du contrat..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </div>
           
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tous les types</option>
-            <option value="location">Location</option>
-            <option value="vente">Vente</option>
-            <option value="gestion">Gestion</option>
-          </select>
-          
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="draft">Brouillon</option>
-            <option value="active">Actif</option>
-            <option value="expired">Expiré</option>
-            <option value="terminated">Résilié</option>
-          </select>
+          <div className="flex gap-4">
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Tous les types</option>
+              <option value="location">Location</option>
+              <option value="vente">Vente</option>
+              <option value="gestion">Gestion</option>
+            </select>
+            
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Tous les statuts</option>
+              <option value="draft">Brouillon</option>
+              <option value="active">Actif</option>
+              <option value="expired">Expiré</option>
+              <option value="terminated">Résilié</option>
+              <option value="renewed">Renouvelé</option>
+            </select>
+          </div>
         </div>
       </Card>
 
@@ -201,7 +204,7 @@ export const ContractsList: React.FC = () => {
                       Contrat #{contract.id}
                     </h3>
                     <p className="text-sm text-gray-500">
-                      Propriété #{contract.property_id}
+                      Propriété #{contract.property_id} • Propriétaire #{contract.owner_id}
                     </p>
                   </div>
                 </div>
@@ -242,13 +245,38 @@ export const ContractsList: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <DollarSign className="h-4 w-4 text-yellow-600" />
                   <div>
-                    <p className="text-xs text-gray-500">Commission</p>
+                    <p className="text-xs text-gray-500">
+                      {contract.type === 'location' ? 'Loyer' : 'Prix de vente'}
+                    </p>
                     <p className="text-sm font-medium">
-                      {formatCurrency(contract.commission_amount)}
+                      {formatCurrency(contract.monthly_rent || contract.sale_price || 0)}
                     </p>
                   </div>
                 </div>
               </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Commission ({contract.commission_rate}%)</p>
+                    <p className="font-medium text-green-600">
+                      {formatCurrency(contract.commission_amount)}
+                    </p>
+                  </div>
+                  {contract.deposit && (
+                    <div>
+                      <p className="text-gray-500">Caution</p>
+                      <p className="font-medium text-blue-600">
+                        {formatCurrency(contract.deposit)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                {contract.terms}
+              </p>
 
               <div className="flex items-center justify-between">
                 <div className="text-xs text-gray-500">
@@ -258,6 +286,9 @@ export const ContractsList: React.FC = () => {
                 <div className="flex space-x-2">
                   <Button variant="ghost" size="sm">
                     <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Edit className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="sm">
                     <Download className="h-4 w-4" />
@@ -282,7 +313,7 @@ export const ContractsList: React.FC = () => {
         <div className="text-center py-12">
           <FileText className="h-16 w-16 mx-auto mb-4 text-gray-400" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Aucun contrat
+            Aucun contrat trouvé
           </h3>
           <p className="text-gray-600 mb-4">
             Commencez par créer votre premier contrat.

@@ -1,5 +1,4 @@
 import React from 'react';
-import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Building2, 
@@ -35,18 +34,10 @@ export const Dashboard: React.FC = () => {
   const { stats: dashboardStats, loading: statsLoading } = useDashboardStats();
   
   // Real-time data for recent activities
-  const { data: recentContracts, error: contractsError } = useRealtimeData(dbService.getContracts, 'contracts');
-  const { data: recentProperties, error: propertiesError } = useRealtimeData(dbService.getProperties, 'properties');
-  const { data: recentOwners, error: ownersError } = useRealtimeData(dbService.getOwners, 'owners');
-  const { data: recentTenants, error: tenantsError } = useRealtimeData(dbService.getTenants, 'tenants');
-  
-  // Afficher les erreurs de chargement si présentes
-  useEffect(() => {
-    if (contractsError) console.error('❌ Erreur contrats:', contractsError);
-    if (propertiesError) console.error('❌ Erreur propriétés:', propertiesError);
-    if (ownersError) console.error('❌ Erreur propriétaires:', ownersError);
-    if (tenantsError) console.error('❌ Erreur locataires:', tenantsError);
-  }, [contractsError, propertiesError, ownersError, tenantsError]);
+  const { data: recentContracts } = useRealtimeData(dbService.getContracts, 'contracts');
+  const { data: recentProperties } = useRealtimeData(dbService.getProperties, 'properties');
+  const { data: recentOwners } = useRealtimeData(dbService.getOwners, 'owners');
+  const { data: recentTenants } = useRealtimeData(dbService.getTenants, 'tenants');
 
   const stats = dashboardStats ? [
     {
