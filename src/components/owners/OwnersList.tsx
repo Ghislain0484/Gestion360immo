@@ -25,18 +25,17 @@ export const OwnersList: React.FC = () => {
   const [filterMaritalStatus, setFilterMaritalStatus] = useState('all');
   const [filterPropertyTitle, setFilterPropertyTitle] = useState('all');
   const [formLoading, setFormLoading] = useState(false);
-  const { create, loading: createLoading } = useSupabaseCreate();
-  const { data: owners = [], loading: listLoading, error: listError, reload } =
-  useRealtimeData(dbService.getOwners, 'owners');
+  
+  // Liste propriétaires (temps réel)
+const {
+  data: owners = [],
+  loading: listLoading,
+  error: listError,
+  reload,
+} = useRealtimeData<Owner>(dbService.getOwners, 'owners');
 
-  // Supabase data hooks
-  const { data: owners, loading, error, refetch, setData } = useRealtimeData<Owner>(
-    dbService.getOwners,
-    'owners'
-  );
-
-  const { create, loading: createLoading } = useSupabaseCreate();
-
+// Création propriétaire
+const { create, loading: createLoading } = useSupabaseCreate();
 const onSubmit = async (formValues: any) => {
   try {
     // mappe clairement le payload attendu côté DB
@@ -60,7 +59,7 @@ const onSubmit = async (formValues: any) => {
 
   const { deleteItem: deleteOwner, loading: deleting } = useSupabaseDelete(
     dbService.deleteOwner,
-    () => refetch()
+    () => reload()
   );
 
   const handleAddOwner = async (ownerData: OwnerFormData) => {
@@ -166,7 +165,7 @@ const onSubmit = async (formValues: any) => {
       
       setShowEditModal(false);
       setSelectedOwner(null);
-      refetch();
+      reload();
       alert('Propriétaire mis à jour avec succès !');
     } catch (error) {
       console.error('Error updating owner:', error);
@@ -254,7 +253,7 @@ const onSubmit = async (formValues: any) => {
     return (
       <div className="text-center py-12">
         <p className="text-red-600 mb-4">Erreur: {error}</p>
-        <Button onClick={refetch}>Réessayer</Button>
+        <Button onClick={reload}>Réessayer</Button>
       </div>
     );
   }
