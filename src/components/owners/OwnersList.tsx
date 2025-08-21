@@ -26,7 +26,8 @@ export const OwnersList: React.FC = () => {
   const [filterPropertyTitle, setFilterPropertyTitle] = useState('all');
   const [formLoading, setFormLoading] = useState(false);
   const { create, loading: createLoading } = useSupabaseCreate();
-  const { data: owners, loading: listLoading } = useRealtimeData(...);
+  const { data: owners = [], loading: listLoading, error: listError, reload } =
+  useRealtimeData(dbService.getOwners, 'owners');
 
   // Supabase data hooks
   const { data: owners, loading, error, refetch, setData } = useRealtimeData<Owner>(
