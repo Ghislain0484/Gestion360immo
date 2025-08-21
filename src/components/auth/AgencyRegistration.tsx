@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
-import { AgencyFormData, UserFormData, UserPermissions } from '../../types/agency';
+import { AgencyFormData, UserFormData } from '../../types/agency';
 import { dbService } from '../../lib/supabase';
 
 interface AgencyRegistrationProps {
@@ -20,7 +20,8 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [agencyData, setAgencyData] = useState<AgencyFormData>({
     name: '',
     commercialRegister: '',
@@ -57,11 +58,11 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
   });
 
   const updateAgencyData = (updates: Partial<AgencyFormData>) => {
-    setAgencyData(prev => ({ ...prev, ...updates }));
+    setAgencyData((prev) => ({ ...prev, ...updates }));
   };
 
   const updateDirectorData = (updates: Partial<UserFormData>) => {
-    setDirectorData(prev => ({ ...prev, ...updates }));
+    setDirectorData((prev) => ({ ...prev, ...updates }));
   };
 
   const handleLogoUpload = (file: File) => {
@@ -72,30 +73,33 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validation des données
-    if (!agencyData.name.trim() || !agencyData.commercialRegister.trim()) {
-      alert('Veuillez remplir le nom de l\'agence et le registre de commerce');
-      return;
-    }
-    
-    if (!directorData.firstName.trim() || !directorData.lastName.trim() || !directorData.email.trim()) {
-      alert('Veuillez remplir les informations du directeur');
-      return;
-    }
-    
-    if (!directorData.password || directorData.password.length < 8) {
-      alert('Le mot de passe doit contenir au moins 8 caractères');
-      return;
-    }
-    
-    if (!agencyData.phone.trim() || !agencyData.city.trim() || !agencyData.address.trim()) {
-      alert('Veuillez remplir le téléphone, la ville et l\'adresse');
-      return;
-    }
-    
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     try {
-      // Préparer les données pour l'enregistrement
+      // ——— Validations basiques ———
+      if (!agencyData.name.trim() || !agencyData.commercialRegister.trim()) {
+        alert("Veuillez remplir le nom de l'agence et le registre de commerce");
+        return;
+      }
+      if (
+        !directorData.firstName.trim() ||
+        !directorData.lastName.trim() ||
+        !directorData.email.trim()
+      ) {
+        alert('Veuillez remplir les informations du directeur');
+        return;
+      }
+      if (!directorData.password || directorData.password.length < 8) {
+        alert('Le mot de passe doit contenir au moins 8 caractères');
+        return;
+      }
+      if (!agencyData.phone.trim() || !agencyData.city.trim() || !agencyData.address.trim()) {
+        alert("Veuillez remplir le téléphone, la ville et l'adresse");
+        return;
+      }
+
+      // ——— Données préparées ———
       const requestData = {
         agency_name: agencyData.name,
         commercial_register: agencyData.commercialRegister,
@@ -106,35 +110,57 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         phone: agencyData.phone,
         city: agencyData.city,
         address: agencyData.address,
-        logo_url: agencyData.logo,
+        logo_url: agencyData.logo || null,
         is_accredited: agencyData.isAccredited,
-        accreditation_number: agencyData.accreditationNumber,
+        accreditation_number: agencyData.accreditationNumber || null,
         status: 'pending',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       };
-      
+
       console.log('Envoi de la demande avec les données:', requestData);
-      
-      // Toujours sauvegarder en localStorage d'abord
-      const localRequest = {
-        id: `local_${Date.now()}`,
-        ...requestData
-      };
-      
+
+      // ——— Sauvegarde locale d’abord (toujours) ———
+      const localRequest = { id: `local_${Date.now()}`, ...requestData };
       const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
       stored.unshift(localRequest);
       localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
       console.log('✅ Demande sauvegardée en localStorage');
-      
-      // Essayer de sauvegarder en Supabase aussi
-      try {
-        const result = await dbService.createRegistrationRequest(requestData);
-        console.log('✅ Demande sauvegardée en Supabase:', result.id);
-      } catch (supabaseError) {
-        console.warn('⚠️ Erreur Supabase, demande sauvegardée localement uniquement');
+
+      // ——— GARDE-FOUS: vérifier la fonction dbService avant d’appeler ———
+      const createReq = (dbService as any)?.createRegistrationRequest;
+      console.log('🧪 typeof dbService.createRegistrationRequest =', typeof createReq);
+
+      if (typeof createReq !== 'function') {
+        console.error('❌ createRegistrationRequest is not a function', { dbService });
+        alert(
+          "⚠️ L'envoi vers le serveur est temporairement indisponible.\n" +
+            'Votre demande a été sauvegardée localement et sera traitée manuellement.'
+        );
+      } else {
+        try {
+          const result = await createReq(requestData);
+          console.log('✅ Demande sauvegardée en Supabase:', result?.id ?? result);
+        } catch (supabaseError: any) {
+          console.warn(
+            '⚠️ Supabase indisponible ou RLS: fallback local uniquement',
+            supabaseError
+          );
+          // Ici on n’échoue pas : la sauvegarde locale est déjà faite
+        }
       }
-        
-      alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE AVEC SUCCÈS !
+
+      // ——— Appel de rappel parent (si fourni) ———
+      try {
+        if (typeof onSubmit === 'function') {
+          onSubmit(agencyData, directorData);
+        }
+      } catch (cbErr) {
+        console.warn('⚠️ onSubmit callback a levé une erreur:', cbErr);
+      }
+
+      // ——— Message final utilisateur ———
+      alert(
+        `✅ DEMANDE D'INSCRIPTION ENVOYÉE AVEC SUCCÈS !
         
 🏢 AGENCE : ${agencyData.name}
 👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
@@ -149,28 +175,24 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 🔑 IDENTIFIANTS : Ceux que vous avez saisis seront activés
 🌐 CONNEXION : www.gestion360immo.com
 
-PROCHAINES ÉTAPES :
-1. ⏳ Validation par l'administrateur (24-48h)
-2. Activation de votre compte avec vos identifiants
-3. 🎁 Démarrage de votre abonnement d'essai (30 jours gratuits)
-4. 🚀 Connexion immédiate possible avec vos identifiants
+IMPORTANT : Conservez vos identifiants de connexion !`
+      );
 
-IMPORTANT : Conservez vos identifiants de connexion !
-Email : ${directorData.email}
-Mot de passe : ${directorData.password}
-
-Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
-        
       onClose();
-      
-    } catch (error) {
-      console.error('Erreur lors de l\'enregistrement:', error);
-      alert(`❌ Erreur lors de l'envoi de la demande: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    } catch (error: any) {
+      console.error("❌ Erreur lors de l'enregistrement:", error);
+      alert(
+        `❌ Erreur lors de l'envoi de la demande: ${
+          error?.message ?? 'Erreur inconnue'
+        }`
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const steps = [
-    { id: 1, title: 'Informations de l\'agence', icon: Building2 },
+    { id: 1, title: "Informations de l'agence", icon: Building2 },
     { id: 2, title: 'Compte directeur', icon: Users },
     { id: 3, title: 'Vérification', icon: Shield },
   ];
@@ -178,32 +200,38 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" title="Inscription de l'agence">
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Progress Steps */}
+        {/* Steps */}
         <div className="flex items-center justify-between mb-8">
           {steps.map((step, index) => (
             <div key={step.id} className="flex items-center">
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                currentStep >= step.id 
-                  ? 'bg-blue-600 border-blue-600 text-white' 
-                  : 'border-gray-300 text-gray-500'
-              }`}>
+              <div
+                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                  currentStep >= step.id
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'border-gray-300 text-gray-500'
+                }`}
+              >
                 <step.icon className="h-5 w-5" />
               </div>
-              <span className={`ml-2 text-sm font-medium ${
-                currentStep >= step.id ? 'text-blue-600' : 'text-gray-500'
-              }`}>
+              <span
+                className={`ml-2 text-sm font-medium ${
+                  currentStep >= step.id ? 'text-blue-600' : 'text-gray-500'
+                }`}
+              >
                 {step.title}
               </span>
               {index < steps.length - 1 && (
-                <div className={`w-16 h-0.5 mx-4 ${
-                  currentStep > step.id ? 'bg-blue-600' : 'bg-gray-300'
-                }`} />
+                <div
+                  className={`w-16 h-0.5 mx-4 ${
+                    currentStep > step.id ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                />
               )}
             </div>
           ))}
         </div>
 
-        {/* Step 1: Agency Information */}
+        {/* Step 1 */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <Card>
@@ -211,7 +239,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                 <Building2 className="h-5 w-5 text-blue-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Informations de l'agence</h3>
               </div>
-              
+
               <div className="space-y-4">
                 <Input
                   label="Nom de l'agence"
@@ -272,7 +300,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                 <Shield className="h-5 w-5 text-green-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Agrément</h3>
               </div>
-              
+
               <div className="space-y-4">
                 <label className="flex items-center space-x-3">
                   <input
@@ -303,7 +331,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                 <Upload className="h-5 w-5 text-purple-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Logo de l'agence</h3>
               </div>
-              
+
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                 {agencyData.logo ? (
                   <div className="space-y-4">
@@ -353,7 +381,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
           </div>
         )}
 
-        {/* Step 2: Director Account */}
+        {/* Step 2 */}
         {currentStep === 2 && (
           <div className="space-y-6">
             <Card>
@@ -361,7 +389,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                 <Users className="h-5 w-5 text-blue-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Compte du directeur</h3>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
@@ -406,7 +434,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                 <Shield className="h-5 w-5 text-blue-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Permissions du directeur</h3>
               </div>
-              
+
               <div className="text-sm text-blue-800">
                 <p className="mb-2">
                   <strong>En tant que directeur, vous aurez accès à :</strong>
@@ -423,7 +451,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
           </div>
         )}
 
-        {/* Step 3: Verification */}
+        {/* Step 3 */}
         {currentStep === 3 && (
           <div className="space-y-6">
             <Card>
@@ -431,7 +459,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                 <Shield className="h-5 w-5 text-green-600 mr-2" />
                 <h3 className="text-lg font-medium text-gray-900">Vérification des informations</h3>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
@@ -444,7 +472,9 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Directeur</p>
-                    <p className="text-gray-600">{directorData.firstName} {directorData.lastName}</p>
+                    <p className="text-gray-600">
+                      {directorData.firstName} {directorData.lastName}
+                    </p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Email</p>
@@ -464,9 +494,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                   <div className="flex">
                     <Shield className="h-5 w-5 text-green-400 mt-0.5" />
                     <div className="ml-3">
-                      <h4 className="text-sm font-medium text-green-800">
-                        Inscription sécurisée
-                      </h4>
+                      <h4 className="text-sm font-medium text-green-800">Inscription sécurisée</h4>
                       <p className="text-sm text-green-700 mt-1">
                         Vos données sont chiffrées et protégées selon les standards de sécurité.
                       </p>
@@ -478,7 +506,7 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
           </div>
         )}
 
-        {/* Navigation Buttons */}
+        {/* Footer */}
         <div className="flex items-center justify-between pt-6 border-t">
           <div className="flex space-x-3">
             {currentStep > 1 && (
@@ -486,30 +514,24 @@ Vous pourrez vous connecter dès l'approbation avec ces identifiants !`);
                 type="button"
                 variant="outline"
                 onClick={() => setCurrentStep(currentStep - 1)}
+                disabled={isSubmitting}
               >
                 Précédent
               </Button>
             )}
           </div>
-          
+
           <div className="flex space-x-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-            >
+            <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>
               Annuler
             </Button>
-            
+
             {currentStep < 3 ? (
-              <Button
-                type="button"
-                onClick={() => setCurrentStep(currentStep + 1)}
-              >
+              <Button type="button" onClick={() => setCurrentStep(currentStep + 1)} disabled={isSubmitting}>
                 Suivant
               </Button>
             ) : (
-              <Button type="submit">
+              <Button type="submit" isLoading={isSubmitting}>
                 <Save className="h-4 w-4 mr-2" />
                 Créer l'agence
               </Button>

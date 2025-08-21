@@ -22,54 +22,47 @@ export const LoginForm: React.FC = () => {
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setError('');
   setIsLoading(true);
 
   try {
-    // 1) Authentifie Supabase (obligatoire pour passer les RLS: to authenticated)
+    if (typeof signIn !== 'function') {
+      console.error('❌ AuthContext.signIn is not a function', { useAuthCtx: useAuth() });
+      throw new Error("Erreur interne d'authentification (signIn indisponible). Rechargez la page.");
+    }
+
     await signIn(email, password);
 
-    // 2) Vérifie la session + log de debug clair
     const { data: { session } } = await supabase.auth.getSession();
     console.log('🔑 session user?', session?.user?.id ?? null, 'token?', !!session?.access_token);
     if (!session?.user || !session?.access_token) {
       throw new Error("Connexion échouée (pas de session active). Vérifiez l'email/mot de passe.");
     }
 
-    // 3) Récupère le profil public.users (policy “users self read”)
-    let { data: me, error: meErr } = await supabase
+    // Vérifie que users.agency_id est bien renseigné (sinon RLS bloquera tout)
+    const { data: me, error: meErr } = await supabase
       .from('users')
-      .select('id,email,agency_id,auth_user_id,role,first_name,last_name')
+      .select('id,email,agency_id')
       .or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`)
       .maybeSingle();
 
-    if (meErr) {
-      console.warn('⚠️ users select error:', meErr);
-    }
-
-    // 4) Si agency_id manquant → message explicite et pas de navigation
+    if (meErr) console.warn('⚠️ users select error:', meErr);
     if (!me?.agency_id) {
-      setError(
-        "Votre compte n'est pas encore rattaché à une agence. " +
-        "Demandez à l'administrateur d'associer votre utilisateur à une agence (users.agency_id)."
-      );
-      return; // stop ici: pas de navigate tant que pas d’agence
+      setError("Votre compte n'est pas encore rattaché à une agence. Contactez l'administrateur.");
+      return;
     }
 
-    // 5) Tout est ok → on peut rediriger (dashboard)
-    navigate('/'); // ou navigate('/dashboard') selon ta route
+    // OK → on peut naviguer
+    navigate('/');
   } catch (err) {
-    if (err instanceof Error) {
-      setError(err.message);
-    } else {
-      setError('Email ou mot de passe incorrect.');
-    }
+    setError(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');
   } finally {
     setIsLoading(false);
   }
 };
+
 
 
   const handleAgencyRegistration = async (agencyData: any, directorData: any) => {
