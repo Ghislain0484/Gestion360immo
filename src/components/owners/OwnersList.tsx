@@ -31,13 +31,28 @@ export const OwnersList: React.FC = () => {
     'owners'
   );
 
-  const { create: createOwner, loading: creating } = useSupabaseCreate(
-    dbService.createOwner,
-    (newOwner) => {
-      setData(prev => [newOwner, ...prev]);
-      setShowForm(false);
-    }
-  );
+  const { create, loading } = useSupabaseCreate();
+
+const onSubmit = async (formValues: any) => {
+  try {
+    // mappe clairement le payload attendu côté DB
+    const payload = {
+      firstName:  formValues.firstName,
+      lastName:   formValues.lastName,
+      phone:      formValues.phone || null,
+      email:      formValues.email || null,
+      city:       formValues.city || null,
+      // ajoute d’autres champs si présents dans ta table
+    };
+    console.log('📝 onSubmit owners payload:', payload);
+    await create('owners', payload);             // <<< IMPORTANT
+    // ensuite: toast succès + reload
+  } catch (e: any) {
+    console.error('💥 Owners onSubmit failed:', e?.message || e);
+    // toast/alert
+  }
+};
+
 
   const { deleteItem: deleteOwner, loading: deleting } = useSupabaseDelete(
     dbService.deleteOwner,
