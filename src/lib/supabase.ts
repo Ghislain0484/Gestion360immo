@@ -19,30 +19,32 @@ console.log('✅ Client Supabase créé avec succès');
 // -------- util --------
 const nilIfEmpty = (v: any) => (v === '' || v === undefined ? null : v);
 
-// Normalisations
+// ⚠️ On retourne SEULEMENT les colonnes connues; pas de "...o" qui ramènerait agency_id
 const normalizeOwner = (o: any) => ({
   first_name: nilIfEmpty(o.firstName ?? o.first_name),
   last_name:  nilIfEmpty(o.lastName  ?? o.last_name),
   phone:      nilIfEmpty(o.phone),
   email:      nilIfEmpty(o.email),
   city:       nilIfEmpty(o.city),
-  ...o,
+  marital_status: nilIfEmpty(o.maritalStatus ?? o.marital_status),
+  // ajoute ici d'autres colonnes existantes de public.owners si besoin
 });
+
 const normalizeTenant = (t: any) => ({
   first_name: nilIfEmpty(t.firstName ?? t.first_name),
   last_name:  nilIfEmpty(t.lastName  ?? t.last_name),
   phone:      nilIfEmpty(t.phone),
   email:      nilIfEmpty(t.email),
   city:       nilIfEmpty(t.city),
-  ...t,
-});
-const normalizeProperty = (p: any) => ({
-  title: nilIfEmpty(p.title ?? p.propertyTitle),
-  city:  nilIfEmpty(p.city),
-  ...p,
+  // autres colonnes réelles...
 });
 
-// Helper erreurs
+const normalizeProperty = (p: any) => ({
+  title:      nilIfEmpty(p.title ?? p.propertyTitle),
+  city:       nilIfEmpty(p.city),
+  // autres colonnes réelles...
+});
+
 function formatSbError(prefix: string, error: any) {
   const parts = [prefix];
   if (error?.code) parts.push(`code=${error.code}`);
@@ -52,7 +54,7 @@ function formatSbError(prefix: string, error: any) {
   return parts.join(' | ');
 }
 
-// Auth debug
+// Debug auth
 async function logAuthContext(tag: string) {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
@@ -67,7 +69,7 @@ async function logAuthContext(tag: string) {
 }
 
 export const dbService = {
-  // ---- READ (RLS-only) ----
+  // ---------- READ (RLS-only) ----------
   async getOwners() {
     const { data, error } = await supabase.from('owners').select('*').order('created_at', { ascending: false });
     if (error) throw error;
@@ -89,12 +91,14 @@ export const dbService = {
     return data ?? [];
   },
 
-  // ---- CREATE (pas de .select()) ----
+  // ---------- CREATE (⚠️ pas de .select()) ----------
   async createOwner(owner: any) {
     await logAuthContext('owners.insert');
-    const payload = normalizeOwner(owner);
-    console.log('🔄 PRODUCTION - Création propriétaire (payload):', payload);
-    const { error } = await supabase.from('owners').insert(payload);
+    const norm = normalizeOwner(owner);
+    // strip proactif de tout "agency_id" parasite
+    const { agency_id: _drop1, agency: _drop2, agencyId: _drop3, ...clean } = { ...owner, ...norm };
+    console.log('🔄 PRODUCTION - Création propriétaire (payload):', clean);
+    const { error } = await supabase.from('owners').insert(clean);
     if (error) {
       console.error('❌ owners.insert RAW:', error);
       const msg = formatSbError('❌ owners.insert', error);
@@ -107,9 +111,10 @@ export const dbService = {
 
   async createTenant(tenant: any) {
     await logAuthContext('tenants.insert');
-    const payload = normalizeTenant(tenant);
-    console.log('🔄 PRODUCTION - Création locataire (payload):', payload);
-    const { error } = await supabase.from('tenants').insert(payload);
+    const norm = normalizeTenant(tenant);
+    const { agency_id: _d1, agency: _d2, agencyId: _d3, ...clean } = { ...tenant, ...norm };
+    console.log('🔄 PRODUCTION - Création locataire (payload):', clean);
+    const { error } = await supabase.from('tenants').insert(clean);
     if (error) {
       console.error('❌ tenants.insert RAW:', error);
       const msg = formatSbError('❌ tenants.insert', error);
@@ -122,9 +127,10 @@ export const dbService = {
 
   async createProperty(property: any) {
     await logAuthContext('properties.insert');
-    const payload = normalizeProperty(property);
-    console.log('🔄 PRODUCTION - Création propriété (payload):', payload);
-    const { error } = await supabase.from('properties').insert(payload);
+    const norm = normalizeProperty(property);
+    const { agency_id: _d1, agency: _d2, agencyId: _d3, ...clean } = { ...property, ...norm };
+    console.log('🔄 PRODUCTION - Création propriété (payload):', clean);
+    const { error } = await supabase.from('properties').insert(clean);
     if (error) {
       console.error('❌ properties.insert RAW:', error);
       const msg = formatSbError('❌ properties.insert', error);
@@ -137,9 +143,9 @@ export const dbService = {
 
   async createContract(contract: any) {
     await logAuthContext('contracts.insert');
-    const payload = { ...contract };
-    console.log('🔄 PRODUCTION - Création contrat (payload):', payload);
-    const { error } = await supabase.from('contracts').insert(payload);
+    const { agency_id: _d1, agency: _d2, agencyId: _d3, ...clean } = { ...contract };
+    console.log('🔄 PRODUCTION - Création contrat (payload):', clean);
+    const { error } = await supabase.from('contracts').insert(clean);
     if (error) {
       console.error('❌ contracts.insert RAW:', error);
       const msg = formatSbError('❌ contracts.insert', error);
@@ -150,7 +156,7 @@ export const dbService = {
     return true;
   },
 
-  // ---- DELETE ----
+  // ---------- DELETE ----------
   async deleteOwner(id: string) {
     const { error } = await supabase.from('owners').delete().eq('id', id);
     if (error) throw new Error(formatSbError('❌ owners.delete', error));
