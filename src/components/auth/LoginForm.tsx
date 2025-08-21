@@ -9,7 +9,7 @@ import { AgencyRegistration } from './AgencyRegistration';
 import { dbService } from '../../lib/supabase';
 import { BibleVerseCard } from '../ui/BibleVerse';
 import { supabase } from '../../lib/supabase';
-
+import { AuthApiError } from '@supabase/supabase-js';
 
 export const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -63,7 +63,54 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 };
 
+// Email: OK de normaliser
+<Input
+  label="Email"
+  type="email"
+  value={email}
+  onChange={(e) => setEmail(e.target.value.toLowerCase().trim())}
+  required
+  placeholder="votre@email.com"
+  autoComplete="email"
+/>
 
+// Password: NE PAS TRIMMER, garder tel quel
+<Input
+  label="Mot de passe"
+  type={showPassword ? 'text' : 'password'}
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}  // <= pas de .trim()
+  required
+  placeholder="••••••••"
+  autoComplete="current-password"
+/>
+
+// ...
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  setIsLoading(true);
+
+  try {
+    // 🔐 email déjà normalisé, password en brut
+    await signIn(email, password);
+    navigate('/'); // ou '/dashboard'
+  } catch (err: any) {
+    // 🔎 messages Supabase plus précis
+    if (err instanceof AuthApiError) {
+      if (err.status === 400) setError('Email ou mot de passe incorrect.');
+      else if (err.status === 403) setError('Compte non confirmé. Vérifiez votre email.');
+      else setError(err.message);
+    } else if (err && err.message) {
+      setError(err.message);
+    } else {
+      setError('Impossible de vous authentifier. Réessayez.');
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleAgencyRegistration = async (agencyData: any, directorData: any) => {
     setIsLoading(true);
