@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Building2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
@@ -7,6 +8,8 @@ import { Card } from '../ui/Card';
 import { AgencyRegistration } from './AgencyRegistration';
 import { dbService } from '../../lib/supabase';
 import { BibleVerseCard } from '../ui/BibleVerse';
+import { supabase } from '../../lib/supabase';
+
 
 export const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -16,26 +19,58 @@ export const LoginForm: React.FC = () => {
   const [error, setError] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
   
-  const { login } = useAuth();
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
+  e.preventDefault();
+  setError('');
+  setIsLoading(true);
 
-    try {
-      await login(email, password);
-    } catch (err) {
-      // Display the actual error message from the login function
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Email ou mot de passe incorrect');
-      }
-    } finally {
-      setIsLoading(false);
+  try {
+    // 1) Authentifie Supabase (obligatoire pour passer les RLS: to authenticated)
+    await signIn(email, password);
+
+    // 2) Vérifie la session + log de debug clair
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log('🔑 session user?', session?.user?.id ?? null, 'token?', !!session?.access_token);
+    if (!session?.user || !session?.access_token) {
+      throw new Error("Connexion échouée (pas de session active). Vérifiez l'email/mot de passe.");
     }
-  };
+
+    // 3) Récupère le profil public.users (policy “users self read”)
+    let { data: me, error: meErr } = await supabase
+      .from('users')
+      .select('id,email,agency_id,auth_user_id,role,first_name,last_name')
+      .or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`)
+      .maybeSingle();
+
+    if (meErr) {
+      console.warn('⚠️ users select error:', meErr);
+    }
+
+    // 4) Si agency_id manquant → message explicite et pas de navigation
+    if (!me?.agency_id) {
+      setError(
+        "Votre compte n'est pas encore rattaché à une agence. " +
+        "Demandez à l'administrateur d'associer votre utilisateur à une agence (users.agency_id)."
+      );
+      return; // stop ici: pas de navigate tant que pas d’agence
+    }
+
+    // 5) Tout est ok → on peut rediriger (dashboard)
+    navigate('/'); // ou navigate('/dashboard') selon ta route
+  } catch (err) {
+    if (err instanceof Error) {
+      setError(err.message);
+    } else {
+      setError('Email ou mot de passe incorrect.');
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const handleAgencyRegistration = async (agencyData: any, directorData: any) => {
     setIsLoading(true);
