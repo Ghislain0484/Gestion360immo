@@ -24,6 +24,9 @@ export const OwnersList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMaritalStatus, setFilterMaritalStatus] = useState('all');
   const [filterPropertyTitle, setFilterPropertyTitle] = useState('all');
+  const [formLoading, setFormLoading] = useState(false);
+  const { create, loading: createLoading } = useSupabaseCreate();
+  const { data: owners, loading: listLoading } = useRealtimeData(...);
 
   // Supabase data hooks
   const { data: owners, loading, error, refetch, setData } = useRealtimeData<Owner>(
@@ -31,7 +34,7 @@ export const OwnersList: React.FC = () => {
     'owners'
   );
 
-  const { create, loading } = useSupabaseCreate();
+  const { create, loading: createLoading } = useSupabaseCreate();
 
 const onSubmit = async (formValues: any) => {
   try {
