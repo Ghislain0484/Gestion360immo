@@ -19,7 +19,7 @@ console.log('✅ Client Supabase créé avec succès');
 // -------- util --------
 const nilIfEmpty = (v: any) => (v === '' || v === undefined ? null : v);
 
-// Normalisations: on convertit "" -> null pour éviter des violations uniques/format
+// Normalisations
 const normalizeOwner = (o: any) => ({
   first_name: nilIfEmpty(o.firstName ?? o.first_name),
   last_name:  nilIfEmpty(o.lastName  ?? o.last_name),
@@ -52,6 +52,20 @@ function formatSbError(prefix: string, error: any) {
   return parts.join(' | ');
 }
 
+// Auth debug
+async function logAuthContext(tag: string) {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      console.warn(`🔑 ${tag} auth.getSession error:`, error);
+      return;
+    }
+    console.log(`🔑 ${tag} user:`, session?.user?.id ?? null, 'token?', !!session?.access_token);
+  } catch (e) {
+    console.warn(`🔑 ${tag} auth.getSession threw:`, e);
+  }
+}
+
 export const dbService = {
   // ---- READ (RLS-only) ----
   async getOwners() {
@@ -75,8 +89,9 @@ export const dbService = {
     return data ?? [];
   },
 
-  // ---- CREATE (⚠️ pas de .select() pour éviter un échec si SELECT RLS manquante) ----
+  // ---- CREATE (pas de .select()) ----
   async createOwner(owner: any) {
+    await logAuthContext('owners.insert');
     const payload = normalizeOwner(owner);
     console.log('🔄 PRODUCTION - Création propriétaire (payload):', payload);
     const { error } = await supabase.from('owners').insert(payload);
@@ -91,6 +106,7 @@ export const dbService = {
   },
 
   async createTenant(tenant: any) {
+    await logAuthContext('tenants.insert');
     const payload = normalizeTenant(tenant);
     console.log('🔄 PRODUCTION - Création locataire (payload):', payload);
     const { error } = await supabase.from('tenants').insert(payload);
@@ -105,6 +121,7 @@ export const dbService = {
   },
 
   async createProperty(property: any) {
+    await logAuthContext('properties.insert');
     const payload = normalizeProperty(property);
     console.log('🔄 PRODUCTION - Création propriété (payload):', payload);
     const { error } = await supabase.from('properties').insert(payload);
@@ -119,6 +136,7 @@ export const dbService = {
   },
 
   async createContract(contract: any) {
+    await logAuthContext('contracts.insert');
     const payload = { ...contract };
     console.log('🔄 PRODUCTION - Création contrat (payload):', payload);
     const { error } = await supabase.from('contracts').insert(payload);
