@@ -102,6 +102,46 @@ async function createOwnerViaApi(cleanOwner: any) {
 }
 
 export const dbService = {
+  // ---------- AGENCY REGISTRATION (utilisé par AgencyRegistration.tsx) ----------
+  async createRegistrationRequest(req: any) {
+    await logAuthContext('agency_registration_requests.insert');
+
+    // Nettoyage/normalisation des champs attendus par la table
+    const clean = {
+      agency_name:          nilIfEmpty(req.agency_name),
+      commercial_register:  nilIfEmpty(req.commercial_register),
+      director_first_name:  nilIfEmpty(req.director_first_name),
+      director_last_name:   nilIfEmpty(req.director_last_name),
+      director_email:       nilIfEmpty(req.director_email),
+      phone:                nilIfEmpty(req.phone),
+      city:                 nilIfEmpty(req.city),
+      address:              nilIfEmpty(req.address),
+      logo_url:             nilIfEmpty(req.logo_url),
+      is_accredited:        !!req.is_accredited,
+      accreditation_number: nilIfEmpty(req.accreditation_number),
+      status:               req.status ?? 'pending',
+      // created_at: laissé au DEFAULT côté DB si présent
+    };
+
+    console.log('🔄 PRODUCTION - Création demande agence (payload):', clean);
+
+    // On n’appelle PAS .select('*') si la RLS peut bloquer ; on récupère juste l’id si possible.
+    const { data, error } = await supabase
+      .from('agency_registration_requests')
+      .insert(clean)
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      console.warn('⚠️ createRegistrationRequest RAW:', error);
+      throw error; // L’appelant gère le fallback localStorage
+    }
+
+    const id = data?.id ?? null;
+    console.log('✅ Demande agence créée id:', id);
+    return { id };
+  },
+
   // ---------- READ (RLS-only) ----------
   async getOwners() {
     const { data, error } = await supabase
@@ -111,6 +151,7 @@ export const dbService = {
     if (error) throw error;
     return data ?? [];
   },
+
   async getTenants() {
     const { data, error } = await supabase
       .from('tenants')
@@ -119,6 +160,7 @@ export const dbService = {
     if (error) throw error;
     return data ?? [];
   },
+
   async getProperties() {
     const { data, error } = await supabase
       .from('properties')
@@ -127,6 +169,7 @@ export const dbService = {
     if (error) throw error;
     return data ?? [];
   },
+
   async getContracts() {
     const { data, error } = await supabase
       .from('contracts')
@@ -228,16 +271,19 @@ export const dbService = {
     if (error) throw new Error(formatSbError('❌ owners.delete', error));
     return true;
   },
+
   async deleteTenant(id: string) {
     const { error } = await supabase.from('tenants').delete().eq('id', id);
     if (error) throw new Error(formatSbError('❌ tenants.delete', error));
     return true;
   },
+
   async deleteProperty(id: string) {
     const { error } = await supabase.from('properties').delete().eq('id', id);
     if (error) throw new Error(formatSbError('❌ properties.delete', error));
     return true;
   },
+
   async deleteContract(id: string) {
     const { error } = await supabase.from('contracts').delete().eq('id', id);
     if (error) throw new Error(formatSbError('❌ contracts.delete', error));
