@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Building2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
@@ -8,8 +7,6 @@ import { Card } from '../ui/Card';
 import { AgencyRegistration } from './AgencyRegistration';
 import { dbService } from '../../lib/supabase';
 import { BibleVerseCard } from '../ui/BibleVerse';
-import { supabase } from '../../lib/supabase';
-import { AuthApiError } from '@supabase/supabase-js';
 
 export const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -19,98 +16,26 @@ export const LoginForm: React.FC = () => {
   const [error, setError] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
   
-  const { signIn } = useAuth();
-  const navigate = useNavigate();
+  const { login } = useAuth();
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError('');
-  setIsLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
 
-  try {
-    if (typeof signIn !== 'function') {
-      console.error('❌ AuthContext.signIn is not a function', { useAuthCtx: useAuth() });
-      throw new Error("Erreur interne d'authentification (signIn indisponible). Rechargez la page.");
+    try {
+      await login(email, password);
+    } catch (err) {
+      // Display the actual error message from the login function
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Email ou mot de passe incorrect');
+      }
+    } finally {
+      setIsLoading(false);
     }
-
-    await signIn(email, password);
-
-    const { data: { session } } = await supabase.auth.getSession();
-    console.log('🔑 session user?', session?.user?.id ?? null, 'token?', !!session?.access_token);
-    if (!session?.user || !session?.access_token) {
-      throw new Error("Connexion échouée (pas de session active). Vérifiez l'email/mot de passe.");
-    }
-
-    // Vérifie que users.agency_id est bien renseigné (sinon RLS bloquera tout)
-    const { data: me, error: meErr } = await supabase
-      .from('users')
-      .select('id,email,agency_id')
-      .or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`)
-      .maybeSingle();
-
-    if (meErr) console.warn('⚠️ users select error:', meErr);
-    if (!me?.agency_id) {
-      setError("Votre compte n'est pas encore rattaché à une agence. Contactez l'administrateur.");
-      return;
-    }
-
-    // OK → on peut naviguer
-    navigate('/');
-  } catch (err) {
-    setError(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-// Email: OK de normaliser
-<Input
-  label="Email"
-  type="email"
-  value={email}
-  onChange={(e) => setEmail(e.target.value.toLowerCase().trim())}
-  required
-  placeholder="votre@email.com"
-  autoComplete="email"
-/>
-
-// Password: NE PAS TRIMMER, garder tel quel
-<Input
-  label="Mot de passe"
-  type={showPassword ? 'text' : 'password'}
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}  // <= pas de .trim()
-  required
-  placeholder="••••••••"
-  autoComplete="current-password"
-/>
-
-// ...
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError('');
-  setIsLoading(true);
-
-  try {
-    // 🔐 email déjà normalisé, password en brut
-    await signIn(email, password);
-    navigate('/'); // ou '/dashboard'
-  } catch (err: any) {
-    // 🔎 messages Supabase plus précis
-    if (err instanceof AuthApiError) {
-      if (err.status === 400) setError('Email ou mot de passe incorrect.');
-      else if (err.status === 403) setError('Compte non confirmé. Vérifiez votre email.');
-      else setError(err.message);
-    } else if (err && err.message) {
-      setError(err.message);
-    } else {
-      setError('Impossible de vous authentifier. Réessayez.');
-    }
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const handleAgencyRegistration = async (agencyData: any, directorData: any) => {
     setIsLoading(true);
@@ -198,7 +123,7 @@ Vous pouvez fermer cette fenêtre et attendre la confirmation.`);
             director_first_name: directorData.firstName,
             director_last_name: directorData.lastName,
             director_email: directorData.email,
-            director_password: directorData.password, // Sauvegarder le mot de passe
+            director_password: directorData.password,
             phone: agencyData.phone,
             city: agencyData.city,
             address: agencyData.address,
