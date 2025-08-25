@@ -31,3 +31,7 @@ dist-ssr
 # Local temp & Vite timestamps
 .tmp/
 *.timestamp-*.mjs
+
+# Backups locaux
+*.bak
+*.bak
