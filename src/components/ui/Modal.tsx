@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import * as Dialog from '@radix-ui/react-dialog';
 
 interface ModalProps {
   isOpen: boolean;
@@ -8,6 +9,23 @@ interface ModalProps {
   title?: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+}
+
+export function Modal({ isOpen, onClose, title, children }: any) {
+  return (
+    <Dialog.Root open={isOpen} onOpenChange={(o) => !o && onClose?.()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg p-6 w-full max-w-lg">
+          <Dialog.Title className="text-lg font-semibold">{title ?? 'Titre'}</Dialog.Title>
+          <Dialog.Description className="sr-only" id="modal-desc">
+            Fenêtre modale
+          </Dialog.Description>
+          <div aria-describedby="modal-desc">{children}</div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
 }
 
 export const Modal: React.FC<ModalProps> = ({

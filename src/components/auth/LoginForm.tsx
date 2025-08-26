@@ -10,18 +10,16 @@ import { AgencyRegistration } from './AgencyRegistration';
 import { BibleVerseCard } from '../ui/BibleVerse';
 
 export const LoginForm: React.FC = () => {
-  const [email, setEmail] = useState('');        // ⬅️ pas de trim()
-  const [password, setPassword] = useState('');  // ⬅️ pas de trim()
+  const [email, setEmail] = useState('');       // ⬅️ PAS DE trim()
+  const [password, setPassword] = useState(''); // ⬅️ PAS DE trim()
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
 
-  // Supporte login() ou signIn() selon ton AuthContext actuel
-  const auth = useAuth() as any;
-  const authFn: (email: string, password: string) => Promise<void> =
-    auth?.login ?? auth?.signIn;
-
+  // On supporte les deux noms pour éviter “x is not a function”
+  const { signIn, login } = useAuth() as any;
+  const doSignIn = signIn ?? login;
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,13 +28,26 @@ export const LoginForm: React.FC = () => {
     setIsLoading(true);
 
     try {
-      if (typeof authFn !== 'function') {
-        throw new Error("La fonction d'authentification n'est pas disponible (login/signIn).");
+      if (typeof doSignIn !== 'function') {
+        throw new Error('Fonction de connexion manquante dans AuthContext');
       }
-      await authFn(email, password);  // ⬅️ ni email ni mdp ne sont trim()
-      navigate('/');
+
+      // ⬇️ on envoie tel quel, sans trim
+      const emailToUse = email;
+      const passwordToUse = password;
+
+      console.log('🔐 Tentative login...', { email: emailToUse });
+      await doSignIn(emailToUse, passwordToUse);
+
+      console.log('✅ Login OK, redirection…');
+      navigate('/'); // adapte si besoin
     } catch (err: any) {
-      const msg = err?.message || 'Email ou mot de passe incorrect';
+      const msg =
+        err?.message ||
+        err?.error_description ||
+        err?.error ||
+        'Email ou mot de passe incorrect';
+      console.error('❌ Login error:', err);
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -72,7 +83,7 @@ export const LoginForm: React.FC = () => {
               label="Email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}   // ⬅️ pas de .trim()
+              onChange={(e) => setEmail(e.target.value)} // ⬅️ PAS DE trim()
               required
               placeholder="votre@email.com"
               autoComplete="email"
@@ -83,7 +94,7 @@ export const LoginForm: React.FC = () => {
                 label="Mot de passe"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)} // ⬅️ pas de .trim()
+                onChange={(e) => setPassword(e.target.value)} // ⬅️ PAS DE trim()
                 required
                 placeholder="••••••••"
                 autoComplete="current-password"
@@ -132,7 +143,7 @@ export const LoginForm: React.FC = () => {
           isOpen={showRegistration}
           onClose={() => setShowRegistration(false)}
           onSubmit={() => {
-            /* Le composant gère déjà son propre submit + fallback localStorage si DB échoue */
+            /* la modale gère déjà son submit + fallback si RLS bloque */
           }}
         />
       </div>
