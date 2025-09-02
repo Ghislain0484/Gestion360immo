@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Shield, Eye, EyeOff, Building2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
+import { dbService } from '../../lib/supabase';
+import { AuditLog } from '../../types/db';
+import { Toaster, toast } from 'react-hot-toast';
 
 export const AdminLoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -11,8 +14,33 @@ export const AdminLoginForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const { loginAdmin } = useAuth();
+
+  const { loginAdmin, admin } = useAuth();
+
+  const logAudit = useCallback(
+    async (action: string, userId: string | null, details: any) => {
+      try {
+        const auditLog: Partial<AuditLog> = {
+          user_id: userId,
+          action,
+          table_name: 'platform_admins', // Corrected to match table
+          record_id: userId,
+          old_values: null,
+          new_values: details,
+          ip_address: null, // Use null for invalid IP
+          user_agent: navigator.userAgent || null,
+        };
+        await dbService.auditLogs.insert(auditLog);
+      } catch (err: any) {
+        console.error('Erreur lors de l’enregistrement de l’audit:', {
+          message: err.message,
+          code: err.code,
+          details: err.details,
+        });
+      }
+    },
+    []
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,9 +48,32 @@ export const AdminLoginForm: React.FC = () => {
     setIsLoading(true);
 
     try {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        throw new Error('Format d’email invalide');
+      }
+      if (password.length < 6) {
+        throw new Error('Le mot de passe doit contenir au moins 6 caractères');
+      }
+
       await loginAdmin(email, password);
-    } catch (err) {
-      setError('Email ou mot de passe incorrect');
+      await logAudit('admin_login_success', admin?.user_id || null, {
+        email,
+        timestamp: new Date().toISOString(),
+      });
+      toast.success('Connexion réussie ! Bienvenue, administrateur.');
+    } catch (err: any) {
+      const errorMessage = err.message.includes('Identifiants invalides')
+        ? 'Email ou mot de passe incorrect'
+        : err.message || 'Erreur lors de la connexion';
+      setError(errorMessage);
+      // Log failed attempts only for specific cases, avoid sensitive data
+      await logAudit('admin_login_failure', null, {
+        email,
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -60,6 +111,7 @@ export const AdminLoginForm: React.FC = () => {
               onChange={(e) => setEmail(e.target.value)}
               required
               placeholder="admin@immoplatform.ci"
+              autoComplete="email"
             />
 
             <div className="relative">
@@ -67,9 +119,10 @@ export const AdminLoginForm: React.FC = () => {
                 label="Mot de passe"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value.trim())}
                 required
                 placeholder="••••••••"
+                autoComplete="current-password"
               />
               <button
                 type="button"
@@ -82,6 +135,26 @@ export const AdminLoginForm: React.FC = () => {
                   <Eye className="h-5 w-5 text-gray-400" />
                 )}
               </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                />
+                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                  Se souvenir de moi
+                </label>
+              </div>
+
+              <div className="text-sm">
+                <a href="/password-reset" className="font-medium text-red-600 hover:text-red-500">
+                  Mot de passe oublié ?
+                </a>
+              </div>
             </div>
 
             <Button
@@ -115,6 +188,7 @@ export const AdminLoginForm: React.FC = () => {
             </div>
           </div>
         </Card>
+        <Toaster position="bottom-right" />
       </div>
     </div>
   );

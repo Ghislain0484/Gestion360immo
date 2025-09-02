@@ -2,7 +2,7 @@ export interface Agency {
   id: string;
   name: string;
   commercialRegister: string;
-  logo?: string;
+  logo_url?: string;
   isAccredited: boolean;
   accreditationNumber?: string;
   address: string;
@@ -45,4 +45,19 @@ export interface User {
 
 export interface UserFormData extends Omit<User, 'id' | 'createdAt' | 'updatedAt'> {
   password: string;
+}
+
+export interface AgencySubscription {
+  id: string;
+  agencyId: string;
+  agencyName: string;
+  planType: string;
+  status: string;
+  monthlyFee: number;
+  startDate: string;
+  nextPaymentDate: string;
+  trialDaysRemaining: number;
+  paymentHistory: any[];
+  endDate: string | null;
+  isActive: boolean;
 }

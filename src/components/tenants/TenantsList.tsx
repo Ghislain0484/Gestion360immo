@@ -125,14 +125,14 @@ export const TenantsList: React.FC = () => {
 
   const filteredTenants = tenants.filter(tenant => {
     const matchesSearch = 
-      tenant.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tenant.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tenant.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.phone.includes(searchTerm) ||
       tenant.profession.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.city.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesMaritalStatus = filterMaritalStatus === 'all' || tenant.marital_status === filterMaritalStatus;
-    const matchesPaymentStatus = filterPaymentStatus === 'all' || tenant.payment_status === filterPaymentStatus;
+    const matchesMaritalStatus = filterMaritalStatus === 'all' || tenant.maritalStatus === filterMaritalStatus;
+    const matchesPaymentStatus = filterPaymentStatus === 'all' || tenant.paymentStatus === filterPaymentStatus;
     
     return matchesSearch && matchesMaritalStatus && matchesPaymentStatus;
   });
@@ -205,10 +205,10 @@ export const TenantsList: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  {tenant.photo_url ? (
+                  {tenant.photoUrl ? (
                     <img
-                      src={tenant.photo_url}
-                      alt={`${tenant.first_name} ${tenant.last_name}`}
+                      src={tenant.photoUrl}
+                      alt={`${tenant.firstName} ${tenant.lastName}`}
                       className="w-12 h-12 rounded-full object-cover"
                     />
                   ) : (
@@ -218,7 +218,7 @@ export const TenantsList: React.FC = () => {
                   )}
                   <div>
                     <h3 className="font-semibold text-gray-900">
-                      {tenant.first_name} {tenant.last_name}
+                      {tenant.firstName} {tenant.lastName}
                     </h3>
                     <div className="flex items-center text-sm text-gray-600">
                       <Phone className="h-3 w-3 mr-1" />
@@ -273,8 +273,8 @@ export const TenantsList: React.FC = () => {
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Paiement:</span>
-                  <Badge variant={getPaymentStatusColor(tenant.payment_status)} size="sm">
-                    {getPaymentStatusLabel(tenant.payment_status)}
+                  <Badge variant={getPaymentStatusColor(tenant.paymentStatus)} size="sm">
+                    {getPaymentStatusLabel(tenant.paymentStatus)}
                   </Badge>
                 </div>
               </div>
@@ -327,7 +327,7 @@ export const TenantsList: React.FC = () => {
           <FinancialStatements
             entityId={selectedTenant.id}
             entityType="tenant"
-            entityName={`${selectedTenant.first_name} ${selectedTenant.last_name}`}
+            entityName={`${selectedTenant.firstName} ${selectedTenant.lastName}`}
           />
         </Modal>
       )}

@@ -1,4 +1,4 @@
-export interface PlatformAdmin {
+/*export interface PlatformAdmin {
   id: string;
   email: string;
   firstName: string;
@@ -6,8 +6,27 @@ export interface PlatformAdmin {
   role: 'super_admin' | 'admin';
   permissions: AdminPermissions;
   createdAt: Date;
+}*/
+export interface PlatformAdmin {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'super_admin' | 'admin';
+  permissions: {
+    agencyManagement: boolean;
+    subscriptionManagement: boolean;
+    platformSettings: boolean;
+    reports: boolean;
+    userSupport: boolean;
+    systemMaintenance: boolean;
+    dataExport: boolean;
+    auditAccess: boolean;
+  };
+  createdAt: Date;
 }
 
+/*
 export interface AdminPermissions {
   agencyManagement: boolean;
   subscriptionManagement: boolean;
@@ -15,6 +34,7 @@ export interface AdminPermissions {
   reports: boolean;
   userSupport: boolean;
 }
+  */
 
 export interface AgencySubscription {
   id: string;
@@ -65,4 +85,39 @@ export interface PlatformStats {
   totalRevenue: number;
   monthlyGrowth: number;
   subscriptionRevenue: number;
+
+  // 👉 nouveaux champs by AOC
+  pendingRequests: number;
+  approvedAgencies: number;
+}
+
+// AJOUT By AOC
+
+export interface Agency {
+  id: string;
+  name: string;
+  city: string;
+  phone: string;
+  email: string;
+  plan_type: string;
+  subscription_status: string;
+  monthly_fee: number;
+  created_at: string;
+  commercial_register?: string;
+}
+
+export type AgencyStatus = "active" | "suspended" | "inactive";
+
+export interface RegistrationRequest {
+  id: string;
+  agency_name: string;
+  city: string;
+  address: string;
+  phone: string;
+  director_first_name: string;
+  director_last_name: string;
+  director_email: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  processed_at?: string;
 }

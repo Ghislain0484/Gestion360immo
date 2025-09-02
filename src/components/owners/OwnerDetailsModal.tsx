@@ -92,12 +92,12 @@ export const OwnerDetailsModal: React.FC<OwnerDetailsModalProps> = ({
             <div className="flex items-center space-x-4">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
                 <span className="text-blue-600 font-semibold text-xl">
-                  {owner.first_name[0]}{owner.last_name[0]}
+                  {owner.firstName[0]}{owner.lastName[0]}
                 </span>
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {owner.first_name} {owner.last_name}
+                  {owner.firstName} {owner.lastName}
                 </h2>
                 <p className="text-gray-600">{owner.phone}</p>
               </div>
@@ -136,12 +136,12 @@ export const OwnerDetailsModal: React.FC<OwnerDetailsModalProps> = ({
               <div className="p-4">
                 <h3 className="font-medium text-gray-900 mb-4">Titre de propriété</h3>
                 <div className="space-y-2">
-                  <Badge variant={getPropertyTitleColor(owner.property_title)} size="md">
-                    {getPropertyTitleLabel(owner.property_title)}
+                  <Badge variant={getPropertyTitleColor(owner.propertyTitle)} size="md">
+                    {getPropertyTitleLabel(owner.propertyTitle)}
                   </Badge>
-                  {owner.property_title_details && (
+                  {owner.propertyTitleDetails && (
                     <p className="text-sm text-gray-600 mt-2">
-                      <strong>Détails:</strong> {owner.property_title_details}
+                      <strong>Détails:</strong> {owner.propertyTitleDetails}
                     </p>
                   )}
                 </div>
@@ -155,23 +155,23 @@ export const OwnerDetailsModal: React.FC<OwnerDetailsModalProps> = ({
               <h3 className="font-medium text-gray-900 mb-4">Situation familiale</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Badge variant={getMaritalStatusColor(owner.marital_status)} size="sm">
-                    {getMaritalStatusLabel(owner.marital_status)}
+                  <Badge variant={getMaritalStatusColor(owner.maritalStatus)} size="sm">
+                    {getMaritalStatusLabel(owner.maritalStatus)}
                   </Badge>
-                  {owner.marital_status === 'marie' && owner.spouse_name && (
+                  {owner.maritalStatus === 'marie' && owner.spouseName && (
                     <div className="mt-3 p-3 bg-pink-50 rounded-lg text-sm">
                       <div className="flex items-center mb-2">
                         <Heart className="h-4 w-4 mr-2 text-pink-600" />
                         <span className="font-medium">Informations du conjoint</span>
                       </div>
-                      <p><strong>Nom:</strong> {owner.spouse_name}</p>
-                      <p><strong>Téléphone:</strong> {owner.spouse_phone}</p>
+                      <p><strong>Nom:</strong> {owner.spouseName}</p>
+                      <p><strong>Téléphone:</strong> {owner.spousePhone}</p>
                     </div>
                   )}
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">
-                    <strong>Nombre d'enfants:</strong> {owner.children_count}
+                    <strong>Nombre d'enfants:</strong> {owner.childrenCount}
                   </p>
                 </div>
               </div>
@@ -185,14 +185,14 @@ export const OwnerDetailsModal: React.FC<OwnerDetailsModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                 <div>
                   <p><strong>ID Propriétaire:</strong> {owner.id}</p>
-                  <p><strong>ID Agence:</strong> {owner.agency_id}</p>
+                  <p><strong>ID Agence:</strong> {owner.agencyId}</p>
                 </div>
                 <div>
                   <div className="flex items-center">
                     <Calendar className="h-4 w-4 mr-2 text-gray-500" />
-                    <span>Créé le {new Date(owner.created_at).toLocaleDateString('fr-FR')}</span>
+                    <span>Créé le {new Date(owner.createdAt).toLocaleDateString('fr-FR')}</span>
                   </div>
-                  <p>Modifié le {new Date(owner.updated_at).toLocaleDateString('fr-FR')}</p>
+                  <p>Modifié le {new Date(owner.updatedAt).toLocaleDateString('fr-FR')}</p>
                 </div>
               </div>
             </div>
@@ -206,19 +206,19 @@ export const OwnerDetailsModal: React.FC<OwnerDetailsModalProps> = ({
         onClose={() => setShowEditForm(false)}
         onSubmit={handleUpdate}
         initialData={{
-          firstName: owner.first_name,
-          lastName: owner.last_name,
+          firstName: owner.firstName,
+          lastName: owner.lastName,
           phone: owner.phone,
           email: owner.email || '',
           address: owner.address,
           city: owner.city,
-          propertyTitle: owner.property_title,
-          propertyTitleDetails: owner.property_title_details || '',
-          maritalStatus: owner.marital_status,
-          spouseName: owner.spouse_name || '',
-          spousePhone: owner.spouse_phone || '',
-          childrenCount: owner.children_count,
-          agencyId: owner.agency_id,
+          propertyTitle: owner.propertyTitle,
+          propertyTitleDetails: owner.propertyTitleDetails || '',
+          maritalStatus: owner.maritalStatus,
+          spouseName: owner.spouseName || '',
+          spousePhone: owner.spousePhone || '',
+          childrenCount: owner.childrenCount,
+          agencyId: owner.agencyId,
         }}
       />
     </>

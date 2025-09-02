@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Building2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
@@ -7,6 +7,31 @@ import { Card } from '../ui/Card';
 import { AgencyRegistration } from './AgencyRegistration';
 import { dbService } from '../../lib/supabase';
 import { BibleVerseCard } from '../ui/BibleVerse';
+import { Toaster, toast } from 'react-hot-toast';
+import { AgencyRegistrationRequest, AuditLog } from '../../types/db'; // Adjusted path
+
+// Define interfaces to match AgencyRegistration.tsx
+interface AgencyFormData {
+  name: string;
+  commercialRegister: string;
+  logo_url: string | null; // Changed to string | null to match AgencyRegistration
+  isAccredited: boolean;
+  accreditationNumber: string | null;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+}
+
+interface UserFormData {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'director';
+  permissions: Record<string, boolean>;
+  isActive: boolean;
+  password: string;
+}
 
 export const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -15,8 +40,26 @@ export const LoginForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
-  
+
   const { login } = useAuth();
+
+  const logAudit = useCallback(async (action: string, userId: string | null, details: any) => {
+    try {
+      const auditLog: Partial<AuditLog> = {
+        user_id: userId,
+        action,
+        table_name: 'users',
+        record_id: userId,
+        old_values: null,
+        new_values: details,
+        ip_address: 'unknown', // Replace with actual IP if available
+        user_agent: navigator.userAgent,
+      };
+      await dbService.auditLogs.insert(auditLog);
+    } catch (err) {
+      console.error('Erreur lors de l’enregistrement de l’audit:', err);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,37 +67,32 @@ export const LoginForm: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await login(email, password);
-    } catch (err) {
-      // Display the actual error message from the login function
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Email ou mot de passe incorrect');
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        throw new Error('Format d’email invalide');
       }
+
+      await login(email, password);
+      await logAudit('user_login_success', null, { email, timestamp: new Date().toISOString() });
+      toast.success('Connexion réussie ! Bienvenue.');
+    } catch (err: any) {
+      const errorMessage = err.message.includes('Invalid login credentials')
+        ? 'Email ou mot de passe incorrect'
+        : err.message.includes('Compte non activé')
+        ? 'Compte non activé. Contactez votre administrateur.'
+        : err.message || 'Erreur lors de la connexion';
+      setError(errorMessage);
+      await logAudit('user_login_failure', null, { email, error: errorMessage, timestamp: new Date().toISOString() });
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAgencyRegistration = async (agencyData: any, directorData: any) => {
+  const handleAgencyRegistration = async (agencyData: AgencyFormData, directorData: UserFormData) => {
     setIsLoading(true);
     try {
-      // Validation des données avant envoi
-      if (!agencyData.name?.trim() || !agencyData.commercialRegister?.trim()) {
-        throw new Error('Le nom de l\'agence et le registre de commerce sont obligatoires');
-      }
-      
-      if (!directorData.firstName?.trim() || !directorData.lastName?.trim() || !directorData.email?.trim()) {
-        throw new Error('Les informations du directeur sont obligatoires');
-      }
-      
-      if (!agencyData.phone?.trim() || !agencyData.city?.trim() || !agencyData.address?.trim()) {
-        throw new Error('Le téléphone, la ville et l\'adresse sont obligatoires');
-      }
-      
-      // Préparer les données pour l'envoi
-      const requestData = {
+      const requestData: Partial<AgencyRegistrationRequest> = {
         agency_name: agencyData.name,
         commercial_register: agencyData.commercialRegister,
         director_first_name: directorData.firstName,
@@ -63,103 +101,68 @@ export const LoginForm: React.FC = () => {
         phone: agencyData.phone,
         city: agencyData.city,
         address: agencyData.address,
-        logo_url: agencyData.logo || null,
+        logo_url: agencyData.logo_url,
         is_accredited: agencyData.isAccredited,
-        accreditation_number: agencyData.accreditationNumber || null,
-        status: 'pending'
+        accreditation_number: agencyData.accreditationNumber,
+        status: 'pending',
+        director_password: directorData.password,
       };
-      
-      console.log('Envoi de la demande avec les données:', requestData);
-      
-      // Enregistrer la demande dans la base de données
-      const result = await dbService.createRegistrationRequest(requestData);
-      
-      console.log('Résultat de l\'enregistrement:', result);
-      
-      alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE !
-      
-🏢 AGENCE : ${agencyData.name}
-👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
-📧 EMAIL : ${directorData.email}
-📱 TÉLÉPHONE : ${agencyData.phone}
-🏙️ VILLE : ${agencyData.city}
 
-✅ Votre demande a été enregistrée avec l'ID : ${result.id}
-
-⏱️ TRAITEMENT : Sous 24-48h par notre équipe
-📧 NOTIFICATION : Vous recevrez vos identifiants par email
-            throw new Error('Profil utilisateur non trouvé. Contactez votre administrateur.');
-
-PROCHAINES ÉTAPES :
-1. Validation par l'administrateur
-2. Création automatique de votre compte directeur
-3. Activation de votre abonnement d'essai (30 jours gratuits)
-4. Réception de vos identifiants de connexion
-
-Vous pouvez fermer cette fenêtre et attendre la confirmation.`);
-      
+      const result = await dbService.agencyRegistrationRequests.create(requestData);
+      await logAudit('registration_request_submitted', null, {
+        agency_name: agencyData.name,
+        director_email: directorData.email,
+        registration_id: result.id,
+        timestamp: new Date().toISOString(),
+      });
+      toast.success(
+        `✅ Demande d'inscription envoyée !\n\n` +
+        `🏢 Agence : ${agencyData.name}\n` +
+        `👤 Directeur : ${directorData.firstName} ${directorData.lastName}\n` +
+        `📧 Email : ${directorData.email}\n` +
+        `📱 Téléphone : ${agencyData.phone}\n` +
+        `🏙️ Ville : ${agencyData.city}\n\n` +
+        `🆔 ID : ${result.id}\n` +
+        `⏱️ Validation sous 24–48h\n` +
+        `📧 Vous recevrez vos identifiants par email`
+      );
       setShowRegistration(false);
-    } catch (error) {
-      console.error('Erreur lors de l\'inscription:', error);
-      
-      // Messages d'erreur spécifiques
-      if (error instanceof Error) {
-        if (error.message.includes('obligatoire')) {
-          alert(`Données manquantes: ${error.message}`);
-        } else if (error.message.includes('email invalide')) {
-          alert('Format d\'email invalide. Veuillez utiliser un email valide.');
-        } else if (error.message.includes('téléphone invalide')) {
-            throw new Error('Email ou mot de passe incorrect.');
-        } else if (error.message.includes('existe déjà')) {
-          alert('Cette agence ou cet email est déjà enregistré.');
-            throw new Error('Configuration invalide. Contactez l\'administrateur.');
-          } else if (supabaseError.message?.includes('Profil utilisateur non trouvé')) {
-            throw new Error('Compte non activé. Contactez votre administrateur pour activer votre compte.');
-          // En cas d'erreur de connexion, sauvegarder localement avec le mot de passe
-          const localRequest = {
-            id: `demo_${Date.now()}`,
-            agency_name: agencyData.name,
-            commercial_register: agencyData.commercialRegister,
-            director_first_name: directorData.firstName,
-            director_last_name: directorData.lastName,
-            director_email: directorData.email,
-            director_password: directorData.password, // Sauvegarder le mot de passe
-            phone: agencyData.phone,
-            city: agencyData.city,
-            address: agencyData.address,
-            logo_url: agencyData.logo,
-            is_accredited: agencyData.isAccredited,
-            accreditation_number: agencyData.accreditationNumber,
-            status: 'pending',
-            created_at: new Date().toISOString()
-          };
-          
-          const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-          stored.unshift(localRequest);
-          localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
-          
-          alert(`✅ DEMANDE SAUVEGARDÉE LOCALEMENT !
-          
-🏢 AGENCE : ${agencyData.name}
-👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
-📧 EMAIL : ${directorData.email}
-🔑 MOT DE PASSE : [Conservez celui que vous avez saisi]
+    } catch (err: any) {
+      const errorMessage = err.message.includes('duplicate key')
+        ? 'Cette agence ou cet email est déjà enregistré'
+        : err.message || 'Erreur lors de l’inscription';
+      await logAudit('registration_request_failed', null, {
+        agency_name: agencyData.name,
+        director_email: directorData.email,
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
 
-⚠️ Problème de connexion détecté
-✅ Votre demande a été sauvegardée localement
-🔄 Elle sera synchronisée dès que la connexion sera rétablie
+      /*
+      const localRequest = {
+        id: `local_${Date.now()}`,
+        ...requestData,
+        created_at: new Date().toISOString(),
+        synced: false,
+      };
+      const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+      stored.unshift(localRequest);
+      localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
 
-CONSERVEZ VOS IDENTIFIANTS :
-Email : ${directorData.email}
-Mot de passe : [Celui que vous avez saisi]
-
-Vous pourrez vous connecter dès l'approbation !`);
-        } else {
-      throw new Error('Email ou mot de passe incorrect.');
-        }
-      } else {
-        throw new Error('Email ou mot de passe incorrect.');
-      }
+      toast.success(
+        `✅ Demande sauvegardée localement !\n\n` +
+        `🏢 Agence : ${agencyData.name}\n` +
+        `👤 Directeur : ${directorData.firstName} ${directorData.lastName}\n` +
+        `📧 Email : ${directorData.email}\n` +
+        `🆔 ID local : ${localRequest.id}\n\n` +
+        `⚠️ Problème de connexion détecté\n` +
+        `🔄 Elle sera synchronisée dès que la connexion sera rétablie\n\n` +
+        `Conservez vos identifiants :\n` +
+        `📧 Email : ${directorData.email}\n` +
+        `🔑 Mot de passe : [Celui que vous avez saisi]`
+      );
+      */
+      setShowRegistration(false);
     } finally {
       setIsLoading(false);
     }
@@ -168,9 +171,8 @@ Vous pourrez vous connecter dès l'approbation !`);
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        {/* Verset biblique sur la page de connexion */}
         <BibleVerseCard compact={true} />
-        
+
         <div className="text-center">
           <div className="flex justify-center">
             <div className="flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full">
@@ -197,7 +199,7 @@ Vous pourrez vous connecter dès l'approbation !`);
               label="Email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value.trim())}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value.trim())}
               required
               placeholder="votre@email.com"
               autoComplete="email"
@@ -208,7 +210,7 @@ Vous pourrez vous connecter dès l'approbation !`);
                 label="Mot de passe"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value.trim())}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value.trim())}
                 required
                 placeholder="••••••••"
                 autoComplete="current-password"
@@ -240,7 +242,7 @@ Vous pourrez vous connecter dès l'approbation !`);
               </div>
 
               <div className="text-sm">
-                <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+                <a href="/password-reset" className="font-medium text-blue-600 hover:text-blue-500">
                   Mot de passe oublié ?
                 </a>
               </div>
@@ -248,7 +250,7 @@ Vous pourrez vous connecter dès l'approbation !`);
 
             <Button
               type="submit"
-              className="w-full"
+              className="w-full bg-blue-600 hover:bg-blue-700"
               size="lg"
               isLoading={isLoading}
             >
@@ -280,12 +282,12 @@ Vous pourrez vous connecter dès l'approbation !`);
           </div>
         </Card>
 
-        {/* Agency Registration Modal */}
         <AgencyRegistration
           isOpen={showRegistration}
           onClose={() => setShowRegistration(false)}
           onSubmit={handleAgencyRegistration}
         />
+        <Toaster position="bottom-right" />
       </div>
     </div>
   );

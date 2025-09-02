@@ -6,6 +6,7 @@ import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { Notification } from '../../types/notification';
 import { useAuth } from '../../contexts/AuthContext';
+import { dbService } from '../../lib/supabase';
 
 export const NotificationsCenter: React.FC = () => {
   const { user } = useAuth();

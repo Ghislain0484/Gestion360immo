@@ -13,7 +13,7 @@ export interface Agency {
   id: string;
   name: string;
   commercialRegister: string;
-  logo?: string;
+  logo_url?: string;
   isAccredited: boolean;
   accreditationNumber?: string;
   address: string;

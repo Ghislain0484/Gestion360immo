@@ -132,17 +132,17 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Disponibilité:</span>
-                    <Badge variant={property.is_available ? 'success' : 'danger'} size="sm">
-                      {property.is_available ? 'Disponible' : 'Occupé'}
+                    <Badge variant={property.isAvailable ? 'success' : 'danger'} size="sm">
+                      {property.isAvailable ? 'Disponible' : 'Occupé'}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Pour location:</span>
-                    <span>{property.for_rent ? '✅' : '❌'}</span>
+                    <span>{property.forRent ? '✅' : '❌'}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Pour vente:</span>
-                    <span>{property.for_sale ? '✅' : '❌'}</span>
+                    <span>{property.forSale ? '✅' : '❌'}</span>
                   </div>
                 </div>
               </div>
@@ -259,9 +259,9 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
           standing: property.standing,
           rooms: property.rooms,
           images: property.images,
-          isAvailable: property.is_available,
-          forSale: property.for_sale,
-          forRent: property.for_rent,
+          isAvailable: property.isAvailable,
+          forSale: property.forSale,
+          forRent: property.forRent,
         }}
       />
     </>

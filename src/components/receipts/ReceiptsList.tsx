@@ -8,6 +8,7 @@ import { Modal } from '../ui/Modal';
 import { ReceiptGenerator } from './ReceiptGenerator';
 import { RentReceipt } from '../../types/receipt';
 import { useAuth } from '../../contexts/AuthContext';
+import { dbService } from '../../lib/supabase';
 
 export const ReceiptsList: React.FC = () => {
   const { user } = useAuth();

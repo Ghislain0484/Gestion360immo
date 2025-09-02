@@ -207,8 +207,8 @@ export const PropertiesList: React.FC = () => {
               </div>
               
               <div className="absolute top-2 right-2">
-                <Badge variant={property.is_available ? 'success' : 'danger'} size="sm">
-                  {property.is_available ? 'Disponible' : 'Occupé'}
+                <Badge variant={property.isAvailable ? 'success' : 'danger'} size="sm">
+                  {property.isAvailable ? 'Disponible' : 'Occupé'}
                 </Badge>
               </div>
             </div>
@@ -229,7 +229,7 @@ export const PropertiesList: React.FC = () => {
               
               <div className="flex items-center justify-between">
                 <div className="text-xs text-gray-500">
-                  Créée le {new Date(property.created_at).toLocaleDateString('fr-FR')}
+                  Créée le {new Date(property.createdAt).toLocaleDateString('fr-FR')}
                 </div>
                 
                 <div className="flex space-x-1">
