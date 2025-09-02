@@ -1,0 +1,285 @@
+import React, { useState } from 'react';
+import { Save, FileText, Calendar, DollarSign, Upload } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Modal } from '../ui/Modal';
+import { Card } from '../ui/Card';
+import { ContractFormData } from '../../types/contract';
+
+interface ContractFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (contract: ContractFormData) => void;
+  initialData?: Partial<ContractFormData>;
+}
+
+export const ContractForm: React.FC<ContractFormProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  initialData,
+}) => {
+  const [formData, setFormData] = useState<ContractFormData>({
+    property_id: '',
+    owner_id: '',
+    tenant_id: '',
+    agency_id: '1',
+    type: 'location',
+    start_date: new Date(),
+    monthly_rent: 0,
+    deposit: 0,
+    charges: 0,
+    commission_rate: 10,
+    commission_amount: 0,
+    status: 'draft',
+    terms: '',
+    documents: [],
+    renewal_history: [],
+    ...initialData,
+  });
+
+  const updateFormData = (updates: Partial<ContractFormData>) => {
+    setFormData(prev => {
+      const updated = { ...prev, ...updates };
+      // Recalculate commission when rent or rate changes
+      if (updates.monthly_rent !== undefined || updates.commission_rate !== undefined) {
+        const rent = updates.monthly_rent ?? prev.monthly_rent ?? 0;
+        const rate = updates.commission_rate ?? prev.commission_rate ?? 0;
+        updated.commission_amount = (rent * rate) / 100;
+      }
+      return updated;
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      // Validation des données requises
+      if (!formData.property_id.trim() || !formData.owner_id.trim() || !formData.tenant_id.trim()) {
+        throw new Error('Veuillez sélectionner une propriété, un propriétaire et un locataire');
+      }
+      
+      // Validation des montants
+      if (formData.type === 'location') {
+        if (!formData.monthly_rent || formData.monthly_rent <= 0) {
+          throw new Error('Veuillez saisir un loyer mensuel valide');
+        }
+      } else if (formData.type === 'vente') {
+        if (!formData.sale_price || formData.sale_price <= 0) {
+          throw new Error('Veuillez saisir un prix de vente valide');
+        }
+      }
+      
+      // Validation du taux de commission
+      if (!formData.commission_rate || formData.commission_rate < 0 || formData.commission_rate > 100) {
+        throw new Error('Veuillez saisir un taux de commission valide (0-100%)');
+      }
+      
+      // Validation des termes
+      if (!formData.terms.trim()) {
+        throw new Error('Veuillez saisir les termes du contrat');
+      }
+      
+      onSubmit(formData);
+      alert('✅ Contrat créé avec succès !');
+    } catch (error) {
+      console.error('Erreur lors de la soumission:', error);
+      alert(error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement');
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="lg" title="Nouveau contrat">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Card>
+          <div className="flex items-center mb-4">
+            <FileText className="h-5 w-5 text-blue-600 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Informations générales</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Type de contrat
+              </label>
+              <select
+                value={formData.type}
+                onChange={(e) => updateFormData({ type: e.target.value as ContractFormData['type'] })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="location">Location</option>
+                <option value="vente">Vente</option>
+                <option value="gestion">Gestion</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Statut
+              </label>
+              <select
+                value={formData.status}
+                onChange={(e) => updateFormData({ status: e.target.value as ContractFormData['status'] })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="draft">Brouillon</option>
+                <option value="active">Actif</option>
+                <option value="expired">Expiré</option>
+                <option value="terminated">Résilié</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Input
+              label="ID Propriété"
+              value={formData.property_id}
+              onChange={(e) => updateFormData({ property_id: e.target.value })}
+              required
+              placeholder="Sélectionner une propriété"
+            />
+            <Input
+              label="ID Propriétaire"
+              value={formData.owner_id}
+              onChange={(e) => updateFormData({ owner_id: e.target.value })}
+              required
+              placeholder="Sélectionner un propriétaire"
+            />
+            <Input
+              label="ID Locataire"
+              value={formData.tenant_id}
+              onChange={(e) => updateFormData({ tenant_id: e.target.value })}
+              required
+              placeholder="Sélectionner un locataire"
+            />
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center mb-4">
+            <Calendar className="h-5 w-5 text-green-600 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Dates</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Date de début"
+              type="date"
+              value={formData.start_date.toISOString().split('T')[0]}
+              onChange={(e) => updateFormData({ start_date: new Date(e.target.value) })}
+              required
+            />
+            <Input
+              label="Date de fin (optionnel)"
+              type="date"
+              value={formData.end_date?.toISOString().split('T')[0] || ''}
+              onChange={(e) => updateFormData({ end_date: e.target.value ? new Date(e.target.value) : undefined })}
+            />
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center mb-4">
+            <DollarSign className="h-5 w-5 text-yellow-600 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Montants</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {formData.type === 'location' ? (
+              <>
+                <Input
+                  label="Loyer mensuel (FCFA)"
+                  type="number"
+                  value={formData.monthly_rent || ''}
+                  onChange={(e) => updateFormData({ monthly_rent: parseFloat(e.target.value) || 0 })}
+                  min="0"
+                  placeholder="450000"
+                />
+                <Input
+                  label="Caution (FCFA)"
+                  type="number"
+                  value={formData.deposit || ''}
+                  onChange={(e) => updateFormData({ deposit: parseFloat(e.target.value) || 0 })}
+                  min="0"
+                  placeholder="900000"
+                />
+                <Input
+                  label="Charges (FCFA)"
+                  type="number"
+                  value={formData.charges || ''}
+                  onChange={(e) => updateFormData({ charges: parseFloat(e.target.value) || 0 })}
+                  min="0"
+                  placeholder="25000"
+                />
+              </>
+            ) : (
+              <Input
+                label="Prix de vente (FCFA)"
+                type="number"
+                value={formData.sale_price || ''}
+                onChange={(e) => updateFormData({ sale_price: parseFloat(e.target.value) || 0 })}
+                min="0"
+                placeholder="25000000"
+              />
+            )}
+            
+            <Input
+              label="Taux de commission (%)"
+              type="number"
+              value={formData.commission_rate}
+              onChange={(e) => updateFormData({ commission_rate: parseFloat(e.target.value) || 0 })}
+              min="0"
+              max="100"
+              step="0.1"
+              placeholder="10"
+            />
+          </div>
+
+          <div className="mt-4 p-4 bg-green-50 rounded-lg">
+            <p className="text-sm text-green-800">
+              <strong>Commission calculée :</strong> {new Intl.NumberFormat('fr-FR', {
+                style: 'currency',
+                currency: 'XOF',
+                minimumFractionDigits: 0,
+              }).format(formData.commission_amount)} FCFA
+            </p>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center mb-4">
+            <Upload className="h-5 w-5 text-purple-600 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Termes et conditions</h3>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Termes du contrat
+            </label>
+            <textarea
+              value={formData.terms}
+              onChange={(e) => updateFormData({ terms: e.target.value })}
+              rows={6}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Décrivez les termes et conditions du contrat..."
+              required
+            />
+          </div>
+        </Card>
+
+        <div className="flex items-center justify-end space-x-3 pt-6 border-t">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button type="submit">
+            <Save className="h-4 w-4 mr-2" />
+            Enregistrer le contrat
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
