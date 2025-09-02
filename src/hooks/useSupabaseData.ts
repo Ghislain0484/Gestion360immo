@@ -1,174 +1,171 @@
-// src/hooks/useSupabaseData.ts
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { dbService } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
-type TableName = 'owners' | 'tenants' | 'properties' | 'contracts';
-
-type FetchOptions = {
-  table: TableName;
-  agencyScoped?: boolean; // default true
-  orderBy?: { column: string; ascending?: boolean };
-};
-
-export function useSupabaseData<T = any>({ table, agencyScoped = true, orderBy }: FetchOptions) {
-  const { user, admin } = useAuth();
+// Hook robuste pour le chargement des données avec gestion d'erreurs
+export function useRealtimeData<T>(
+  fetchFunction: (agencyId: string) => Promise<T[]>,
+  tableName: string
+) {
+  const { user } = useAuth();
   const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const subRef = useRef<ReturnType<typeof supabase['channel']> | null>(null);
 
-  const isConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
-  const agencyId = useMemo(() => (admin ? null : user?.agencyId ?? null), [admin, user?.agencyId]);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (!isConfigured || !supabase) throw new Error('Supabase non configuré');
-      let query = supabase.from(table).select('*');
-      if (!admin && agencyScoped && agencyId) query = query.eq('agency_id', agencyId);
-      if (orderBy) query = query.order(orderBy.column, { ascending: orderBy.ascending ?? false });
-      const { data: rows, error: qErr } = await query;
-      if (qErr) throw qErr;
-      setData((rows ?? []) as T[]);
-    } catch (e: any) {
-      setError(e?.message ?? 'Erreur de chargement');
-    } finally {
+  const fetchData = async () => {
+    if (!user?.agencyId) {
+      console.log(`⚠️ Pas d'agencyId pour ${tableName}`);
+      setData([]);
       setLoading(false);
+      return;
     }
-  }, [admin, agencyScoped, agencyId, isConfigured, orderBy?.ascending, orderBy?.column, table]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!cancelled) await fetchData();
-    })();
 
     try {
-      if (subRef.current) {
-        supabase.removeChannel(subRef.current);
-        subRef.current = null;
+      setLoading(true);
+      setError(null);
+      
+      console.log(`🔄 Chargement ${tableName} pour agence:`, user.agencyId);
+      
+      const result = await fetchFunction(user.agencyId);
+      console.log(`✅ ${tableName} chargés:`, result?.length || 0);
+      setData(result || []);
+      
+    } catch (err) {
+      console.error(`❌ Erreur chargement ${tableName}:`, err);
+      
+      // Messages d'erreur spécifiques
+      if (err instanceof Error) {
+        if (err.message.includes('Supabase non configuré') || err.message.includes('401')) {
+          setError('Configuration Supabase manquante. Vérifiez les variables d\'environnement.');
+        } else if (err.message.includes('JWT')) {
+          setError('Session expirée. Reconnectez-vous.');
+        } else if (err.message.includes('PGRST301')) {
+          setError('Erreur d\'authentification Supabase. Utilisation des données locales.');
+        } else {
+          setError(`Erreur: ${err.message}`);
+        }
+      } else {
+        setError(`Erreur de chargement des ${tableName}`);
       }
-      const channel = supabase
-        .channel(`${table}_changes`)
-        .on('postgres_changes', { event: '*', schema: 'public', table }, () => fetchData())
-        .subscribe();
-      subRef.current = channel;
-    } catch {}
-
-    return () => {
-      cancelled = true;
+      
+      // En cas d'erreur, essayer de charger les données locales
       try {
-        if (subRef.current) supabase.removeChannel(subRef.current);
-      } catch {}
-    };
-  }, [fetchData, table]);
-
-  return { data, loading, error, refetch: fetchData };
-}
-
-export function useRealtimeData(table: TableName, onChange?: () => void) {
-  const [subscribed, setSubscribed] = useState(false);
-  useEffect(() => {
-    try {
-      const channel = supabase
-        .channel(`${table}_rt`)
-        .on('postgres_changes', { event: '*', schema: 'public', table }, () => onChange?.())
-        .subscribe(() => setSubscribed(true));
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    } catch {
-      setSubscribed(false);
-    }
-  }, [table, onChange]);
-  return { subscribed };
-}
-
-type DashboardStats = { owners: number; tenants: number; properties: number; contracts: number };
-
-export function useDashboardStats() {   // 👈👈👈 l’export manquant
-  const { user, admin } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({ owners: 0, tenants: 0, properties: 0, contracts: 0 });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const agencyId = admin ? null : user?.agencyId ?? null;
-
-  const fetchCounts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const tables: TableName[] = ['owners', 'tenants', 'properties', 'contracts'];
-      const results = await Promise.all(
-        tables.map(async (t) => {
-          let q = supabase.from(t).select('*', { count: 'exact', head: true });
-          if (agencyId) q = q.eq('agency_id', agencyId);
-          const { count, error } = await q;
-          if (error) throw error;
-          return count ?? 0;
-        })
-      );
-      setStats({ owners: results[0], tenants: results[1], properties: results[2], contracts: results[3] });
-    } catch (e: any) {
-      setError(e?.message ?? 'Erreur chargement statistiques');
+        const localKey = user?.agencyId ? `demo_${tableName}_${user.agencyId}` : `demo_${tableName}`;
+        const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+        console.log(`🔄 Fallback ${tableName} depuis localStorage:`, localData.length);
+        setData(localData);
+        setError(null); // Effacer l'erreur si on a des données locales
+      } catch (localError) {
+        console.error(`❌ Erreur données locales ${tableName}:`, localError);
+        setData([]);
+      }
     } finally {
       setLoading(false);
     }
-  }, [agencyId]);
+  };
 
   useEffect(() => {
-    fetchCounts();
-    const channels = (['owners', 'tenants', 'properties', 'contracts'] as TableName[]).map((t) =>
-      supabase
-        .channel(`dash_${t}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: t }, () => fetchCounts())
-        .subscribe()
-    );
-    return () => {
-      channels.forEach((c) => {
-        try { supabase.removeChannel(c); } catch {}
-      });
+    console.log(`🔄 useRealtimeData effect pour ${tableName}, agencyId:`, user?.agencyId);
+    fetchData();
+  }, [user?.agencyId, tableName]);
+
+  const refetch = () => {
+    fetchData();
+  };
+
+  return { data, loading, error, refetch, setData };
+}
+
+// Hook pour les stats du dashboard
+export function useDashboardStats() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user?.agencyId) {
+        setStats({
+          totalProperties: 0,
+          totalOwners: 0,
+          totalTenants: 0,
+          totalContracts: 0,
+          monthlyRevenue: 0,
+          activeContracts: 0,
+          occupancyRate: 0
+        });
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const result = await dbService.getDashboardStats(user.agencyId);
+        setStats(result);
+      } catch (error) {
+        console.error('Erreur stats:', error);
+        setStats({
+          totalProperties: 0,
+          totalOwners: 0,
+          totalTenants: 0,
+          totalContracts: 0,
+          monthlyRevenue: 0,
+          activeContracts: 0,
+          occupancyRate: 0
+        });
+      } finally {
+        setLoading(false);
+      }
     };
-  }, [fetchCounts]);
 
-  return { stats, loading, error, refetch: fetchCounts };
+    fetchStats();
+  }, [user?.agencyId]);
+
+  return { stats, loading };
 }
 
-type CreatePayload = Record<string, any>;
+// Hook pour création
+export function useSupabaseCreate<T>(
+  createFunction: (data: any) => Promise<T>,
+  onSuccess?: (data: T) => void
+) {
+  const [loading, setLoading] = useState(false);
 
-export function useSupabaseCreate(table: TableName, options?: { agencyScoped?: boolean }) {
-  const { user, admin } = useAuth();
-  const agencyScoped = options?.agencyScoped ?? true;
-
-  const create = useCallback(async (payload: CreatePayload) => {
-    if (!supabase) throw new Error('Supabase non configuré');
-    let toInsert = { ...payload };
-    if (!admin && agencyScoped) {
-      const agencyId = user?.agencyId;
-      if (!agencyId) throw new Error("Aucune agence liée à l'utilisateur");
-      toInsert = { ...toInsert, agency_id: toInsert.agency_id ?? agencyId };
+  const create = async (data: any) => {
+    setLoading(true);
+    try {
+      const result = await createFunction(data);
+      onSuccess?.(result);
+      return result;
+    } catch (err) {
+      console.error('Erreur création:', err);
+      throw err;
+    } finally {
+      setLoading(false);
     }
-    const { data, error } = await supabase.from(table).insert(toInsert).select().single();
-    if (error) throw error;
-    return data;
-  }, [admin, agencyScoped, table, user?.agencyId]);
+  };
 
-  return { create };
+  return { create, loading };
 }
 
-export function useSupabaseDelete(table: TableName, options?: { agencyScoped?: boolean }) {
-  const { user, admin } = useAuth();
-  const agencyScoped = options?.agencyScoped ?? true;
+// Hook pour suppression
+export function useSupabaseDelete(
+  deleteFunction: (id: string) => Promise<any>,
+  onSuccess?: () => void
+) {
+  const [loading, setLoading] = useState(false);
 
-  const remove = useCallback(async (id: string) => {
-    if (!supabase) throw new Error('Supabase non configuré');
-    let q = supabase.from(table).delete().eq('id', id);
-    if (!admin && agencyScoped && user?.agencyId) q = q.eq('agency_id', user.agencyId);
-    const { error } = await q;
-    if (error) throw error;
-    return true;
-  }, [admin, agencyScoped, table, user?.agencyId]);
+  const deleteItem = async (id: string) => {
+    setLoading(true);
+    try {
+      await deleteFunction(id);
+      onSuccess?.();
+    } catch (err) {
+      console.error('Erreur suppression:', err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  return { remove };
+  return { deleteItem, loading };
 }
