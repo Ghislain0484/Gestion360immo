@@ -1,210 +1,190 @@
-import React, { useState, useEffect } from 'react';
-import { Building2, Search, Eye, Settings, Ban, CheckCircle, AlertTriangle, Users, MapPin, Clock, UserPlus } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Building2, Search, UserPlus } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
 import { dbService } from '../../lib/supabase';
+import { RegistrationRequestCard } from './RegistrationRequestCard';
+import { AgencyDetailsModal } from './AgencyDetailsModal';
+import { AgencyCard } from './AgencyCard';
+import { useAuth } from '../../contexts/AuthContext';
+import { Agency, AgencyRegistrationRequest, SubscriptionStatus, PlanType, AgencySubscription } from '../../types/db';
+import { BadgeVariant } from '../../types/ui';
+
+// Interface pour les notifications toast
+interface Toast {
+  message: string;
+  type: 'success' | 'error';
+}
 
 export const AgencyManagement: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const { admin, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<SubscriptionStatus | 'all'>('all');
   const [activeTab, setActiveTab] = useState<'agencies' | 'requests'>('requests');
-  const [selectedAgency, setSelectedAgency] = useState<any>(null);
-  const [showDetails, setShowDetails] = useState(false);
-  const [agencies, setAgencies] = useState<any[]>([]);
-  const [registrationRequests, setRegistrationRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedAgency, setSelectedAgency] = useState<(Agency & { subscription_status?: SubscriptionStatus; plan_type?: PlanType; monthly_fee?: number }) | null>(null);
+  const [showDetails, setShowDetails] = useState<boolean>(false);
+  const [agencies, setAgencies] = useState<(Agency & { subscription_status?: SubscriptionStatus; plan_type?: PlanType; monthly_fee?: number })[]>([]);
+  const [registrationRequests, setRegistrationRequests] = useState<AgencyRegistrationRequest[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      console.log('🔄 Chargement données admin...');
-      setLoading(true);
-      setError(null);
-      
-      try {
-        // Charger les demandes d'inscription depuis localStorage
-        const localRequests = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-        console.log('📋 Demandes localStorage:', localRequests.length);
-        
-        // Charger les agences approuvées depuis localStorage
-        const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
-        const agenciesFromApproved = approvedAccounts.map((acc: any) => acc.agencyData).filter(Boolean);
-        console.log('🏢 Agences approuvées:', agenciesFromApproved.length);
-        
-        setRegistrationRequests(localRequests);
-        setAgencies(agenciesFromApproved);
-        
-        console.log('✅ Données chargées avec succès');
-        
-      } catch (error) {
-        console.error('❌ Erreur chargement données admin:', error);
-        setError('Erreur lors du chargement des données');
-        
-        // En cas d'erreur, initialiser avec des tableaux vides
-        setRegistrationRequests([]);
-        setAgencies([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+  // Fonction pour afficher les notifications toast
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000); // Auto-dismiss après 3 secondes
   }, []);
 
-  const approveRegistration = async (requestId: string) => {
+  // Rediriger si non authentifié ou non admin
+  useEffect(() => {
+    if (isLoading) return;
+    if (!admin) {
+      setError('Vous devez être connecté en tant qu’administrateur pour accéder à cette page.');
+      navigate('/login');
+      return;
+    }
+    if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+      setError('Vous devez être administrateur pour accéder à cette page.');
+      navigate('/login');
+    }
+  }, [admin, isLoading, navigate]);
+
+  // Charger les données depuis Supabase
+  const fetchData = useCallback(async () => {
+    if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+      setError('Accès non autorisé. Veuillez vous connecter en tant qu’administrateur.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
     try {
-      console.log('🔄 Approbation demande:', requestId);
-      
-      // Trouver la demande
-      const request = registrationRequests.find(r => r.id === requestId);
-      if (!request) {
-        throw new Error('Demande non trouvée');
-      }
-      
-      console.log('📋 Demande trouvée:', request.agency_name);
-      
-      // Créer le compte approuvé
-      const approvedAccount = {
-        id: `approved_${Date.now()}`,
-        email: request.director_email,
-        password: request.director_password || 'demo123',
-        firstName: request.director_first_name,
-        lastName: request.director_last_name,
-        role: 'director',
-        agencyId: `agency_${Date.now()}`,
-        agencyData: {
-          id: `agency_${Date.now()}`,
-          name: request.agency_name,
-          commercial_register: request.commercial_register,
-          address: request.address,
-          city: request.city,
-          phone: request.phone,
-          email: request.director_email,
-          director_id: `approved_${Date.now()}`,
-          created_at: new Date().toISOString(),
-          subscription_status: 'trial',
-          plan_type: 'basic',
-          monthly_fee: 25000
-        },
-        createdAt: new Date().toISOString()
-      };
-      
-      // Sauvegarder le compte approuvé
-      const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
-      approvedAccounts.push(approvedAccount);
-      localStorage.setItem('approved_accounts', JSON.stringify(approvedAccounts));
-      
-      // Marquer la demande comme approuvée
-      const updatedRequests = registrationRequests.map(r => 
-        r.id === requestId 
-          ? { 
-              ...r, 
-              status: 'approved',
-              processed_at: new Date().toISOString(),
-              processed_by: 'admin_production'
-            }
-          : r
-      );
-      
-      localStorage.setItem('demo_registration_requests', JSON.stringify(updatedRequests));
-      
-      // Mettre à jour les états
-      setRegistrationRequests(updatedRequests);
-      setAgencies(prev => [...prev, approvedAccount.agencyData]);
-      
-      console.log('✅ Agence approuvée:', approvedAccount.agencyData.name);
-      
-      alert(`✅ AGENCE APPROUVÉE AVEC SUCCÈS !
-      
-🏢 AGENCE : ${request.agency_name}
-👤 DIRECTEUR : ${request.director_first_name} ${request.director_last_name}
-📧 EMAIL : ${request.director_email}
-🔑 MOT DE PASSE : ${request.director_password || 'demo123'}
+      const [requests, agencies, subscriptions] = await Promise.all([
+        dbService.agencyRegistrationRequests.getAll(),
+        dbService.agencies.getAll(),
+        dbService.agencySubscriptions.getAll(),
+      ]);
 
-✅ L'agence a été créée et activée
-✅ Le compte directeur est opérationnel
-✅ Abonnement d'essai de 30 jours démarré
+      // Combiner les données des agences avec leurs abonnements
+      const enrichedAgencies = agencies.map(agency => {
+        const subscription = subscriptions.find(sub => sub.agency_id === agency.id);
+        return {
+          ...agency,
+          subscription_status: subscription?.status,
+          plan_type: subscription?.plan_type,
+          monthly_fee: subscription?.monthly_fee,
+        };
+      });
 
-IDENTIFIANTS DE CONNEXION :
-Email : ${request.director_email}
-Mot de passe : ${request.director_password || 'demo123'}
+      setRegistrationRequests(requests);
+      setAgencies(enrichedAgencies);
+    } catch (err: any) {
+      console.error('❌ Erreur chargement:', err);
+      const errorMessage = err.message || 'Erreur lors du chargement des données';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [admin, showToast]);
 
-🌐 Le directeur peut maintenant se connecter sur :
-www.gestion360immo.com
+  useEffect(() => {
+    if (admin && (admin.role === 'admin' || admin.role === 'super_admin')) {
+      fetchData();
+    }
+  }, [admin, fetchData]);
 
-L'agence apparaîtra dans l'onglet "Agences Actives".`);
-      
-    } catch (error) {
+  // Approuver une demande
+  const approveRegistration = useCallback(async (requestId: string) => {
+    if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+      setError('Vous devez être connecté en tant qu’administrateur pour approuver une demande.');
+      showToast('Accès non autorisé', 'error');
+      return;
+    }
+
+    try {
+      await dbService.agencyRegistrationRequests.approve(requestId);
+      setError(null);
+      showToast('Agence approuvée avec succès !', 'success');
+      fetchData();
+    } catch (error: any) {
       console.error('❌ Erreur approbation:', error);
-      alert(`❌ Erreur lors de l'approbation: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      const errorMessage = error.message || 'Erreur inconnue lors de l’approbation';
+      setError(errorMessage);
+      showToast(`Erreur: ${errorMessage}`, 'error');
     }
-  };
+  }, [admin, showToast, fetchData]);
 
-  const rejectRegistration = async (requestId: string) => {
+  // Rejeter une demande
+  const rejectRegistration = useCallback(async (requestId: string) => {
+    if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+      setError('Vous devez être connecté en tant qu’administrateur pour rejeter une demande.');
+      showToast('Accès non autorisé', 'error');
+      return;
+    }
+
     const reason = prompt('Raison du rejet (optionnel):');
-    
     try {
-      console.log('🔄 Rejet demande:', requestId);
-      
-      const updatedRequests = registrationRequests.map(r => 
-        r.id === requestId 
-          ? { 
-              ...r, 
-              status: 'rejected',
-              admin_notes: reason || null,
-              processed_at: new Date().toISOString(),
-              processed_by: 'admin_production'
-            }
-          : r
-      );
-      
-      localStorage.setItem('demo_registration_requests', JSON.stringify(updatedRequests));
-      setRegistrationRequests(updatedRequests);
-      
-      alert(`✅ Demande rejetée avec succès.
-      
-${reason ? `Raison: ${reason}` : 'Aucune raison spécifiée'}
-
-L'agence sera notifiée du rejet.`);
-      
-    } catch (error) {
+      await dbService.agencyRegistrationRequests.reject(requestId, reason || undefined);
+      setError(null);
+      showToast(`Demande rejetée${reason ? ` : ${reason}` : ''}`, 'success');
+      fetchData();
+    } catch (error: any) {
       console.error('❌ Erreur rejet:', error);
-      alert(`❌ Erreur lors du rejet: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      const errorMessage = error.message || 'Erreur inconnue lors du rejet';
+      setError(errorMessage);
+      showToast(`Erreur: ${errorMessage}`, 'error');
     }
-  };
+  }, [admin, showToast, fetchData]);
 
-  const getStatusColor = (status: string) => {
+  // Helpers UI
+  const getStatusColor = (status: SubscriptionStatus): BadgeVariant => {
     switch (status) {
-      case 'active': return 'success';
-      case 'suspended': return 'danger';
-      case 'trial': return 'warning';
-      case 'cancelled': return 'secondary';
-      default: return 'secondary';
+      case 'active':
+        return 'success';
+      case 'suspended':
+        return 'danger';
+      case 'trial':
+        return 'warning';
+      case 'cancelled':
+        return 'secondary';
+      default:
+        return 'secondary';
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: SubscriptionStatus): string => {
     switch (status) {
-      case 'active': return 'Actif';
-      case 'suspended': return 'Suspendu';
-      case 'trial': return 'Essai';
-      case 'cancelled': return 'Annulé';
-      default: return status;
+      case 'active':
+        return 'Actif';
+      case 'suspended':
+        return 'Suspendu';
+      case 'trial':
+        return 'Essai';
+      case 'cancelled':
+        return 'Annulé';
+      default:
+        return status;
     }
   };
 
-  const getPlanLabel = (plan: string) => {
+  const getPlanLabel = (plan: PlanType): string => {
     switch (plan) {
-      case 'basic': return 'Basique';
-      case 'premium': return 'Premium';
-      case 'enterprise': return 'Entreprise';
-      default: return plan;
+      case 'basic':
+        return 'Basique';
+      case 'premium':
+        return 'Premium';
+      case 'enterprise':
+        return 'Entreprise';
+      default:
+        return plan;
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'XOF',
@@ -212,16 +192,31 @@ L'agence sera notifiée du rejet.`);
     }).format(amount);
   };
 
-  const pendingRequests = registrationRequests.filter(r => r.status === 'pending');
-  const processedRequests = registrationRequests.filter(r => r.status !== 'pending');
+  const pendingRequests = registrationRequests.filter((r) => r.status === 'pending');
+  const processedRequests = registrationRequests.filter((r) => r.status !== 'pending');
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <div className="space-y-6">
         <h2 className="text-xl font-bold text-gray-900">Gestion des Agences</h2>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-bold text-gray-900">Gestion des Agences</h2>
+        <Card className="p-8 text-center">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Erreur</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button variant="outline" onClick={fetchData}>
+            Réessayer
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -239,6 +234,17 @@ L'agence sera notifiée du rejet.`);
           </Badge>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 p-4 rounded-lg text-white ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -273,72 +279,12 @@ L'agence sera notifiée du rejet.`);
         <div className="space-y-4">
           {pendingRequests.length > 0 ? (
             pendingRequests.map((request) => (
-              <Card key={request.id} className="border-l-4 border-l-yellow-500">
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                        <Clock className="h-6 w-6 text-yellow-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          {request.agency_name || 'Nom non spécifié'}
-                        </h3>
-                        <p className="text-sm text-gray-500">Demande d'inscription</p>
-                      </div>
-                    </div>
-                    <Badge variant="warning" size="sm">En attente</Badge>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Informations agence</h4>
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <p><strong>Nom:</strong> {request.agency_name || 'Non spécifié'}</p>
-                        <p><strong>Registre:</strong> {request.commercial_register || 'Non spécifié'}</p>
-                        <p><strong>Ville:</strong> {request.city || 'Non spécifiée'}</p>
-                        <p><strong>Adresse:</strong> {request.address || 'Non spécifiée'}</p>
-                        <p><strong>Téléphone:</strong> {request.phone || 'Non spécifié'}</p>
-                        {request.is_accredited && (
-                          <p><strong>Agrément:</strong> {request.accreditation_number || 'Oui'}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Directeur</h4>
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <p><strong>Nom:</strong> {request.director_first_name || 'Non spécifié'} {request.director_last_name || ''}</p>
-                        <p><strong>Email:</strong> {request.director_email || 'Non spécifié'}</p>
-                        <p><strong>Mot de passe:</strong> {request.director_password ? '••••••••' : 'Non défini'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t">
-                    <span className="text-xs text-gray-500">
-                      Demande reçue le {request.created_at ? new Date(request.created_at).toLocaleDateString('fr-FR') : 'Date inconnue'}
-                    </span>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => approveRegistration(request.id)}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Approuver
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => rejectRegistration(request.id)}
-                      >
-                        <Ban className="h-4 w-4 mr-1" />
-                        Rejeter
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </Card>
+              <RegistrationRequestCard
+                key={request.id}
+                request={request}
+                approveRegistration={approveRegistration}
+                rejectRegistration={rejectRegistration}
+              />
             ))
           ) : (
             <Card className="p-8 text-center">
@@ -349,10 +295,7 @@ L'agence sera notifiée du rejet.`);
               <p className="text-gray-600 mb-4">
                 Les nouvelles demandes d'inscription apparaîtront ici.
               </p>
-              <Button 
-                variant="outline" 
-                onClick={() => window.location.reload()}
-              >
+              <Button variant="outline" onClick={fetchData}>
                 Actualiser
               </Button>
             </Card>
@@ -364,21 +307,32 @@ L'agence sera notifiée du rejet.`);
               <h3 className="text-lg font-medium text-gray-900 mb-4">Demandes traitées récemment</h3>
               <div className="space-y-3">
                 {processedRequests.slice(0, 5).map((request) => (
-                  <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div
+                    key={request.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  >
                     <div>
                       <p className="font-medium text-gray-900">{request.agency_name}</p>
                       <p className="text-sm text-gray-500">
-                        {request.director_first_name} {request.director_last_name} • {request.director_email}
+                        {request.director_first_name} {request.director_last_name} •{' '}
+                        {request.director_email}
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Badge variant={request.status === 'approved' ? 'success' : 'danger'} size="sm">
+                      <Badge
+                        variant={request.status === 'approved' ? 'success' : 'danger'}
+                        size="sm"
+                      >
                         {request.status === 'approved' ? 'Approuvée' : 'Rejetée'}
                       </Badge>
                       <span className="text-xs text-gray-500">
-                        {request.processed_at ? 
-                          new Date(request.processed_at).toLocaleDateString('fr-FR') : 
-                          'Date inconnue'}
+                        {request.processed_at
+                          ? new Date(request.processed_at).toLocaleDateString('fr-FR', {
+                              day: '2-digit',
+                              month: 'long',
+                              year: 'numeric',
+                            })
+                          : 'Date inconnue'}
                       </span>
                     </div>
                   </div>
@@ -394,7 +348,7 @@ L'agence sera notifiée du rejet.`);
         <div className="space-y-6">
           {/* Filters */}
           <Card>
-            <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex flex-col md:flex-row gap-4 p-4">
               <div className="flex-1">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -407,16 +361,16 @@ L'agence sera notifiée du rejet.`);
                   />
                 </div>
               </div>
-              
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => setFilterStatus(e.target.value as SubscriptionStatus | 'all')}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="all">Tous les statuts</option>
                 <option value="active">Actif</option>
                 <option value="trial">Essai</option>
                 <option value="suspended">Suspendu</option>
+                <option value="cancelled">Annulé</option>
               </select>
             </div>
           </Card>
@@ -424,79 +378,26 @@ L'agence sera notifiée du rejet.`);
           {agencies.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {agencies
-                .filter(agency => {
-                  const matchesSearch = agency.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                     agency.city.toLowerCase().includes(searchTerm.toLowerCase());
-                  const matchesStatus = filterStatus === 'all' || agency.subscription_status === filterStatus;
+                .filter((agency) => {
+                  const matchesSearch =
+                    agency.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    agency.city.toLowerCase().includes(searchTerm.toLowerCase());
+                  const matchesStatus =
+                    filterStatus === 'all' ||
+                    agency.subscription_status === filterStatus;
                   return matchesSearch && matchesStatus;
                 })
                 .map((agency) => (
-                  <Card key={agency.id} className="hover:shadow-lg transition-shadow">
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <Building2 className="h-6 w-6 text-blue-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-900">{agency.name}</h3>
-                            <p className="text-sm text-gray-500">{agency.commercial_register}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant={getStatusColor(agency.subscription_status)} size="sm">
-                            {getStatusLabel(agency.subscription_status)}
-                          </Badge>
-                          <Badge variant="secondary" size="sm">
-                            {getPlanLabel(agency.plan_type)}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center text-sm text-gray-600">
-                          <MapPin className="h-4 w-4 mr-2" />
-                          <span>{agency.city}</span>
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          <span>Email: {agency.email}</span>
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          <span>Téléphone: {agency.phone}</span>
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-blue-50 rounded-lg mb-4">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-blue-800">Abonnement mensuel:</span>
-                          <span className="font-medium text-blue-900">
-                            {formatCurrency(agency.monthly_fee)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">
-                          Inscrite le {new Date(agency.created_at).toLocaleDateString('fr-FR')}
-                        </span>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedAgency(agency);
-                              setShowDetails(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
+                  <AgencyCard
+                    key={agency.id}
+                    agency={agency}
+                    getStatusColor={getStatusColor}
+                    getStatusLabel={getStatusLabel}
+                    getPlanLabel={getPlanLabel}
+                    formatCurrency={formatCurrency}
+                    setSelectedAgency={setSelectedAgency}
+                    setShowDetails={setShowDetails}
+                  />
                 ))}
             </div>
           ) : (
@@ -513,52 +414,18 @@ L'agence sera notifiée du rejet.`);
         </div>
       )}
 
-      {/* Agency Details Modal */}
-      <Modal
+      <AgencyDetailsModal
         isOpen={showDetails}
         onClose={() => {
           setShowDetails(false);
           setSelectedAgency(null);
         }}
-        title="Détails de l'agence"
-        size="lg"
-      >
-        {selectedAgency && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Informations générales</h4>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Nom:</strong> {selectedAgency.name}</p>
-                  <p><strong>Registre:</strong> {selectedAgency.commercial_register}</p>
-                  <p><strong>Ville:</strong> {selectedAgency.city}</p>
-                  <p><strong>Email:</strong> {selectedAgency.email}</p>
-                  <p><strong>Téléphone:</strong> {selectedAgency.phone}</p>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Abonnement</h4>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Plan:</strong> {getPlanLabel(selectedAgency.plan_type)}</p>
-                  <p><strong>Statut:</strong> 
-                    <Badge variant={getStatusColor(selectedAgency.subscription_status)} size="sm" className="ml-2">
-                      {getStatusLabel(selectedAgency.subscription_status)}
-                    </Badge>
-                  </p>
-                  <p><strong>Montant mensuel:</strong> {formatCurrency(selectedAgency.monthly_fee)}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-4 border-t">
-              <Button variant="ghost" onClick={() => setShowDetails(false)}>
-                Fermer
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+        selectedAgency={selectedAgency}
+        getStatusColor={getStatusColor}
+        getStatusLabel={getStatusLabel}
+        getPlanLabel={getPlanLabel}
+        formatCurrency={formatCurrency}
+      />
     </div>
   );
 };

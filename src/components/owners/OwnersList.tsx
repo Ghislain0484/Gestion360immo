@@ -134,13 +134,13 @@ export const OwnersList: React.FC = () => {
 
   const filteredOwners = owners.filter(owner => {
     const matchesSearch = 
-      owner.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      owner.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      owner.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      owner.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       owner.phone.includes(searchTerm) ||
       owner.city.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesMaritalStatus = filterMaritalStatus === 'all' || owner.marital_status === filterMaritalStatus;
-    const matchesPropertyTitle = filterPropertyTitle === 'all' || owner.property_title === filterPropertyTitle;
+    const matchesMaritalStatus = filterMaritalStatus === 'all' || owner.maritalStatus === filterMaritalStatus;
+    const matchesPropertyTitle = filterPropertyTitle === 'all' || owner.propertyTitle === filterPropertyTitle;
     
     return matchesSearch && matchesMaritalStatus && matchesPropertyTitle;
   });
@@ -231,12 +231,12 @@ export const OwnersList: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                     <span className="text-blue-600 font-semibold text-lg">
-                      {owner.first_name[0]}{owner.last_name[0]}
+                      {owner.firstName[0]}{owner.lastName[0]}
                     </span>
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">
-                      {owner.first_name} {owner.last_name}
+                      {owner.firstName} {owner.lastName}
                     </h3>
                     <div className="flex items-center text-sm text-gray-600">
                       <Phone className="h-3 w-3 mr-1" />
@@ -286,33 +286,33 @@ export const OwnersList: React.FC = () => {
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Titre:</span>
-                  <Badge variant={getPropertyTitleColor(owner.property_title)} size="sm">
-                    {getPropertyTitleLabel(owner.property_title)}
+                  <Badge variant={getPropertyTitleColor(owner.propertyTitle)} size="sm">
+                    {getPropertyTitleLabel(owner.propertyTitle)}
                   </Badge>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Situation:</span>
-                  <Badge variant={getMaritalStatusColor(owner.marital_status)} size="sm">
-                    {getMaritalStatusLabel(owner.marital_status)}
+                  <Badge variant={getMaritalStatusColor(owner.maritalStatus)} size="sm">
+                    {getMaritalStatusLabel(owner.maritalStatus)}
                   </Badge>
                 </div>
 
-                {owner.marital_status === 'marie' && owner.spouse_name && (
+                {owner.maritalStatus === 'marie' && owner.spouseName && (
                   <div className="text-sm text-gray-600 bg-pink-50 p-2 rounded">
-                    <p><strong>Conjoint:</strong> {owner.spouse_name}</p>
+                    <p><strong>Conjoint:</strong> {owner.spouseName}</p>
                   </div>
                 )}
 
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Enfants:</span>
-                  <span className="font-medium text-gray-900">{owner.children_count}</span>
+                  <span className="font-medium text-gray-900">{owner.childrenCount}</span>
                 </div>
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="text-xs text-gray-500">
-                  Ajouté le {new Date(owner.created_at).toLocaleDateString('fr-FR')}
+                  Ajouté le {new Date(owner.createdAt).toLocaleDateString('fr-FR')}
                 </div>
               </div>
             </div>
@@ -365,7 +365,7 @@ export const OwnersList: React.FC = () => {
           <FinancialStatements
             entityId={selectedOwner.id}
             entityType="owner"
-            entityName={`${selectedOwner.first_name} ${selectedOwner.last_name}`}
+            entityName={`${selectedOwner.firstName} ${selectedOwner.lastName}`}
           />
         </Modal>
       )}

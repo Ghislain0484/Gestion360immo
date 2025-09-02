@@ -10,6 +10,7 @@ import { Announcement, AnnouncementInterest } from '../../types/collaboration';
 import { TenantHistorySearch } from './TenantHistorySearch';
 import { OwnerHistorySearch } from './OwnerHistorySearch';
 import { useAuth } from '../../contexts/AuthContext';
+import { dbService } from '../../lib/supabase';
 
 export const CollaborationHub: React.FC = () => {
   const { user } = useAuth();

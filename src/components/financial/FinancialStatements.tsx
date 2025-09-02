@@ -7,6 +7,7 @@ import { Modal } from '../ui/Modal';
 import { FinancialStatement, FinancialTransaction } from '../../types/receipt';
 
 import { useEffect } from 'react';
+import { dbService } from '../../lib/supabase';
 
 interface FinancialStatementsProps {
   entityId: string;

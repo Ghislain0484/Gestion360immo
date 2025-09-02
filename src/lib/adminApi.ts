@@ -1,21 +1,28 @@
-import { supabase } from "@/lib/supabase";
+import { PlatformStats } from "../types/admin";
+import { supabase } from "./supabase";
 
-export async function getPlatformStats() {
-  const { count: pending = 0, error: pErr } = await supabase
+export async function getPlatformStats(): Promise<PlatformStats> {
+  const { count: pending } = await supabase
     .from("agency_registration_requests")
     .select("*", { head: true, count: "exact" })
     .eq("status", "pending");
-  if (pErr) throw pErr;
 
-  // si pas de table "agencies", on ignore l'erreur et met 0
-  let approved = 0;
-  const { count: appr } = await supabase
+  const { count: approved } = await supabase
     .from("agencies")
     .select("*", { head: true, count: "exact" })
     .eq("status", "approved");
-  if (typeof appr === "number") approved = appr;
 
-  return { pendingRequests: pending, approvedAgencies: approved };
+  return {
+    pendingRequests: pending ?? 0,
+    approvedAgencies: approved ?? 0,
+    totalAgencies: approved ?? 0,          // exemple placeholder
+    activeAgencies: approved ?? 0,         // idem
+    totalRevenue: 0,                       // à calculer + tard
+    monthlyGrowth: 0,
+    subscriptionRevenue: 0,
+    totalProperties: 0,
+    totalContracts: 0,
+  };
 }
 
 export async function listPendingRegistrationRequests(limit = 100) {
