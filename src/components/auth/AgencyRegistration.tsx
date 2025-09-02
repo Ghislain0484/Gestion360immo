@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
-import { Building2, Upload, Shield, Users, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Building2, Upload, Shield, Users, Save, RefreshCw } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
+<<<<<<< HEAD
+=======
+import { Toaster, toast } from 'react-hot-toast';
+>>>>>>> 12fe85b (chore: ensure App.tsx single declaration)
 import { AgencyFormData, UserFormData } from '../../types/agency';
 import { dbService } from '../../lib/supabase';
 
@@ -20,6 +24,10 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+<<<<<<< HEAD
+=======
+  const [loadingSync, setLoadingSync] = useState(false);
+>>>>>>> 12fe85b (chore: ensure App.tsx single declaration)
 
   const [agencyData, setAgencyData] = useState<AgencyFormData>({
     name: '',
@@ -69,6 +77,26 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     updateAgencyData({ logo: url });
   };
 
+  // ---------- Synchronisation automatique toutes les 5 minutes ----------
+  useEffect(() => {
+    const interval = setInterval(() => {
+      dbService.syncLocalRequests((msg, success) => {
+        success ? toast.success(msg) : toast.error(msg);
+      });
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ---------- Sync manuel ----------
+  const handleManualSync = async () => {
+    setLoadingSync(true);
+    await dbService.syncLocalRequests((msg, success) => {
+      success ? toast.success(msg) : toast.error(msg);
+    });
+    setLoadingSync(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -106,7 +134,10 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     };
 
     try {
+<<<<<<< HEAD
       // 1) on tente Supabase d’abord
+=======
+>>>>>>> 12fe85b (chore: ensure App.tsx single declaration)
       const result = await dbService.createRegistrationRequest(requestData);
 
       alert(
@@ -333,8 +364,20 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
               </Button>
             )}
           </div>
+<<<<<<< HEAD
           <div className="flex space-x-3">
             <Button type="button" variant="ghost" onClick={onClose}>Annuler</Button>
+=======
+          <div className="flex space-x-3 items-center">
+            <Button type="button" variant="ghost" onClick={onClose}>Annuler</Button>
+
+            {/* Bouton manuel de sync */}
+            <Button type="button" variant="outline" onClick={handleManualSync} disabled={loadingSync} className="flex items-center gap-2">
+              <RefreshCw className={`h-4 w-4 ${loadingSync ? 'animate-spin' : ''}`} />
+              {loadingSync ? 'Synchronisation...' : 'Forcer la synchronisation'}
+            </Button>
+
+>>>>>>> 12fe85b (chore: ensure App.tsx single declaration)
             {currentStep < 3 ? (
               <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>Suivant</Button>
             ) : (
@@ -346,6 +389,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
           </div>
         </div>
       </form>
+      <Toaster position="bottom-right" />
     </Modal>
   );
 };
