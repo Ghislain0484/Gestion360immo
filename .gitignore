@@ -23,15 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 .env
-
-# Local temp & Vite timestamps
-.tmp/
-*.timestamp-*.mjs
-
-# Local temp & Vite timestamps
-.tmp/
-*.timestamp-*.mjs
-
-# Backups locaux
-*.bak
-*.bak

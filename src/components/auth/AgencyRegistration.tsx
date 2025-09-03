@@ -4,10 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
-<<<<<<< HEAD
-=======
 import { Toaster, toast } from 'react-hot-toast';
->>>>>>> 12fe85b (chore: ensure App.tsx single declaration)
 import { AgencyFormData, UserFormData } from '../../types/agency';
 import { dbService } from '../../lib/supabase';
 
@@ -24,10 +21,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-<<<<<<< HEAD
-=======
   const [loadingSync, setLoadingSync] = useState(false);
->>>>>>> 12fe85b (chore: ensure App.tsx single declaration)
 
   const [agencyData, setAgencyData] = useState<AgencyFormData>({
     name: '',
@@ -134,10 +128,6 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     };
 
     try {
-<<<<<<< HEAD
-      // 1) on tente Supabase d’abord
-=======
->>>>>>> 12fe85b (chore: ensure App.tsx single declaration)
       const result = await dbService.createRegistrationRequest(requestData);
 
       alert(
@@ -364,10 +354,6 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
               </Button>
             )}
           </div>
-<<<<<<< HEAD
-          <div className="flex space-x-3">
-            <Button type="button" variant="ghost" onClick={onClose}>Annuler</Button>
-=======
           <div className="flex space-x-3 items-center">
             <Button type="button" variant="ghost" onClick={onClose}>Annuler</Button>
 
@@ -377,7 +363,6 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
               {loadingSync ? 'Synchronisation...' : 'Forcer la synchronisation'}
             </Button>
 
->>>>>>> 12fe85b (chore: ensure App.tsx single declaration)
             {currentStep < 3 ? (
               <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>Suivant</Button>
             ) : (

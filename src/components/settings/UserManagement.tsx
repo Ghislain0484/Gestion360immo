@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Shield, Edit, Trash2, Eye, EyeOff, UserCheck, UserX } from 'lucide-react';
+import { Plus, Users, Shield, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -7,14 +7,14 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { UserFormData, UserPermissions } from '../../types/agency';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService, supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 export const UserManagement: React.FC = () => {
   const { user } = useAuth();
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [realUsers, setRealUsers] = useState<any[]>([]);
+  const [agencyUsers, setAgencyUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,53 +71,41 @@ export const UserManagement: React.FC = () => {
       setError(null);
       
       try {
-        // Charger les utilisateurs de cette agence uniquement
-        const agencyUsersKey = `agency_users_${user.agencyId}`;
-        const storedUsers = JSON.parse(localStorage.getItem(agencyUsersKey) || '[]');
+        // Charger les utilisateurs de cette agence depuis Supabase
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select(`
+            *,
+            agency_users (
+              role,
+              created_at
+            )
+          `)
+          .eq('agency_users.agency_id', user.agencyId)
+          .order('created_at', { ascending: false });
+
+        if (usersError) throw usersError;
+
+        // Filtrer et mapper les données
+        const formattedUsers = usersData.map(u => ({
+          ...u,
+          role: u.agency_users?.[0]?.role || 'agent',
+        }));
+
+        setAgencyUsers(formattedUsers);
+        console.log(`✅ ${formattedUsers.length} utilisateur(s) chargé(s) pour l'agence ${user.agencyId}`);
         
-        // Ajouter l'utilisateur connecté s'il n'est pas dans la liste
-        const currentUserExists = storedUsers.find((u: any) => u.id === user.id);
-        if (!currentUserExists) {
-          const currentUserData = {
-            id: user.id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            role: user.role,
-            agencyId: user.agencyId,
-            isActive: true,
-            permissions: {
-              dashboard: true,
-              properties: true,
-              owners: true,
-              tenants: true,
-              contracts: true,
-              collaboration: true,
-              reports: true,
-              notifications: true,
-              settings: true,
-              userManagement: user.role === 'director',
-            },
-            createdAt: new Date(),
-          };
-          storedUsers.unshift(currentUserData);
-          localStorage.setItem(agencyUsersKey, JSON.stringify(storedUsers));
-        }
-        
-        setRealUsers(storedUsers);
-        console.log(`✅ ${storedUsers.length} utilisateur(s) chargé(s) pour l'agence ${user.agencyId}`);
-        
-      } catch (error) {
-        console.error('❌ Erreur chargement utilisateurs:', error);
+      } catch (err) {
+        console.error('❌ Erreur chargement utilisateurs:', err);
         setError('Erreur lors du chargement des utilisateurs');
-        setRealUsers([]);
+        setAgencyUsers([]);
       } finally {
         setLoadingUsers(false);
       }
     };
     
     loadAgencyUsers();
-  }, [user?.agencyId, user?.id]);
+  }, [user?.agencyId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,8 +117,8 @@ export const UserManagement: React.FC = () => {
         throw new Error('Tous les champs obligatoires doivent être remplis');
       }
       
-      if (!editingUser && (!formData.password || formData.password.length < 6)) {
-        throw new Error('Le mot de passe doit contenir au moins 6 caractères');
+      if (!editingUser && (!formData.password || formData.password.length < 8)) {
+        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
       }
       
       // Validation email
@@ -139,81 +127,143 @@ export const UserManagement: React.FC = () => {
       }
       
       // Vérifier que l'email n'existe pas déjà
-      const agencyUsersKey = `agency_users_${user?.agencyId}`;
-      const existingUsers = JSON.parse(localStorage.getItem(agencyUsersKey) || '[]');
-      const emailExists = existingUsers.find((u: any) => 
-        u.email.toLowerCase() === formData.email.toLowerCase() && 
-        (!editingUser || u.id !== editingUser.id)
-      );
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', formData.email.toLowerCase())
+        .neq(editingUser ? 'id' : 'fake_id', editingUser?.id || 'none')
+        .single();
       
-      if (emailExists) {
+      if (checkError && checkError.code !== 'PGRST116') throw checkError;
+      if (existingUser) {
         throw new Error('Cet email est déjà utilisé par un autre utilisateur');
       }
       
+      let userId: string | undefined;
+      let authUser: any;
+
       if (editingUser) {
         // Mise à jour utilisateur existant
-        const updateData = {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          role: formData.role,
-          permissions: formData.permissions,
-          isActive: formData.isActive,
-          updatedAt: new Date(),
-        };
-        
-        const updatedUsers = existingUsers.map((u: any) => 
-          u.id === editingUser.id ? { ...u, ...updateData } : u
-        );
-        
-        localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
-        setRealUsers(updatedUsers);
-        
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            permissions: formData.permissions,
+            is_active: formData.isActive,
+            updated_at: new Date(),
+          })
+          .eq('id', editingUser.id);
+
+        if (updateError) throw updateError;
+
+        // Mise à jour du rôle dans agency_users
+        const { error: roleError } = await supabase
+          .from('agency_users')
+          .update({ role: formData.role })
+          .eq('user_id', editingUser.id)
+          .eq('agency_id', user?.agencyId);
+
+        if (roleError) throw roleError;
+
+        userId = editingUser.id;
         alert('✅ Utilisateur mis à jour avec succès !');
       } else {
-        // Création nouvel utilisateur
-        const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const userData = {
-          id: newUserId,
-          email: formData.email,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          role: formData.role,
-          agencyId: user?.agencyId || '',
-          permissions: formData.permissions,
-          isActive: formData.isActive,
-          password: formData.password,
-          createdAt: new Date(),
-        };
-        
-        const updatedUsers = [userData, ...existingUsers];
-        localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
-        setRealUsers(updatedUsers);
-        
+        // Création nouvel utilisateur avec Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email.trim(),
+          password: formData.password.trim(),
+          options: {
+            data: {
+              first_name: formData.firstName,
+              last_name: formData.lastName,
+              role: formData.role,
+              agency_id: formData.agencyId,
+            }
+          }
+        });
+
+        if (authError) throw authError;
+        authUser = authData.user;
+
+        if (!authUser) throw new Error('Erreur lors de la création de l\'utilisateur auth');
+
+        // Insérer dans la table users (lié à auth.users.id)
+        const { error: userError } = await supabase
+          .from('users')
+          .insert({
+            id: authUser.id,
+            email: formData.email,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            permissions: formData.permissions,
+            is_active: formData.isActive,
+            created_at: new Date(),
+            updated_at: new Date(),
+          });
+
+        if (userError) {
+          // Nettoyage si erreur: supprimer l'utilisateur auth
+          await supabase.auth.admin.deleteUser(authUser.id);
+          throw userError;
+        }
+
+        // Insérer dans agency_users
+        const { error: agencyUserError } = await supabase
+          .from('agency_users')
+          .insert({
+            user_id: authUser.id,
+            agency_id: formData.agencyId,
+            role: formData.role,
+            created_at: new Date(),
+          });
+
+        if (agencyUserError) {
+          // Nettoyage
+          await supabase.from('users').delete().eq('id', authUser.id);
+          await supabase.auth.admin.deleteUser(authUser.id);
+          throw agencyUserError;
+        }
+
+        userId = authUser.id;
         alert(`✅ UTILISATEUR CRÉÉ AVEC SUCCÈS !
         
 👤 NOM : ${formData.firstName} ${formData.lastName}
 📧 EMAIL : ${formData.email}
-🔑 MOT DE PASSE : ${formData.password}
+🔑 MOT DE PASSE TEMPORAIRE : ${formData.password}
 👔 RÔLE : ${roleLabels[formData.role]}
 
-✅ Le compte a été créé et sauvegardé
+✅ Le compte a été créé dans Supabase Auth
 ✅ L'utilisateur peut maintenant se connecter
-✅ Permissions configurées selon le rôle
+✅ Permissions et rôle configurés
 
-IDENTIFIANTS DE CONNEXION :
-Email : ${formData.email}
-Mot de passe : ${formData.password}
-
-L'utilisateur peut maintenant se connecter avec ces identifiants.`);
+L'utilisateur doit confirmer son email si la vérification est activée, et changer son mot de passe à la première connexion.`);
       }
+
+      // Recharger la liste des utilisateurs
+      const { data: updatedUsers } = await supabase
+        .from('users')
+        .select(`
+          *,
+          agency_users (
+            role,
+            created_at
+          )
+        `)
+        .eq('agency_users.agency_id', user?.agencyId);
+      
+      setAgencyUsers(updatedUsers?.map(u => ({
+        ...u,
+        role: u.agency_users?.[0]?.role || 'agent',
+      })) || []);
       
       setShowUserForm(false);
       setEditingUser(null);
       resetForm();
-    } catch (error) {
-      console.error('❌ Erreur gestion utilisateur:', error);
-      alert(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    } catch (err) {
+      console.error('❌ Erreur gestion utilisateur:', err);
+      alert(`Erreur: ${err instanceof Error ? err.message : 'Erreur inconnue'}`);
     } finally {
       setLoading(false);
     }
@@ -247,41 +297,67 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
     setEditingUser(userData);
     setFormData({
       email: userData.email,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
+      firstName: userData.first_name,
+      lastName: userData.last_name,
       role: userData.role,
-      agencyId: userData.agencyId || user?.agencyId || '',
+      agencyId: userData.agency_id || user?.agencyId || '',
       permissions: userData.permissions,
-      isActive: userData.isActive,
+      isActive: userData.is_active,
       password: '',
     });
     setShowUserForm(true);
   };
 
-  const toggleUserStatus = (userId: string) => {
-    const agencyUsersKey = `agency_users_${user?.agencyId}`;
-    const updatedUsers = realUsers.map(u => 
-      u.id === userId ? { ...u, isActive: !u.isActive, updatedAt: new Date() } : u
-    );
-    
-    localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
-    setRealUsers(updatedUsers);
+  const toggleUserStatus = async (userId: string) => {
+    try {
+      const { data: currentUser } = await supabase
+        .from('users')
+        .select('is_active')
+        .eq('id', userId)
+        .single();
+
+      const newStatus = !currentUser?.is_active;
+
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: newStatus, updated_at: new Date() })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      setAgencyUsers(prev => prev.map(u => 
+        u.id === userId ? { ...u, is_active: newStatus } : u
+      ));
+    } catch (err) {
+      console.error('Erreur toggle status:', err);
+      alert('Erreur lors de la mise à jour du statut');
+    }
   };
 
-  const deleteUser = (userId: string) => {
+  const deleteUser = async (userId: string) => {
     if (userId === user?.id) {
       alert('Vous ne pouvez pas supprimer votre propre compte');
       return;
     }
     
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-      const agencyUsersKey = `agency_users_${user?.agencyId}`;
-      const updatedUsers = realUsers.filter(u => u.id !== userId);
-      
-      localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
-      setRealUsers(updatedUsers);
-      
-      alert('✅ Utilisateur supprimé avec succès');
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cela supprimera aussi son compte auth.')) {
+      try {
+        // Supprimer de agency_users
+        await supabase.from('agency_users').delete().eq('user_id', userId);
+        
+        // Supprimer de users (cascade vers auth.users via trigger/FK)
+        const { error: deleteError } = await supabase.from('users').delete().eq('id', userId);
+        if (deleteError) throw deleteError;
+
+        // Supprimer l'utilisateur auth (au cas où)
+        await supabase.auth.admin.deleteUser(userId);
+
+        setAgencyUsers(prev => prev.filter(u => u.id !== userId));
+        alert('✅ Utilisateur supprimé avec succès');
+      } catch (err) {
+        console.error('Erreur suppression:', err);
+        alert('Erreur lors de la suppression');
+      }
     }
   };
 
@@ -391,7 +467,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
             Gestion des utilisateurs
           </h3>
           <p className="text-sm text-gray-500 mt-1">
-            Créez et gérez les comptes de vos employés ({realUsers.length} utilisateur{realUsers.length > 1 ? 's' : ''})
+            Créez et gérez les comptes de vos employés ({agencyUsers.length} utilisateur{agencyUsers.length > 1 ? 's' : ''})
           </p>
         </div>
         <Button onClick={() => setShowUserForm(true)}>
@@ -402,19 +478,19 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
 
       {/* Users List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {realUsers.length > 0 ? realUsers.map((userData) => (
+        {agencyUsers.length > 0 ? agencyUsers.map((userData) => (
           <Card key={userData.id}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                     <span className="text-blue-600 font-semibold text-sm">
-                      {userData.firstName[0]}{userData.lastName[0]}
+                      {userData.first_name[0]}{userData.last_name[0]}
                     </span>
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-900">
-                      {userData.firstName} {userData.lastName}
+                      {userData.first_name} {userData.last_name}
                       {userData.id === user?.id && (
                         <span className="text-xs text-blue-600 ml-2">(Vous)</span>
                       )}
@@ -430,10 +506,10 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
                     {roleLabels[userData.role as keyof typeof roleLabels]}
                   </Badge>
                   <Badge 
-                    variant={userData.isActive ? 'success' : 'secondary'} 
+                    variant={userData.is_active ? 'success' : 'secondary'} 
                     size="sm"
                   >
-                    {userData.isActive ? 'Actif' : 'Inactif'}
+                    {userData.is_active ? 'Actif' : 'Inactif'}
                   </Badge>
                 </div>
               </div>
@@ -459,7 +535,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
 
               <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                 <span className="text-xs text-gray-500">
-                  Créé le {new Date(userData.createdAt).toLocaleDateString('fr-FR')}
+                  Créé le {new Date(userData.created_at).toLocaleDateString('fr-FR')}
                 </span>
                 <div className="flex space-x-1">
                   {userData.id !== user?.id && (
@@ -469,7 +545,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
                         size="sm"
                         onClick={() => toggleUserStatus(userData.id)}
                       >
-                        {userData.isActive ? (
+                        {userData.is_active ? (
                           <EyeOff className="h-4 w-4" />
                         ) : (
                           <Eye className="h-4 w-4" />
@@ -556,7 +632,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
               value={formData.password}
               onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
               required
-              helperText="L'utilisateur devra changer ce mot de passe à sa première connexion"
+              helperText="L'utilisateur devra changer ce mot de passe à sa première connexion. Minimum 8 caractères."
             />
           )}
 
@@ -573,6 +649,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
             >
               <option value="agent">Agent</option>
               <option value="manager">Chef d'agence</option>
+              <option value="director">Directeur</option>
             </select>
           </div>
 
@@ -586,7 +663,6 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
                     type="checkbox"
                     checked={formData.permissions[key as keyof UserPermissions]}
                     onChange={(e) => updatePermission(key as keyof UserPermissions, e.target.checked)}
-                    disabled={key === 'userManagement' && formData.role !== 'director'}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">{label}</span>
