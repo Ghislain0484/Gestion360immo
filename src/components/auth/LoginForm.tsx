@@ -1,26 +1,22 @@
-// src/components/auth/LoginForm.tsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Building2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { AgencyRegistration } from './AgencyRegistration';
+import { dbService } from '../../lib/supabase';
 import { BibleVerseCard } from '../ui/BibleVerse';
 
 export const LoginForm: React.FC = () => {
-  const [email, setEmail] = useState('');       // ⬅️ PAS DE trim()
-  const [password, setPassword] = useState(''); // ⬅️ PAS DE trim()
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
-
-  // On supporte les deux noms pour éviter “x is not a function”
-  const { signIn, login } = useAuth() as any;
-  const doSignIn = signIn ?? login;
-  const navigate = useNavigate();
+  
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,27 +24,142 @@ export const LoginForm: React.FC = () => {
     setIsLoading(true);
 
     try {
-      if (typeof doSignIn !== 'function') {
-        throw new Error('Fonction de connexion manquante dans AuthContext');
+      await login(email, password);
+    } catch (err) {
+      // Display the actual error message from the login function
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Email ou mot de passe incorrect');
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      // ⬇️ on envoie tel quel, sans trim
-      const emailToUse = email;
-      const passwordToUse = password;
+  const handleAgencyRegistration = async (agencyData: any, directorData: any) => {
+    setIsLoading(true);
+    try {
+      // Validation des données avant envoi
+      if (!agencyData.name?.trim() || !agencyData.commercialRegister?.trim()) {
+        throw new Error('Le nom de l\'agence et le registre de commerce sont obligatoires');
+      }
+      
+      if (!directorData.firstName?.trim() || !directorData.lastName?.trim() || !directorData.email?.trim()) {
+        throw new Error('Les informations du directeur sont obligatoires');
+      }
+      
+      if (!agencyData.phone?.trim() || !agencyData.city?.trim() || !agencyData.address?.trim()) {
+        throw new Error('Le téléphone, la ville et l\'adresse sont obligatoires');
+      }
+      
+      // Préparer les données pour l'envoi
+      const requestData = {
+        agency_name: agencyData.name,
+        commercial_register: agencyData.commercialRegister,
+        director_first_name: directorData.firstName,
+        director_last_name: directorData.lastName,
+        director_email: directorData.email,
+        phone: agencyData.phone,
+        city: agencyData.city,
+        address: agencyData.address,
+        logo_url: agencyData.logo || null,
+        is_accredited: agencyData.isAccredited,
+        accreditation_number: agencyData.accreditationNumber || null,
+        status: 'pending'
+      };
+      
+      console.log('Envoi de la demande avec les données:', requestData);
+      
+      // Enregistrer la demande dans la base de données
+      const result = await dbService.createRegistrationRequest(requestData);
+      
+      console.log('Résultat de l\'enregistrement:', result);
+      
+      alert(`✅ DEMANDE D'INSCRIPTION ENVOYÉE !
+      
+🏢 AGENCE : ${agencyData.name}
+👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
+📧 EMAIL : ${directorData.email}
+📱 TÉLÉPHONE : ${agencyData.phone}
+🏙️ VILLE : ${agencyData.city}
 
-      console.log('🔐 Tentative login...', { email: emailToUse });
-      await doSignIn(emailToUse, passwordToUse);
+✅ Votre demande a été enregistrée avec l'ID : ${result.id}
 
-      console.log('✅ Login OK, redirection…');
-      navigate('/'); // adapte si besoin
-    } catch (err: any) {
-      const msg =
-        err?.message ||
-        err?.error_description ||
-        err?.error ||
-        'Email ou mot de passe incorrect';
-      console.error('❌ Login error:', err);
-      setError(msg);
+⏱️ TRAITEMENT : Sous 24-48h par notre équipe
+📧 NOTIFICATION : Vous recevrez vos identifiants par email
+            throw new Error('Profil utilisateur non trouvé. Contactez votre administrateur.');
+
+PROCHAINES ÉTAPES :
+1. Validation par l'administrateur
+2. Création automatique de votre compte directeur
+3. Activation de votre abonnement d'essai (30 jours gratuits)
+4. Réception de vos identifiants de connexion
+
+Vous pouvez fermer cette fenêtre et attendre la confirmation.`);
+      
+      setShowRegistration(false);
+    } catch (error) {
+      console.error('Erreur lors de l\'inscription:', error);
+      
+      // Messages d'erreur spécifiques
+      if (error instanceof Error) {
+        if (error.message.includes('obligatoire')) {
+          alert(`Données manquantes: ${error.message}`);
+        } else if (error.message.includes('email invalide')) {
+          alert('Format d\'email invalide. Veuillez utiliser un email valide.');
+        } else if (error.message.includes('téléphone invalide')) {
+            throw new Error('Email ou mot de passe incorrect.');
+        } else if (error.message.includes('existe déjà')) {
+          alert('Cette agence ou cet email est déjà enregistré.');
+            throw new Error('Configuration invalide. Contactez l\'administrateur.');
+          } else if (supabaseError.message?.includes('Profil utilisateur non trouvé')) {
+            throw new Error('Compte non activé. Contactez votre administrateur pour activer votre compte.');
+          // En cas d'erreur de connexion, sauvegarder localement avec le mot de passe
+          const localRequest = {
+            id: `demo_${Date.now()}`,
+            agency_name: agencyData.name,
+            commercial_register: agencyData.commercialRegister,
+            director_first_name: directorData.firstName,
+            director_last_name: directorData.lastName,
+            director_email: directorData.email,
+            director_password: directorData.password, // Sauvegarder le mot de passe
+            phone: agencyData.phone,
+            city: agencyData.city,
+            address: agencyData.address,
+            logo_url: agencyData.logo,
+            is_accredited: agencyData.isAccredited,
+            accreditation_number: agencyData.accreditationNumber,
+            status: 'pending',
+            created_at: new Date().toISOString()
+          };
+          
+          const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
+          stored.unshift(localRequest);
+          localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
+          
+          alert(`✅ DEMANDE SAUVEGARDÉE LOCALEMENT !
+          
+🏢 AGENCE : ${agencyData.name}
+👤 DIRECTEUR : ${directorData.firstName} ${directorData.lastName}
+📧 EMAIL : ${directorData.email}
+🔑 MOT DE PASSE : [Conservez celui que vous avez saisi]
+
+⚠️ Problème de connexion détecté
+✅ Votre demande a été sauvegardée localement
+🔄 Elle sera synchronisée dès que la connexion sera rétablie
+
+CONSERVEZ VOS IDENTIFIANTS :
+Email : ${directorData.email}
+Mot de passe : [Celui que vous avez saisi]
+
+Vous pourrez vous connecter dès l'approbation !`);
+        } else {
+      throw new Error('Email ou mot de passe incorrect.');
+        }
+      } else {
+        throw new Error('Email ou mot de passe incorrect.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -57,15 +168,18 @@ export const LoginForm: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <BibleVerseCard compact />
-
+        {/* Verset biblique sur la page de connexion */}
+        <BibleVerseCard compact={true} />
+        
         <div className="text-center">
           <div className="flex justify-center">
             <div className="flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full">
               <Building2 className="h-8 w-8 text-white" />
             </div>
           </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Gestion360Immo</h2>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Gestion360Immo
+          </h2>
           <p className="mt-2 text-sm text-gray-600">
             Connectez-vous à votre espace de gestion immobilière
           </p>
@@ -83,7 +197,7 @@ export const LoginForm: React.FC = () => {
               label="Email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)} // ⬅️ PAS DE trim()
+              onChange={(e) => setEmail(e.target.value.trim())}
               required
               placeholder="votre@email.com"
               autoComplete="email"
@@ -94,7 +208,7 @@ export const LoginForm: React.FC = () => {
                 label="Mot de passe"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)} // ⬅️ PAS DE trim()
+                onChange={(e) => setPassword(e.target.value.trim())}
                 required
                 placeholder="••••••••"
                 autoComplete="current-password"
@@ -112,7 +226,32 @@ export const LoginForm: React.FC = () => {
               </button>
             </div>
 
-            <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                  Se souvenir de moi
+                </label>
+              </div>
+
+              <div className="text-sm">
+                <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+                  Mot de passe oublié ?
+                </a>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              isLoading={isLoading}
+            >
               Se connecter
             </Button>
           </form>
@@ -123,7 +262,9 @@ export const LoginForm: React.FC = () => {
                 <div className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Pas encore de compte ?</span>
+                <span className="px-2 bg-white text-gray-500">
+                  Pas encore de compte ?
+                </span>
               </div>
             </div>
 
@@ -139,12 +280,11 @@ export const LoginForm: React.FC = () => {
           </div>
         </Card>
 
+        {/* Agency Registration Modal */}
         <AgencyRegistration
           isOpen={showRegistration}
           onClose={() => setShowRegistration(false)}
-          onSubmit={() => {
-            /* la modale gère déjà son submit + fallback si RLS bloque */
-          }}
+          onSubmit={handleAgencyRegistration}
         />
       </div>
     </div>

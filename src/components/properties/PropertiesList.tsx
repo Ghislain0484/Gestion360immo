@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, MapPin, Eye, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, MapPin, Eye, Edit, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { PropertyForm } from './PropertyForm';
+import { PropertyDetailsModal } from './PropertyDetailsModal';
 import { Property, PropertyFormData } from '../../types/property';
 import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-
-import { PropertyDetailsModal } from './PropertyDetailsModal';
 
 export const PropertiesList: React.FC = () => {
   const { user } = useAuth();
@@ -21,7 +19,7 @@ export const PropertiesList: React.FC = () => {
   const [filterType, setFilterType] = useState('all');
   const [filterStanding, setFilterStanding] = useState('all');
 
-  // Supabase data hooks
+  // Chargement des données
   const { data: properties, loading, error, refetch, setData } = useRealtimeData<Property>(
     dbService.getProperties,
     'properties'
@@ -41,15 +39,13 @@ export const PropertiesList: React.FC = () => {
   );
 
   const handleAddProperty = async (propertyData: PropertyFormData) => {
-    if (!user?.agencyId) return;
+    if (!user?.agencyId) {
+      alert('Aucune agence associée');
+      return;
+    }
     
     try {
-      // Validation des données avant envoi
-      if (!propertyData.title || !propertyData.ownerId || !propertyData.location.commune) {
-        throw new Error('Données obligatoires manquantes');
-      }
-      
-      await createProperty({
+      const propertyPayload = {
         agency_id: user.agencyId,
         owner_id: propertyData.ownerId,
         title: propertyData.title,
@@ -62,58 +58,23 @@ export const PropertiesList: React.FC = () => {
         is_available: propertyData.isAvailable,
         for_sale: propertyData.forSale,
         for_rent: propertyData.forRent,
-      });
+      };
+      
+      await createProperty(propertyPayload);
       
     } catch (error) {
-      console.error('Error creating property:', error);
-      throw error;
+      console.error('Erreur création propriété:', error);
+      alert('Erreur lors de la création');
     }
   };
 
   const handleDeleteProperty = async (propertyId: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette propriété ?')) {
+    if (confirm('Supprimer cette propriété ?')) {
       try {
         await deleteProperty(propertyId);
       } catch (error) {
-        console.error('Error deleting property:', error);
+        console.error('Erreur suppression:', error);
       }
-    }
-  };
-
-  const handleViewProperty = (property: Property) => {
-    setSelectedProperty(property);
-    setShowDetailsModal(true);
-  };
-
-  const handleEditProperty = (property: Property) => {
-    setSelectedProperty(property);
-    setShowDetailsModal(true);
-  };
-
-  const handleUpdateProperty = async (updatedData: any) => {
-    if (!selectedProperty) return;
-    
-    try {
-      await dbService.updateProperty(selectedProperty.id, {
-        title: updatedData.title,
-        description: updatedData.description,
-        location: updatedData.location,
-        details: updatedData.details,
-        standing: updatedData.standing,
-        rooms: updatedData.rooms,
-        images: updatedData.images,
-        is_available: updatedData.isAvailable,
-        for_sale: updatedData.forSale,
-        for_rent: updatedData.forRent,
-      });
-      
-      refetch();
-      setShowDetailsModal(false);
-      setSelectedProperty(null);
-      alert('✅ Propriété mise à jour avec succès !');
-    } catch (error) {
-      console.error('Error updating property:', error);
-      alert('❌ Erreur lors de la mise à jour');
     }
   };
 
@@ -171,12 +132,12 @@ export const PropertiesList: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Propriétés</h1>
           <p className="text-gray-600 mt-1">
-            Gestion de votre portefeuille immobilier
+            Gestion du portefeuille ({properties.length})
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="flex items-center space-x-2">
-          <Plus className="h-4 w-4" />
-          <span>Ajouter une propriété</span>
+        <Button onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Ajouter une propriété
         </Button>
       </div>
 
@@ -188,39 +149,37 @@ export const PropertiesList: React.FC = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Rechercher par titre, commune ou quartier..."
+                placeholder="Rechercher..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
           
-          <div className="flex gap-4">
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">Tous les types</option>
-              <option value="villa">Villa</option>
-              <option value="appartement">Appartement</option>
-              <option value="terrain_nu">Terrain nu</option>
-              <option value="immeuble">Immeuble</option>
-              <option value="autres">Autres</option>
-            </select>
-            
-            <select
-              value={filterStanding}
-              onChange={(e) => setFilterStanding(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">Tous les standings</option>
-              <option value="economique">Économique</option>
-              <option value="moyen">Moyen</option>
-              <option value="haut">Haut</option>
-            </select>
-          </div>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">Tous les types</option>
+            <option value="villa">Villa</option>
+            <option value="appartement">Appartement</option>
+            <option value="terrain_nu">Terrain nu</option>
+            <option value="immeuble">Immeuble</option>
+            <option value="autres">Autres</option>
+          </select>
+          
+          <select
+            value={filterStanding}
+            onChange={(e) => setFilterStanding(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">Tous les standings</option>
+            <option value="economique">Économique</option>
+            <option value="moyen">Moyen</option>
+            <option value="haut">Haut</option>
+          </select>
         </div>
       </Card>
 
@@ -241,24 +200,16 @@ export const PropertiesList: React.FC = () => {
                 </div>
               )}
               
-              <div className="absolute top-2 left-2 flex gap-2">
+              <div className="absolute top-2 left-2">
                 <Badge variant={getStandingColor(property.standing)} size="sm">
                   {property.standing.charAt(0).toUpperCase() + property.standing.slice(1)}
                 </Badge>
-                {property.details?.type && (
-                  <Badge variant="secondary" size="sm">
-                    {getTypeLabel(property.details.type)}
-                  </Badge>
-                )}
               </div>
               
-              <div className="absolute top-2 right-2 flex gap-1">
-                {property.for_rent && (
-                  <Badge variant="info" size="sm">Location</Badge>
-                )}
-                {property.for_sale && (
-                  <Badge variant="success" size="sm">Vente</Badge>
-                )}
+              <div className="absolute top-2 right-2">
+                <Badge variant={property.is_available ? 'success' : 'danger'} size="sm">
+                  {property.is_available ? 'Disponible' : 'Occupé'}
+                </Badge>
               </div>
             </div>
             
@@ -277,31 +228,20 @@ export const PropertiesList: React.FC = () => {
               </p>
               
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className={`w-2 h-2 rounded-full ${
-                    property.is_available ? 'bg-green-500' : 'bg-red-500'
-                  }`} />
-                  <span className="text-sm text-gray-600">
-                    {property.is_available ? 'Disponible' : 'Occupé'}
-                  </span>
+                <div className="text-xs text-gray-500">
+                  Créée le {new Date(property.created_at).toLocaleDateString('fr-FR')}
                 </div>
                 
                 <div className="flex space-x-1">
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    onClick={() => handleViewProperty(property)}
-                    title="Voir les détails"
+                    onClick={() => {
+                      setSelectedProperty(property);
+                      setShowDetailsModal(true);
+                    }}
                   >
                     <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => handleEditProperty(property)}
-                    title="Modifier"
-                  >
-                    <Edit className="h-4 w-4" />
                   </Button>
                   <Button 
                     variant="ghost" 
@@ -309,7 +249,6 @@ export const PropertiesList: React.FC = () => {
                     className="text-red-600 hover:text-red-700"
                     onClick={() => handleDeleteProperty(property.id)}
                     disabled={deleting}
-                    title="Supprimer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -322,16 +261,12 @@ export const PropertiesList: React.FC = () => {
 
       {filteredProperties.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
-            <Plus className="h-16 w-16 mx-auto" />
-          </div>
+          <Plus className="h-16 w-16 mx-auto mb-4 text-gray-400" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Aucune propriété trouvée
+            Aucune propriété
           </h3>
           <p className="text-gray-600 mb-4">
-            {searchTerm || filterType !== 'all' || filterStanding !== 'all'
-              ? 'Aucune propriété ne correspond à vos critères de recherche.'
-              : 'Commencez par ajouter votre première propriété.'}
+            Commencez par ajouter votre première propriété.
           </p>
           <Button onClick={() => setShowForm(true)}>
             <Plus className="h-4 w-4 mr-2" />
@@ -353,7 +288,7 @@ export const PropertiesList: React.FC = () => {
           setSelectedProperty(null);
         }}
         property={selectedProperty}
-        onUpdate={handleUpdateProperty}
+        onUpdate={() => refetch()}
       />
     </div>
   );
