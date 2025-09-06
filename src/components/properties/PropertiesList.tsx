@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Search, MapPin, Eye, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, MapPin, Eye, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { PropertyForm } from './PropertyForm';
 import { PropertyDetailsModal } from './PropertyDetailsModal';
-import { Property, PropertyFormData } from '../../types/property';
+import { Property, PropertyFormData } from '../../types/db'; // Updated import
 import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,17 +16,16 @@ export const PropertiesList: React.FC = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [filterStanding, setFilterStanding] = useState('all');
+  const [filterStanding, setFilterStanding] = useState<string>('all');
 
   // Chargement des données
   const { data: properties, loading, error, refetch, setData } = useRealtimeData<Property>(
-    dbService.getProperties,
+    dbService.properties.getAll, // Updated to use dbService.properties.getAll
     'properties'
   );
 
   const { create: createProperty, loading: creating } = useSupabaseCreate(
-    dbService.createProperty,
+    dbService.properties.create, // Updated to use dbService.properties.create
     (newProperty) => {
       setData(prev => [newProperty, ...prev]);
       setShowForm(false);
@@ -34,20 +33,20 @@ export const PropertiesList: React.FC = () => {
   );
 
   const { deleteItem: deleteProperty, loading: deleting } = useSupabaseDelete(
-    dbService.deleteProperty,
+    dbService.properties.delete, // Updated to use dbService.properties.delete
     () => refetch()
   );
 
   const handleAddProperty = async (propertyData: PropertyFormData) => {
-    if (!user?.agencyId) {
-      alert('Aucune agence associée');
+    if (!user) {
+      alert('Utilisateur non authentifié');
       return;
     }
-    
+
     try {
-      const propertyPayload = {
-        agency_id: user.agencyId,
-        owner_id: propertyData.ownerId,
+      const propertyPayload: Partial<Property> = {
+        agency_id: user.id, // Assuming user.id is linked to agency_id; adjust if needed
+        owner_id: propertyData.owner_id,
         title: propertyData.title,
         description: propertyData.description || '',
         location: propertyData.location,
@@ -55,13 +54,12 @@ export const PropertiesList: React.FC = () => {
         standing: propertyData.standing,
         rooms: propertyData.rooms || [],
         images: propertyData.images || [],
-        is_available: propertyData.isAvailable,
-        for_sale: propertyData.forSale,
-        for_rent: propertyData.forRent,
+        is_available: propertyData.is_available,
+        for_sale: propertyData.for_sale,
+        for_rent: propertyData.for_rent,
       };
-      
+
       await createProperty(propertyPayload);
-      
     } catch (error) {
       console.error('Erreur création propriété:', error);
       alert('Erreur lors de la création');
@@ -87,26 +85,14 @@ export const PropertiesList: React.FC = () => {
     }
   };
 
-  const getTypeLabel = (type: string) => {
-    const labels = {
-      villa: 'Villa',
-      appartement: 'Appartement',
-      terrain_nu: 'Terrain nu',
-      immeuble: 'Immeuble',
-      autres: 'Autres'
-    };
-    return labels[type as keyof typeof labels] || type;
-  };
-
   const filteredProperties = properties.filter(property => {
     const matchesSearch = property.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         property.location?.commune?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         property.location?.quartier?.toLowerCase().includes(searchTerm.toLowerCase());
+                         (property.location?.commune?.toLowerCase()?.includes(searchTerm.toLowerCase()) ?? false) ||
+                         (property.location?.quartier?.toLowerCase()?.includes(searchTerm.toLowerCase()) ?? false);
     
-    const matchesType = filterType === 'all' || property.details?.type === filterType;
     const matchesStanding = filterStanding === 'all' || property.standing === filterStanding;
     
-    return matchesSearch && matchesType && matchesStanding;
+    return matchesSearch && matchesStanding;
   });
 
   if (loading) {
@@ -158,19 +144,6 @@ export const PropertiesList: React.FC = () => {
           </div>
           
           <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tous les types</option>
-            <option value="villa">Villa</option>
-            <option value="appartement">Appartement</option>
-            <option value="terrain_nu">Terrain nu</option>
-            <option value="immeuble">Immeuble</option>
-            <option value="autres">Autres</option>
-          </select>
-          
-          <select
             value={filterStanding}
             onChange={(e) => setFilterStanding(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -190,7 +163,7 @@ export const PropertiesList: React.FC = () => {
             <div className="aspect-w-16 aspect-h-12 bg-gray-200 relative">
               {property.images && property.images.length > 0 ? (
                 <img
-                  src={property.images.find(img => img.isPrimary)?.url || property.images[0].url}
+                  src={property.images.find((img: any) => img.isPrimary)?.url || property.images[0].url}
                   alt={property.title}
                   className="w-full h-48 object-cover"
                 />
@@ -207,8 +180,8 @@ export const PropertiesList: React.FC = () => {
               </div>
               
               <div className="absolute top-2 right-2">
-                <Badge variant={property.isAvailable ? 'success' : 'danger'} size="sm">
-                  {property.isAvailable ? 'Disponible' : 'Occupé'}
+                <Badge variant={property.is_available ? 'success' : 'danger'} size="sm">
+                  {property.is_available ? 'Disponible' : 'Occupé'}
                 </Badge>
               </div>
             </div>
@@ -229,7 +202,7 @@ export const PropertiesList: React.FC = () => {
               
               <div className="flex items-center justify-between">
                 <div className="text-xs text-gray-500">
-                  Créée le {new Date(property.createdAt).toLocaleDateString('fr-FR')}
+                  Créée le {new Date(property.created_at).toLocaleDateString('fr-FR')}
                 </div>
                 
                 <div className="flex space-x-1">

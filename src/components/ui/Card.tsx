@@ -5,6 +5,7 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   padding?: 'sm' | 'md' | 'lg';
+  role?: string; // Optional role for accessibility
 }
 
 export const Card: React.FC<CardProps> = ({ 

@@ -1,328 +1,2043 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, Building2, TrendingUp, Users, DollarSign, Award, Settings, BarChart3 } from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
-import { AgencyManagement } from './AgencyManagement';
-import { SubscriptionManagement } from './SubscriptionManagement';
-import { AgencyRankings } from './AgencyRankings';
-import { PlatformSettings } from './PlatformSettings';
-import { PlatformStats } from '../../types/admin';
-import { dbService } from '../../lib/supabase';
-import { getPlatformStats } from '../../lib/adminApi';
+/**
+voici une réécriture propre, normalisée et cohérente du schéma, avec :
+  - des FK explicites et des cascades là où c’est logique,
+  - des ENUMs pour toutes les valeurs finies,
+  - des contraintes d’unicité pertinentes,
+  - un users aligné sur Supabase Auth (clé étrangère vers auth.users(id)),
+  - suppression des redondances (ex. rent_receipts ne duplique plus owner/tenant/property),
+  - colonnes updated_at gérées par trigger.
+*/
 
-export const AdminDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState('overview');
-    const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [recentAgencies, setRecentAgencies] = useState<any[]>([]);
-    const [systemAlerts, setSystemAlerts] = useState<{ type: string; title: string; description: string }[]>([]);
+-- =========================================================
+-- Extensions
+-- =========================================================
+create extension if not exists "pgcrypto";
+create extension if not exists "uuid-ossp";
 
-    useEffect(() => {
-        const fetchPlatformStats = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const stats = await getPlatformStats();
-                setPlatformStats(stats);
+-- =========================================================
+-- Types (ENUM)
+-- =========================================================
+do $$
+begin
+  create type agency_user_role as enum ('director','manager','agent');
+exception when duplicate_object then null; end $$;
 
-                // Récupérer les agences récemment inscrites
-                const agencies = await dbService.agencies.getRecent(5);
-                setRecentAgencies(agencies || []);
+do $$
+begin
+  create type plan_type as enum ('basic','premium','enterprise');
+exception when duplicate_object then null; end $$;
 
-                // Générer les alertes système basées sur les vraies données
-                const alerts = await dbService.getSystemAlerts();
-                setSystemAlerts(Array.isArray(alerts) ? alerts : []);
-            } catch (error: any) {
-                console.error('Error fetching platform stats:', error);
-                setError(error.message || 'Erreur lors du chargement des données');
-            } finally {
-                setLoading(false);
-            }
-        };
+do $$
+begin
+  create type subscription_status as enum ('trial','active','suspended','cancelled');
+exception when duplicate_object then null; end $$;
 
-        fetchPlatformStats();
+do $$
+begin
+  create type marital_status as enum ('celibataire','marie','divorce','veuf');
+exception when duplicate_object then null; end $$;
 
-        // Refresh stats every 5 minutes
-        const interval = setInterval(fetchPlatformStats, 5 * 60 * 1000);
-        return () => clearInterval(interval);
-    }, []);
+do $$
+begin
+  create type payment_reliability as enum ('bon','irregulier','mauvais');
+exception when duplicate_object then null; end $$;
 
-    const adminTabs = [
-        { id: 'overview', name: 'Vue d\'ensemble', icon: BarChart3 },
-        { id: 'agencies', name: 'Gestion Agences', icon: Building2 },
-        { id: 'subscriptions', name: 'Abonnements', icon: DollarSign },
-        { id: 'rankings', name: 'Classements', icon: Award },
-        { id: 'settings', name: 'Paramètres', icon: Settings },
-    ];
+do $$
+begin
+  create type contract_type as enum ('location','vente','gestion');
+exception when duplicate_object then null; end $$;
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('fr-FR', {
-            style: 'currency',
-            currency: 'XOF',
-            minimumFractionDigits: 0,
-        }).format(amount);
-    };
+do $$
+begin
+  create type contract_status as enum ('draft','active','expired','terminated','renewed');
+exception when duplicate_object then null; end $$;
 
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-            </div>
-        );
+do $$
+begin
+  create type announcement_type as enum ('location','vente');
+exception when duplicate_object then null; end $$;
+
+do $$
+begin
+  create type pay_method as enum ('especes','cheque','virement','mobile_money','bank_transfer','cash','check');
+exception when duplicate_object then null; end $$;
+
+do $$
+begin
+  create type notif_type as enum ('rental_alert','payment_reminder','new_message','property_update','contract_expiry','new_interest');
+exception when duplicate_object then null; end $$;
+
+do $$
+begin
+  create type notif_priority as enum ('low','medium','high');
+exception when duplicate_object then null; end $$;
+
+do $$
+begin
+  create type property_title as enum ('attestation_villageoise','lettre_attribution','permis_habiter','acd','tf','cpf','autres');
+exception when duplicate_object then null; end $$;
+
+do $$
+begin
+  create type property_standing as enum ('economique','moyen','haut');
+exception when duplicate_object then null; end $$;
+
+-- =========================================================
+-- Helpers: updated_at trigger
+-- =========================================================
+create or replace function set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end $$;
+
+-- =========================================================
+-- Utilisateurs (liés à Supabase Auth)
+-- =========================================================
+-- Convention: users.id = auth.users.id (FK forte, on supprime le profil si l’auth user est supprimé)
+create table public.users (
+  id uuid primary key references auth.users (id) on delete cascade,
+  email text not null unique,
+  first_name text not null,
+  last_name text not null,
+  avatar text,
+  is_active boolean default true,
+  permissions jsonb default '{}'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create trigger trg_users_updated_at before update on public.users
+  for each row execute function set_updated_at();
+
+-- =========================================================
+-- Administrateurs plateforme
+-- =========================================================
+-- On lie un admin à un user existant (1-1)
+create table public.platform_admins (
+  id uuid not null default gen_random_uuid() primary key,
+  user_id uuid not null unique references public.users(id) on delete cascade,
+  role text not null check (role in ('super_admin','admin')),
+  permissions jsonb default '{}'::jsonb,
+  is_active boolean default true,
+  last_login timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create trigger trg_platform_admins_updated_at before update on public.platform_admins
+  for each row execute function set_updated_at();
+
+-- =========================================================
+-- Agences
+-- =========================================================
+create table public.agencies (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  commercial_register text not null unique,
+  logo_url text,
+  is_accredited boolean default false,
+  accreditation_number text,
+  address text not null,
+  city text not null,
+  phone text not null,
+  email text not null,
+  director_id uuid references public.users(id) on delete set null,
+  status text not null default 'approved',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  constraint agencies_email_chk check (position('@' in email) > 1)
+);
+create index idx_agencies_city on public.agencies(city);
+create trigger trg_agencies_updated_at before update on public.agencies
+  for each row execute function set_updated_at();
+
+-- =========================================================
+-- Liaison utilisateurs/agences (rôles par agence)
+-- =========================================================
+create table public.agency_users (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  role agency_user_role not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, agency_id)
+);
+-- Un seul director par agence
+create unique index uq_agency_single_director
+  on public.agency_users(agency_id)
+  where role = 'director';
+
+-- =========================================================
+-- Demandes d’inscription agence
+-- =========================================================
+create table public.agency_registration_requests (
+  id uuid primary key default gen_random_uuid(),
+  agency_name text not null,
+  commercial_register text not null,
+  director_first_name text not null,
+  director_last_name text not null,
+  director_email text not null,
+  phone text not null,
+  city text not null,
+  address text not null,
+  logo_url text,
+  is_accredited boolean default false,
+  accreditation_number text,
+  status text default 'pending' check (status in ('pending','approved','rejected')),
+  admin_notes text,
+  processed_by uuid references public.users(id) on delete set null,
+  processed_at timestamptz,
+  created_at timestamptz default now(),
+  director_password text,              -- à chiffrer/retirer en prod si inutile
+  director_auth_user_id uuid references public.users(id) on delete set null
+);
+
+-- =========================================================
+-- Abonnements agence
+-- =========================================================
+create table public.agency_subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  agency_id uuid not null unique references public.agencies(id) on delete cascade,
+  plan_type plan_type not null default 'basic',
+  status subscription_status not null default 'trial',
+  suspension_reason text,
+  monthly_fee numeric not null default 25000,
+  start_date date not null default current_date,
+  end_date date,
+  last_payment_date date,
+  next_payment_date date not null default (current_date + interval '30 days'),
+  trial_days_remaining int default 30,
+  payment_history jsonb default '[]'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create trigger trg_agency_subscriptions_updated_at before update on public.agency_subscriptions
+  for each row execute function set_updated_at();
+
+create table public.subscription_payments (
+  id uuid primary key default uuid_generate_v4(),
+  subscription_id uuid not null references public.agency_subscriptions(id) on delete cascade,
+  amount numeric not null,
+  payment_date date not null,
+  payment_method pay_method not null,
+  reference_number text,
+  status text not null default 'completed' check (status in ('pending','completed','failed','refunded')),
+  processed_by uuid references public.users(id) on delete set null,
+  notes text,
+  created_at timestamptz default now()
+);
+create index idx_subscription_payments_sub on public.subscription_payments(subscription_id);
+
+-- =========================================================
+-- Classements agence
+-- =========================================================
+create table public.agency_rankings (
+  id uuid primary key default uuid_generate_v4(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  year int not null,
+  rank int not null,
+  total_score numeric not null default 0,
+  volume_score numeric default 0,
+  recovery_rate_score numeric default 0,
+  satisfaction_score numeric default 0,
+  metrics jsonb default '{}'::jsonb,
+  rewards jsonb default '[]'::jsonb,
+  created_at timestamptz default now(),
+  unique (agency_id, year),
+  
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT unique_ranking_per_agency_year UNIQUE (agency_id, year)
+);
+
+-- =========================================================
+-- Propriétaires / Locataires
+-- =========================================================
+create table public.owners (
+  id uuid primary key default uuid_generate_v4(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  first_name text not null,
+  last_name text not null,
+  phone text not null,
+  email text,
+  address text not null,
+  city text not null,
+  property_title property_title not null,
+  property_title_details text,
+  marital_status marital_status not null,
+  spouse_name text,
+  spouse_phone text,
+  children_count int default 0 check (children_count >= 0),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create trigger trg_owners_updated_at before update on public.owners
+  for each row execute function set_updated_at();
+
+create table public.tenants (
+  id uuid primary key default uuid_generate_v4(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  first_name text not null,
+  last_name text not null,
+  phone text not null,
+  email text,
+  address text not null,
+  city text not null,
+  marital_status marital_status not null,
+  spouse_name text,
+  spouse_phone text,
+  children_count int default 0 check (children_count >= 0),
+  profession text not null,
+  nationality text not null,
+  photo_url text,
+  id_card_url text,
+  payment_status payment_reliability not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create trigger trg_tenants_updated_at before update on public.tenants
+  for each row execute function set_updated_at();
+
+-- =========================================================
+-- Biens
+-- =========================================================
+create table public.properties (
+  id uuid primary key default uuid_generate_v4(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  owner_id uuid not null references public.owners(id) on delete restrict,
+  title text not null,
+  description text,
+  location jsonb not null default '{}'::jsonb,
+  details jsonb not null default '{}'::jsonb,
+  standing property_standing not null,
+  rooms jsonb default '[]'::jsonb,
+  images jsonb default '[]'::jsonb,
+  is_available boolean default true,
+  for_sale boolean default false,
+  for_rent boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create index idx_properties_agency on public.properties(agency_id);
+create index idx_properties_owner on public.properties(owner_id);
+create trigger trg_properties_updated_at before update on public.properties
+  for each row execute function set_updated_at();
+
+-- =========================================================
+-- Annonces + Intérêts
+-- =========================================================
+create table public.announcements (
+  id uuid primary key default uuid_generate_v4(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  property_id uuid not null references public.properties(id) on delete cascade,
+  title text not null,
+  description text not null,
+  type announcement_type not null,
+  is_active boolean default true,
+  expires_at timestamptz,
+  views int default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create index idx_announcements_agency on public.announcements(agency_id);
+create index idx_announcements_property on public.announcements(property_id);
+create trigger trg_announcements_updated_at before update on public.announcements
+  for each row execute function set_updated_at();
+
+create table public.announcement_interests (
+  id uuid primary key default uuid_generate_v4(),
+  announcement_id uuid not null references public.announcements(id) on delete cascade,
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  message text,
+  status text not null check (status in ('pending','accepted','rejected')),
+  created_at timestamptz default now(),
+  unique (announcement_id, user_id)
+);
+create index idx_interests_agency on public.announcement_interests(agency_id);
+
+-- =========================================================
+-- Contrats
+-- =========================================================
+create table public.contracts (
+  id uuid primary key default uuid_generate_v4(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  property_id uuid not null references public.properties(id) on delete restrict,
+  owner_id uuid not null references public.owners(id) on delete restrict,
+  tenant_id uuid not null references public.tenants(id) on delete restrict,
+  type contract_type not null,
+  start_date date not null,
+  end_date date,
+  monthly_rent numeric,
+  sale_price numeric,
+  deposit numeric,
+  charges numeric,
+  commission_rate numeric not null default 10.0,
+  commission_amount numeric not null default 0,
+  status contract_status not null,
+  terms text not null,
+  documents jsonb default '[]'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create index idx_contracts_agency on public.contracts(agency_id);
+create index idx_contracts_tenant on public.contracts(tenant_id);
+create index idx_contracts_owner on public.contracts(owner_id);
+create trigger trg_contracts_updated_at before update on public.contracts
+  for each row execute function set_updated_at();
+
+-- =========================================================
+-- Reçus de loyers (normalisés)
+-- =========================================================
+create table public.rent_receipts (
+  id uuid primary key default uuid_generate_v4(),
+  receipt_number text not null unique,
+  contract_id uuid not null references public.contracts(id) on delete cascade,
+  period_month int not null check (period_month between 1 and 12),
+  period_year int not null check (period_year >= 2024),
+  rent_amount numeric not null,
+  charges numeric default 0,
+  total_amount numeric not null,
+  commission_amount numeric not null,
+  owner_payment numeric not null,
+  payment_date date not null,
+  payment_method pay_method not null,
+  notes text,
+  issued_by uuid not null references public.users(id) on delete set null,
+  created_at timestamptz default now()
+);
+create index idx_receipts_contract on public.rent_receipts(contract_id);
+
+-- =========================================================
+-- États financiers (liens forts)
+-- =========================================================
+create table public.financial_statements (
+  id uuid primary key default uuid_generate_v4(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  owner_id uuid references public.owners(id) on delete cascade,
+  tenant_id uuid references public.tenants(id) on delete cascade,
+  period_start date not null,
+  period_end date not null,
+  total_income numeric default 0,
+  total_expenses numeric default 0,
+  net_balance numeric default 0,
+  pending_payments numeric default 0,
+  transactions jsonb default '[]'::jsonb,
+  generated_by uuid not null references public.users(id) on delete set null,
+  generated_at timestamptz default now(),
+  created_at timestamptz default now(),
+  constraint chk_one_party check (
+    (owner_id is not null and tenant_id is null) or
+    (owner_id is null and tenant_id is not null)
+  )
+);
+create index idx_financials_agency on public.financial_statements(agency_id);
+create index idx_financials_owner on public.financial_statements(owner_id);
+create index idx_financials_tenant on public.financial_statements(tenant_id);
+
+-- =========================================================
+-- Messages & Notifications
+-- =========================================================
+create table public.messages (
+  id uuid primary key default uuid_generate_v4(),
+  sender_id uuid not null references public.users(id) on delete cascade,
+  receiver_id uuid not null references public.users(id) on delete cascade,
+  agency_id uuid references public.agencies(id) on delete set null,
+  property_id uuid references public.properties(id) on delete set null,
+  announcement_id uuid references public.announcements(id) on delete set null,
+  subject text not null,
+  content text not null,
+  is_read boolean default false,
+  attachments jsonb default '[]'::jsonb,
+  created_at timestamptz default now()
+);
+create index idx_messages_receiver on public.messages(receiver_id);
+
+create table public.notifications (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  type notif_type not null,
+  title text not null,
+  message text not null,
+  data jsonb default '{}'::jsonb,
+  is_read boolean default false,
+  priority notif_priority not null,
+  created_at timestamptz default now()
+);
+create index idx_notifications_user on public.notifications(user_id);
+
+-- =========================================================
+-- Paramètres plateforme
+-- =========================================================
+create table public.platform_settings (
+  id uuid primary key default uuid_generate_v4(),
+  setting_key text not null unique,
+  setting_value jsonb not null,
+  description text,
+  category text not null default 'general',
+  is_public boolean default false,
+  updated_by uuid references public.users(id) on delete set null,
+  updated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+-- =========================================================
+-- Audit
+-- =========================================================
+create table public.audit_logs (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references public.users(id) on delete set null,
+  action text not null,
+  table_name text not null,
+  record_id uuid,
+  old_values jsonb,
+  new_values jsonb,
+  ip_address inet,
+  user_agent text,
+  created_at timestamptz default now()
+);
+
+-- =========================================================
+-- Index complémentaires utiles
+-- =========================================================
+create index idx_owners_agency on public.owners(agency_id);
+create index idx_tenants_agency on public.tenants(agency_id);
+create index idx_ann_interests_user on public.announcement_interests(user_id);
+
+
+
+
+// types/db.ts
+
+// ENUM Types
+export type AgencyUserRole = 'director' | 'manager' | 'agent';
+export type PlanType = 'basic' | 'premium' | 'enterprise';
+export type SubscriptionStatus = 'trial' | 'active' | 'suspended' | 'cancelled';
+export type MaritalStatus = 'celibataire' | 'marie' | 'divorce' | 'veuf';
+export type PaymentReliability = 'bon' | 'irregulier' | 'mauvais';
+export type ContractType = 'location' | 'vente' | 'gestion';
+export type ContractStatus = 'draft' | 'active' | 'expired' | 'terminated' | 'renewed';
+export type AnnouncementType = 'location' | 'vente';
+export type PayMethod = 'especes' | 'cheque' | 'virement' | 'mobile_money' | 'bank_transfer' | 'cash' | 'check';
+export type NotifType = 'rental_alert' | 'payment_reminder' | 'new_message' | 'property_update' | 'contract_expiry' | 'new_interest';
+export type NotifPriority = 'low' | 'medium' | 'high';
+export type PropertyTitle = 'attestation_villageoise' | 'lettre_attribution' | 'permis_habiter' | 'acd' | 'tf' | 'cpf' | 'autres';
+export type PropertyStanding = 'economique' | 'moyen' | 'haut';
+export type RegistrationStatus = 'pending' | 'approved' | 'rejected';
+export type JsonB = string | number | boolean | null | { [key: string]: any } | JsonB[];
+export type BadgeVariant = 'success'  | 'danger'  | 'warning'  | 'secondary'  | 'primary'  | 'info'  | undefined;
+
+// Interface pour les utilisateurs (lié à auth.users)
+export interface User {
+  id: string; // UUID, FK vers auth.users(id)
+  email: string;
+  first_name: string;
+  last_name: string;
+  avatar?: string | null;
+  is_active: boolean;
+  permissions: JsonB;
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour les administrateurs de la plateforme
+export interface PlatformAdmin {
+  id: string; // UUID
+  user_id: string; // UUID, FK vers users(id)
+  role: 'super_admin' | 'admin';
+  permissions: JsonB;
+  is_active: boolean;
+  last_login?: string | null; // timestamptz
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour les agences
+export interface Agency {
+  id: string; // UUID
+  name: string;
+  commercial_register: string;
+  logo_url?: string | null;
+  is_accredited: boolean;
+  accreditation_number?: string | null;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+  director_id?: string | null; // UUID, FK vers users(id)
+  status: string;
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour la liaison utilisateurs/agences
+export interface AgencyUser {
+  id: string; // UUID
+  user_id: string; // UUID, FK vers users(id)
+  agency_id: string; // UUID, FK vers agencies(id)
+  role: AgencyUserRole;
+  created_at: string; // timestamptz
+}
+
+// Interface pour les demandes d'inscription d'agence
+export interface AgencyRegistrationRequest {
+  id: string; // UUID
+  agency_name: string;
+  commercial_register: string;
+  director_first_name: string;
+  director_last_name: string;
+  director_email: string;
+  phone: string;
+  city: string;
+  address: string;
+  logo_url?: string | null;
+  is_accredited: boolean;
+  accreditation_number?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  admin_notes?: string | null;
+  processed_by?: string | null; // UUID, FK vers users(id)
+  processed_at?: string | null; // timestamptz
+  created_at: string; // timestamptz
+  director_password?: string | null; // À utiliser avec précaution
+  director_auth_user_id?: string | null; // UUID, FK vers users(id)
+}
+
+// Interface pour les abonnements d'agence
+export interface AgencySubscription {
+  id: string; // UUID
+  agency_id: string; // UUID, FK vers agencies(id)
+  plan_type: PlanType;
+  status: SubscriptionStatus;
+  suspension_reason?: string | null;
+  monthly_fee: number;
+  start_date: string; // date
+  end_date?: string | null; // date
+  last_payment_date?: string | null; // date
+  next_payment_date: string; // date
+  trial_days_remaining: number;
+  payment_history: { amount: number; date: string }[] | null;
+  //payment_history: JsonB; // Tableau JSONB
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour les paiements d'abonnement
+export interface SubscriptionPayment {
+  id: string; // UUID
+  subscription_id: string; // UUID, FK vers agency_subscriptions(id)
+  amount: number;
+  payment_date: string; // date
+  payment_method: PayMethod;
+  reference_number?: string | null;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  processed_by?: string | null; // UUID, FK vers users(id)
+  notes?: string | null;
+  created_at: string; // timestamptz
+}
+
+export interface Reward {
+  id: string;
+  title: string;
+  type: 'cash_bonus' | 'discount';
+  value: number;
+  description: string;
+  validUntil: string;
+}
+
+// Interface pour les classements d'agence
+
+
+export interface AgencyRanking {
+  id: string; // UUID
+  agency_id: string; // UUID, FK vers agencies(id)
+  year: number;
+  rank: number;
+  total_score: number;
+  volume_score: number;
+  recovery_rate_score: number;
+  satisfaction_score: number;
+  metrics: {
+    totalProperties: number;
+    totalContracts: number;
+    totalRevenue: number;
+    clientSatisfaction: number;
+    collaborationScore: number;
+    paymentReliability: number;
+  };
+  rewards: Reward[] | null; // Tableau JSONB
+  created_at: string; // timestamptz
+}
+
+// Interface pour les propriétaires
+export interface Owner {
+  id: string; // UUID
+  agency_id: string; // UUID, FK vers agencies(id)
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email?: string | null;
+  address: string;
+  city: string;
+  property_title: PropertyTitle;
+  property_title_details?: string | null;
+  marital_status: MaritalStatus;
+  spouse_name?: string | null;
+  spouse_phone?: string | null;
+  children_count: number;
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour les locataires
+export interface Tenant {
+  id: string; // UUID
+  agency_id: string; // UUID, FK vers agencies(id)
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email?: string | null;
+  address: string;
+  city: string;
+  marital_status: MaritalStatus;
+  spouse_name?: string | null;
+  spouse_phone?: string | null;
+  children_count: number;
+  profession: string;
+  nationality: string;
+  photo_url?: string | null;
+  id_card_url?: string | null;
+  payment_status: PaymentReliability;
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour les biens immobiliers
+export interface Property {
+  id: string; // UUID
+  agency_id: string; // UUID, FK vers agencies(id)
+  owner_id: string; // UUID, FK vers owners(id)
+  title: string;
+  description?: string | null;
+  location: JsonB;
+  details: JsonB;
+  standing: PropertyStanding;
+  rooms: JsonB; // Tableau JSONB
+  images: JsonB; // Tableau JSONB
+  is_available: boolean;
+  for_sale: boolean;
+  for_rent: boolean;
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour les annonces
+export interface Announcement {
+  id: string; // UUID
+  agency_id: string; // UUID, FK vers agencies(id)
+  property_id: string; // UUID, FK vers properties(id)
+  title: string;
+  description: string;
+  type: AnnouncementType;
+  is_active: boolean;
+  expires_at?: string | null; // timestamptz
+  views: number;
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour les intérêts sur les annonces
+export interface AnnouncementInterest {
+  id: string; // UUID
+  announcement_id: string; // UUID, FK vers announcements(id)
+  agency_id: string; // UUID, FK vers agencies(id)
+  user_id: string; // UUID, FK vers users(id)
+  message?: string | null;
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at: string; // timestamptz
+}
+
+// Interface pour les contrats
+export interface Contract {
+  id: string; // UUID
+  agency_id: string; // UUID, FK vers agencies(id)
+  property_id: string; // UUID, FK vers properties(id)
+  owner_id: string; // UUID, FK vers owners(id)
+  tenant_id: string; // UUID, FK vers tenants(id)
+  type: ContractType;
+  start_date: string; // date
+  end_date?: string | null; // date
+  monthly_rent?: number | null;
+  sale_price?: number | null;
+  deposit?: number | null;
+  charges?: number | null;
+  commission_rate: number;
+  commission_amount: number;
+  status: ContractStatus;
+  terms: string;
+  documents: JsonB; // Tableau JSONB
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+// Interface pour les reçus de loyer
+export interface RentReceipt {
+  id: string; // UUID
+  receipt_number: string;
+  contract_id: string; // UUID, FK vers contracts(id)
+  period_month: number;
+  period_year: number;
+  rent_amount: number;
+  charges: number;
+  total_amount: number;
+  commission_amount: number;
+  owner_payment: number;
+  payment_date: string; // date
+  payment_method: PayMethod;
+  notes?: string | null;
+  issued_by: string; // UUID, FK vers users(id)
+  created_at: string; // timestamptz
+}
+
+// Interface pour les états financiers
+export interface FinancialStatement {
+  id: string; // UUID
+  agency_id: string; // UUID, FK vers agencies(id)
+  owner_id?: string | null; // UUID, FK vers owners(id)
+  tenant_id?: string | null; // UUID, FK vers tenants(id)
+  period_start: string; // date
+  period_end: string; // date
+  total_income: number;
+  total_expenses: number;
+  net_balance: number;
+  pending_payments: number;
+  transactions: JsonB; // Tableau JSONB
+  generated_by: string; // UUID, FK vers users(id)
+  generated_at: string; // timestamptz
+  created_at: string; // timestamptz
+}
+
+// Interface pour les messages
+export interface Message {
+  id: string; // UUID
+  sender_id: string; // UUID, FK vers users(id)
+  receiver_id: string; // UUID, FK vers users(id)
+  agency_id?: string | null; // UUID, FK vers agencies(id)
+  property_id?: string | null; // UUID, FK vers properties(id)
+  announcement_id?: string | null; // UUID, FK vers announcements(id)
+  subject: string;
+  content: string;
+  is_read: boolean;
+  attachments: JsonB; // Tableau JSONB
+  created_at: string; // timestamptz
+}
+
+// Interface pour les notifications
+export interface Notification {
+  id: string; // UUID
+  user_id: string; // UUID, FK vers users(id)
+  type: NotifType;
+  title: string;
+  message: string;
+  data: JsonB;
+  is_read: boolean;
+  priority: NotifPriority;
+  created_at: string; // timestamptz
+}
+
+// Interface pour les paramètres de la plateforme
+export interface PlatformSetting {
+  id: string; // UUID
+  setting_key: string;
+  setting_value: JsonB;
+  description?: string | null;
+  category: 'subscription' | 'ranking' | 'platform';
+  is_public: boolean;
+  updated_by?: string | null; // UUID, FK vers users(id)
+  updated_at: string; // timestamptz
+  created_at: string; // timestamptz
+}
+
+// Interface pour les logs d'audit
+export interface AuditLog {
+  id: string; // UUID
+  user_id?: string | null; // UUID, FK vers users(id)
+  action: string;
+  table_name: string;
+  record_id?: string | null; // UUID
+  old_values?: JsonB | null;
+  new_values?: JsonB | null;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  created_at: string; // timestamptz
+}
+
+// Interface pour les alertes système (utilisée dans getSystemAlerts)
+export interface SystemAlert {
+  type: 'success' | 'warning' | 'error' | 'info';
+  title: string;
+  description: string;
+}
+
+
+
+
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import {
+    Agency,
+    AgencyUser,
+    AgencyRegistrationRequest,
+    AgencySubscription,
+    SubscriptionPayment,
+    AgencyRanking,
+    Owner,
+    Tenant,
+    Property,
+    Announcement,
+    AnnouncementInterest,
+    Contract,
+    RentReceipt,
+    FinancialStatement,
+    Message,
+    Notification,
+    PlatformSetting,
+    AuditLog,
+    User,
+    PlatformAdmin,
+} from "../types/db";
+
+//supabaseUrl supabaseKey
+const url = import.meta.env.VITE_SUPABASE_URL as string;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+if (!url || !anonKey) {
+    console.error("❌ VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY manquants");
+}
+
+export const supabase: SupabaseClient = createClient(url, anonKey, {
+    auth: { persistSession: true, autoRefreshToken: true },
+});
+
+// --- Helpers généraux ---
+const nilIfEmpty = (v: any) => (v === "" || v === undefined || v === null ? null : v);
+
+function formatSbError(prefix: string, error: any) {
+    const parts = [prefix];
+    if (error?.code) parts.push(`code=${error.code}`);
+    if (error?.message) parts.push(`msg=${error.message}`);
+    return parts.join(" | ");
+}
+
+async function logAuthContext(tag: string) {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+        console.warn(`🔑 ${tag} getSession error:`, error);
+        return { user: null, token: null };
     }
+    return { user: session?.user ?? null, token: session?.access_token ?? null };
+}
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="bg-white shadow-sm border-b">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <div className="flex items-center space-x-3">
-                            <Shield className="h-8 w-8 text-red-600" />
-                            <div>
-                                <h1 className="text-xl font-bold text-gray-900">Administration Gestion360Immo</h1>
-                                <p className="text-sm text-gray-500">Gestion globale de la plateforme</p>
-                            </div>
-                        </div>
-                        <Badge variant="danger" size="sm">Super Admin</Badge>
-                    </div>
-                </div>
-            </div>
+function isRlsDenied(err: any): boolean {
+    const msg = (err?.message || "").toLowerCase();
+    return err?.code === "42501" || msg.includes("row-level security");
+}
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-8">
-                        <p className="text-sm text-red-600">{error}</p>
-                    </div>
-                )}
+// Normalizers pour chaque entité (basés sur le schéma)
+const normalizeUser = (u: Partial<User>) => ({
+    email: nilIfEmpty(u.email),
+    first_name: nilIfEmpty(u.first_name),
+    last_name: nilIfEmpty(u.last_name),
+    avatar: nilIfEmpty(u.avatar),
+    is_active: u.is_active ?? true,
+    permissions: u.permissions ?? {},
+});
 
-                {/* Navigation Tabs */}
-                <div className="border-b border-gray-200 mb-8">
-                    <nav className="-mb-px flex space-x-8">
-                        {adminTabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === tab.id
-                                        ? 'border-red-500 text-red-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                            >
-                                <tab.icon className="h-4 w-4" />
-                                <span>{tab.name}</span>
-                            </button>
-                        ))}
-                    </nav>
-                </div>
+const normalizePlatformAdmin = (pa: Partial<PlatformAdmin>) => ({
+    user_id: nilIfEmpty(pa.user_id),
+    role: nilIfEmpty(pa.role),
+    permissions: pa.permissions ?? {},
+    is_active: pa.is_active ?? true,
+    last_login: nilIfEmpty(pa.last_login),
+});
 
-                {/* Overview Tab */}
-                {activeTab === 'overview' && (
-                    <div className="space-y-8">
-                        {/* Stats Cards */}
-                        {platformStats && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <Card>
-                                    <div className="p-6">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0">
-                                                <div className="inline-flex items-center justify-center p-3 rounded-lg bg-blue-500">
-                                                    <Building2 className="h-6 w-6 text-white" />
-                                                </div>
-                                            </div>
-                                            <div className="ml-5 w-0 flex-1">
-                                                <dl>
-                                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                                        Agences Totales
-                                                    </dt>
-                                                    <dd className="text-lg font-semibold text-gray-900">
-                                                        {platformStats.totalAgencies}
-                                                    </dd>
-                                                </dl>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4">
-                                            <div className="flex items-center text-sm">
-                                                <span className="text-green-600">
-                                                    {platformStats.activeAgencies} actives
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Card>
+const normalizeAgency = (a: Partial<Agency>) => ({
+    name: nilIfEmpty(a.name),
+    commercial_register: nilIfEmpty(a.commercial_register),
+    logo_url: nilIfEmpty(a.logo_url),
+    is_accredited: a.is_accredited ?? false,
+    accreditation_number: nilIfEmpty(a.accreditation_number),
+    address: nilIfEmpty(a.address),
+    city: nilIfEmpty(a.city),
+    phone: nilIfEmpty(a.phone),
+    email: nilIfEmpty(a.email),
+    director_id: nilIfEmpty(a.director_id),
+    status: nilIfEmpty(a.status) ?? 'approved',
+});
 
-                                <Card>
-                                    <div className="p-6">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0">
-                                                <div className="inline-flex items-center justify-center p-3 rounded-lg bg-green-500">
-                                                    <TrendingUp className="h-6 w-6 text-white" />
-                                                </div>
-                                            </div>
-                                            <div className="ml-5 w-0 flex-1">
-                                                <dl>
-                                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                                        Revenus Plateforme
-                                                    </dt>
-                                                    <dd className="text-lg font-semibold text-gray-900">
-                                                        {formatCurrency(platformStats.totalRevenue)}
-                                                    </dd>
-                                                </dl>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4">
-                                            <div className="flex items-center text-sm">
-                                                <span className="text-green-600">
-                                                    ↗ {platformStats.monthlyGrowth}% ce mois
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Card>
+const normalizeAgencyUser = (au: Partial<AgencyUser>) => ({
+    user_id: nilIfEmpty(au.user_id),
+    agency_id: nilIfEmpty(au.agency_id),
+    role: nilIfEmpty(au.role),
+});
 
-                                <Card>
-                                    <div className="p-6">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0">
-                                                <div className="inline-flex items-center justify-center p-3 rounded-lg bg-yellow-500">
-                                                    <DollarSign className="h-6 w-6 text-white" />
-                                                </div>
-                                            </div>
-                                            <div className="ml-5 w-0 flex-1">
-                                                <dl>
-                                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                                        Revenus Abonnements
-                                                    </dt>
-                                                    <dd className="text-lg font-semibold text-gray-900">
-                                                        {formatCurrency(platformStats.subscriptionRevenue)}
-                                                    </dd>
-                                                </dl>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4">
-                                            <div className="flex items-center text-sm">
-                                                <span className="text-blue-600">
-                                                    Mensuel récurrent
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Card>
+const normalizeAgencyRegistrationRequest = (arr: Partial<AgencyRegistrationRequest>) => ({
+    agency_name: nilIfEmpty(arr.agency_name),
+    commercial_register: nilIfEmpty(arr.commercial_register),
+    director_first_name: nilIfEmpty(arr.director_first_name),
+    director_last_name: nilIfEmpty(arr.director_last_name),
+    director_email: nilIfEmpty(arr.director_email),
+    phone: nilIfEmpty(arr.phone),
+    city: nilIfEmpty(arr.city),
+    address: nilIfEmpty(arr.address),
+    logo_url: nilIfEmpty(arr.logo_url),
+    is_accredited: arr.is_accredited ?? false,
+    accreditation_number: nilIfEmpty(arr.accreditation_number),
+    status: nilIfEmpty(arr.status) ?? 'pending',
+    admin_notes: nilIfEmpty(arr.admin_notes),
+    processed_by: nilIfEmpty(arr.processed_by),
+    processed_at: nilIfEmpty(arr.processed_at),
+    director_password: nilIfEmpty(arr.director_password), // À gérer avec précaution
+    director_auth_user_id: nilIfEmpty(arr.director_auth_user_id),
+});
 
-                                <Card>
-                                    <div className="p-6">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0">
-                                                <div className="inline-flex items-center justify-center p-3 rounded-lg bg-purple-500">
-                                                    <Users className="h-6 w-6 text-white" />
-                                                </div>
-                                            </div>
-                                            <div className="ml-5 w-0 flex-1">
-                                                <dl>
-                                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                                        Propriétés Gérées
-                                                    </dt>
-                                                    <dd className="text-lg font-semibold text-gray-900">
-                                                        {platformStats.totalProperties.toLocaleString()}
-                                                    </dd>
-                                                </dl>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4">
-                                            <div className="flex items-center text-sm">
-                                                <span className="text-purple-600">
-                                                    {platformStats.totalContracts} contrats actifs
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </div>
-                        )}
+const normalizeAgencySubscription = (as: Partial<AgencySubscription>) => ({
+    agency_id: nilIfEmpty(as.agency_id),
+    plan_type: nilIfEmpty(as.plan_type) ?? 'basic',
+    status: nilIfEmpty(as.status) ?? 'trial',
+    monthly_fee: as.monthly_fee ?? 25000,
+    start_date: nilIfEmpty(as.start_date) ?? new Date().toISOString().split('T')[0],
+    end_date: nilIfEmpty(as.end_date),
+    last_payment_date: nilIfEmpty(as.last_payment_date),
+    next_payment_date: nilIfEmpty(as.next_payment_date),
+    trial_days_remaining: as.trial_days_remaining ?? 30,
+    payment_history: as.payment_history ?? [],
+});
 
-                        {/* Recent Activities */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <Card>
-                                <div className="p-6">
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                                        Agences Récemment Inscrites
-                                    </h3>
-                                    {recentAgencies.length > 0 ? (
-                                        <div className="space-y-3">
-                                            {recentAgencies.map((agency) => (
-                                                <div key={agency.id} className="flex items-center justify-between">
-                                                    <div>
-                                                        <p className="font-medium text-gray-900">{agency.name}</p>
-                                                        <p className="text-sm text-gray-500">{agency.city}</p>
-                                                    </div>
-                                                    <span className="text-sm text-gray-500">
-                                                        {new Date(agency.created_at).toLocaleDateString('fr-FR')}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8 text-gray-500">
-                                            <Building2 className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                                            <p>Aucune agence récemment inscrite</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </Card>
+const normalizeSubscriptionPayment = (sp: Partial<SubscriptionPayment>) => ({
+    subscription_id: nilIfEmpty(sp.subscription_id),
+    amount: sp.amount ?? 0,
+    payment_date: nilIfEmpty(sp.payment_date) ?? new Date().toISOString().split('T')[0],
+    payment_method: nilIfEmpty(sp.payment_method),
+    reference_number: nilIfEmpty(sp.reference_number),
+    status: nilIfEmpty(sp.status) ?? 'completed',
+    processed_by: nilIfEmpty(sp.processed_by),
+    notes: nilIfEmpty(sp.notes),
+});
 
-                            <Card>
-                                <div className="p-6">
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                                        Alertes Système
-                                    </h3>
-                                    {systemAlerts.length > 0 ? (
-                                        <div className="space-y-3">
-                                            {systemAlerts.map((alert, index) => (
-                                                <div key={index} className={`flex items-center space-x-3 p-3 rounded-lg ${alert.type === 'warning' ? 'bg-yellow-50' :
-                                                        alert.type === 'error' ? 'bg-red-50' : 'bg-green-50'
-                                                    }`}>
-                                                    <div className={`w-2 h-2 rounded-full ${alert.type === 'warning' ? 'bg-yellow-500' :
-                                                            alert.type === 'error' ? 'bg-red-500' : 'bg-green-500'
-                                                        }`}></div>
-                                                    <div>
-                                                        <p className={`text-sm font-medium ${alert.type === 'warning' ? 'text-yellow-800' :
-                                                                alert.type === 'error' ? 'text-red-800' : 'text-green-800'
-                                                            }`}>
-                                                            {alert.title}
-                                                        </p>
-                                                        <p className={`text-xs ${alert.type === 'warning' ? 'text-yellow-600' :
-                                                                alert.type === 'error' ? 'text-red-600' : 'text-green-600'
-                                                            }`}>
-                                                            {alert.description}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8">
-                                            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-                                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                                <div>
-                                                    <p className="text-sm font-medium text-green-800">
-                                                        Système opérationnel
-                                                    </p>
-                                                    <p className="text-xs text-green-600">Tous les services fonctionnent normalement</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </Card>
-                        </div>
-                    </div>
-                )}
+const normalizeAgencyRanking = (ar: Partial<AgencyRanking>) => ({
+    agency_id: nilIfEmpty(ar.agency_id),
+    year: ar.year ?? new Date().getFullYear(),
+    rank: ar.rank ?? 0,
+    total_score: ar.total_score ?? 0,
+    volume_score: ar.volume_score ?? 0,
+    recovery_rate_score: ar.recovery_rate_score ?? 0,
+    satisfaction_score: ar.satisfaction_score ?? 0,
+    metrics: ar.metrics ?? {},
+    rewards: ar.rewards ?? [],
+});
 
-                {/* Other Tabs */}
-                {activeTab === 'agencies' && <AgencyManagement />}
-                {activeTab === 'subscriptions' && <SubscriptionManagement />}
-                {activeTab === 'rankings' && <AgencyRankings />}
-                {activeTab === 'settings' && <PlatformSettings />}
-            </div>
-        </div>
-    );
+const normalizeOwner = (o: Partial<Owner>) => ({
+    agency_id: nilIfEmpty(o.agency_id),
+    first_name: nilIfEmpty(o.first_name),
+    last_name: nilIfEmpty(o.last_name),
+    phone: nilIfEmpty(o.phone),
+    email: nilIfEmpty(o.email),
+    address: nilIfEmpty(o.address),
+    city: nilIfEmpty(o.city),
+    property_title: nilIfEmpty(o.property_title),
+    property_title_details: nilIfEmpty(o.property_title_details),
+    marital_status: nilIfEmpty(o.marital_status),
+    spouse_name: nilIfEmpty(o.spouse_name),
+    spouse_phone: nilIfEmpty(o.spouse_phone),
+    children_count: o.children_count ?? 0,
+    created_at: o.created_at ?? new Date().toISOString(),
+    updated_at: o.updated_at ?? new Date().toISOString(),
+});
+
+const normalizeTenant = (t: Partial<Tenant>) => ({
+    agency_id: nilIfEmpty(t.agency_id),
+    first_name: nilIfEmpty(t.first_name),
+    last_name: nilIfEmpty(t.last_name),
+    phone: nilIfEmpty(t.phone),
+    email: nilIfEmpty(t.email),
+    address: nilIfEmpty(t.address),
+    city: nilIfEmpty(t.city),
+    marital_status: nilIfEmpty(t.marital_status),
+    spouse_name: nilIfEmpty(t.spouse_name),
+    spouse_phone: nilIfEmpty(t.spouse_phone),
+    children_count: t.children_count ?? 0,
+    profession: nilIfEmpty(t.profession),
+    nationality: nilIfEmpty(t.nationality),
+    photo_url: nilIfEmpty(t.photo_url),
+    id_card_url: nilIfEmpty(t.id_card_url),
+    payment_status: nilIfEmpty(t.payment_status),
+});
+
+const normalizeProperty = (p: Partial<Property>) => ({
+    agency_id: nilIfEmpty(p.agency_id),
+    owner_id: nilIfEmpty(p.owner_id),
+    title: nilIfEmpty(p.title),
+    description: nilIfEmpty(p.description),
+    location: p.location ?? {},
+    details: p.details ?? {},
+    standing: nilIfEmpty(p.standing),
+    rooms: p.rooms ?? [],
+    images: p.images ?? [],
+    is_available: p.is_available ?? true,
+    for_sale: p.for_sale ?? false,
+    for_rent: p.for_rent ?? true,
+});
+
+const normalizeAnnouncement = (a: Partial<Announcement>) => ({
+    agency_id: nilIfEmpty(a.agency_id),
+    property_id: nilIfEmpty(a.property_id),
+    title: nilIfEmpty(a.title),
+    description: nilIfEmpty(a.description),
+    type: nilIfEmpty(a.type),
+    is_active: a.is_active ?? true,
+    expires_at: nilIfEmpty(a.expires_at),
+    views: a.views ?? 0,
+});
+
+const normalizeAnnouncementInterest = (ai: Partial<AnnouncementInterest>) => ({
+    announcement_id: nilIfEmpty(ai.announcement_id),
+    agency_id: nilIfEmpty(ai.agency_id),
+    user_id: nilIfEmpty(ai.user_id),
+    message: nilIfEmpty(ai.message),
+    status: nilIfEmpty(ai.status) ?? 'pending',
+});
+
+const normalizeContract = (c: Partial<Contract>) => ({
+    agency_id: nilIfEmpty(c.agency_id),
+    property_id: nilIfEmpty(c.property_id),
+    owner_id: nilIfEmpty(c.owner_id),
+    tenant_id: nilIfEmpty(c.tenant_id),
+    type: nilIfEmpty(c.type),
+    start_date: nilIfEmpty(c.start_date),
+    end_date: nilIfEmpty(c.end_date),
+    monthly_rent: nilIfEmpty(c.monthly_rent),
+    sale_price: nilIfEmpty(c.sale_price),
+    deposit: nilIfEmpty(c.deposit),
+    charges: nilIfEmpty(c.charges),
+    commission_rate: c.commission_rate ?? 10.0,
+    commission_amount: c.commission_amount ?? 0,
+    status: nilIfEmpty(c.status),
+    terms: nilIfEmpty(c.terms),
+    documents: c.documents ?? [],
+});
+
+const normalizeRentReceipt = (rr: Partial<RentReceipt>) => ({
+    receipt_number: nilIfEmpty(rr.receipt_number),
+    contract_id: nilIfEmpty(rr.contract_id),
+    period_month: rr.period_month ?? 1,
+    period_year: rr.period_year ?? new Date().getFullYear(),
+    rent_amount: rr.rent_amount ?? 0,
+    charges: rr.charges ?? 0,
+    total_amount: rr.total_amount ?? 0,
+    commission_amount: rr.commission_amount ?? 0,
+    owner_payment: rr.owner_payment ?? 0,
+    payment_date: nilIfEmpty(rr.payment_date),
+    payment_method: nilIfEmpty(rr.payment_method),
+    notes: nilIfEmpty(rr.notes),
+    issued_by: nilIfEmpty(rr.issued_by),
+});
+
+const normalizeFinancialStatement = (fs: Partial<FinancialStatement>) => ({
+    agency_id: nilIfEmpty(fs.agency_id),
+    owner_id: nilIfEmpty(fs.owner_id),
+    tenant_id: nilIfEmpty(fs.tenant_id),
+    period_start: nilIfEmpty(fs.period_start),
+    period_end: nilIfEmpty(fs.period_end),
+    total_income: fs.total_income ?? 0,
+    total_expenses: fs.total_expenses ?? 0,
+    net_balance: fs.net_balance ?? 0,
+    pending_payments: fs.pending_payments ?? 0,
+    transactions: fs.transactions ?? [],
+    generated_by: nilIfEmpty(fs.generated_by),
+    generated_at: nilIfEmpty(fs.generated_at),
+});
+
+const normalizeMessage = (m: Partial<Message>) => ({
+    sender_id: nilIfEmpty(m.sender_id),
+    receiver_id: nilIfEmpty(m.receiver_id),
+    agency_id: nilIfEmpty(m.agency_id),
+    property_id: nilIfEmpty(m.property_id),
+    announcement_id: nilIfEmpty(m.announcement_id),
+    subject: nilIfEmpty(m.subject),
+    content: nilIfEmpty(m.content),
+    is_read: m.is_read ?? false,
+    attachments: m.attachments ?? [],
+    created_at: nilIfEmpty(m.created_at),
+});
+
+const normalizeNotification = (n: Partial<Notification>) => ({
+    user_id: nilIfEmpty(n.user_id),
+    type: nilIfEmpty(n.type),
+    title: nilIfEmpty(n.title),
+    message: nilIfEmpty(n.message),
+    data: n.data ?? {},
+    is_read: n.is_read ?? false,
+    priority: nilIfEmpty(n.priority),
+    created_at: nilIfEmpty(n.created_at),
+});
+
+const normalizePlatformSetting = (ps: Partial<PlatformSetting>) => ({
+    setting_key: nilIfEmpty(ps.setting_key),
+    setting_value: ps.setting_value ?? {},
+    description: nilIfEmpty(ps.description),
+    category: nilIfEmpty(ps.category) ?? 'general',
+    is_public: ps.is_public ?? false,
+    updated_by: nilIfEmpty(ps.updated_by),
+});
+
+const normalizeAuditLog = (al: Partial<AuditLog>) => ({
+    user_id: nilIfEmpty(al.user_id),
+    action: nilIfEmpty(al.action),
+    table_name: nilIfEmpty(al.table_name),
+    record_id: nilIfEmpty(al.record_id),
+    old_values: al.old_values ?? null,
+    new_values: al.new_values ?? null,
+    ip_address: nilIfEmpty(al.ip_address),
+    user_agent: nilIfEmpty(al.user_agent),
+});
+
+// ======================================================
+// ================   DB SERVICE   ======================
+// ======================================================
+export const dbService = {
+    // ----------------- USERS -----------------
+    users: {
+        async getCurrent(): Promise<User | null> {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+            const { data, error } = await supabase.from('users').select('*').eq('id', user.id).single();
+            if (error) throw new Error(formatSbError('❌ users.select (current)', error));
+            return data;
+        },
+        async getAll(): Promise<User[]> {
+            const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ users.select', error));
+            return data ?? [];
+        },
+        async create(user: Partial<User>): Promise<User> {
+            const clean = normalizeUser(user);
+            const { data, error } = await supabase.from('users').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ users.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<User>): Promise<User> {
+            const clean = normalizeUser(updates);
+            const { data, error } = await supabase.from('users').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ users.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('users').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ users.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- PLATFORM ADMINS -----------------
+    platformAdmins: {
+        async getAll(): Promise<PlatformAdmin[]> {
+            const { data, error } = await supabase.from('platform_admins').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ platform_admins.select', error));
+            return data ?? [];
+        },
+        async create(admin: Partial<PlatformAdmin>): Promise<PlatformAdmin> {
+            const clean = normalizePlatformAdmin(admin);
+            const { data, error } = await supabase.from('platform_admins').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ platform_admins.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<PlatformAdmin>): Promise<PlatformAdmin> {
+            const clean = normalizePlatformAdmin(updates);
+            const { data, error } = await supabase.from('platform_admins').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ platform_admins.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('platform_admins').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ platform_admins.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- AGENCIES -----------------
+    agencies: {
+        async getAll(): Promise<Agency[]> {
+            const { data, error } = await supabase.from('agencies').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ agencies.select', error));
+            return data ?? [];
+        },
+        async getById(id: string): Promise<Agency | null> {
+            const { data, error } = await supabase.from('agencies').select('*').eq('id', id).single();
+            if (error) throw new Error(formatSbError('❌ agencies.select (by id)', error));
+            return data;
+        },
+        async create(agency: Partial<Agency>): Promise<Agency> {
+            const clean = normalizeAgency(agency);
+            const { data, error } = await supabase.from('agencies').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agencies.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<Agency>): Promise<Agency> {
+            const clean = normalizeAgency(updates);
+            const { data, error } = await supabase.from('agencies').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agencies.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('agencies').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ agencies.delete', error));
+            return true;
+        },
+        async getRecent(limit: number = 5): Promise<Agency[]> {
+            const { data, error } = await supabase
+                .from('agencies')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+            if (error) throw new Error(formatSbError('❌ agencies.select (recent)', error));
+            return data ?? [];
+        },
+    },
+
+    // ----------------- AGENCY USERS -----------------
+    agencyUsers: {
+        async getAll(): Promise<AgencyUser[]> {
+            const { data, error } = await supabase.from('agency_users').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ agency_users.select', error));
+            return data ?? [];
+        },
+        async create(agencyUser: Partial<AgencyUser>): Promise<AgencyUser> {
+            const clean = normalizeAgencyUser(agencyUser);
+            const { data, error } = await supabase.from('agency_users').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agency_users.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<AgencyUser>): Promise<AgencyUser> {
+            const clean = normalizeAgencyUser(updates);
+            const { data, error } = await supabase.from('agency_users').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agency_users.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('agency_users').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ agency_users.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- AGENCY REGISTRATION REQUESTS -----------------
+    agencyRegistrationRequests: {
+        async getAll(): Promise<AgencyRegistrationRequest[]> {
+            const { data, error } = await supabase
+                .from('agency_registration_requests')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ agency_registration_requests.select', error));
+            return data ?? [];
+        },
+        async create(request: Partial<AgencyRegistrationRequest>): Promise<{ id: string }> {
+            const clean = normalizeAgencyRegistrationRequest(request);
+            const { data, error } = await supabase
+                .from('agency_registration_requests')
+                .insert(clean)
+                .select('id')
+                .single();
+            if (error) throw new Error(formatSbError('❌ agency_registration_requests.insert', error));
+            return { id: data.id };
+        },
+        async update(id: string, updates: Partial<AgencyRegistrationRequest>): Promise<AgencyRegistrationRequest> {
+            const clean = normalizeAgencyRegistrationRequest(updates);
+            const { data, error } = await supabase.from('agency_registration_requests').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agency_registration_requests.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('agency_registration_requests').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ agency_registration_requests.delete', error));
+            return true;
+        },
+        async approve(requestId: string): Promise<{ agencyId: string }> {
+            const { user } = await logAuthContext('approveAgencyRequest');
+            if (!user) throw new Error('Utilisateur non authentifié');
+
+            // Vérifier si l'utilisateur est admin
+            const { data: admin } = await supabase
+                .from('platform_admins')
+                .select('role')
+                .eq('user_id', user.id)
+                .single();
+            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+                throw new Error('Permissions insuffisantes');
+            }
+
+            // Récupérer la demande
+            const { data: req, error: reqError } = await supabase
+                .from('agency_registration_requests')
+                .select('*')
+                .eq('id', requestId)
+                .single();
+            if (reqError || !req) throw new Error('Demande introuvable');
+
+            // Mettre à jour le statut de la demande
+            const { error: updateError } = await supabase
+                .from('agency_registration_requests')
+                .update({
+                    status: 'approved',
+                    processed_by: user.id,
+                    processed_at: new Date().toISOString(),
+                })
+                .eq('id', requestId);
+            if (updateError) throw updateError;
+
+            // Créer l'agence
+            const agencyData = normalizeAgency({
+                name: req.agency_name,
+                commercial_register: req.commercial_register,
+                logo_url: req.logo_url,
+                is_accredited: req.is_accredited,
+                accreditation_number: req.accreditation_number,
+                address: req.address,
+                city: req.city,
+                phone: req.phone,
+                email: req.director_email,
+                director_id: req.director_auth_user_id,
+                status: 'approved',
+            });
+
+            const { data: agency, error: agencyError } = await supabase
+                .from('agencies')
+                .insert(agencyData)
+                .select('id')
+                .single();
+            if (agencyError || !agency) throw new Error('Échec de la création de l\'agence');
+
+            // Créer l'abonnement par défaut
+            const subscriptionData = normalizeAgencySubscription({
+                agency_id: agency.id,
+                plan_type: 'basic',
+                status: 'trial',
+                monthly_fee: 25000,
+                start_date: new Date().toISOString().split('T')[0],
+                next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                trial_days_remaining: 30,
+            });
+            const { error: subError } = await supabase.from('agency_subscriptions').insert(subscriptionData);
+            if (subError) throw subError;
+
+            // Ajouter le director comme agency_user
+            if (req.director_auth_user_id) {
+                const agencyUserData = normalizeAgencyUser({
+                    user_id: req.director_auth_user_id,
+                    agency_id: agency.id,
+                    role: 'director',
+                });
+                const { error: auError } = await supabase.from('agency_users').insert(agencyUserData);
+                if (auError) throw auError;
+            }
+
+            return { agencyId: agency.id };
+        },
+        async reject(requestId: string, notes?: string): Promise<boolean> {
+            const { user } = await logAuthContext('rejectAgencyRequest');
+            if (!user) throw new Error('Utilisateur non authentifié');
+
+            // Vérifier si l'utilisateur est admin
+            const { data: admin } = await supabase
+                .from('platform_admins')
+                .select('role')
+                .eq('user_id', user.id)
+                .single();
+            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+                throw new Error('Permissions insuffisantes');
+            }
+
+            const updates = {
+                status: 'rejected',
+                processed_by: user.id,
+                processed_at: new Date().toISOString(),
+                admin_notes: nilIfEmpty(notes),
+            };
+
+            const { error } = await supabase
+                .from('agency_registration_requests')
+                .update(updates)
+                .eq('id', requestId);
+            if (error) throw new Error(formatSbError('❌ agency_registration_requests.reject', error));
+            return true;
+        },
+    },
+
+    // ----------------- AGENCY SUBSCRIPTIONS -----------------
+    agencySubscriptions: {
+        async getAll(): Promise<AgencySubscription[]> {
+            const { data, error } = await supabase.from('agency_subscriptions').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ agency_subscriptions.select', error));
+            return data ?? [];
+        },
+        async create(sub: Partial<AgencySubscription>): Promise<AgencySubscription> {
+            const clean = normalizeAgencySubscription(sub);
+            const { data, error } = await supabase.from('agency_subscriptions').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agency_subscriptions.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<AgencySubscription>): Promise<AgencySubscription> {
+            const clean = normalizeAgencySubscription(updates);
+            const { data, error } = await supabase.from('agency_subscriptions').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agency_subscriptions.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('agency_subscriptions').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ agency_subscriptions.delete', error));
+            return true;
+        },
+        async extend(agencyId: string, months: number): Promise<boolean> {
+            const { user } = await logAuthContext('extendSubscription');
+            if (!user) throw new Error('Utilisateur non authentifié');
+
+            // Vérifier si l'utilisateur est admin
+            const { data: admin } = await supabase
+                .from('platform_admins')
+                .select('role')
+                .eq('user_id', user.id)
+                .single();
+            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+                throw new Error('Permissions insuffisantes');
+            }
+
+            const { data: sub, error: subError } = await supabase
+                .from('agency_subscriptions')
+                .select('*')
+                .eq('agency_id', agencyId)
+                .single();
+            if (subError || !sub) throw new Error('Abonnement introuvable');
+
+            const nextPaymentDate = new Date(sub.next_payment_date || Date.now());
+            nextPaymentDate.setMonth(nextPaymentDate.getMonth() + months);
+
+            const payment = {
+                date: new Date().toISOString(),
+                amount: sub.monthly_fee * months,
+            };
+
+            const updatedHistory = [...(sub.payment_history || []), payment];
+
+            const updates = {
+                next_payment_date: nextPaymentDate.toISOString().split('T')[0],
+                payment_history: updatedHistory,
+                status: 'active',
+            };
+
+            const { error } = await supabase
+                .from('agency_subscriptions')
+                .update(updates)
+                .eq('id', sub.id);
+            if (error) throw error;
+
+            return true;
+        },
+        async suspend(agencyId: string, reason: string): Promise<boolean> {
+            const { user } = await logAuthContext('suspendSubscription');
+            if (!user) throw new Error('Utilisateur non authentifié');
+
+            // Vérifier si l'utilisateur est admin
+            const { data: admin } = await supabase
+                .from('platform_admins')
+                .select('role')
+                .eq('user_id', user.id)
+                .single();
+            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+                throw new Error('Permissions insuffisantes');
+            }
+
+            const { data: sub, error: subError } = await supabase
+                .from('agency_subscriptions')
+                .select('id')
+                .eq('agency_id', agencyId)
+                .single();
+            if (subError || !sub) throw new Error('Abonnement introuvable');
+
+            const { error } = await supabase
+                .from('agency_subscriptions')
+                .update({ status: 'suspended', suspension_reason: reason }) // Ajoutez un champ suspension_reason si nécessaire dans le schéma
+                .eq('id', sub.id);
+            if (error) throw error;
+
+            return true;
+        },
+        async activate(agencyId: string): Promise<boolean> {
+            const { user } = await logAuthContext('activateSubscription');
+            if (!user) throw new Error('Utilisateur non authentifié');
+
+            // Vérifier si l'utilisateur est admin
+            const { data: admin } = await supabase
+                .from('platform_admins')
+                .select('role')
+                .eq('user_id', user.id)
+                .single();
+            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+                throw new Error('Permissions insuffisantes');
+            }
+
+            const { data: sub, error: subError } = await supabase
+                .from('agency_subscriptions')
+                .select('*')
+                .eq('agency_id', agencyId)
+                .single();
+            if (subError || !sub) throw new Error('Abonnement introuvable');
+
+            const nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+            const { error } = await supabase
+                .from('agency_subscriptions')
+                .update({ status: 'active', next_payment_date: nextPaymentDate })
+                .eq('id', sub.id);
+            if (error) throw error;
+
+            return true;
+        },
+    },
+
+    // ----------------- SUBSCRIPTION PAYMENTS -----------------
+    subscriptionPayments: {
+        async getAll(): Promise<SubscriptionPayment[]> {
+            const { data, error } = await supabase.from('subscription_payments').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ subscription_payments.select', error));
+            return data ?? [];
+        },
+        async create(payment: Partial<SubscriptionPayment>): Promise<SubscriptionPayment> {
+            const clean = normalizeSubscriptionPayment(payment);
+            const { data, error } = await supabase.from('subscription_payments').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ subscription_payments.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<SubscriptionPayment>): Promise<SubscriptionPayment> {
+            const clean = normalizeSubscriptionPayment(updates);
+            const { data, error } = await supabase.from('subscription_payments').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ subscription_payments.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('subscription_payments').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ subscription_payments.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- AGENCY RANKINGS -----------------
+    agencyRankings: {
+        async getAll(): Promise<AgencyRanking[]> {
+            const { data, error } = await supabase.from('agency_rankings').select('*').order('year', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ agency_rankings.select', error));
+            return data ?? [];
+        },
+        async create(ranking: Partial<AgencyRanking>): Promise<AgencyRanking> {
+            const clean = normalizeAgencyRanking(ranking);
+            const { data, error } = await supabase.from('agency_rankings').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agency_rankings.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<AgencyRanking>): Promise<AgencyRanking> {
+            const clean = normalizeAgencyRanking(updates);
+            const { data, error } = await supabase.from('agency_rankings').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ agency_rankings.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('agency_rankings').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ agency_rankings.delete', error));
+            return true;
+        },
+        getByPeriod: async (year: number): Promise<AgencyRanking[]> => {
+            const { data, error } = await supabase
+                .from('agency_rankings')
+                .select('*')
+                .eq('year', year)
+                .order('rank', { ascending: true });
+            if (error) throw new Error(formatSbError('❌ agency_rankings.select (by year)', error));
+            return data ?? [];
+        },
+        generate: async (year: number): Promise<void> => {
+            const { user } = await logAuthContext('generateAgencyRankings');
+            if (!user) throw new Error('Utilisateur non authentifié');
+
+            // Vérifier si l'utilisateur est admin
+            const { data: admin } = await supabase
+                .from('platform_admins')
+                .select('role')
+                .eq('user_id', user.id)
+                .single();
+            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+                throw new Error('Permissions insuffisantes');
+            }
+
+            const { error } = await supabase.rpc('generate_agency_rankings', { p_year: year });
+            if (error) throw new Error(formatSbError('❌ agency_rankings.generate', error));
+        },
+    },
+
+    // ----------------- OWNERS -----------------
+    owners: {
+        async getAll(): Promise<Owner[]> {
+            const { data, error } = await supabase.from('owners').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ owners.select', error));
+            return data ?? [];
+        },
+        async create(owner: Partial<Owner>): Promise<Owner> {
+            const clean = normalizeOwner(owner);
+            const { data, error } = await supabase.from('owners').insert(clean).select('*').single();
+            if (error) {
+                if (isRlsDenied(error)) {
+                    console.warn('↪️ RLS bloqué pour owners.insert, fallback possible si implémenté');
+                }
+                throw new Error(formatSbError('❌ owners.insert', error));
+            }
+            return data;
+        },
+        async update(id: string, updates: Partial<Owner>): Promise<Owner> {
+            const clean = normalizeOwner(updates);
+            const { data, error } = await supabase.from('owners').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ owners.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('owners').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ owners.delete', error));
+            return true;
+        },
+    },
+ 
+    // ----------------- TENANTS -----------------
+    tenants: {
+        async getAll(): Promise<Tenant[]> {
+            const { data, error } = await supabase.from('tenants').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ tenants.select', error));
+            return data ?? [];
+        },
+        async create(tenant: Partial<Tenant>): Promise<Tenant> {
+            const clean = normalizeTenant(tenant);
+            const { data, error } = await supabase.from('tenants').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ tenants.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<Tenant>): Promise<Tenant> {
+            const clean = normalizeTenant(updates);
+            const { data, error } = await supabase.from('tenants').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ tenants.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('tenants').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ tenants.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- PROPERTIES -----------------
+    properties: {
+        async getAll(): Promise<Property[]> {
+            const { data, error } = await supabase.from('properties').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ properties.select', error));
+            return data ?? [];
+        },
+        async create(property: Partial<Property>): Promise<Property> {
+            const clean = normalizeProperty(property);
+            const { data, error } = await supabase.from('properties').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ properties.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<Property>): Promise<Property> {
+            const clean = normalizeProperty(updates);
+            const { data, error } = await supabase.from('properties').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ properties.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('properties').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ properties.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- ANNOUNCEMENTS -----------------
+    announcements: {
+        async getAll(): Promise<Announcement[]> {
+            const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ announcements.select', error));
+            return data ?? [];
+        },
+        async create(announcement: Partial<Announcement>): Promise<Announcement> {
+            const clean = normalizeAnnouncement(announcement);
+            const { data, error } = await supabase.from('announcements').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ announcements.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<Announcement>): Promise<Announcement> {
+            const clean = normalizeAnnouncement(updates);
+            const { data, error } = await supabase.from('announcements').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ announcements.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('announcements').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ announcements.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- ANNOUNCEMENT INTERESTS -----------------
+    announcementInterests: {
+        async getAll(): Promise<AnnouncementInterest[]> {
+            const { data, error } = await supabase.from('announcement_interests').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ announcement_interests.select', error));
+            return data ?? [];
+        },
+        async create(interest: Partial<AnnouncementInterest>): Promise<AnnouncementInterest> {
+            const clean = normalizeAnnouncementInterest(interest);
+            const { data, error } = await supabase.from('announcement_interests').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ announcement_interests.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<AnnouncementInterest>): Promise<AnnouncementInterest> {
+            const clean = normalizeAnnouncementInterest(updates);
+            const { data, error } = await supabase.from('announcement_interests').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ announcement_interests.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('announcement_interests').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ announcement_interests.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- CONTRACTS -----------------
+    contracts: {
+        async getAll(): Promise<Contract[]> {
+            const { data, error } = await supabase.from('contracts').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ contracts.select', error));
+            return data ?? [];
+        },
+        async create(contract: Partial<Contract>): Promise<Contract> {
+            const clean = normalizeContract(contract);
+            const { data, error } = await supabase.from('contracts').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ contracts.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<Contract>): Promise<Contract> {
+            const clean = normalizeContract(updates);
+            const { data, error } = await supabase.from('contracts').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ contracts.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('contracts').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ contracts.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- RENT RECEIPTS -----------------
+    rentReceipts: {
+        async getAll(): Promise<RentReceipt[]> {
+            const { data, error } = await supabase.from('rent_receipts').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ rent_receipts.select', error));
+            return data ?? [];
+        },
+        async create(receipt: Partial<RentReceipt>): Promise<RentReceipt> {
+            const clean = normalizeRentReceipt(receipt);
+            const { data, error } = await supabase.from('rent_receipts').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ rent_receipts.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<RentReceipt>): Promise<RentReceipt> {
+            const clean = normalizeRentReceipt(updates);
+            const { data, error } = await supabase.from('rent_receipts').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ rent_receipts.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('rent_receipts').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ rent_receipts.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- FINANCIAL STATEMENTS -----------------
+    financialStatements: {
+        async getAll(): Promise<FinancialStatement[]> {
+            const { data, error } = await supabase.from('financial_statements').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ financial_statements.select', error));
+            return data ?? [];
+        },
+        async create(statement: Partial<FinancialStatement>): Promise<FinancialStatement> {
+            const clean = normalizeFinancialStatement(statement);
+            const { data, error } = await supabase.from('financial_statements').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ financial_statements.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<FinancialStatement>): Promise<FinancialStatement> {
+            const clean = normalizeFinancialStatement(updates);
+            const { data, error } = await supabase.from('financial_statements').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ financial_statements.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('financial_statements').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ financial_statements.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- MESSAGES -----------------
+    messages: {
+        async getAll(): Promise<Message[]> {
+            const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ messages.select', error));
+            return data ?? [];
+        },
+        async create(message: Partial<Message>): Promise<Message> {
+            const clean = normalizeMessage(message);
+            const { data, error } = await supabase.from('messages').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ messages.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<Message>): Promise<Message> {
+            const clean = normalizeMessage(updates);
+            const { data, error } = await supabase.from('messages').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ messages.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('messages').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ messages.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- NOTIFICATIONS -----------------
+    notifications: {
+        async getAll(): Promise<Notification[]> {
+            const { data, error } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ notifications.select', error));
+            return data ?? [];
+        },
+        async create(notification: Partial<Notification>): Promise<Notification> {
+            const clean = normalizeNotification(notification);
+            const { data, error } = await supabase.from('notifications').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ notifications.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<Notification>): Promise<Notification> {
+            const clean = normalizeNotification(updates);
+            const { data, error } = await supabase.from('notifications').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ notifications.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('notifications').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ notifications.delete', error));
+            return true;
+        },
+    },
+
+    // ----------------- PLATFORM SETTINGS -----------------
+    platformSettings: {
+        async getAll(): Promise<PlatformSetting[]> {
+            const { data, error } = await supabase.from('platform_settings').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ platform_settings.select', error));
+            return data ?? [];
+        },
+        async create(setting: Partial<PlatformSetting>): Promise<PlatformSetting> {
+            const clean = normalizePlatformSetting(setting);
+            const { data, error } = await supabase.from('platform_settings').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ platform_settings.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<PlatformSetting>): Promise<PlatformSetting> {
+            const clean = normalizePlatformSetting(updates);
+            const { data, error } = await supabase.from('platform_settings').update(clean).eq('id', id).select('*').single();
+            if (error) throw new Error(formatSbError('❌ platform_settings.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<boolean> {
+            const { error } = await supabase.from('platform_settings').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ platform_settings.delete', error));
+            return true;
+        },
+        upsert: async (settings: Partial<PlatformSetting>[]): Promise<void> => {
+            const { user } = await logAuthContext('platformSettingsUpsert');
+            if (!user) throw new Error('Utilisateur non authentifié');
+
+            // Vérifier si l'utilisateur est admin
+            const { data: admin } = await supabase
+                .from('platform_admins')
+                .select('role')
+                .eq('user_id', user.id)
+                .single();
+            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+                throw new Error('Permissions insuffisantes');
+            }
+
+            const cleanSettings = settings.map(setting => ({
+                ...normalizePlatformSetting(setting),
+                updated_by: user.id,
+                updated_at: new Date().toISOString(),
+            }));
+
+            const { error } = await supabase
+                .from('platform_settings')
+                .upsert(cleanSettings, { onConflict: 'setting_key' });
+            if (error) throw new Error(formatSbError('❌ platform_settings.upsert', error));
+        },
+    },
+
+    // ----------------- AUDIT LOGS -----------------
+    auditLogs: {
+        async getAll(): Promise<AuditLog[]> {
+            const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(formatSbError('❌ audit_logs.select', error));
+            return data ?? [];
+        },
+        async insert(log: Partial<AuditLog>): Promise<AuditLog> {
+            const clean = normalizeAuditLog(log);
+            const { data, error } = await supabase.from('audit_logs').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ audit_logs.insert', error));
+            return data;
+        },
+    },
+
+    // ----------------- AUTRES FONCTIONS UTILES -----------------
+    async getSystemAlerts(): Promise<any> {
+        try {
+            const { data, error } = await supabase
+                .from('platform_settings')
+                .select('setting_value')
+                .eq('setting_key', 'system_alerts')
+                .eq('is_public', true)
+                .limit(1)
+                .maybeSingle(); // Use maybeSingle instead of single
+
+            if (error) {
+                throw new Error(`❌ platform_settings.select (system_alerts) | code=${error.code} | msg=${error.message}`);
+            }
+
+            return data?.setting_value || null; // Return null if no rows found
+        } catch (err: any) {
+            console.error('getSystemAlerts:', err);
+            throw new Error(`❌ getSystemAlerts: ${err.message}`);
+        }
+    },
 };
+
+
+
+
+
+// à partir des composants ci-dessus, mettre à jour les composants suivants, ensuite, je donnerais d'autres composants à corriger :
+
+
+

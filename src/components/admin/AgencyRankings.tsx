@@ -6,7 +6,6 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { dbService } from '../../lib/supabase';
 import { AgencyRanking, Reward, AuditLog } from '../../types/db';
-import { BadgeVariant } from '../../types/ui';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Toast {

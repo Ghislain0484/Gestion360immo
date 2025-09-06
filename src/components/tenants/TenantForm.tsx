@@ -4,9 +4,8 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
-import { TenantFormData } from '../../types/tenant';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService } from '../../lib/supabase';
+import { TenantFormData } from '../../types/db';
 
 interface TenantFormProps {
   isOpen: boolean;
@@ -24,26 +23,26 @@ export const TenantForm: React.FC<TenantFormProps> = ({
   const { user } = useAuth();
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
-  
+
   const [formData, setFormData] = useState<TenantFormData>({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    email: '',
-    address: '',
-    city: '',
-    maritalStatus: 'celibataire',
-    spouseName: '',
-    spousePhone: '',
-    childrenCount: 0,
-    profession: '',
-    nationality: 'Ivoirienne',
-    photoUrl: '',
-    idCardUrl: '',
-    paymentStatus: 'bon',
-    agencyId: user?.agencyId || '',
-    ...initialData,
+    first_name: initialData?.first_name || '',
+    last_name: initialData?.last_name || '',
+    phone: initialData?.phone || '',
+    email: initialData?.email ?? '',
+    address: initialData?.address || '',
+    city: initialData?.city || '',
+    marital_status: initialData?.marital_status || 'celibataire',
+    spouse_name: initialData?.spouse_name || '',
+    spouse_phone: initialData?.spouse_phone || '',
+    children_count: initialData?.children_count || 0,
+    profession: initialData?.profession || '',
+    nationality: initialData?.nationality || 'Ivoirienne',
+    photo_url: initialData?.photo_url || '',
+    id_card_url: initialData?.id_card_url || '',
+    payment_status: initialData?.payment_status || 'bon',
+    agency_id: user?.agency_id || '',
   });
+
 
   const maritalStatusOptions = [
     { value: 'celibataire', label: 'Célibataire' },
@@ -53,7 +52,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({
   ];
 
   const nationalityOptions = [
-    'Ivoirienne', 'Française', 'Malienne', 'Burkinabé', 'Ghanéenne', 
+    'Ivoirienne', 'Française', 'Malienne', 'Burkinabé', 'Ghanéenne',
     'Nigériane', 'Sénégalaise', 'Guinéenne', 'Libérienne', 'Autre'
   ];
 
@@ -71,59 +70,59 @@ export const TenantForm: React.FC<TenantFormProps> = ({
     const url = URL.createObjectURL(file);
     if (type === 'photo') {
       setPhotoFile(file);
-      updateFormData({ photoUrl: url });
+      updateFormData({ photo_url: url });
     } else {
       setIdCardFile(file);
-      updateFormData({ idCardUrl: url });
+      updateFormData({ id_card_url: url });
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation des données requises
-    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.phone.trim() || !formData.profession.trim()) {
+    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.phone.trim() || !formData.profession.trim()) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
-    
+
     // Validation du téléphone
     const phoneRegex = /^(\+225)?[0-9\s-]{8,15}$/;
     if (!phoneRegex.test(formData.phone)) {
       alert('Format de téléphone invalide');
       return;
     }
-    
+
     // Validation email si fourni
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       alert('Format d\'email invalide');
       return;
     }
-    
+
     // Validation des données du conjoint si marié
-    if (formData.maritalStatus === 'marie') {
-      if (!formData.spouseName?.trim() || !formData.spousePhone?.trim()) {
+    if (formData.marital_status === 'marie') {
+      if (!formData.spouse_name?.trim() || !formData.spouse_phone?.trim()) {
         alert('Veuillez remplir les informations du conjoint');
         return;
       }
     }
-    
+
     try {
       await onSubmit(formData);
-      
+
       alert(`✅ Locataire créé avec succès !
       
-👤 ${formData.firstName} ${formData.lastName}
+👤 ${formData.first_name} ${formData.last_name}
 📱 ${formData.phone}
 🏠 ${formData.city}
 
 Le locataire a été enregistré et est maintenant disponible dans votre liste.`);
-      
+
       onClose();
-      
+
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
-      
+
       if (error instanceof Error) {
         alert(`❌ Erreur: ${error.message}`);
       } else {
@@ -132,7 +131,7 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
     }
   };
 
-  const isMarried = formData.maritalStatus === 'marie';
+  const isMarried = formData.marital_status === 'marie';
 
   return (
     <div>
@@ -144,19 +143,19 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
               <User className="h-5 w-5 text-blue-600 mr-2" />
               <h3 className="text-lg font-medium text-gray-900">Informations personnelles</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Prénom"
-                value={formData.firstName}
-                onChange={(e) => updateFormData({ firstName: e.target.value })}
+                value={formData.first_name}
+                onChange={(e) => updateFormData({ first_name: e.target.value })}
                 required
                 placeholder="Prénom du locataire"
               />
               <Input
                 label="Nom de famille"
-                value={formData.lastName}
-                onChange={(e) => updateFormData({ lastName: e.target.value })}
+                value={formData.last_name}
+                onChange={(e) => updateFormData({ last_name: e.target.value })}
                 required
                 placeholder="Nom de famille"
               />
@@ -214,7 +213,7 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
               <MapPin className="h-5 w-5 text-green-600 mr-2" />
               <h3 className="text-lg font-medium text-gray-900">Localisation</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Adresse"
@@ -239,15 +238,15 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
               <Heart className="h-5 w-5 text-pink-600 mr-2" />
               <h3 className="text-lg font-medium text-gray-900">Situation familiale</h3>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Situation matrimoniale
                 </label>
                 <select
-                  value={formData.maritalStatus}
-                  onChange={(e) => updateFormData({ maritalStatus: e.target.value as TenantFormData['maritalStatus'] })}
+                  value={formData.marital_status}
+                  onChange={(e) => updateFormData({ marital_status: e.target.value as TenantFormData['marital_status'] })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
                   required
                 >
@@ -263,16 +262,16 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-pink-50/80 rounded-lg backdrop-blur-sm">
                   <Input
                     label="Nom du conjoint"
-                    value={formData.spouseName || ''}
-                    onChange={(e) => updateFormData({ spouseName: e.target.value })}
+                    value={formData.spouse_name || ''}
+                    onChange={(e) => updateFormData({ spouse_name: e.target.value })}
                     required={isMarried}
                     placeholder="Nom complet du conjoint"
                   />
                   <Input
                     label="Téléphone du conjoint"
                     type="tel"
-                    value={formData.spousePhone || ''}
-                    onChange={(e) => updateFormData({ spousePhone: e.target.value })}
+                    value={formData.spouse_phone || ''}
+                    onChange={(e) => updateFormData({ spouse_phone: e.target.value })}
                     required={isMarried}
                     placeholder="+225 XX XX XX XX XX"
                   />
@@ -282,8 +281,8 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
               <Input
                 label="Nombre d'enfants"
                 type="number"
-                value={formData.childrenCount}
-                onChange={(e) => updateFormData({ childrenCount: parseInt(e.target.value) || 0 })}
+                value={formData.children_count}
+                onChange={(e) => updateFormData({ children_count: parseInt(e.target.value) || 0 })}
                 min="0"
                 max="20"
                 placeholder="0"
@@ -297,14 +296,14 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
               <Phone className="h-5 w-5 text-yellow-600 mr-2" />
               <h3 className="text-lg font-medium text-gray-900">Informations locatives</h3>
             </div>
-            
+
             <div className="space-y-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Historique de paiement
               </label>
               <select
-                value={formData.paymentStatus}
-                onChange={(e) => updateFormData({ paymentStatus: e.target.value as TenantFormData['paymentStatus'] })}
+                value={formData.payment_status}
+                onChange={(e) => updateFormData({ payment_status: e.target.value as TenantFormData['payment_status'] })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
                 required
               >
@@ -328,7 +327,7 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
               <FileText className="h-5 w-5 text-purple-600 mr-2" />
               <h3 className="text-lg font-medium text-gray-900">Documents d'identité</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Photo Upload */}
               <div>
@@ -336,10 +335,10 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
                   Photo du locataire
                 </label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors bg-white/50">
-                  {formData.photoUrl ? (
+                  {formData.photo_url ? (
                     <div className="space-y-2">
                       <img
-                        src={formData.photoUrl}
+                        src={formData.photo_url}
                         alt="Photo du locataire"
                         className="w-32 h-32 object-cover rounded-full mx-auto"
                       />
@@ -385,10 +384,10 @@ Le locataire a été enregistré et est maintenant disponible dans votre liste.`
                   Pièce d'identité
                 </label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors bg-white/50">
-                  {formData.idCardUrl ? (
+                  {formData.id_card_url ? (
                     <div className="space-y-2">
                       <img
-                        src={formData.idCardUrl}
+                        src={formData.id_card_url}
                         alt="Pièce d'identité"
                         className="w-full h-32 object-cover rounded mx-auto"
                       />

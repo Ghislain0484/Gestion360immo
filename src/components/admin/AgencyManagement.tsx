@@ -9,7 +9,7 @@ import { RegistrationRequestCard } from './RegistrationRequestCard';
 import { AgencyDetailsModal } from './AgencyDetailsModal';
 import { AgencyCard } from './AgencyCard';
 import { useAuth } from '../../contexts/AuthContext';
-import { Agency, AgencyRegistrationRequest, SubscriptionStatus, PlanType, AgencySubscription } from '../../types/db';
+import { Agency, AgencyRegistrationRequest, SubscriptionStatus, PlanType } from '../../types/db';
 import { BadgeVariant } from '../../types/ui';
 
 // Interface pour les notifications toast

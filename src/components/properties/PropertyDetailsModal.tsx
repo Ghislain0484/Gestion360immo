@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Eye, Edit, X, MapPin, Home, Camera, FileText, Calendar, User } from 'lucide-react';
+import { Edit, MapPin } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Property } from '../../types/property';
+import { Property, PropertyFormData } from '../../types/db'; // Updated import
 import { PropertyForm } from './PropertyForm';
 
 interface PropertyDetailsModalProps {
@@ -34,23 +34,12 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
     }
   };
 
-  const getTypeLabel = (type: string) => {
-    const labels = {
-      villa: 'Villa',
-      appartement: 'Appartement',
-      terrain_nu: 'Terrain nu',
-      immeuble: 'Immeuble',
-      autres: 'Autres'
-    };
-    return labels[type as keyof typeof labels] || type;
-  };
-
   const handleEdit = () => {
     setShowEditForm(true);
   };
 
-  const handleUpdate = (updatedProperty: any) => {
-    onUpdate(updatedProperty);
+  const handleUpdate = (updatedProperty: PropertyFormData) => {
+    onUpdate(updatedProperty as Property); // Cast to Property since PropertyFormData should align
     setShowEditForm(false);
   };
 
@@ -91,9 +80,9 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
                     />
                   </div>
                   <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                    {property.images.map((image, index) => (
+                    {property.images.map((image: any, index: number) => (
                       <button
-                        key={image.id}
+                        key={image.id || index}
                         onClick={() => setSelectedImageIndex(index)}
                         className={`aspect-w-1 aspect-h-1 rounded-lg overflow-hidden border-2 ${
                           selectedImageIndex === index ? 'border-blue-500' : 'border-gray-200'
@@ -119,30 +108,24 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
                 <h3 className="font-medium text-gray-900 mb-4">Informations générales</h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Type de bien:</span>
-                    <Badge variant="info" size="sm">
-                      {getTypeLabel(property.details?.type || '')}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
                     <span className="text-gray-600">Standing:</span>
                     <Badge variant={getStandingColor(property.standing)} size="sm">
-                      {property.standing}
+                      {property.standing.charAt(0).toUpperCase() + property.standing.slice(1)}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Disponibilité:</span>
-                    <Badge variant={property.isAvailable ? 'success' : 'danger'} size="sm">
-                      {property.isAvailable ? 'Disponible' : 'Occupé'}
+                    <Badge variant={property.is_available ? 'success' : 'danger'} size="sm">
+                      {property.is_available ? 'Disponible' : 'Occupé'}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Pour location:</span>
-                    <span>{property.forRent ? '✅' : '❌'}</span>
+                    <span>{property.for_rent ? '✅' : '❌'}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Pour vente:</span>
-                    <span>{property.forSale ? '✅' : '❌'}</span>
+                    <span>{property.for_sale ? '✅' : '❌'}</span>
                   </div>
                 </div>
               </div>
@@ -164,14 +147,14 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
                   )}
                   {property.location?.coordinates && (
                     <p className="text-xs text-gray-500">
-                      Coordonnées: {property.location.coordinates.lat.toFixed(6)}, {property.location.coordinates.lng.toFixed(6)}
+                      Coordonnées: {property.location.coordinates.lat?.toFixed(6)}, {property.location.coordinates.lng?.toFixed(6)}
                     </p>
                   )}
                   {property.location?.facilites && property.location.facilites.length > 0 && (
                     <div>
                       <p className="font-medium mb-2">Facilités à proximité:</p>
                       <div className="flex flex-wrap gap-1">
-                        {property.location.facilites.map((facilite, index) => (
+                        {property.location.facilites.map((facilite: string, index: number) => (
                           <Badge key={index} variant="secondary" size="sm">
                             {facilite}
                           </Badge>
@@ -192,18 +175,18 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
                   Description des pièces ({property.rooms.length})
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {property.rooms.map((room, index) => (
+                  {property.rooms.map((room: any, index: number) => (
                     <div key={index} className="p-3 bg-gray-50 rounded-lg">
                       <h4 className="font-medium text-gray-900 mb-2 capitalize">
-                        {room.nom || room.type.replace('_', ' ')}
+                        {room.nom || room.type?.replace('_', ' ')}
                       </h4>
                       <div className="text-sm text-gray-600 space-y-1">
                         {room.superficie && <p>Superficie: {room.superficie} m²</p>}
-                        <p>Plafond: {room.plafond.type.replace('_', ' ')}</p>
-                        <p>Sol: {room.sol.type}</p>
-                        <p>Menuiserie: {room.menuiserie.materiau}</p>
-                        <p>Prises électriques: {room.electricite.nombrePrises}</p>
-                        {room.peinture.marque && (
+                        {room.plafond?.type && <p>Plafond: {room.plafond.type.replace('_', ' ')}</p>}
+                        {room.sol?.type && <p>Sol: {room.sol.type}</p>}
+                        {room.menuiserie?.materiau && <p>Menuiserie: {room.menuiserie.materiau}</p>}
+                        {room.electricite?.nombrePrises && <p>Prises électriques: {room.electricite.nombrePrises}</p>}
+                        {room.peinture?.marque && (
                           <p>Peinture: {room.peinture.marque} ({room.peinture.couleur})</p>
                         )}
                       </div>
@@ -231,12 +214,12 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                 <div>
                   <p><strong>ID Propriété:</strong> {property.id}</p>
-                  <p><strong>ID Propriétaire:</strong> {property.ownerId}</p>
-                  <p><strong>ID Agence:</strong> {property.agencyId}</p>
+                  <p><strong>ID Propriétaire:</strong> {property.owner_id}</p>
+                  <p><strong>ID Agence:</strong> {property.agency_id}</p>
                 </div>
                 <div>
-                  <p><strong>Créée le:</strong> {new Date(property.createdAt).toLocaleDateString('fr-FR')}</p>
-                  <p><strong>Modifiée le:</strong> {new Date(property.updatedAt).toLocaleDateString('fr-FR')}</p>
+                  <p><strong>Créée le:</strong> {new Date(property.created_at).toLocaleDateString('fr-FR')}</p>
+                  <p><strong>Modifiée le:</strong> {new Date(property.updated_at).toLocaleDateString('fr-FR')}</p>
                 </div>
               </div>
             </div>
@@ -250,8 +233,8 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
         onClose={() => setShowEditForm(false)}
         onSubmit={handleUpdate}
         initialData={{
-          ownerId: property.ownerId,
-          agencyId: property.agencyId,
+          owner_id: property.owner_id,
+          agency_id: property.agency_id,
           title: property.title,
           description: property.description,
           location: property.location,
@@ -259,9 +242,9 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
           standing: property.standing,
           rooms: property.rooms,
           images: property.images,
-          isAvailable: property.isAvailable,
-          forSale: property.forSale,
-          forRent: property.forRent,
+          is_available: property.is_available,
+          for_sale: property.for_sale,
+          for_rent: property.for_rent,
         }}
       />
     </>

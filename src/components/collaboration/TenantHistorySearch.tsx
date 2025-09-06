@@ -1,89 +1,200 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserCheck, Phone, MapPin, Briefcase, Flag, AlertTriangle, CheckCircle, XCircle, Building2 } from 'lucide-react';
+import { Search, UserCheck, Phone, MapPin, Briefcase, Flag, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
-import { dbService } from '../../lib/supabase';
+import { Input } from '../ui/Input';
+import { Tenant, Contract, Message, Notification } from '../../types/db';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase, dbService } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 
-interface TenantHistory {
-  id: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  email?: string;
-  address: string;
-  city: string;
-  profession: string;
-  nationality: string;
-  payment_status: 'bon' | 'irregulier' | 'mauvais';
-  photo_url?: string;
-  agencies: { name: string };
-  rentals: Array<{
-    start_date: string;
-    end_date?: string;
-    monthly_rent: number;
-    status: string;
-    properties: { title: string };
-  }>;
+interface TenantHistory extends Tenant {
+  agency_name: string;
+  contracts: Array<Contract & { property_title: string }>;
 }
 
 export const TenantHistorySearch: React.FC = () => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState('all');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'bon' | 'irregulier' | 'mauvais'>('all');
   const [tenants, setTenants] = useState<TenantHistory[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<TenantHistory | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [agencyId, setAgencyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAgency = async () => {
+      if (!user?.id) {
+        setError('Utilisateur non authentifié');
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('agency_users')
+          .select('agency_id')
+          .eq('user_id', user.id)
+          .single();
+        if (error) throw new Error(`❌ agency_users.select | ${error.message}`);
+        setAgencyId(data?.agency_id ?? null);
+      } catch (err: any) {
+        setError(err.message || 'Erreur lors de la récupération de l\'agence');
+        toast.error(err.message || 'Erreur lors de la récupération de l\'agence');
+      }
+    };
+    fetchAgency();
+  }, [user?.id]);
 
   const searchTenants = async () => {
-    if (!searchTerm.trim()) return;
-    
+    if (!searchTerm.trim() || !agencyId) {
+      toast.error('Veuillez entrer un terme de recherche et être associé à une agence');
+      return;
+    }
+
     setLoading(true);
+    setError(null);
     try {
-      const results = await dbService.searchTenantsHistory(searchTerm, paymentFilter);
-      setTenants(results || []);
-    } catch (error) {
-      console.error('Erreur lors de la recherche:', error);
+      let query = supabase
+        .from('tenants')
+        .select(`
+          *,
+          agencies!inner(name),
+          contracts (
+            *,
+            properties!inner(title)
+          )
+        `)
+        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
+        .eq('agencies.is_active', true)
+        .neq('agency_id', agencyId);
+
+      if (paymentFilter !== 'all') {
+        query = query.eq('payment_status', paymentFilter);
+      }
+
+      const { data, error } = await query.order('last_name', { ascending: true });
+
+      if (error) throw new Error(`❌ tenants.select | ${error.message}`);
+
+      const formattedData: TenantHistory[] = data?.map((tenant) => ({
+        ...tenant,
+        agency_name: tenant.agencies.name,
+        contracts: tenant.contracts.map((contract: Contract & { properties: { title: string } }) => ({
+          ...contract,
+          property_title: contract.properties.title,
+        })),
+      })) ?? [];
+
+      setTenants(formattedData);
+    } catch (err: any) {
+      console.error('Erreur lors de la recherche:', err);
+      setError(err.message || 'Erreur lors de la recherche des locataires');
+      toast.error(err.message || 'Erreur lors de la recherche des locataires');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleContact = async (tenant: TenantHistory) => {
+    if (!user?.id || !agencyId) {
+      toast.error('Utilisateur non authentifié ou agence non trouvée');
+      return;
+    }
+
+    try {
+      const { data: agencyDirector, error: directorError } = await supabase
+        .from('agency_users')
+        .select('user_id')
+        .eq('agency_id', tenant.agency_id)
+        .eq('role', 'director')
+        .single();
+
+      if (directorError || !agencyDirector) {
+        throw new Error('Directeur de l\'agence introuvable');
+      }
+
+      const message: Partial<Message> = {
+        sender_id: user.id,
+        receiver_id: agencyDirector.user_id,
+        agency_id: tenant.agency_id,
+        subject: `Demande de collaboration pour ${tenant.first_name} ${tenant.last_name}`,
+        content: `Bonjour, je suis intéressé par une collaboration concernant le locataire ${tenant.first_name} ${tenant.last_name}. Merci de me contacter pour discuter.`,
+        is_read: false,
+        created_at: new Date().toISOString(),
+        attachments: [],
+      };
+
+      await dbService.messages.create(message);
+
+      const notification: Partial<Notification> = {
+        user_id: agencyDirector.user_id,
+        type: 'new_message' as 'new_message',
+        title: 'Nouveau message concernant un locataire',
+        message: `L'agence ${agencyId} vous a envoyé un message à propos de ${tenant.first_name} ${tenant.last_name}.`,
+        priority: 'medium' as 'medium',
+        data: { tenant_id: tenant.id },
+        is_read: false,
+        created_at: new Date().toISOString(),
+      };
+
+      await dbService.notifications.create(notification);
+
+      toast.success('Message envoyé à l\'agence !');
+    } catch (err: any) {
+      console.error('Erreur lors de l\'envoi du message:', err);
+      toast.error(err.message || 'Erreur lors de l\'envoi du message');
+    }
+  };
+
   const getPaymentStatusColor = (status: string) => {
     switch (status) {
-      case 'bon': return 'success';
-      case 'irregulier': return 'warning';
-      case 'mauvais': return 'danger';
-      default: return 'secondary';
+      case 'bon':
+        return 'success';
+      case 'irregulier':
+        return 'warning';
+      case 'mauvais':
+        return 'danger';
+      default:
+        return 'secondary';
     }
   };
 
   const getPaymentStatusIcon = (status: string) => {
     switch (status) {
-      case 'bon': return <CheckCircle className="h-4 w-4" />;
-      case 'irregulier': return <AlertTriangle className="h-4 w-4" />;
-      case 'mauvais': return <XCircle className="h-4 w-4" />;
-      default: return <UserCheck className="h-4 w-4" />;
+      case 'bon':
+        return <CheckCircle className="h-4 w-4" />;
+      case 'irregulier':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'mauvais':
+        return <XCircle className="h-4 w-4" />;
+      default:
+        return <UserCheck className="h-4 w-4" />;
     }
   };
 
   const getPaymentStatusLabel = (status: string) => {
     switch (status) {
-      case 'bon': return 'Bon payeur';
-      case 'irregulier': return 'Payeur irrégulier';
-      case 'mauvais': return 'Mauvais payeur';
-      default: return status;
+      case 'bon':
+        return 'Bon payeur';
+      case 'irregulier':
+        return 'Payeur irrégulier';
+      case 'mauvais':
+        return 'Mauvais payeur';
+      default:
+        return status;
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  if (error) {
+    return (
+      <Card className="p-6">
+        <p className="text-red-600">{error}</p>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -95,25 +206,24 @@ export const TenantHistorySearch: React.FC = () => {
               Recherche d'historique des locataires
             </h3>
           </div>
-          
+
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
+                <Input
                   type="text"
                   placeholder="Rechercher par nom, téléphone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && searchTenants()}
-                  className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
-            
+
             <select
               value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value)}
+              onChange={(e) => setPaymentFilter(e.target.value as 'all' | 'bon' | 'irregulier' | 'mauvais')}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Tous les statuts</option>
@@ -121,8 +231,8 @@ export const TenantHistorySearch: React.FC = () => {
               <option value="irregulier">Payeurs irréguliers</option>
               <option value="mauvais">Mauvais payeurs</option>
             </select>
-            
-            <Button onClick={searchTenants} disabled={loading || !searchTerm.trim()}>
+
+            <Button onClick={searchTenants} disabled={loading || !searchTerm.trim() || !agencyId}>
               {loading ? 'Recherche...' : 'Rechercher'}
             </Button>
           </div>
@@ -135,8 +245,8 @@ export const TenantHistorySearch: React.FC = () => {
                   Collaboration inter-agences
                 </h4>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Cette recherche vous permet de consulter l'historique des locataires ayant été gérés par d'autres agences de la plateforme. 
-                  Les montants des loyers ne sont pas affichés pour préserver la confidentialité commerciale.
+                  Cette recherche vous permet de consulter l'historique des locataires ayant été gérés par d'autres agences de la plateforme.
+                  Les détails financiers sont confidentiels.
                 </p>
               </div>
             </div>
@@ -144,8 +254,13 @@ export const TenantHistorySearch: React.FC = () => {
         </div>
       </Card>
 
-      {/* Results */}
-      {tenants.length > 0 && (
+      {loading && (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      )}
+
+      {!loading && tenants.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="font-medium text-gray-900">
@@ -175,7 +290,7 @@ export const TenantHistorySearch: React.FC = () => {
                       </h5>
                       <div className="flex items-center text-xs text-gray-500">
                         <Building2 className="h-3 w-3 mr-1" />
-                        <span>{tenant.agencies.name}</span>
+                        <span>{tenant.agency_name}</span>
                       </div>
                     </div>
                   </div>
@@ -210,15 +325,15 @@ export const TenantHistorySearch: React.FC = () => {
                       </Badge>
                     </div>
 
-                    {tenant.rentals && tenant.rentals.length > 0 && (
+                    {tenant.contracts && tenant.contracts.length > 0 && (
                       <div className="text-xs text-gray-500">
-                        <p>{tenant.rentals.length} location(s) dans l'historique</p>
-                        <p>Dernière: {tenant.rentals[0]?.properties?.title}</p>
+                        <p>{tenant.contracts.length} contrat(s) dans l'historique</p>
+                        <p>Dernier: {tenant.contracts[0]?.property_title}</p>
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="mt-3 pt-3 border-t border-gray-200 flex space-x-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -230,6 +345,14 @@ export const TenantHistorySearch: React.FC = () => {
                     >
                       Voir l'historique complet
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleContact(tenant)}
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      Contacter
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -238,7 +361,18 @@ export const TenantHistorySearch: React.FC = () => {
         </div>
       )}
 
-      {/* Tenant Details Modal */}
+      {!loading && tenants.length === 0 && searchTerm && (
+        <Card className="p-8 text-center">
+          <UserCheck className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Aucun locataire trouvé
+          </h3>
+          <p className="text-gray-600 mb-4">
+            Aucun locataire ne correspond à vos critères de recherche.
+          </p>
+        </Card>
+      )}
+
       <Modal
         isOpen={showDetails}
         onClose={() => {
@@ -266,7 +400,7 @@ export const TenantHistorySearch: React.FC = () => {
                 <h3 className="text-xl font-semibold text-gray-900">
                   {selectedTenant.first_name} {selectedTenant.last_name}
                 </h3>
-                <p className="text-gray-600">Géré par {selectedTenant.agencies.name}</p>
+                <p className="text-gray-600">Géré par {selectedTenant.agency_name}</p>
                 <Badge variant={getPaymentStatusColor(selectedTenant.payment_status)} size="sm" className="mt-1">
                   {getPaymentStatusLabel(selectedTenant.payment_status)}
                 </Badge>
@@ -282,28 +416,33 @@ export const TenantHistorySearch: React.FC = () => {
                   <p><strong>Adresse:</strong> {selectedTenant.address}, {selectedTenant.city}</p>
                   <p><strong>Profession:</strong> {selectedTenant.profession}</p>
                   <p><strong>Nationalité:</strong> {selectedTenant.nationality}</p>
+                  <p><strong>Situation familiale:</strong> {selectedTenant.marital_status}</p>
+                  {selectedTenant.spouse_name && (
+                    <p><strong>Conjoint:</strong> {selectedTenant.spouse_name}</p>
+                  )}
+                  <p><strong>Nombre d'enfants:</strong> {selectedTenant.children_count}</p>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-900 mb-2">Historique des locations</h4>
-                {selectedTenant.rentals && selectedTenant.rentals.length > 0 ? (
+                <h4 className="font-medium text-gray-900 mb-2">Historique des contrats</h4>
+                {selectedTenant.contracts && selectedTenant.contracts.length > 0 ? (
                   <div className="space-y-2">
-                    {selectedTenant.rentals.map((rental, index) => (
+                    {selectedTenant.contracts.map((contract, index) => (
                       <div key={index} className="p-3 bg-gray-50 rounded-lg text-sm">
-                        <p className="font-medium">{rental.properties.title}</p>
+                        <p className="font-medium">{contract.property_title}</p>
                         <p className="text-gray-600">
-                          Du {new Date(rental.start_date).toLocaleDateString('fr-FR')}
-                          {rental.end_date && ` au ${new Date(rental.end_date).toLocaleDateString('fr-FR')}`}
+                          Du {new Date(contract.start_date).toLocaleDateString('fr-FR')}
+                          {contract.end_date && ` au ${new Date(contract.end_date).toLocaleDateString('fr-FR')}`}
                         </p>
-                        <Badge variant={rental.status === 'actif' ? 'success' : 'secondary'} size="sm">
-                          {rental.status}
+                        <Badge variant={contract.status === 'active' ? 'success' : 'secondary'} size="sm">
+                          {contract.status}
                         </Badge>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">Aucun historique de location disponible</p>
+                  <p className="text-sm text-gray-500">Aucun historique de contrat disponible</p>
                 )}
               </div>
             </div>
@@ -316,7 +455,7 @@ export const TenantHistorySearch: React.FC = () => {
                     Note de confidentialité
                   </h4>
                   <p className="text-sm text-blue-700 mt-1">
-                    Les montants des loyers et détails financiers ne sont pas affichés dans le cadre de la collaboration inter-agences. 
+                    Les détails financiers ne sont pas affichés dans le cadre de la collaboration inter-agences.
                     Seules les informations de profil et l'historique de paiement sont partagées.
                   </p>
                 </div>

@@ -5,7 +5,7 @@ import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
-import { PropertyFormData, RoomDetails, PropertyImage } from '../../types/property';
+import { PropertyFormData, Owner, RoomDetails, PropertyStanding, PropertyImage, PropertyDetails } from '../../types/db';
 import { LocationSelector } from './LocationSelector';
 import { RoomDetailsForm } from './RoomDetailsForm';
 import { ImageUploader } from './ImageUploader';
@@ -28,28 +28,43 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   initialData,
 }) => {
   const { user } = useAuth();
+  // Filter initialData to exclude created_at and updated_at
+  const filteredInitialData = initialData
+    ? {
+        owner_id: initialData.owner_id,
+        agency_id: initialData.agency_id,
+        title: initialData.title,
+        description: initialData.description,
+        location: initialData.location,
+        details: initialData.details,
+        standing: initialData.standing,
+        rooms: initialData.rooms,
+        images: initialData.images,
+        is_available: initialData.is_available,
+        for_sale: initialData.for_sale,
+        for_rent: initialData.for_rent,
+      }
+    : undefined;
+
   const [formData, setFormData] = useState<PropertyFormData>({
-    ownerId: initialData?.ownerId || '',
-    agencyId: '1', // Mock agency ID
-    title: '',
-    description: '',
-    location: {
+    owner_id: filteredInitialData?.owner_id || '',
+    agency_id: user?.id || '',
+    title: filteredInitialData?.title || '',
+    description: filteredInitialData?.description ?? '',
+    location: filteredInitialData?.location || {
       commune: '',
       quartier: '',
       numeroLot: '',
       numeroIlot: '',
       facilites: [],
     },
-    details: {
-      type: 'villa',
-    },
-    standing: 'economique',
-    rooms: [],
-    images: [],
-    isAvailable: true,
-    forSale: false,
-    forRent: true,
-    ...initialData,
+    details: filteredInitialData?.details || { type: 'villa' },
+    standing: filteredInitialData?.standing || 'economique',
+    rooms: filteredInitialData?.rooms || [],
+    images: filteredInitialData?.images || [],
+    is_available: filteredInitialData?.is_available ?? true,
+    for_sale: filteredInitialData?.for_sale ?? false,
+    for_rent: filteredInitialData?.for_rent ?? true,
   });
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -58,12 +73,12 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   const [ownerSearch, setOwnerSearch] = useState('');
 
   // Load owners for selection
-  const { data: owners } = useRealtimeData(dbService.getOwners, 'owners');
+  const { data: owners } = useRealtimeData<Owner>(dbService.owners.getAll, 'owners');
 
-  const filteredOwners = owners.filter(owner =>
+  const filteredOwners = owners?.filter((owner: Owner) =>
     `${owner.first_name} ${owner.last_name}`.toLowerCase().includes(ownerSearch.toLowerCase()) ||
     owner.phone.includes(ownerSearch)
-  );
+  ) || [];
 
   const faciliteOptions = [
     'École primaire', 'École secondaire', 'Université', 'Hôpital', 'Clinique',
@@ -72,11 +87,15 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   ];
 
   const updateFormData = useCallback((updates: Partial<PropertyFormData>) => {
-    setFormData(prev => {
-      const updated = { ...prev, ...updates };
+    setFormData((prev: PropertyFormData) => {
+      const updated: PropertyFormData = { ...prev, ...updates };
       // Recalculate standing when rooms change
       if (updates.rooms) {
-        updated.standing = StandingCalculator.calculateStanding(updated.rooms);
+        updated.standing = StandingCalculator.calculateStanding(updated.rooms) as PropertyStanding;
+      }
+      // Ensure description is always a string
+      if (updates.description !== undefined) {
+        updated.description = updates.description ?? '';
       }
       return updated;
     });
@@ -86,7 +105,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     updateFormData({ location });
   };
 
-  const handleDetailsChange = (field: string, value: any) => {
+  const handleDetailsChange = (field: keyof PropertyDetails, value: string) => {
     updateFormData({
       details: { ...formData.details, [field]: value }
     });
@@ -94,7 +113,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
 
   const handleFaciliteToggle = (facilite: string) => {
     const facilites = formData.location.facilites.includes(facilite)
-      ? formData.location.facilites.filter(f => f !== facilite)
+      ? formData.location.facilites.filter((f: string) => f !== facilite)
       : [...formData.location.facilites, facilite];
     
     handleLocationChange({ ...formData.location, facilites });
@@ -118,7 +137,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   };
 
   const handleDeleteRoom = (index: number) => {
-    const updatedRooms = formData.rooms.filter((_, i) => i !== index);
+    const updatedRooms = formData.rooms.filter((_: RoomDetails, i: number) => i !== index);
     updateFormData({ rooms: updatedRooms });
   };
 
@@ -126,31 +145,67 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     updateFormData({ images });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     // Validation des données requises
-    if (!formData.title.trim() || !formData.location.commune.trim() || !formData.location.quartier.trim()) {
-      alert('Veuillez remplir tous les champs obligatoires (titre, commune, quartier)');
+    if (!formData.title.trim()) {
+      alert('Veuillez remplir le titre');
       return;
     }
-    
-    // Validation du propriétaire
-    if (!formData.ownerId.trim()) {
+    if (!formData.location.commune.trim()) {
+      alert('Veuillez remplir la commune');
+      return;
+    }
+    if (!formData.location.quartier.trim()) {
+      alert('Veuillez remplir le quartier');
+      return;
+    }
+    if (!formData.owner_id.trim()) {
       alert('Veuillez sélectionner un propriétaire');
       return;
     }
-    
-    // Validation des pièces
     if (formData.rooms.length === 0) {
       alert('Veuillez ajouter au moins une pièce');
       return;
     }
-    
+    if (!formData.details.type) {
+      alert('Veuillez spécifier le type de propriété');
+      return;
+    }
+    // Validate conditional PropertyDetails fields
+    if (formData.details.type === 'villa' && !formData.details.numeroNom?.trim()) {
+      alert('Veuillez spécifier le numéro ou nom pour la villa');
+      return;
+    }
+    if (formData.details.type === 'appartement' && !formData.details.numeroPorte?.trim()) {
+      alert('Veuillez spécifier le numéro de porte pour l\'appartement');
+      return;
+    }
+    if (formData.details.type === 'terrain_nu' && !formData.details.titreProprietaire?.trim()) {
+      alert('Veuillez spécifier le titre de propriétaire pour le terrain nu');
+      return;
+    }
+    if (formData.details.type === 'immeuble' && (!formData.details.numeroEtage?.trim() || !formData.details.numeroPorteImmeuble?.trim())) {
+      alert('Veuillez spécifier le numéro d\'étage et le numéro de porte pour l\'immeuble');
+      return;
+    }
+    if (formData.details.type === 'autres' && !formData.details.autresDetails?.trim()) {
+      alert('Veuillez spécifier les détails pour le type "autres"');
+      return;
+    }
+
     try {
-      onSubmit(formData);
+      // Convert description to empty string if undefined
+      const submitData: PropertyFormData = {
+        ...formData,
+        description: formData.description ?? '',
+      };
+      onSubmit(submitData);
       
-      alert(`✅ Propriété créée avec succès !
+      // Include timestamp in success message
+      const timestamp = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
+      alert(`✅ Propriété créée avec succès à ${timestamp}!
       
 🏠 ${formData.title}
 📍 ${formData.location.commune}, ${formData.location.quartier}
@@ -161,16 +216,11 @@ La propriété a été enregistrée et est maintenant disponible.`);
       
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
-      
-      if (error instanceof Error) {
-        alert(`❌ Erreur: ${error.message}`);
-      } else {
-        alert('Erreur lors de l\'enregistrement. Veuillez réessayer.');
-      }
+      alert(error instanceof Error ? `❌ Erreur: ${error.message}` : 'Erreur lors de l\'enregistrement. Veuillez réessayer.');
     }
   };
 
-  const getStandingColor = (standing: string) => {
+  const getStandingColor = (standing: PropertyStanding): 'warning' | 'info' | 'success' | 'secondary' => {
     switch (standing) {
       case 'economique': return 'warning';
       case 'moyen': return 'info';
@@ -221,13 +271,13 @@ La propriété a été enregistrée et est maintenant disponible.`);
               <Input
                 label="Titre de la propriété"
                 value={formData.title}
-                onChange={(e) => updateFormData({ title: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateFormData({ title: e.target.value })}
                 required
               />
               <Input
                 label="Commune"
                 value={formData.location.commune}
-                onChange={(e) => handleLocationChange({ ...formData.location, commune: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLocationChange({ ...formData.location, commune: e.target.value })}
                 required
               />
             </div>
@@ -236,18 +286,18 @@ La propriété a été enregistrée et est maintenant disponible.`);
               <Input
                 label="Quartier ou lotissement"
                 value={formData.location.quartier}
-                onChange={(e) => handleLocationChange({ ...formData.location, quartier: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLocationChange({ ...formData.location, quartier: e.target.value })}
                 required
               />
               <Input
                 label="Numéro du lot"
                 value={formData.location.numeroLot || ''}
-                onChange={(e) => handleLocationChange({ ...formData.location, numeroLot: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLocationChange({ ...formData.location, numeroLot: e.target.value })}
               />
               <Input
                 label="Numéro de l'îlot"
                 value={formData.location.numeroIlot || ''}
-                onChange={(e) => handleLocationChange({ ...formData.location, numeroIlot: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLocationChange({ ...formData.location, numeroIlot: e.target.value })}
               />
             </div>
 
@@ -282,14 +332,59 @@ La propriété a été enregistrée et est maintenant disponible.`);
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Type de bien
+                Propriétaire du bien *
+              </label>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Rechercher un propriétaire par nom ou téléphone..."
+                  value={ownerSearch}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOwnerSearch(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {ownerSearch && (
+                  <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-md">
+                    {filteredOwners.length > 0 ? (
+                      filteredOwners.map((owner: Owner) => (
+                        <button
+                          key={owner.id}
+                          type="button"
+                          onClick={() => {
+                            updateFormData({ owner_id: owner.id });
+                            setOwnerSearch(`${owner.first_name} ${owner.last_name} - ${owner.phone}`);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-200 last:border-b-0"
+                        >
+                          <div className="font-medium">{owner.first_name} {owner.last_name}</div>
+                          <div className="text-sm text-gray-500">{owner.phone} - {owner.city}</div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-gray-500 text-sm">
+                        Aucun propriétaire trouvé
+                      </div>
+                    )}
+                  </div>
+                )}
+                {formData.owner_id && (
+                  <div className="text-sm text-green-600">
+                    ✓ Propriétaire sélectionné
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Type de propriété *
               </label>
               <select
                 value={formData.details.type}
-                onChange={(e) => handleDetailsChange('type', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleDetailsChange('type', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
+                <option value="">Sélectionner un type</option>
                 <option value="villa">Villa</option>
                 <option value="appartement">Appartement</option>
                 <option value="terrain_nu">Terrain nu</option>
@@ -298,118 +393,67 @@ La propriété a été enregistrée et est maintenant disponible.`);
               </select>
             </div>
 
-            {/* Conditional fields based on property type */}
+            {/* Conditional PropertyDetails Fields */}
             {formData.details.type === 'villa' && (
               <Input
-                label="Numéro ou nom de la villa"
+                label="Numéro ou nom de la villa *"
                 value={formData.details.numeroNom || ''}
-                onChange={(e) => handleDetailsChange('numeroNom', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('numeroNom', e.target.value)}
+                required
               />
             )}
-
             {formData.details.type === 'appartement' && (
               <Input
-                label="Numéro de porte de l'appartement"
+                label="Numéro de porte *"
                 value={formData.details.numeroPorte || ''}
-                onChange={(e) => handleDetailsChange('numeroPorte', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('numeroPorte', e.target.value)}
+                required
               />
             )}
-
             {formData.details.type === 'terrain_nu' && (
               <Input
-                label="Titre de propriété du bien"
+                label="Titre de propriétaire *"
                 value={formData.details.titreProprietaire || ''}
-                onChange={(e) => handleDetailsChange('titreProprietaire', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('titreProprietaire', e.target.value)}
+                required
               />
             )}
-
             {formData.details.type === 'immeuble' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
-                  label="Numéro de l'étage"
+                  label="Numéro d'étage *"
                   value={formData.details.numeroEtage || ''}
-                  onChange={(e) => handleDetailsChange('numeroEtage', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('numeroEtage', e.target.value)}
+                  required
                 />
                 <Input
-                  label="Numéro de porte"
+                  label="Numéro de porte de l'immeuble *"
                   value={formData.details.numeroPorteImmeuble || ''}
-                  onChange={(e) => handleDetailsChange('numeroPorteImmeuble', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('numeroPorteImmeuble', e.target.value)}
+                  required
                 />
               </div>
             )}
-
             {formData.details.type === 'autres' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Plus de détails
-                </label>
-                <textarea
-                  value={formData.details.autresDetails || ''}
-                  onChange={(e) => handleDetailsChange('autresDetails', e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Décrivez le type de bien..."
-                />
-              </div>
+              <Input
+                label="Détails supplémentaires *"
+                value={formData.details.autresDetails || ''}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('autresDetails', e.target.value)}
+                required
+              />
             )}
 
-            <div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Propriétaire du bien *
-                </label>
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    placeholder="Rechercher un propriétaire par nom ou téléphone..."
-                    value={ownerSearch}
-                    onChange={(e) => setOwnerSearch(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {ownerSearch && (
-                    <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-md">
-                      {filteredOwners.length > 0 ? (
-                        filteredOwners.map((owner) => (
-                          <button
-                            key={owner.id}
-                            type="button"
-                            onClick={() => {
-                              updateFormData({ ownerId: owner.id });
-                              setOwnerSearch(`${owner.first_name} ${owner.last_name} - ${owner.phone}`);
-                            }}
-                            className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-200 last:border-b-0"
-                          >
-                            <div className="font-medium">{owner.first_name} {owner.last_name}</div>
-                            <div className="text-sm text-gray-500">{owner.phone} - {owner.city}</div>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-gray-500 text-sm">
-                          Aucun propriétaire trouvé
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {formData.ownerId && (
-                    <div className="text-sm text-green-600">
-                      ✓ Propriétaire sélectionné
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description générale
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => updateFormData({ description: e.target.value })}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Description détaillée du bien..."
-                />
-              </div>
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Description générale
+              </label>
+              <textarea
+                value={formData.description ?? ''}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateFormData({ description: e.target.value })}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Description détaillée du bien..."
+              />
             </div>
 
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -447,11 +491,11 @@ La propriété a été enregistrée et est maintenant disponible.`);
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {formData.rooms.map((room, index) => (
+                {formData.rooms.map((room: RoomDetails, index: number) => (
                   <Card key={index} className="p-4">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium text-gray-900 capitalize">
-                        {room.nom || room.type.replace('_', ' ')}
+                        {room.nom || room.type?.replace('_', ' ')}
                       </h4>
                       <div className="flex space-x-2">
                         <Button
@@ -475,10 +519,12 @@ La propriété a été enregistrée et est maintenant disponible.`);
                     </div>
                     <div className="text-sm text-gray-600 space-y-1">
                       {room.superficie && <p>Superficie: {room.superficie} m²</p>}
-                      <p>Plafond: {room.plafond.type.replace('_', ' ')}</p>
-                      <p>Sol: {room.sol.type}</p>
-                      <p>Menuiserie: {room.menuiserie.materiau}</p>
-                      <p>Images: {room.images.length}</p>
+                      {room.plafond?.type && <p>Plafond: {room.plafond.type.replace('_', ' ')}</p>}
+                      {room.sol?.type && <p>Sol: {room.sol.type}</p>}
+                      {room.menuiserie?.materiau && <p>Menuiserie: {room.menuiserie.materiau}</p>}
+                      {room.serrure?.typePoignee && <p>Poignée: {room.serrure.typePoignee}</p>}
+                      {room.serrure?.typeCle && <p>Clé: {room.serrure.typeCle}</p>}
+                      {room.images && <p>Images: {room.images.length}</p>}
                     </div>
                   </Card>
                 ))}

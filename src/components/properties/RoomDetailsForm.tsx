@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
-import { RoomDetails } from '../../types/property';
+import { RoomDetails } from '../../types/db';
 
 interface RoomDetailsFormProps {
   isOpen: boolean;
@@ -20,11 +20,8 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
   const [formData, setFormData] = useState<RoomDetails>({
     type: 'sejour',
     nom: '',
-    superficie: 0,
-    plafond: {
-      type: 'dalle_simple',
-      details: '',
-    },
+    superficie: undefined,
+    plafond: { type: 'dalle_simple', details: '' },
     electricite: {
       nombrePrises: 0,
       nombreInterrupteurs: 0,
@@ -32,25 +29,10 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
       nombreAmpoules: 0,
       typeLuminaires: '',
     },
-    peinture: {
-      couleur: '',
-      type: '',
-      marque: '',
-    },
-    menuiserie: {
-      materiau: 'bois',
-      nombreFenetres: 0,
-      typeFenetres: '',
-    },
-    serrure: {
-      typePoignee: '',
-      marquePoignee: '',
-      typeCle: '',
-    },
-    sol: {
-      type: 'carrelage',
-      details: '',
-    },
+    peinture: { couleur: '', type: '', marque: '' },
+    menuiserie: { materiau: 'bois', nombreFenetres: 0, typeFenetres: '' },
+    serrure: { typePoignee: '', marquePoignee: '', typeCle: '' },
+    sol: { type: 'carrelage', details: '' },
     images: [],
     ...initialData,
   });
@@ -83,6 +65,18 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.type) {
+      alert('Veuillez spécifier le type de pièce');
+      return;
+    }
+    if (!formData.serrure.typePoignee) {
+      alert('Veuillez spécifier le type de poignée');
+      return;
+    }
+    if (!formData.serrure.typeCle) {
+      alert('Veuillez spécifier le type de clé');
+      return;
+    }
     onSubmit(formData);
     onClose();
   };
@@ -91,7 +85,14 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
     setFormData(prev => ({ ...prev, ...updates }));
   };
 
-  const updateNestedField = (section: keyof RoomDetails, field: string, value: any) => {
+  // Restrict section to keys with object types
+  type NestedObjectKeys = 'plafond' | 'electricite' | 'peinture' | 'menuiserie' | 'serrure' | 'sol';
+  
+  const updateNestedField = <T extends NestedObjectKeys>(
+    section: T,
+    field: keyof RoomDetails[T],
+    value: any
+  ) => {
     setFormData(prev => ({
       ...prev,
       [section]: {
@@ -107,7 +108,7 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Type de pièce
+              Type de pièce *
             </label>
             <select
               value={formData.type}
@@ -115,6 +116,7 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >
+              <option value="">Sélectionner un type</option>
               {roomTypes.map(type => (
                 <option key={type.value} value={type.value}>{type.label}</option>
               ))}
@@ -132,8 +134,8 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
         <Input
           label="Superficie (m²)"
           type="number"
-          value={formData.superficie || ''}
-          onChange={(e) => updateFormData({ superficie: parseFloat(e.target.value) || 0 })}
+          value={formData.superficie ?? ''}
+          onChange={(e) => updateFormData({ superficie: parseFloat(e.target.value) || undefined })}
           min="0"
           step="0.1"
         />
@@ -151,6 +153,7 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
                 onChange={(e) => updateNestedField('plafond', 'type', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <option value="">Sélectionner un type</option>
                 {plafondTypes.map(type => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
@@ -244,6 +247,7 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
                 onChange={(e) => updateNestedField('menuiserie', 'materiau', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <option value="">Sélectionner un matériau</option>
                 <option value="bois">Bois</option>
                 <option value="alu">Aluminium</option>
               </select>
@@ -269,22 +273,24 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
           <h4 className="font-medium text-gray-900">Serrure</h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
-              label="Type de poignée"
+              label="Type de poignée *"
               value={formData.serrure.typePoignee}
               onChange={(e) => updateNestedField('serrure', 'typePoignee', e.target.value)}
               placeholder="Ex: Béquille, Bouton"
+              required
             />
             <Input
               label="Marque de la poignée"
-              value={formData.serrure.marquePoignee}
+              value={formData.serrure.marquePoignee || ''}
               onChange={(e) => updateNestedField('serrure', 'marquePoignee', e.target.value)}
               placeholder="Ex: Vachette, Bricard"
             />
             <Input
-              label="Type de clé"
+              label="Type de clé *"
               value={formData.serrure.typeCle}
               onChange={(e) => updateNestedField('serrure', 'typeCle', e.target.value)}
               placeholder="Ex: Classique, Sécurisée"
+              required
             />
           </div>
         </div>
@@ -302,6 +308,7 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
                 onChange={(e) => updateNestedField('sol', 'type', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <option value="">Sélectionner un type</option>
                 {solTypes.map(type => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}

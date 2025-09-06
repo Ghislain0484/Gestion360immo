@@ -1,7 +1,7 @@
-import { RoomDetails } from '../types/property';
+import { RoomDetails, PropertyStanding } from '../types/db';
 
 export class StandingCalculator {
-  static calculateStanding(rooms: RoomDetails[]): 'economique' | 'moyen' | 'haut' {
+  static calculateStanding(rooms: RoomDetails[]): PropertyStanding {
     if (rooms.length === 0) return 'economique';
 
     let score = 0;
@@ -9,7 +9,7 @@ export class StandingCalculator {
 
     rooms.forEach(room => {
       // Points pour le type de plafond
-      switch (room.plafond.type) {
+      switch (room.plafond.type || '') {
         case 'staff':
           score += 3;
           break;
@@ -28,7 +28,7 @@ export class StandingCalculator {
       }
 
       // Points pour le sol
-      switch (room.sol.type) {
+      switch (room.sol.type || '') {
         case 'parquet':
           score += 3;
           break;
@@ -42,15 +42,15 @@ export class StandingCalculator {
       // Points pour la menuiserie
       if (room.menuiserie.materiau === 'alu') {
         score += 2;
-      } else {
+      } else if (room.menuiserie.materiau) {
         score += 1;
       }
 
       // Points pour l'électricité (qualité des installations)
       const electriciteScore = Math.min(
-        (room.electricite.nombrePrises + 
-         room.electricite.nombreInterrupteurs + 
-         room.electricite.nombreDismatique) / 10, 
+        (room.electricite.nombrePrises +
+         room.electricite.nombreInterrupteurs +
+         room.electricite.nombreDismatique) / 10,
         2
       );
       score += electriciteScore;
@@ -59,7 +59,7 @@ export class StandingCalculator {
       const marquesHautStanding = ['dulux', 'seigneurie', 'zolpan'];
       const marquesMoyenStanding = ['astral', 'ripolin'];
       
-      const marque = room.peinture.marque.toLowerCase();
+      const marque = room.peinture.marque?.toLowerCase() || '';
       if (marquesHautStanding.some(m => marque.includes(m))) {
         score += 2;
       } else if (marquesMoyenStanding.some(m => marque.includes(m))) {
@@ -80,7 +80,7 @@ export class StandingCalculator {
     }
   }
 
-  static getStandingDescription(standing: 'economique' | 'moyen' | 'haut'): string {
+  static getStandingDescription(standing: PropertyStanding): string {
     switch (standing) {
       case 'economique':
         return 'Finitions de base, matériaux standards';

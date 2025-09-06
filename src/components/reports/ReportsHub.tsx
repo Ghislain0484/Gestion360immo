@@ -12,14 +12,14 @@ import {
   PointElement,
 } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
-import { BarChart3, PieChart, TrendingUp, Download, Calendar, DollarSign, Home, Users } from 'lucide-react';
+import { BarChart3, TrendingUp, Download, Calendar, DollarSign, Home, Users } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboardStats, useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
+import { Property, Contract, Owner, Tenant } from '../../types/db';
 
 ChartJS.register(
   CategoryScale,
@@ -34,16 +34,21 @@ ChartJS.register(
 );
 
 export const ReportsHub: React.FC = () => {
-  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const [selectedReport, setSelectedReport] = useState('overview');
 
+  const { user } = useAuth();
+
   // Données réelles de l'agence
   const { stats: dashboardStats, loading: statsLoading } = useDashboardStats();
-  const { data: properties } = useRealtimeData(dbService.getProperties, 'properties');
-  const { data: contracts } = useRealtimeData(dbService.getContracts, 'contracts');
-  const { data: owners } = useRealtimeData(dbService.getOwners, 'owners');
-  const { data: tenants } = useRealtimeData(dbService.getTenants, 'tenants');
+  const { data: properties, loading: propertiesLoading } = useRealtimeData<Property>(dbService.properties.getAll, 'properties');
+  const { data: contracts, loading: contractsLoading } = useRealtimeData<Contract>(dbService.contracts.getAll, 'contracts');
+  const { data: owners, loading: ownersLoading } = useRealtimeData<Owner>(dbService.owners.getAll, 'owners');
+  //const { data: tenants, loading: tenantsLoading } = useRealtimeData<Tenant>(dbService.tenants.getAll(), 'tenants');
+  const { data: tenants, loading: tenantsLoading } = useRealtimeData<Tenant>(
+    () => dbService.tenants.getAll({ agency_id: user?.agency_id ?? undefined }),
+    'tenants'
+  );
 
   // Calculs basés sur les vraies données
   const reportData = dashboardStats ? {
@@ -181,6 +186,8 @@ export const ReportsHub: React.FC = () => {
     { id: 'clients', name: 'Clients', icon: Users },
   ];
 
+  const isLoading = statsLoading || propertiesLoading || contractsLoading || ownersLoading || tenantsLoading;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -215,11 +222,10 @@ export const ReportsHub: React.FC = () => {
             <button
               key={type.id}
               onClick={() => setSelectedReport(type.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                selectedReport === type.id
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${selectedReport === type.id
                   ? 'bg-blue-100 text-blue-700 border border-blue-200'
                   : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-              }`}
+                }`}
             >
               <type.icon className="h-4 w-4" />
               <span>{type.name}</span>
@@ -228,234 +234,243 @@ export const ReportsHub: React.FC = () => {
         </div>
       </Card>
 
-      {/* Overview Report */}
-      {selectedReport === 'overview' && (
-        reportData ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <div className="p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="inline-flex items-center justify-center p-3 rounded-lg bg-green-500">
-                      <DollarSign className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Revenus totaux
-                      </dt>
-                      <dd className="text-lg font-semibold text-gray-900">
-                        {formatCurrency(reportData.overview.totalRevenue)}
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center text-sm">
-                    <span className="flex items-center text-green-600">
-                      ↗ 12%
-                    </span>
-                    <span className="ml-2 text-gray-500">vs mois précédent</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="inline-flex items-center justify-center p-3 rounded-lg bg-blue-500">
-                      <TrendingUp className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Commissions
-                      </dt>
-                      <dd className="text-lg font-semibold text-gray-900">
-                        {formatCurrency(reportData.overview.totalCommissions)}
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center text-sm">
-                    <span className="flex items-center text-green-600">
-                      ↗ 8%
-                    </span>
-                    <span className="ml-2 text-gray-500">vs mois précédent</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="inline-flex items-center justify-center p-3 rounded-lg bg-yellow-500">
-                      <Home className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Contrats actifs
-                      </dt>
-                      <dd className="text-lg font-semibold text-gray-900">
-                        {reportData.overview.activeContracts}
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center text-sm">
-                    <span className="flex items-center text-green-600">
-                      ↗ 5%
-                    </span>
-                    <span className="ml-2 text-gray-500">vs mois précédent</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="inline-flex items-center justify-center p-3 rounded-lg bg-purple-500">
-                      <Users className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Nouveaux clients
-                      </dt>
-                      <dd className="text-lg font-semibold text-gray-900">
-                        {reportData.overview.newClients}
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center text-sm">
-                    <span className="flex items-center text-green-600">
-                      ↗ 15%
-                    </span>
-                    <span className="ml-2 text-gray-500">vs mois précédent</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Charts Placeholder */}
-          {revenueChartData && propertyTypeData && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Évolution des revenus
-                </h3>
-                <div className="h-64">
-                  <Bar data={revenueChartData} options={chartOptions} />
-                </div>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Répartition par type de bien
-                </h3>
-                <div className="h-64">
-                  <Pie data={propertyTypeData} options={{ responsive: true, maintainAspectRatio: false }} />
-                </div>
-              </div>
-            </Card>
-            </div>
-          )}
-
-          {/* Additional Chart */}
-          {occupancyData && (
-            <Card>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Taux d'occupation mensuel
-              </h3>
-              <div className="h-64">
-                <Line data={occupancyData} options={chartOptions} />
-              </div>
-            </div>
-            </Card>
-          )}
-
-          {/* Performance Indicators */}
-          <Card>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Indicateurs de performance
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600 mb-2">
-                    {reportData.overview.occupancyRate}%
-                  </div>
-                  <p className="text-sm text-gray-600">Taux d'occupation</p>
-                  <Badge variant="success" size="sm" className="mt-2">
-                    {reportData.overview.occupancyRate >= 90 ? 'Excellent' : 
-                     reportData.overview.occupancyRate >= 75 ? 'Bon' : 'À améliorer'}
-                  </Badge>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-600 mb-2">
-                    {Math.floor(Math.random() * 20) + 10}j
-                  </div>
-                  <p className="text-sm text-gray-600">Délai moyen de location</p>
-                  <Badge variant="info" size="sm" className="mt-2">
-                    Bon
-                  </Badge>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-yellow-600 mb-2">
-                    {Math.floor(reportData.overview.occupancyRate * 1.05)}%
-                  </div>
-                  <p className="text-sm text-gray-600">Satisfaction client</p>
-                  <Badge variant="warning" size="sm" className="mt-2">
-                    Très bon
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </Card>
+      {/* Loading State */}
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
-        ) : (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        )
-      )}
+      ) : (
+        <>
+          {/* Overview Report */}
+          {selectedReport === 'overview' && (
+            reportData ? (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card>
+                    <div className="p-6">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="inline-flex items-center justify-center p-3 rounded-lg bg-green-500">
+                            <DollarSign className="h-6 w-6 text-white" />
+                          </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">
+                              Revenus totaux
+                            </dt>
+                            <dd className="text-lg font-semibold text-gray-900">
+                              {formatCurrency(reportData.overview.totalRevenue)}
+                            </dd>
+                          </dl>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="flex items-center text-sm">
+                          <span className="flex items-center text-green-600">
+                            ↗ 12%
+                          </span>
+                          <span className="ml-2 text-gray-500">vs mois précédent</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
 
-      {/* Other report types placeholder */}
-      {selectedReport !== 'overview' && (
-        <Card className="p-8 text-center">
-          <BarChart3 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Rapport {reportTypes.find(t => t.id === selectedReport)?.name}
-          </h3>
-          <p className="text-gray-600 mb-4">
-            Ce rapport sera disponible dans une prochaine version.
-          </p>
-          <Button variant="outline">
-            <Calendar className="h-4 w-4 mr-2" />
-            Programmer un rapport
-          </Button>
-        </Card>
+                  <Card>
+                    <div className="p-6">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="inline-flex items-center justify-center p-3 rounded-lg bg-blue-500">
+                            <TrendingUp className="h-6 w-6 text-white" />
+                          </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">
+                              Commissions
+                            </dt>
+                            <dd className="text-lg font-semibold text-gray-900">
+                              {formatCurrency(reportData.overview.totalCommissions)}
+                            </dd>
+                          </dl>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="flex items-center text-sm">
+                          <span className="flex items-center text-green-600">
+                            ↗ 8%
+                          </span>
+                          <span className="ml-2 text-gray-500">vs mois précédent</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <div className="p-6">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="inline-flex items-center justify-center p-3 rounded-lg bg-yellow-500">
+                            <Home className="h-6 w-6 text-white" />
+                          </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">
+                              Contrats actifs
+                            </dt>
+                            <dd className="text-lg font-semibold text-gray-900">
+                              {reportData.overview.activeContracts}
+                            </dd>
+                          </dl>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="flex items-center text-sm">
+                          <span className="flex items-center text-green-600">
+                            ↗ 5%
+                          </span>
+                          <span className="ml-2 text-gray-500">vs mois précédent</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <div className="p-6">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="inline-flex items-center justify-center p-3 rounded-lg bg-purple-500">
+                            <Users className="h-6 w-6 text-white" />
+                          </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">
+                              Nouveaux clients
+                            </dt>
+                            <dd className="text-lg font-semibold text-gray-900">
+                              {reportData.overview.newClients}
+                            </dd>
+                          </dl>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="flex items-center text-sm">
+                          <span className="flex items-center text-green-600">
+                            ↗ 15%
+                          </span>
+                          <span className="ml-2 text-gray-500">vs mois précédent</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Charts */}
+                {revenueChartData && propertyTypeData && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Card>
+                      <div className="p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                          Évolution des revenus
+                        </h3>
+                        <div className="h-64">
+                          <Bar data={revenueChartData} options={chartOptions} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card>
+                      <div className="p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                          Répartition par type de bien
+                        </h3>
+                        <div className="h-64">
+                          <Pie data={propertyTypeData} options={{ responsive: true, maintainAspectRatio: false }} />
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {/* Additional Chart */}
+                {occupancyData && (
+                  <Card>
+                    <div className="p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                        Taux d'occupation mensuel
+                      </h3>
+                      <div className="h-64">
+                        <Line data={occupancyData} options={chartOptions} />
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
+                {/* Performance Indicators */}
+                <Card>
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      Indicateurs de performance
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-green-600 mb-2">
+                          {reportData.overview.occupancyRate}%
+                        </div>
+                        <p className="text-sm text-gray-600">Taux d'occupation</p>
+                        <Badge variant="success" size="sm" className="mt-2">
+                          {reportData.overview.occupancyRate >= 90 ? 'Excellent' :
+                            reportData.overview.occupancyRate >= 75 ? 'Bon' : 'À améliorer'}
+                        </Badge>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600 mb-2">
+                          {Math.floor(Math.random() * 20) + 10}j
+                        </div>
+                        <p className="text-sm text-gray-600">Délai moyen de location</p>
+                        <Badge variant="info" size="sm" className="mt-2">
+                          Bon
+                        </Badge>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-yellow-600 mb-2">
+                          {Math.floor(reportData.overview.occupancyRate * 1.05)}%
+                        </div>
+                        <p className="text-sm text-gray-600">Satisfaction client</p>
+                        <Badge variant="warning" size="sm" className="mt-2">
+                          Très bon
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            )
+          )}
+
+          {/* Other report types placeholder */}
+          {selectedReport !== 'overview' && (
+            <Card className="p-8 text-center">
+              <BarChart3 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Rapport {reportTypes.find(t => t.id === selectedReport)?.name}
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Ce rapport sera disponible dans une prochaine version.
+              </p>
+              <Button variant="outline">
+                <Calendar className="h-4 w-4 mr-2" />
+                Programmer un rapport
+              </Button>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );
