@@ -1,5 +1,4 @@
-import React from 'react';
-import { useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Building2, 
@@ -20,35 +19,122 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
-import { useState } from 'react';
-import { useDashboardStats, useRealtimeData } from '../../hooks/useSupabaseData';
+import { useDashboardStats, useRealtimeData, mapSupabaseError } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { BibleVerseCard } from '../ui/BibleVerse';
+import { useAuth } from '../../contexts/AuthContext';
+import { Contract, Property, RentReceipt } from '../../types/db';
+
+interface Activity {
+  id: string;
+  type: 'new_property' | 'new_contract' | 'property_visit' | 'contract_signed';
+  title: string;
+  description: string;
+  time: string;
+  status: 'success' | 'warning' | 'info';
+}
+
+interface Rental {
+  id: string;
+  property: string;
+  tenant: string;
+  dueDate: string;
+  amount: string;
+  status: 'pending' | 'overdue' | 'upcoming';
+}
+
+interface Payment {
+  id: string;
+  type: 'received' | 'paid';
+  tenant: string;
+  owner: string;
+  property: string;
+  amount: number;
+  date: string;
+  receiptNumber: string;
+  status: 'completed';
+}
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user, admin } = useAuth();
   const [showAllActivities, setShowAllActivities] = useState(false);
   const [showAllRentals, setShowAllRentals] = useState(false);
   const [showAllPayments, setShowAllPayments] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!user && !admin) {
+    return (
+      <div className="p-4 bg-red-50 text-red-800 rounded-lg" role="alert">
+        Veuillez vous connecter pour accéder au tableau de bord.
+      </div>
+    );
+  }
 
   // Real-time dashboard stats
-  const { stats: dashboardStats, loading: statsLoading } = useDashboardStats();
-  
-  // Real-time data for recent activities
-  const { data: recentContracts, error: contractsError } = useRealtimeData(dbService.getContracts, 'contracts');
-  const { data: recentProperties, error: propertiesError } = useRealtimeData(dbService.getProperties, 'properties');
-  const { data: recentOwners, error: ownersError } = useRealtimeData(dbService.getOwners, 'owners');
-  const { data: recentTenants, error: tenantsError } = useRealtimeData(dbService.getTenants, 'tenants');
-  
-  // Afficher les erreurs de chargement si présentes
-  useEffect(() => {
-    if (contractsError) console.error('❌ Erreur contrats:', contractsError);
-    if (propertiesError) console.error('❌ Erreur propriétés:', propertiesError);
-    if (ownersError) console.error('❌ Erreur propriétaires:', ownersError);
-    if (tenantsError) console.error('❌ Erreur locataires:', tenantsError);
-  }, [contractsError, propertiesError, ownersError, tenantsError]);
+  const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
 
-  const stats = dashboardStats ? [
+  // Real-time data
+  const { data: recentContracts, loading: contractsLoading, error: contractsError } = useRealtimeData<Contract>(
+    async (agencyId: string) => {
+      const contracts = await dbService.contracts.getAll();
+      return contracts.filter((c: Contract) => c.agency_id === agencyId);
+    },
+    'contracts'
+  );
+
+  const { data: recentProperties, loading: propertiesLoading, error: propertiesError } = useRealtimeData<Property>(
+    async (agencyId: string) => {
+      const properties = await dbService.properties.getAll();
+      return properties.filter((p: Property) => p.agency_id === agencyId);
+    },
+    'properties'
+  );
+
+  const [recentReceipts, setRecentReceipts] = useState<RentReceipt[]>([]);
+  const [receiptsLoading, setReceiptsLoading] = useState(true);
+  const [receiptsError, setReceiptsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.agency_id || !Array.isArray(recentContracts)) {
+      setRecentReceipts([]);
+      setReceiptsLoading(false);
+      return;
+    }
+
+    const abortController = new AbortController();
+    const fetchReceipts = async () => {
+      try {
+        setReceiptsLoading(true);
+        setReceiptsError(null);
+        const receipts = await dbService.rentReceipts.getAll();
+        if (!abortController.signal.aborted) {
+          const filteredReceipts = receipts.filter((r: RentReceipt) => 
+            recentContracts.some((c: Contract) => c.id === r.contract_id && c.agency_id === user.agency_id)
+          );
+          setRecentReceipts(filteredReceipts);
+        }
+      } catch (err) {
+        if (abortController.signal.aborted) return;
+        const errMsg = mapSupabaseError(err, 'Erreur chargement rent_receipts');
+        setReceiptsError(errMsg);
+        setRecentReceipts([]);
+      } finally {
+        if (!abortController.signal.aborted) setReceiptsLoading(false);
+      }
+    };
+
+    fetchReceipts();
+    return () => abortController.abort();
+  }, [user?.agency_id, recentContracts]);
+
+  // Combine errors
+  useEffect(() => {
+    const errors = [statsError, contractsError, propertiesError, receiptsError].filter(Boolean);
+    setError(errors.length > 0 ? errors.join('; ') : null);
+  }, [statsError, contractsError, propertiesError, receiptsError]);
+
+  const stats = useMemo(() => dashboardStats ? [
     {
       title: 'Propriétés Gérées',
       value: dashboardStats.totalProperties.toString(),
@@ -74,97 +160,102 @@ export const Dashboard: React.FC = () => {
       title: 'Contrats en Cours',
       value: dashboardStats.activeContracts.toString(),
       icon: FileText,
-      trend: { value: dashboardStats.totalContracts > dashboardStats.activeContracts ? -3 : 3, isPositive: dashboardStats.totalContracts <= dashboardStats.activeContracts },
+      trend: { 
+        value: dashboardStats.totalContracts > dashboardStats.activeContracts ? 3 : -3, 
+        isPositive: dashboardStats.totalContracts <= dashboardStats.activeContracts 
+      },
       color: 'red' as const,
     },
-  ] : [];
+  ] : [], [dashboardStats]);
 
-  // Generate real activities from recent data
-  const generateRecentActivities = () => {
-    const activities = [];
-    
-    // Recent properties
-    recentProperties.slice(0, 2).forEach(property => {
-      activities.push({
-        id: `prop_${property.id}`,
-        type: 'new_property',
-        title: 'Nouvelle propriété ajoutée',
-        description: `${property.title} - ${property.city || 'Ville non spécifiée'}`,
-        time: getTimeAgo(property.created_at),
-        status: 'success',
+  const generateRecentActivities = useMemo((): Activity[] => {
+    const activities: Activity[] = [];
+
+    if (Array.isArray(recentProperties)) {
+      recentProperties.slice(0, 4).forEach((property: Property) => {
+        activities.push({
+          id: `prop_${property.id}`,
+          type: 'new_property',
+          title: 'Nouvelle propriété ajoutée',
+          description: `${property.title} - ${property.location?.commune ?? 'Ville non spécifiée'}`,
+          time: getTimeAgo(property.created_at),
+          status: 'success',
+        });
       });
-    });
+    }
 
-    // Recent contracts
-    recentContracts.slice(0, 2).forEach(contract => {
-      activities.push({
-        id: `contract_${contract.id}`,
-        type: 'new_contract',
-        title: 'Nouveau contrat signé',
-        description: `Contrat ${contract.type} - ${contract.status}`,
-        time: getTimeAgo(contract.created_at),
-        status: 'success',
+    if (Array.isArray(recentContracts)) {
+      recentContracts.slice(0, 4).forEach((contract: Contract) => {
+        activities.push({
+          id: `contract_${contract.id}`,
+          type: 'new_contract',
+          title: 'Nouveau contrat signé',
+          description: `Contrat ${contract.type} - ${contract.status}`,
+          time: getTimeAgo(contract.created_at),
+          status: 'success',
+        });
       });
-    });
+    }
 
-    return activities.slice(0, 4);
-  };
+    return activities.sort((a, b) => {
+      const dateA = new Date(a.time.includes('min') ? Date.now() - parseInt(a.time) * 60 * 1000 : a.time.includes('h') ? Date.now() - parseInt(a.time) * 60 * 60 * 1000 : Date.now() - parseInt(a.time) * 24 * 60 * 60 * 1000);
+      const dateB = new Date(b.time.includes('min') ? Date.now() - parseInt(b.time) * 60 * 1000 : b.time.includes('h') ? Date.now() - parseInt(b.time) * 60 * 60 * 1000 : Date.now() - parseInt(b.time) * 24 * 60 * 60 * 1000);
+      return dateB.getTime() - dateA.getTime();
+    }).slice(0, 4);
+  }, [recentProperties, recentContracts]);
 
-  const getTimeAgo = (date: string | Date) => {
+  const getTimeAgo = (date: string | Date): string => {
     const now = new Date();
     const past = new Date(date);
     const diffInMinutes = Math.floor((now.getTime() - past.getTime()) / (1000 * 60));
-    
+
     if (diffInMinutes < 60) return `${diffInMinutes} min`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} h`;
     return `${Math.floor(diffInMinutes / 1440)} j`;
   };
 
-  const recentActivities = generateRecentActivities();
-
-  // Generate upcoming rentals from real contracts
-  const generateUpcomingRentals = () => {
+  const generateUpcomingRentals = useMemo((): Rental[] => {
+    if (!Array.isArray(recentContracts)) return [];
     return recentContracts
-      .filter(contract => contract.status === 'active' && contract.monthly_rent)
-      .slice(0, 3)
-      .map(contract => ({
-        id: contract.id,
-        property: `Propriété #${contract.property_id}`,
-        tenant: `Locataire #${contract.tenant_id}`,
-        dueDate: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        amount: `${contract.monthly_rent?.toLocaleString()} FCFA`,
-        status: Math.random() > 0.7 ? 'overdue' : Math.random() > 0.5 ? 'pending' : 'upcoming',
-      }));
-  };
+      .filter((contract: Contract) => contract.status === 'active' && contract.monthly_rent)
+      .slice(0, 5)
+      .map((contract: Contract) => {
+        const dueDate = new Date(contract.start_date);
+        dueDate.setMonth(dueDate.getMonth() + 1);
+        return {
+          id: contract.id,
+          property: `Propriété #${contract.property_id}`,
+          tenant: `Locataire #${contract.tenant_id}`,
+          dueDate: dueDate.toISOString().split('T')[0],
+          amount: formatCurrency(contract.monthly_rent ?? 0),
+          status: dueDate < new Date() ? 'overdue' : 'upcoming',
+        };
+      });
+  }, [recentContracts]);
 
-  const upcomingRentals = generateUpcomingRentals();
-
-  // Generate recent payments from contracts
-  const generateRecentPayments = () => {
-    return recentContracts
-      .filter(contract => contract.monthly_rent)
-      .slice(0, 3)
-      .map(contract => ({
-        id: contract.id,
-        type: Math.random() > 0.5 ? 'received' : 'paid',
-        tenant: `Locataire #${contract.tenant_id}`,
-        owner: `Propriétaire #${contract.owner_id}`,
-        property: `Propriété #${contract.property_id}`,
-        amount: contract.monthly_rent || 0,
-        date: new Date(contract.created_at).toISOString().split('T')[0],
-        receiptNumber: `IMMO-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`,
+  const generateRecentPayments = useMemo((): Payment[] => {
+    if (!Array.isArray(recentReceipts) || !Array.isArray(recentContracts)) return [];
+    return recentReceipts
+      .slice(0, 5)
+      .map((receipt: RentReceipt) => ({
+        id: receipt.id,
+        type: 'received',
+        tenant: `Locataire #${receipt.contract_id}`,
+        owner: `Propriétaire #${recentContracts.find((c: Contract) => c.id === receipt.contract_id)?.owner_id || 'Inconnu'}`,
+        property: `Propriété #${recentContracts.find((c: Contract) => c.id === receipt.contract_id)?.property_id || 'Inconnu'}`,
+        amount: receipt.total_amount,
+        date: new Date(receipt.created_at).toISOString().split('T')[0],
+        receiptNumber: receipt.receipt_number,
         status: 'completed',
       }));
-  };
+  }, [recentReceipts, recentContracts]);
 
-  const recentPayments = generateRecentPayments();
-
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | null | undefined): string => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'XOF',
       minimumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount ?? 0);
   };
 
   const getStatusBadge = (status: string) => {
@@ -189,17 +280,19 @@ export const Dashboard: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'success':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-green-500" aria-hidden="true" />;
       case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+        return <AlertTriangle className="h-4 w-4 text-yellow-500" aria-hidden="true" />;
       case 'info':
-        return <TrendingUp className="h-4 w-4 text-blue-500" />;
+        return <TrendingUp className="h-4 w-4 text-blue-500" aria-hidden="true" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-gray-500" aria-hidden="true" />;
     }
   };
 
-  if (statsLoading) {
+  const isLoading = statsLoading || contractsLoading || propertiesLoading || receiptsLoading;
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
@@ -209,7 +302,12 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Verset Biblique du Jour */}
+      {error && (
+        <div className="p-4 bg-red-50 text-red-800 rounded-lg" role="alert">
+          {error}
+        </div>
+      )}
+
       <div className="bg-gradient-soft rounded-xl p-1">
         <BibleVerseCard showRefresh={true} />
       </div>
@@ -221,7 +319,6 @@ export const Dashboard: React.FC = () => {
         </p>
       </div>
 
-      {/* Stats Cards */}
       {stats.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat) => (
@@ -234,7 +331,7 @@ export const Dashboard: React.FC = () => {
         <Card className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border-emerald-200 shadow-elegant">
           <div className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Résumé Financier</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4" role="region" aria-label="Résumé financier">
               <div className="text-center">
                 <div className="text-3xl font-bold text-emerald-600">
                   {formatCurrency(dashboardStats.monthlyRevenue)}
@@ -259,22 +356,25 @@ export const Dashboard: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activities */}
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
               Activités Récentes
             </h3>
-            <button 
+            <Button
+              variant="ghost"
               onClick={() => setShowAllActivities(true)}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              aria-label="Voir toutes les activités"
             >
               Voir tout
-            </button>
+            </Button>
           </div>
-          
+
           <div className="space-y-4">
-            {recentActivities.map((activity) => (
+            {generateRecentActivities.length === 0 && (
+              <p className="text-sm text-gray-500">Aucune activité récente</p>
+            )}
+            {generateRecentActivities.map((activity) => (
               <div key={activity.id} className="flex items-start space-x-3">
                 <div className="flex-shrink-0 mt-1">
                   {getStatusIcon(activity.status)}
@@ -297,22 +397,25 @@ export const Dashboard: React.FC = () => {
           </div>
         </Card>
 
-        {/* Upcoming Rentals */}
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
               Loyers à Venir
             </h3>
-            <button 
+            <Button
+              variant="ghost"
               onClick={() => setShowAllRentals(true)}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              aria-label="Voir tous les loyers à venir"
             >
               Voir tout
-            </button>
+            </Button>
           </div>
-          
+
           <div className="space-y-4">
-            {upcomingRentals.map((rental) => (
+            {generateUpcomingRentals.length === 0 && (
+              <p className="text-sm text-gray-500">Aucun loyer à venir</p>
+            )}
+            {generateUpcomingRentals.map((rental) => (
               <div key={rental.id} className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
@@ -334,19 +437,19 @@ export const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Recent Payments Section */}
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">
             Paiements Récents
           </h3>
           <div className="flex items-center space-x-2">
-            <button 
+            <Button
+              variant="ghost"
               onClick={() => setShowAllPayments(true)}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              aria-label="Voir tous les paiements récents"
             >
               Voir tout
-            </button>
+            </Button>
             <Link to="/receipts">
               <Button variant="outline" size="sm">
                 <Receipt className="h-4 w-4 mr-1" />
@@ -355,14 +458,17 @@ export const Dashboard: React.FC = () => {
             </Link>
           </div>
         </div>
-        
+
         <div className="space-y-3">
-          {recentPayments.map((payment) => (
+          {generateRecentPayments.length === 0 && (
+            <p className="text-sm text-gray-500">Aucun paiement récent</p>
+          )}
+          {generateRecentPayments.map((payment) => (
             <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center space-x-3">
                 <div className={`w-3 h-3 rounded-full ${
                   payment.type === 'received' ? 'bg-green-500' : 'bg-blue-500'
-                }`}></div>
+                }`} aria-hidden="true"></div>
                 <div>
                   <p className="font-medium text-gray-900">
                     {payment.type === 'received' 
@@ -383,13 +489,28 @@ export const Dashboard: React.FC = () => {
                   <p className="text-sm text-gray-500">{payment.date}</p>
                 </div>
                 <div className="flex space-x-1">
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => alert('Visualisation non implémentée')}
+                    aria-label="Voir les détails du paiement"
+                  >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => alert('Modification non implémentée')}
+                    aria-label="Modifier le paiement"
+                  >
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => alert('Impression non implémentée')}
+                    aria-label="Imprimer le reçu"
+                  >
                     <Printer className="h-4 w-4" />
                   </Button>
                 </div>
@@ -399,59 +520,65 @@ export const Dashboard: React.FC = () => {
         </div>
       </Card>
 
-      {/* Quick Actions */}
       <Card>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Actions Rapides
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button 
+          <Button
+            variant="ghost"
             onClick={() => navigate('/properties')}
             className="flex items-center space-x-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl hover:from-blue-100 hover:to-cyan-100 transition-smooth shadow-soft hover:shadow-elegant"
+            aria-label="Ajouter une nouvelle propriété"
           >
             <Building2 className="h-8 w-8 text-blue-600" />
             <div className="text-left">
               <p className="font-medium text-gray-900">Ajouter Propriété</p>
               <p className="text-sm text-gray-500">Nouvelle propriété</p>
             </div>
-          </button>
-          
-          <button 
+          </Button>
+
+          <Button
+            variant="ghost"
             onClick={() => navigate('/owners')}
             className="flex items-center space-x-3 p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl hover:from-emerald-100 hover:to-teal-100 transition-smooth shadow-soft hover:shadow-elegant"
+            aria-label="Ajouter un nouveau propriétaire"
           >
             <Users className="h-8 w-8 text-green-600" />
             <div className="text-left">
               <p className="font-medium text-gray-900">Nouveau Propriétaire</p>
               <p className="text-sm text-gray-500">Enregistrer</p>
             </div>
-          </button>
-          
-          <button 
+          </Button>
+
+          <Button
+            variant="ghost"
             onClick={() => navigate('/tenants')}
             className="flex items-center space-x-3 p-4 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl hover:from-amber-100 hover:to-yellow-100 transition-smooth shadow-soft hover:shadow-elegant"
+            aria-label="Ajouter un nouveau locataire"
           >
             <UserCheck className="h-8 w-8 text-yellow-600" />
             <div className="text-left">
               <p className="font-medium text-gray-900">Nouveau Locataire</p>
               <p className="text-sm text-gray-500">Ajouter</p>
             </div>
-          </button>
-          
-          <button 
+          </Button>
+
+          <Button
+            variant="ghost"
             onClick={() => navigate('/contracts')}
             className="flex items-center space-x-3 p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl hover:from-violet-100 hover:to-purple-100 transition-smooth shadow-soft hover:shadow-elegant"
+            aria-label="Créer un nouveau contrat"
           >
             <FileText className="h-8 w-8 text-purple-600" />
             <div className="text-left">
               <p className="font-medium text-gray-900">Nouveau Contrat</p>
               <p className="text-sm text-gray-500">Créer</p>
             </div>
-          </button>
+          </Button>
         </div>
       </Card>
 
-      {/* Modals */}
       <Modal
         isOpen={showAllActivities}
         onClose={() => setShowAllActivities(false)}
@@ -459,24 +586,10 @@ export const Dashboard: React.FC = () => {
         size="lg"
       >
         <div className="space-y-4">
-          {recentActivities.concat([
-            {
-              id: 5,
-              type: 'contract_signed',
-              title: 'Contrat signé',
-              description: 'Nouveau contrat - Appartement 4C',
-              time: '4 h',
-              status: 'success',
-            },
-            {
-              id: 6,
-              type: 'property_visit',
-              title: 'Visite programmée',
-              description: 'Villa Marcory - Demain 14h',
-              time: '6 h',
-              status: 'info',
-            }
-          ]).map((activity) => (
+          {generateRecentActivities.length === 0 && (
+            <p className="text-sm text-gray-500">Aucune activité disponible</p>
+          )}
+          {generateRecentActivities.map((activity) => (
             <div key={activity.id} className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg">
               <div className="flex-shrink-0 mt-1">
                 {getStatusIcon(activity.status)}
@@ -506,24 +619,10 @@ export const Dashboard: React.FC = () => {
         size="lg"
       >
         <div className="space-y-3">
-          {upcomingRentals.concat([
-            {
-              id: 4,
-              property: 'Studio Treichville',
-              tenant: 'Fatou Diallo',
-              dueDate: '2024-03-28',
-              amount: '180,000 FCFA',
-              status: 'upcoming',
-            },
-            {
-              id: 5,
-              property: 'Villa Bingerville',
-              tenant: 'Kouadio Yves',
-              dueDate: '2024-03-30',
-              amount: '520,000 FCFA',
-              status: 'upcoming',
-            }
-          ]).map((rental) => (
+          {generateUpcomingRentals.length === 0 && (
+            <p className="text-sm text-gray-500">Aucun loyer à venir</p>
+          )}
+          {generateUpcomingRentals.map((rental) => (
             <div key={rental.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
@@ -551,12 +650,15 @@ export const Dashboard: React.FC = () => {
         size="lg"
       >
         <div className="space-y-3">
-          {recentPayments.map((payment) => (
+          {generateRecentPayments.length === 0 && (
+            <p className="text-sm text-gray-500">Aucun paiement récent</p>
+          )}
+          {generateRecentPayments.map((payment) => (
             <div key={payment.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
               <div className="flex items-center space-x-3">
                 <div className={`w-4 h-4 rounded-full ${
                   payment.type === 'received' ? 'bg-green-500' : 'bg-blue-500'
-                }`}></div>
+                }`} aria-hidden="true"></div>
                 <div>
                   <p className="font-medium text-gray-900">
                     {payment.type === 'received' 
@@ -574,13 +676,28 @@ export const Dashboard: React.FC = () => {
                   {formatCurrency(payment.amount)}
                 </span>
                 <div className="flex space-x-1">
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => alert('Visualisation non implémentée')}
+                    aria-label="Voir les détails du paiement"
+                  >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => alert('Modification non implémentée')}
+                    aria-label="Modifier le paiement"
+                  >
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => alert('Impression non implémentée')}
+                    aria-label="Imprimer le reçu"
+                  >
                     <Printer className="h-4 w-4" />
                   </Button>
                 </div>

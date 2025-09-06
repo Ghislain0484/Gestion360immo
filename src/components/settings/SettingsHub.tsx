@@ -7,9 +7,6 @@ import { AppearanceSettings } from './AppearanceSettings';
 import { DataSettings } from './DataSettings';
 import { UserManagement } from './UserManagement';
 import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
-import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
 
 export const SettingsHub: React.FC = () => {

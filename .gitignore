@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env*
+
+# Files
+Schema_de_donnees_New.sql
+ToDo.md
+README.md

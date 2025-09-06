@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon, Plus } from 'lucide-react';
+import { Upload, X, Plus } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { PropertyImage, RoomDetails } from '../../types/property';
+import { PropertyImage, RoomDetails } from '../../types/db';
 
 interface ImageUploaderProps {
   images: PropertyImage[];
@@ -25,6 +25,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       url: URL.createObjectURL(file),
       file,
       room: room || 'general',
+      description: '',
       isPrimary: images.length === 0 && index === 0,
     }));
 
@@ -49,6 +50,9 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
 
   const removeImage = (imageId: string) => {
     const updatedImages = images.filter(img => img.id !== imageId);
+    if (updatedImages.length > 0 && !updatedImages.some(img => img.isPrimary)) {
+      updatedImages[0].isPrimary = true;
+    }
     onImagesChange(updatedImages);
   };
 
@@ -135,7 +139,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                 <div className="aspect-w-16 aspect-h-12 relative">
                   <img
                     src={image.url}
-                    alt="Property"
+                    alt={image.description || 'Property'}
                     className="w-full h-48 object-cover"
                   />
                   {image.isPrimary && (

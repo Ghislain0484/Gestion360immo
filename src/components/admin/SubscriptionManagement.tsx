@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { dbService } from '../../lib/supabase';
-import { AgencySubscription, SubscriptionStatus, PlanType, Agency, AuditLog } from '../../types/db';
+import { AgencySubscription, SubscriptionStatus, PlanType, AuditLog } from '../../types/db';
 import { BadgeVariant } from '../../types/ui';
 import { useAuth } from '../../contexts/AuthContext';
 
