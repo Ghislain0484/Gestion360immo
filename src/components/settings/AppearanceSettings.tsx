@@ -19,14 +19,14 @@ export const AppearanceSettings: React.FC = () => {
 
   useEffect(() => {
     // Charger les paramètres sauvegardés pour cette agence
-    const settingsKey = `appearance_settings_${user?.agencyId}`;
+    const settingsKey = `appearance_settings_${user?.agency_id}`;
     const savedSettings = localStorage.getItem(settingsKey);
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
       setSettings(parsed);
       applySettings(parsed);
     }
-  }, [user?.agencyId]);
+  }, [user?.agency_id]);
 
   const applySettings = (newSettings: typeof settings) => {
     const root = document.documentElement;
@@ -97,17 +97,17 @@ export const AppearanceSettings: React.FC = () => {
     applySettings(newSettings);
     
     // Sauvegarder automatiquement pour cette agence
-    const settingsKey = `appearance_settings_${user?.agencyId}`;
+    const settingsKey = `appearance_settings_${user?.agency_id}`;
     localStorage.setItem(settingsKey, JSON.stringify(newSettings));
     
-    console.log('✅ Paramètres sauvegardés pour agence:', user?.agencyId);
+    console.log('✅ Paramètres sauvegardés pour agence:', user?.agency_id);
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
       // Sauvegarder les paramètres d'apparence pour cette agence
-      const settingsKey = `appearance_settings_${user?.agencyId}`;
+      const settingsKey = `appearance_settings_${user?.agency_id}`;
       localStorage.setItem(settingsKey, JSON.stringify(settings));
       applySettings(settings);
       
@@ -343,7 +343,7 @@ export const AppearanceSettings: React.FC = () => {
             };
             setSettings(defaultSettings);
             applySettings(defaultSettings);
-            const settingsKey = `appearance_settings_${user?.agencyId}`;
+            const settingsKey = `appearance_settings_${user?.agency_id}`;
             localStorage.setItem(settingsKey, JSON.stringify(defaultSettings));
           }}
         >

@@ -1,29 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Shield, Edit, Trash2, Eye, EyeOff, UserCheck, UserX } from 'lucide-react';
+import { Plus, Users, Shield, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
-import { UserFormData, UserPermissions } from '../../types/agency';
+import { UserFormData, UserPermissions, User, AgencyUserRole } from '../../types/db';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService, supabase } from '../../lib/supabase';
+import { supabase, dbService } from '../../lib/supabase';
+import toast from 'react-hot-toast';
+
+interface AuthUser extends User {
+  role: AgencyUserRole;
+  agency_id: string | null;
+}
+
+interface ExtendedUser extends User {
+  role: AgencyUserRole;
+  agency_id: string | null;
+}
 
 export const UserManagement: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useAuth() as { user: AuthUser | null };
   const [showUserForm, setShowUserForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editingUser, setEditingUser] = useState<ExtendedUser | null>(null);
   const [loading, setLoading] = useState(false);
-  const [realUsers, setRealUsers] = useState<any[]>([]);
+  const [realUsers, setRealUsers] = useState<ExtendedUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
-    firstName: '',
-    lastName: '',
+    first_name: '',
+    last_name: '',
     role: 'agent',
-    agencyId: user?.agencyId || '',
+    agency_id: user?.agency_id || null,
     permissions: {
       dashboard: true,
       properties: false,
@@ -36,17 +47,17 @@ export const UserManagement: React.FC = () => {
       settings: false,
       userManagement: false,
     },
-    isActive: true,
+    is_active: true,
     password: '',
   });
 
-  const roleLabels = {
+  const roleLabels: Record<AgencyUserRole, string> = {
     director: 'Directeur',
-    manager: 'Chef d\'agence',
+    manager: "Chef d'agence",
     agent: 'Agent',
   };
 
-  const permissionLabels = {
+  const permissionLabels: Record<keyof UserPermissions, string> = {
     dashboard: 'Tableau de bord',
     properties: 'Propriétés',
     owners: 'Propriétaires',
@@ -61,159 +72,240 @@ export const UserManagement: React.FC = () => {
 
   useEffect(() => {
     const loadAgencyUsers = async () => {
-      if (!user?.agencyId) {
-        setError('Aucune agence associée');
+      if (!user?.agency_id) {
+        setError('Votre compte n’est pas encore associé à une agence. Veuillez attendre l’approbation de votre demande d’enregistrement.');
         setLoadingUsers(false);
         return;
       }
-      
+
       setLoadingUsers(true);
       setError(null);
-      
+
       try {
-        // Charger les utilisateurs de cette agence uniquement
-        const agencyUsersKey = `agency_users_${user.agencyId}`;
-        const storedUsers = JSON.parse(localStorage.getItem(agencyUsersKey) || '[]');
-        
-        // Ajouter l'utilisateur connecté s'il n'est pas dans la liste
-        const currentUserExists = storedUsers.find((u: any) => u.id === user.id);
-        if (!currentUserExists) {
-          const currentUserData = {
-            id: user.id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            role: user.role,
-            agencyId: user.agencyId,
-            isActive: true,
-            permissions: {
-              dashboard: true,
-              properties: true,
-              owners: true,
-              tenants: true,
-              contracts: true,
-              collaboration: true,
-              reports: true,
-              notifications: true,
-              settings: true,
-              userManagement: user.role === 'director',
-            },
-            createdAt: new Date(),
-          };
-          storedUsers.unshift(currentUserData);
-          localStorage.setItem(agencyUsersKey, JSON.stringify(storedUsers));
-        }
-        
-        setRealUsers(storedUsers);
-        console.log(`✅ ${storedUsers.length} utilisateur(s) chargé(s) pour l'agence ${user.agencyId}`);
-        
-      } catch (error) {
-        console.error('❌ Erreur chargement utilisateurs:', error);
-        setError('Erreur lors du chargement des utilisateurs');
+        console.log('Loading users for agency:', user.agency_id);
+        const users = await dbService.users.getByAgency(user.agency_id);
+        console.log('Fetched users:', users);
+        setRealUsers(users);
+        console.log(
+          `✅ ${users.length} utilisateur(s) chargé(s) pour l'agence ${
+            user.agency_id
+          } à ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' })}`
+        );
+      } catch (error: any) {
+        console.error('❌ Erreur chargement utilisateurs:', error.message, error.stack);
+        setError(`Erreur lors du chargement des utilisateurs: ${error.message}`);
         setRealUsers([]);
       } finally {
         setLoadingUsers(false);
       }
     };
-    
-    loadAgencyUsers();
-  }, [user?.agencyId, user?.id]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    loadAgencyUsers();
+  }, [user?.agency_id]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
+    if (!user?.agency_id) {
+      toast.error('Aucune agence associée. Veuillez attendre l’approbation de votre demande.');
+      setLoading(false);
+      return;
+    }
+
     try {
       // Validation des données
-      if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim()) {
+      if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.email.trim()) {
         throw new Error('Tous les champs obligatoires doivent être remplis');
       }
-      
-      if (!editingUser && (!formData.password || formData.password.length < 6)) {
-        throw new Error('Le mot de passe doit contenir au moins 6 caractères');
+
+      if (!editingUser && (!formData.password || formData.password.length < 8)) {
+        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
       }
-      
-      // Validation email
+
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        throw new Error('Format d\'email invalide');
+        throw new Error("Format d'email invalide");
       }
-      
+
       // Vérifier que l'email n'existe pas déjà
-      const agencyUsersKey = `agency_users_${user?.agencyId}`;
-      const existingUsers = JSON.parse(localStorage.getItem(agencyUsersKey) || '[]');
-      const emailExists = existingUsers.find((u: any) => 
-        u.email.toLowerCase() === formData.email.toLowerCase() && 
-        (!editingUser || u.id !== editingUser.id)
-      );
-      
-      if (emailExists) {
+      console.log('Checking for existing email:', formData.email.toLowerCase());
+      const { data: existingUsers, error: emailCheckError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', formData.email.toLowerCase());
+      if (emailCheckError) {
+        console.error('Email check error:', emailCheckError);
+        throw new Error(`Erreur vérification email: ${emailCheckError.message}`);
+      }
+      if (existingUsers?.length && (!editingUser || existingUsers[0].email !== editingUser.email)) {
         throw new Error('Cet email est déjà utilisé par un autre utilisateur');
       }
-      
+
       if (editingUser) {
         // Mise à jour utilisateur existant
-        const updateData = {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          role: formData.role,
+        console.log('Updating user:', editingUser.id);
+        const updatedUser = await dbService.users.update(editingUser.id, {
+          email: formData.email.toLowerCase(),
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          is_active: formData.is_active,
           permissions: formData.permissions,
-          isActive: formData.isActive,
-          updatedAt: new Date(),
-        };
-        
-        const updatedUsers = existingUsers.map((u: any) => 
-          u.id === editingUser.id ? { ...u, ...updateData } : u
+          updated_at: new Date().toISOString(),
+        });
+        console.log('User updated:', updatedUser);
+
+        const updatedAgencyUser = await dbService.agencyUsers.update(editingUser.id, {
+          role: formData.role,
+          updated_at: new Date().toISOString(),
+        });
+        console.log('Agency user updated:', updatedAgencyUser);
+
+        setRealUsers((prev) =>
+          prev.map((u) =>
+            u.id === editingUser.id
+              ? {
+                  ...u,
+                  email: formData.email.toLowerCase(),
+                  first_name: formData.first_name,
+                  last_name: formData.last_name,
+                  is_active: formData.is_active,
+                  permissions: formData.permissions,
+                  role: formData.role,
+                  agency_id: user.agency_id,
+                  updated_at: new Date().toISOString(),
+                }
+              : u
+          )
         );
-        
-        localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
-        setRealUsers(updatedUsers);
-        
-        alert('✅ Utilisateur mis à jour avec succès !');
+
+        await dbService.auditLogs.insert({
+          user_id: user?.id || null,
+          action: 'user_updated',
+          table_name: 'users',
+          record_id: editingUser.id,
+          new_values: {
+            email: formData.email.toLowerCase(),
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            role: formData.role,
+            timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+          },
+          ip_address: '0.0.0.0',
+          user_agent: navigator.userAgent,
+        });
+
+        toast.success(
+          `✅ Utilisateur mis à jour avec succès à ${new Date().toLocaleString('fr-FR', {
+            timeZone: 'Africa/Abidjan',
+          })}!`
+        );
       } else {
         // Création nouvel utilisateur
-        const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const userData = {
-          id: newUserId,
-          email: formData.email,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          role: formData.role,
-          agencyId: user?.agencyId || '',
+        console.log('Creating new user with email:', formData.email.toLowerCase());
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email.toLowerCase(),
+          password: formData.password!,
+          options: {
+            data: {
+              first_name: formData.first_name,
+              last_name: formData.last_name,
+            },
+            emailRedirectTo: `${window.location.origin}/login`,
+          },
+        });
+
+        if (authError || !authData.user) {
+          console.error('Auth signUp error:', authError);
+          throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur dans auth.users");
+        }
+        console.log('Auth user created:', authData.user);
+
+        // Vérifier si l'utilisateur existe dans auth.users
+        const { data: authUserCheck, error: authCheckError } = await supabase
+          .from('auth.users')
+          .select('id, email, confirmed_at')
+          .eq('id', authData.user.id)
+          .single();
+        if (authCheckError || !authUserCheck) {
+          console.error('Auth user check error:', authCheckError);
+          throw new Error('Utilisateur non trouvé dans auth.users après inscription');
+        }
+        console.log('Auth user verified:', authUserCheck);
+
+        // Créer l'utilisateur dans la table users
+        console.log('Creating user in users table:', authData.user.id);
+        const newUser = await dbService.users.create({
+          id: authData.user.id,
+          email: formData.email.toLowerCase(),
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          is_active: formData.is_active,
           permissions: formData.permissions,
-          isActive: formData.isActive,
-          password: formData.password,
-          createdAt: new Date(),
-        };
-        
-        const updatedUsers = [userData, ...existingUsers];
-        localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
-        setRealUsers(updatedUsers);
-        
-        alert(`✅ UTILISATEUR CRÉÉ AVEC SUCCÈS !
-        
-👤 NOM : ${formData.firstName} ${formData.lastName}
-📧 EMAIL : ${formData.email}
-🔑 MOT DE PASSE : ${formData.password}
-👔 RÔLE : ${roleLabels[formData.role]}
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        console.log('User created in users table:', newUser);
 
-✅ Le compte a été créé et sauvegardé
-✅ L'utilisateur peut maintenant se connecter
-✅ Permissions configurées selon le rôle
+        // Créer l'association dans agency_users
+        console.log('Creating agency_users entry:', {
+          user_id: newUser.id,
+          agency_id: user.agency_id,
+          role: formData.role,
+        });
+        const agencyUser = await dbService.agencyUsers.create({
+          user_id: newUser.id,
+          agency_id: user.agency_id,
+          role: formData.role,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        console.log('Agency user created:', agencyUser);
 
-IDENTIFIANTS DE CONNEXION :
-Email : ${formData.email}
-Mot de passe : ${formData.password}
+        setRealUsers((prev) => [
+          {
+            ...newUser,
+            role: formData.role,
+            agency_id: user.agency_id!,
+          },
+          ...prev,
+        ]);
 
-L'utilisateur peut maintenant se connecter avec ces identifiants.`);
+        await dbService.auditLogs.insert({
+          user_id: user?.id || null,
+          action: 'user_created',
+          table_name: 'users',
+          record_id: newUser.id,
+          new_values: {
+            email: newUser.email,
+            first_name: newUser.first_name,
+            last_name: newUser.last_name,
+            role: formData.role,
+            agency_id: user.agency_id,
+            timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+          },
+          ip_address: '0.0.0.0',
+          user_agent: navigator.userAgent,
+        });
+
+        toast.success(
+          `✅ Utilisateur créé avec succès à ${new Date().toLocaleString('fr-FR', {
+            timeZone: 'Africa/Abidjan',
+          })}!\n\n` +
+            `👤 Nom : ${formData.first_name} ${formData.last_name}\n` +
+            `📧 Email : ${formData.email}\n` +
+            `👔 Rôle : ${roleLabels[formData.role]}\n\n` +
+            `✅ Le compte a été créé et sauvegardé\n` +
+            `✅ L'utilisateur peut maintenant se connecter\n` +
+            `📧 Identifiants envoyés par email`
+        );
       }
-      
+
       setShowUserForm(false);
       setEditingUser(null);
       resetForm();
-    } catch (error) {
-      console.error('❌ Erreur gestion utilisateur:', error);
-      alert(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    } catch (error: any) {
+      console.error('❌ Erreur gestion utilisateur:', error.message, error.stack);
+      toast.error(`Erreur: ${error.message || 'Erreur inconnue'}`);
     } finally {
       setLoading(false);
     }
@@ -222,10 +314,10 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
   const resetForm = () => {
     setFormData({
       email: '',
-      firstName: '',
-      lastName: '',
+      first_name: '',
+      last_name: '',
       role: 'agent',
-      agencyId: user?.agencyId || '',
+      agency_id: user?.agency_id || '',
       permissions: {
         dashboard: true,
         properties: false,
@@ -238,67 +330,140 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
         settings: false,
         userManagement: false,
       },
-      isActive: true,
+      is_active: true,
       password: '',
     });
   };
 
-  const handleEdit = (userData: any) => {
+  const handleEdit = (userData: ExtendedUser) => {
     setEditingUser(userData);
     setFormData({
+      id: userData.id,
       email: userData.email,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
+      first_name: userData.first_name,
+      last_name: userData.last_name,
       role: userData.role,
-      agencyId: userData.agencyId || user?.agencyId || '',
+      agency_id: userData.agency_id,
       permissions: userData.permissions,
-      isActive: userData.isActive,
+      is_active: userData.is_active,
       password: '',
     });
     setShowUserForm(true);
   };
 
-  const toggleUserStatus = (userId: string) => {
-    const agencyUsersKey = `agency_users_${user?.agencyId}`;
-    const updatedUsers = realUsers.map(u => 
-      u.id === userId ? { ...u, isActive: !u.isActive, updatedAt: new Date() } : u
-    );
-    
-    localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
-    setRealUsers(updatedUsers);
-  };
-
-  const deleteUser = (userId: string) => {
+  const toggleUserStatus = async (userId: string) => {
     if (userId === user?.id) {
-      alert('Vous ne pouvez pas supprimer votre propre compte');
+      toast.error('Vous ne pouvez pas modifier votre propre statut');
       return;
     }
-    
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-      const agencyUsersKey = `agency_users_${user?.agencyId}`;
-      const updatedUsers = realUsers.filter(u => u.id !== userId);
-      
-      localStorage.setItem(agencyUsersKey, JSON.stringify(updatedUsers));
-      setRealUsers(updatedUsers);
-      
-      alert('✅ Utilisateur supprimé avec succès');
+
+    const userToUpdate = realUsers.find((u) => u.id === userId);
+    if (!userToUpdate) return;
+
+    try {
+      console.log('Toggling user status:', userId);
+      const updatedUser = await dbService.users.update(userId, {
+        is_active: !userToUpdate.is_active,
+        updated_at: new Date().toISOString(),
+      });
+      console.log('User status updated:', updatedUser);
+
+      setRealUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? { ...u, is_active: !u.is_active, updated_at: new Date().toISOString() }
+            : u
+        )
+      );
+
+      await dbService.auditLogs.insert({
+        user_id: user?.id || null,
+        action: 'user_status_toggled',
+        table_name: 'users',
+        record_id: userId,
+        new_values: {
+          is_active: !userToUpdate.is_active,
+          timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+        },
+        ip_address: '0.0.0.0',
+        user_agent: navigator.userAgent,
+      });
+
+      toast.success(
+        `✅ Statut de l'utilisateur modifié à ${new Date().toLocaleString('fr-FR', {
+          timeZone: 'Africa/Abidjan',
+        })}`
+      );
+    } catch (error: any) {
+      console.error('❌ Erreur lors du changement de statut:', error.message, error.stack);
+      toast.error(`Erreur lors du changement de statut: ${error.message}`);
+    }
+  };
+
+  const deleteUser = async (userId: string) => {
+    if (userId === user?.id) {
+      toast.error('Vous ne pouvez pas supprimer votre propre compte');
+      return;
+    }
+
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) return;
+
+    try {
+      console.log('Deleting agency_users entry:', userId);
+      await dbService.agencyUsers.delete(userId);
+      console.log('Agency user deleted');
+
+      console.log('Deleting user:', userId);
+      await dbService.users.delete(userId);
+      console.log('User deleted');
+
+      setRealUsers((prev) => prev.filter((u) => u.id !== userId));
+
+      await dbService.auditLogs.insert({
+        user_id: user?.id || null,
+        action: 'user_deleted',
+        table_name: 'users',
+        record_id: userId,
+        new_values: {
+          timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+        },
+        ip_address: '0.0.0.0',
+        user_agent: navigator.userAgent,
+      });
+
+      toast.success(
+        `✅ Utilisateur supprimé avec succès à ${new Date().toLocaleString('fr-FR', {
+          timeZone: 'Africa/Abidjan',
+        })}`
+      );
+    } catch (error: any) {
+      console.error('❌ Erreur suppression utilisateur:', error.message, error.stack);
+      toast.error(`Erreur lors de la suppression de l'utilisateur: ${error.message}`);
     }
   };
 
   const updatePermission = (key: keyof UserPermissions, value: boolean) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      permissions: { ...prev.permissions, [key]: value }
+      permissions: { ...prev.permissions, [key]: value },
     }));
   };
 
-  const getRolePermissions = (role: string): Partial<UserPermissions> => {
+  const getRolePermissions = (role: AgencyUserRole): UserPermissions => {
     switch (role) {
       case 'director':
-        return Object.keys(permissionLabels).reduce((acc, key) => ({
-          ...acc,
-          [key]: true
-        }), {} as UserPermissions);
+        return {
+          dashboard: true,
+          properties: true,
+          owners: true,
+          tenants: true,
+          contracts: true,
+          collaboration: true,
+          reports: true,
+          notifications: true,
+          settings: true,
+          userManagement: true,
+        };
       case 'manager':
         return {
           dashboard: true,
@@ -326,16 +491,27 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
           userManagement: false,
         };
       default:
-        return {};
+        return {
+          dashboard: true,
+          properties: false,
+          owners: false,
+          tenants: false,
+          contracts: false,
+          collaboration: false,
+          reports: false,
+          notifications: true,
+          settings: false,
+          userManagement: false,
+        };
     }
   };
 
   const handleRoleChange = (role: string) => {
-    const rolePermissions = getRolePermissions(role);
-    setFormData(prev => ({
+    const rolePermissions = getRolePermissions(role as AgencyUserRole);
+    setFormData((prev) => ({
       ...prev,
-      role: role as UserFormData['role'],
-      permissions: { ...prev.permissions, ...rolePermissions }
+      role: role as AgencyUserRole,
+      permissions: { ...prev.permissions, ...rolePermissions },
     }));
   };
 
@@ -343,12 +519,8 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
     return (
       <Card className="p-8 text-center">
         <Shield className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          Accès restreint
-        </h3>
-        <p className="text-gray-600">
-          Seuls les directeurs peuvent gérer les utilisateurs.
-        </p>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Accès restreint</h3>
+        <p className="text-gray-600">Seuls les directeurs peuvent gérer les utilisateurs.</p>
       </Card>
     );
   }
@@ -357,9 +529,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Gestion des utilisateurs
-          </h3>
+          <h3 className="text-lg font-semibold text-gray-900">Gestion des utilisateurs</h3>
         </div>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -372,13 +542,9 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
     return (
       <Card className="p-8 text-center">
         <Shield className="h-16 w-16 mx-auto mb-4 text-red-400" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          Erreur de chargement
-        </h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Erreur de chargement</h3>
         <p className="text-red-600 mb-4">{error}</p>
-        <Button onClick={() => window.location.reload()}>
-          Réessayer
-        </Button>
+        <Button onClick={() => window.location.reload()}>Réessayer</Button>
       </Card>
     );
   }
@@ -387,11 +553,10 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">
-            Gestion des utilisateurs
-          </h3>
+          <h3 className="text-lg font-semibold text-gray-900">Gestion des utilisateurs</h3>
           <p className="text-sm text-gray-500 mt-1">
-            Créez et gérez les comptes de vos employés ({realUsers.length} utilisateur{realUsers.length > 1 ? 's' : ''})
+            Créez et gérez les comptes de vos employés ({realUsers.length} utilisateur
+            {realUsers.length > 1 ? 's' : ''})
           </p>
         </div>
         <Button onClick={() => setShowUserForm(true)}>
@@ -400,111 +565,108 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
         </Button>
       </div>
 
-      {/* Users List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {realUsers.length > 0 ? realUsers.map((userData) => (
-          <Card key={userData.id}>
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-blue-600 font-semibold text-sm">
-                      {userData.firstName[0]}{userData.lastName[0]}
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900">
-                      {userData.firstName} {userData.lastName}
-                      {userData.id === user?.id && (
-                        <span className="text-xs text-blue-600 ml-2">(Vous)</span>
-                      )}
-                    </h4>
-                    <p className="text-sm text-gray-500">{userData.email}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Badge 
-                    variant={userData.role === 'director' ? 'success' : userData.role === 'manager' ? 'warning' : 'info'} 
-                    size="sm"
-                  >
-                    {roleLabels[userData.role as keyof typeof roleLabels]}
-                  </Badge>
-                  <Badge 
-                    variant={userData.isActive ? 'success' : 'secondary'} 
-                    size="sm"
-                  >
-                    {userData.isActive ? 'Actif' : 'Inactif'}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="mb-3">
-                <p className="text-xs text-gray-500 mb-2">Permissions actives :</p>
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(userData.permissions || {})
-                    .filter(([_, enabled]) => enabled)
-                    .slice(0, 4)
-                    .map(([key]) => (
-                      <Badge key={key} variant="secondary" size="sm">
-                        {permissionLabels[key as keyof typeof permissionLabels]}
-                      </Badge>
-                    ))}
-                  {Object.values(userData.permissions || {}).filter(Boolean).length > 4 && (
-                    <Badge variant="secondary" size="sm">
-                      +{Object.values(userData.permissions || {}).filter(Boolean).length - 4}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                <span className="text-xs text-gray-500">
-                  Créé le {new Date(userData.createdAt).toLocaleDateString('fr-FR')}
-                </span>
-                <div className="flex space-x-1">
-                  {userData.id !== user?.id && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleUserStatus(userData.id)}
-                      >
-                        {userData.isActive ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
+        {realUsers.length > 0 ? (
+          realUsers.map((userData) => (
+            <Card key={userData.id}>
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 font-semibold text-sm">
+                        {userData.first_name[0]}
+                        {userData.last_name[0]}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">
+                        {userData.first_name} {userData.last_name}
+                        {userData.id === user?.id && (
+                          <span className="text-xs text-blue-600 ml-2">(Vous)</span>
                         )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(userData)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteUser(userData.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
+                      </h4>
+                      <p className="text-sm text-gray-500">{userData.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge
+                      variant={
+                        userData.role === 'director'
+                          ? 'success'
+                          : userData.role === 'manager'
+                          ? 'warning'
+                          : 'info'
+                      }
+                      size="sm"
+                    >
+                      {roleLabels[userData.role]}
+                    </Badge>
+                    <Badge variant={userData.is_active ? 'success' : 'secondary'} size="sm">
+                      {userData.is_active ? 'Actif' : 'Inactif'}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-2">Permissions actives :</p>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.entries(userData.permissions || {})
+                      .filter(([_, enabled]) => enabled)
+                      .slice(0, 4)
+                      .map(([key]) => (
+                        <Badge key={key} variant="secondary" size="sm">
+                          {permissionLabels[key as keyof UserPermissions]}
+                        </Badge>
+                      ))}
+                    {Object.values(userData.permissions || {}).filter(Boolean).length > 4 && (
+                      <Badge variant="secondary" size="sm">
+                        +{Object.values(userData.permissions || {}).filter(Boolean).length - 4}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                  <span className="text-xs text-gray-500">
+                    Créé le {new Date(userData.created_at).toLocaleDateString('fr-FR')}
+                  </span>
+                  <div className="flex space-x-1">
+                    {userData.id !== user?.id && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleUserStatus(userData.id)}
+                        >
+                          {userData.is_active ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(userData)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteUser(userData.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
-        )) : (
+            </Card>
+          ))
+        ) : (
           <div className="col-span-2 text-center py-8">
             <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               Aucun utilisateur dans votre agence
             </h3>
-            <p className="text-gray-600 mb-4">
-              Commencez par créer des comptes pour vos employés.
-            </p>
+            <p className="text-gray-600 mb-4">Commencez par créer des comptes pour vos employés.</p>
             <Button onClick={() => setShowUserForm(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Créer le premier utilisateur
@@ -513,7 +675,6 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
         )}
       </div>
 
-      {/* User Form Modal */}
       <Modal
         isOpen={showUserForm}
         onClose={() => {
@@ -521,53 +682,58 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
           setEditingUser(null);
           resetForm();
         }}
-        title={editingUser ? 'Modifier l\'utilisateur' : 'Ajouter un utilisateur'}
+        title={editingUser ? "Modifier l'utilisateur" : 'Ajouter un utilisateur'}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Prénom"
-              value={formData.firstName}
-              onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+              value={formData.first_name}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setFormData((prev) => ({ ...prev, first_name: e.target.value }))
+              }
               required
+              autoComplete="given-name"
             />
             <Input
               label="Nom"
-              value={formData.lastName}
-              onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+              value={formData.last_name}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setFormData((prev) => ({ ...prev, last_name: e.target.value }))
+              }
               required
+              autoComplete="family-name"
             />
           </div>
-
           <Input
             label="Email"
             type="email"
             value={formData.email}
-            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setFormData((prev) => ({ ...prev, email: e.target.value }))
+            }
             required
+            autoComplete="email"
           />
-
           {!editingUser && (
             <Input
               label="Mot de passe temporaire"
               type="password"
               value={formData.password}
-              onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setFormData((prev) => ({ ...prev, password: e.target.value }))
+              }
               required
               helperText="L'utilisateur devra changer ce mot de passe à sa première connexion"
+              autoComplete="new-password"
             />
           )}
-
-          {/* Role Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Rôle
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Rôle</label>
             <select
               value={formData.role}
-              onChange={(e) => handleRoleChange(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleRoleChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >
@@ -575,8 +741,6 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
               <option value="manager">Chef d'agence</option>
             </select>
           </div>
-
-          {/* Permissions */}
           <div>
             <h4 className="font-medium text-gray-900 mb-3">Permissions</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -594,21 +758,20 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
               ))}
             </div>
           </div>
-
-          {/* Status */}
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
-              id="isActive"
-              checked={formData.isActive}
-              onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+              id="is_active"
+              checked={formData.is_active}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setFormData((prev) => ({ ...prev, is_active: e.target.checked }))
+              }
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
-            <label htmlFor="isActive" className="text-sm text-gray-700">
+            <label htmlFor="is_active" className="text-sm text-gray-700">
               Compte actif
             </label>
           </div>
-
           <div className="flex items-center justify-end space-x-3 pt-4 border-t">
             <Button
               type="button"
@@ -622,7 +785,7 @@ L'utilisateur peut maintenant se connecter avec ces identifiants.`);
               Annuler
             </Button>
             <Button type="submit" isLoading={loading}>
-              {editingUser ? 'Mettre à jour' : 'Créer l\'utilisateur'}
+              {editingUser ? 'Mettre à jour' : "Créer l'utilisateur"}
             </Button>
           </div>
         </form>
