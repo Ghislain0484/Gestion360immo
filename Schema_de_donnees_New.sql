@@ -160,6 +160,7 @@ create table public.agency_users (
   agency_id uuid not null references public.agencies(id) on delete cascade,
   role agency_user_role not null,
   created_at timestamptz not null default now(),
+  updated_at timestamptz,
   unique (user_id, agency_id)
 );
 -- Un seul director par agence

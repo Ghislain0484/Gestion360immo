@@ -16,7 +16,18 @@ export type PropertyTitle = 'attestation_villageoise' | 'lettre_attribution' | '
 export type PropertyStanding = 'economique' | 'moyen' | 'haut';
 export type RegistrationStatus = 'pending' | 'approved' | 'rejected';
 export type JsonB = string | number | boolean | null | { [key: string]: any } | JsonB[];
+// Contrainte de type pour limiter T aux entités du schéma
+export type Entity =
+  | User | Agency | Owner | Tenant | Property | Contract | Announcement | RentReceipt
+  | FinancialStatement | Message | Notification | EmailNotification | AgencySubscription
+  | SubscriptionPayment | AgencyRanking | PlatformSetting | AuditLog | AnnouncementInterest;
 
+export type RentReceiptWithContract = {
+  total_amount: number | null;
+  contract: {
+    agency_id: string;
+  } | null;
+};
 // Interface pour les utilisateurs (lié à auth.users)
 export interface User {
   id: string; // UUID, FK vers auth.users(id)
@@ -25,10 +36,37 @@ export interface User {
   last_name: string;
   avatar?: string | null;
   is_active: boolean;
-  permissions: JsonB;
+  permissions: UserPermissions;
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
+  // Note: agency_id and role are fetched via agency_users in AuthContext
 }
+
+export interface UserPermissions {
+  dashboard: boolean;
+  properties: boolean;
+  owners: boolean;
+  tenants: boolean;
+  contracts: boolean;
+  collaboration: boolean;
+  reports: boolean;
+  notifications: boolean;
+  settings: boolean;
+  userManagement: boolean;
+}
+
+export interface UserFormData {
+  id?: string; // Optional for new users
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: AgencyUserRole;
+  agency_id: string | null;
+  permissions: UserPermissions;
+  is_active: boolean;
+  password?: string; // Optional for updates
+}
+
 
 // Interface pour les administrateurs de la plateforme
 export interface PlatformAdmin {
@@ -67,6 +105,7 @@ export interface AgencyUser {
   agency_id: string; // UUID, FK vers agencies(id)
   role: AgencyUserRole;
   created_at: string; // timestamptz
+  updated_at: string;
 }
 
 // Interface pour les demandes d'inscription d'agence
@@ -109,6 +148,18 @@ export interface AgencySubscription {
   //payment_history: JsonB; // Tableau JSONB
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
+}
+
+export interface AgencyFormData {
+  name: string;
+  commercialRegister: string;
+  logo_url: string | null;
+  isAccredited: boolean;
+  accreditationNumber: string | null;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
 }
 
 // Interface pour les paiements d'abonnement
@@ -201,6 +252,64 @@ export interface Tenant {
   updated_at: string; // timestamptz
 }
 
+export type TenantFormData = Omit<Tenant, 'id' | 'created_at' | 'updated_at'>;
+
+export interface TenantFilters {
+  agency_id?: string;
+  limit?: number;
+  offset?: number;
+  search?: string;
+  marital_status?: MaritalStatus;
+  payment_status?: PaymentReliability;
+}
+
+export interface TenantWithRental extends Tenant {
+  contractId?: string;
+  propertyId?: string;
+  ownerId?: string;
+}
+
+export interface Rental {
+  id: string;
+  propertyId: string;
+  tenantId: string;
+  ownerId: string;
+  agencyId: string;
+  startDate: Date;
+  endDate?: Date;
+  monthlyRent: number;
+  deposit: number;
+  status: 'actif' | 'termine' | 'resilie';
+  renewalHistory: RenewalRecord[];
+  paymentHistory: PaymentRecord[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RenewalRecord {
+  id: string;
+  rentalId: string;
+  previousEndDate: Date;
+  newEndDate: Date;
+  newRent?: number;
+  renewalDate: Date;
+  notes?: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  rentalId: string;
+  month: string;
+  year: number;
+  amount: number;
+  paidDate?: Date;
+  dueDate: Date;
+  status: 'paye' | 'retard' | 'impaye';
+  paymentMethod?: 'especes' | 'cheque' | 'virement' | 'mobile_money';
+  notes?: string;
+  createdAt: Date;
+}
+
 export interface PropertyLocation {
   commune: string;
   quartier: string;
@@ -288,7 +397,7 @@ export interface Property {
   updated_at: string; // timestamptz
 }
 
-export interface PropertyFormData extends Omit<Property, 'id' | 'created_at' | 'updated_at'> {}
+export interface PropertyFormData extends Omit<Property, 'id' | 'created_at' | 'updated_at'> { }
 
 // Interface pour les annonces
 export interface Announcement {
@@ -341,39 +450,64 @@ export interface Contract {
 
 // Interface pour les reçus de loyer
 export interface RentReceipt {
-  id: string; // UUID
-  receipt_number: string;
-  contract_id: string; // UUID, FK vers contracts(id)
-  period_month: number;
-  period_year: number;
-  rent_amount: number;
-  charges: number;
-  total_amount: number;
-  commission_amount: number;
-  owner_payment: number;
-  payment_date: string; // date
-  payment_method: PayMethod;
-  notes?: string | null;
-  issued_by: string; // UUID, FK vers users(id)
-  created_at: string; // timestamptz
+  id: string;
+  receipt_number: string;       // Numéro unique (ex: REC-20250901-001)
+  period_month: string;         // Mois concerné (ex: "septembre")
+  period_year: number;          // Année concernée
+  rent_amount: number;          // Montant du loyer hors charges
+  charges?: number;             // Charges mensuelles
+  total_amount: number;         // Somme loyer + charges
+  payment_date: string;         // Date de paiement effectif
+  payment_method: PayMethod;    // Mode de paiement
+  notes?: string | null;        // Notes éventuelles (optionnel)
+  issued_by: string;            // Qui a émis la quittance (ex: nom agence ou agent, UUID, FK vers users(id))
+  created_at: string;           // Date de création en base, timestamptz
+  commission_amount: number;    // Commission agence retenue
+
+
+  // Relations pour générer une quittance
+  contract_id: string;          // Lien avec le contrat
+  tenant_id: string;
+  property_id: string;
+  owner_id: string;
+  agency_id?: string;           // Agence émettrice (optionnel si multi-agence)
+  owner_payment?: number;       // Montant reversé au propriétaire
 }
 
 // Interface pour les états financiers
-export interface FinancialStatement {
+export interface FinancialTransaction {
   id: string; // UUID
   agency_id: string; // UUID, FK vers agencies(id)
-  owner_id?: string | null; // UUID, FK vers owners(id)
-  tenant_id?: string | null; // UUID, FK vers tenants(id)
-  period_start: string; // date
-  period_end: string; // date
-  total_income: number;
-  total_expenses: number;
-  net_balance: number;
-  pending_payments: number;
-  transactions: JsonB; // Tableau JSONB
-  generated_by: string; // UUID, FK vers users(id)
-  generated_at: string; // timestamptz
+  owner_id: string; // UUID, FK vers owners(id) or tenants(id)
+  entity_type: 'owner' | 'tenant';
+  type: 'income' | 'expense';
+  amount: number;
+  description: string;
+  category: string;
+  date: string; // date
+  property_id?: string | null; // UUID, FK vers properties(id)
   created_at: string; // timestamptz
+  updated_at: string; // timestamptz
+}
+
+export interface FinancialStatement {
+  id: string; // UUID
+  agency_id: string | null; // UUID, FK vers agencies(id)
+  owner_id: string | null; // UUID, FK vers owners(id) or tenants(id)
+  tenant_id: string | null;
+  entity_type: 'owner' | 'tenant';
+  period: { start_date: string; end_date: string };
+  summary: {
+    total_income: number;
+    total_expenses: number;
+    balance: number;
+    pending_payments: number;
+  };
+  transactions: FinancialTransaction[];
+  generated_at: string; // timestamptz
+  generated_by: string | null; // UUID, FK vers users(id)
+  created_at: string; // timestamptz
+  updated_at: string; // timestamptz
 }
 
 // Interface pour les messages
@@ -402,6 +536,19 @@ export interface Notification {
   is_read: boolean;
   priority: NotifPriority;
   created_at: string; // timestamptz
+  agency_id: string;
+}
+
+export interface EmailNotification {
+  id: string;
+  type: 'new_user' | 'new_contract' | 'receipt_generated' | 'payment_reminder' | 'contract_expiry';
+  recipient: string;
+  subject: string;
+  content: string;
+  status: 'pending' | 'sent' | 'failed';
+  sent_at?: string;
+  agency_id: string;
+  created_at: string;
 }
 
 // Interface pour les paramètres de la plateforme

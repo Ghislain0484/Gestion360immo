@@ -4,13 +4,13 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
-import { ContractFormData } from '../../types/contract';
+import { Contract } from '../../types/db';
 
 interface ContractFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (contract: ContractFormData) => void;
-  initialData?: Partial<ContractFormData>;
+  onSubmit: (contract: Partial<Contract>) => void;
+  initialData?: Partial<Contract>;
 }
 
 export const ContractForm: React.FC<ContractFormProps> = ({
@@ -19,13 +19,13 @@ export const ContractForm: React.FC<ContractFormProps> = ({
   onSubmit,
   initialData,
 }) => {
-  const [formData, setFormData] = useState<ContractFormData>({
+  const [formData, setFormData] = useState<Partial<Contract>>({
     property_id: '',
     owner_id: '',
     tenant_id: '',
-    agency_id: '1',
+    agency_id: '',
     type: 'location',
-    start_date: new Date(),
+    start_date: new Date().toISOString().split('T')[0],
     monthly_rent: 0,
     deposit: 0,
     charges: 0,
@@ -34,14 +34,15 @@ export const ContractForm: React.FC<ContractFormProps> = ({
     status: 'draft',
     terms: '',
     documents: [],
-    renewal_history: [],
     ...initialData,
   });
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const updateFormData = (updates: Partial<ContractFormData>) => {
+  const updateFormData = (updates: Partial<Contract>) => {
     setFormData(prev => {
       const updated = { ...prev, ...updates };
-      // Recalculate commission when rent or rate changes
+      // Recalculer la commission si nécessaire
       if (updates.monthly_rent !== undefined || updates.commission_rate !== undefined) {
         const rent = updates.monthly_rent ?? prev.monthly_rent ?? 0;
         const rate = updates.commission_rate ?? prev.commission_rate ?? 0;
@@ -51,16 +52,54 @@ export const ContractForm: React.FC<ContractFormProps> = ({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const resetForm = () => {
+    setFormData({
+      property_id: '',
+      owner_id: '',
+      tenant_id: '',
+      agency_id: '',
+      type: 'location',
+      start_date: new Date().toISOString().split('T')[0],
+      monthly_rent: 0,
+      deposit: 0,
+      charges: 0,
+      commission_rate: 10,
+      commission_amount: 0,
+      status: 'draft',
+      terms: '',
+      documents: [],
+    });
+    setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setSubmitting(true);
+    setError(null);
+
     try {
-      // Validation des données requises
-      if (!formData.property_id.trim() || !formData.owner_id.trim() || !formData.tenant_id.trim()) {
-        throw new Error('Veuillez sélectionner une propriété, un propriétaire et un locataire');
+      // Validation des champs obligatoires
+      if (!formData.agency_id?.trim()) {
+        throw new Error('L\'ID de l\'agence est requis');
       }
-      
-      // Validation des montants
+      if (!formData.property_id?.trim()) {
+        throw new Error('Veuillez sélectionner une propriété');
+      }
+      if (!formData.owner_id?.trim()) {
+        throw new Error('Veuillez sélectionner un propriétaire');
+      }
+      if (!formData.tenant_id?.trim()) {
+        throw new Error('Veuillez sélectionner un locataire');
+      }
+      if (!formData.type) {
+        throw new Error('Veuillez sélectionner un type de contrat');
+      }
+      if (!formData.start_date) {
+        throw new Error('Veuillez spécifier une date de début');
+      }
+      if (!formData.terms?.trim()) {
+        throw new Error('Veuillez saisir les termes du contrat');
+      }
       if (formData.type === 'location') {
         if (!formData.monthly_rent || formData.monthly_rent <= 0) {
           throw new Error('Veuillez saisir un loyer mensuel valide');
@@ -70,42 +109,45 @@ export const ContractForm: React.FC<ContractFormProps> = ({
           throw new Error('Veuillez saisir un prix de vente valide');
         }
       }
-      
-      // Validation du taux de commission
       if (!formData.commission_rate || formData.commission_rate < 0 || formData.commission_rate > 100) {
         throw new Error('Veuillez saisir un taux de commission valide (0-100%)');
       }
-      
-      // Validation des termes
-      if (!formData.terms.trim()) {
-        throw new Error('Veuillez saisir les termes du contrat');
-      }
-      
-      onSubmit(formData);
-      alert('✅ Contrat créé avec succès !');
-    } catch (error) {
-      console.error('Erreur lors de la soumission:', error);
-      alert(error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement');
+
+      await onSubmit(formData);
+      resetForm();
+      onClose();
+    } catch (err) {
+      console.error('Erreur lors de la soumission:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de l\'enregistrement');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg" title="Nouveau contrat">
+    <Modal isOpen={isOpen} onClose={() => { resetForm(); onClose(); }} size="lg" title="Nouveau contrat">
       <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="p-4 bg-red-50 text-red-800 rounded-lg">
+            {error}
+          </div>
+        )}
+
         <Card>
           <div className="flex items-center mb-4">
             <FileText className="h-5 w-5 text-blue-600 mr-2" />
             <h3 className="text-lg font-medium text-gray-900">Informations générales</h3>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-2">
                 Type de contrat
               </label>
               <select
+                id="type"
                 value={formData.type}
-                onChange={(e) => updateFormData({ type: e.target.value as ContractFormData['type'] })}
+                onChange={(e) => updateFormData({ type: e.target.value as Contract['type'] })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
@@ -116,12 +158,13 @@ export const ContractForm: React.FC<ContractFormProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
                 Statut
               </label>
               <select
+                id="status"
                 value={formData.status}
-                onChange={(e) => updateFormData({ status: e.target.value as ContractFormData['status'] })}
+                onChange={(e) => updateFormData({ status: e.target.value as Contract['status'] })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
@@ -129,31 +172,46 @@ export const ContractForm: React.FC<ContractFormProps> = ({
                 <option value="active">Actif</option>
                 <option value="expired">Expiré</option>
                 <option value="terminated">Résilié</option>
+                <option value="renewed">Renouvelé</option>
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
+              id="agency_id"
+              label="ID Agence"
+              value={formData.agency_id}
+              onChange={(e) => updateFormData({ agency_id: e.target.value })}
+              required
+              placeholder="ID de l'agence"
+            />
+            <Input
+              id="property_id"
               label="ID Propriété"
               value={formData.property_id}
               onChange={(e) => updateFormData({ property_id: e.target.value })}
               required
               placeholder="Sélectionner une propriété"
+              // TODO: Remplacer par un composant Select avec autocomplétion basé sur dbService.properties.getAll
             />
             <Input
+              id="owner_id"
               label="ID Propriétaire"
               value={formData.owner_id}
               onChange={(e) => updateFormData({ owner_id: e.target.value })}
               required
               placeholder="Sélectionner un propriétaire"
+              // TODO: Remplacer par un composant Select avec autocomplétion basé sur dbService.owners.getAll
             />
             <Input
+              id="tenant_id"
               label="ID Locataire"
               value={formData.tenant_id}
               onChange={(e) => updateFormData({ tenant_id: e.target.value })}
               required
               placeholder="Sélectionner un locataire"
+              // TODO: Remplacer par un composant Select avec autocomplétion basé sur dbService.tenants.getAll
             />
           </div>
         </Card>
@@ -163,20 +221,22 @@ export const ContractForm: React.FC<ContractFormProps> = ({
             <Calendar className="h-5 w-5 text-green-600 mr-2" />
             <h3 className="text-lg font-medium text-gray-900">Dates</h3>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
+              id="start_date"
               label="Date de début"
               type="date"
-              value={formData.start_date.toISOString().split('T')[0]}
-              onChange={(e) => updateFormData({ start_date: new Date(e.target.value) })}
+              value={formData.start_date}
+              onChange={(e) => updateFormData({ start_date: e.target.value })}
               required
             />
             <Input
+              id="end_date"
               label="Date de fin (optionnel)"
               type="date"
-              value={formData.end_date?.toISOString().split('T')[0] || ''}
-              onChange={(e) => updateFormData({ end_date: e.target.value ? new Date(e.target.value) : undefined })}
+              value={formData.end_date || ''}
+              onChange={(e) => updateFormData({ end_date: e.target.value || null })}
             />
           </div>
         </Card>
@@ -186,11 +246,12 @@ export const ContractForm: React.FC<ContractFormProps> = ({
             <DollarSign className="h-5 w-5 text-yellow-600 mr-2" />
             <h3 className="text-lg font-medium text-gray-900">Montants</h3>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {formData.type === 'location' ? (
               <>
                 <Input
+                  id="monthly_rent"
                   label="Loyer mensuel (FCFA)"
                   type="number"
                   value={formData.monthly_rent || ''}
@@ -199,6 +260,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({
                   placeholder="450000"
                 />
                 <Input
+                  id="deposit"
                   label="Caution (FCFA)"
                   type="number"
                   value={formData.deposit || ''}
@@ -207,6 +269,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({
                   placeholder="900000"
                 />
                 <Input
+                  id="charges"
                   label="Charges (FCFA)"
                   type="number"
                   value={formData.charges || ''}
@@ -217,6 +280,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({
               </>
             ) : (
               <Input
+                id="sale_price"
                 label="Prix de vente (FCFA)"
                 type="number"
                 value={formData.sale_price || ''}
@@ -225,8 +289,9 @@ export const ContractForm: React.FC<ContractFormProps> = ({
                 placeholder="25000000"
               />
             )}
-            
+
             <Input
+              id="commission_rate"
               label="Taux de commission (%)"
               type="number"
               value={formData.commission_rate}
@@ -244,7 +309,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({
                 style: 'currency',
                 currency: 'XOF',
                 minimumFractionDigits: 0,
-              }).format(formData.commission_amount)} FCFA
+              }).format(formData.commission_amount || 0)} FCFA
             </p>
           </div>
         </Card>
@@ -254,13 +319,14 @@ export const ContractForm: React.FC<ContractFormProps> = ({
             <Upload className="h-5 w-5 text-purple-600 mr-2" />
             <h3 className="text-lg font-medium text-gray-900">Termes et conditions</h3>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="terms" className="block text-sm font-medium text-gray-700 mb-2">
               Termes du contrat
             </label>
             <textarea
-              value={formData.terms}
+              id="terms"
+              value={formData.terms || ''}
               onChange={(e) => updateFormData({ terms: e.target.value })}
               rows={6}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -271,12 +337,12 @@ export const ContractForm: React.FC<ContractFormProps> = ({
         </Card>
 
         <div className="flex items-center justify-end space-x-3 pt-6 border-t">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" onClick={() => { resetForm(); onClose(); }} disabled={submitting}>
             Annuler
           </Button>
-          <Button type="submit">
+          <Button type="submit" disabled={submitting}>
             <Save className="h-4 w-4 mr-2" />
-            Enregistrer le contrat
+            {submitting ? 'Enregistrement...' : 'Enregistrer le contrat'}
           </Button>
         </div>
       </form>

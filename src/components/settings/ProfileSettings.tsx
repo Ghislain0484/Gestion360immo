@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Upload, User, Mail, Phone } from 'lucide-react';
+import { Save, Upload } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
@@ -12,8 +12,8 @@ export const ProfileSettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
+    firstName: user?.first_name || '',
+    lastName: user?.last_name || '',
     email: user?.email || '',
     phone: '',
     avatar: user?.avatar || '',
@@ -91,7 +91,7 @@ export const ProfileSettings: React.FC = () => {
       console.log('📝 Données à sauvegarder:', updateData);
       
       try {
-        const result = await dbService.updateUser(user.id, updateData);
+        const result = await dbService.users.update(user.id, updateData);
         console.log('✅ Profil sauvegardé:', result);
         
         // Mettre à jour les données utilisateur en localStorage

@@ -40,7 +40,8 @@ export const OwnerPropertyList: React.FC<OwnerPropertyListProps> = ({
   const [showDetails, setShowDetails] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<OwnerProperty | null>(null);
 
-  const { data: properties, loading, error } = useRealtimeData<OwnerProperty>(
+  // Fetch raw Property data with related contracts and tenants
+  const { data: rawProperties, loading, error } = useRealtimeData<Property & { contracts: (Contract & { tenants: Tenant })[] }>(
     async (agencyId: string) => {
       const { data, error } = await supabase
         .from('properties')
@@ -56,32 +57,32 @@ export const OwnerPropertyList: React.FC<OwnerPropertyListProps> = ({
         .order('created_at', { ascending: false });
 
       if (error) throw new Error(`❌ properties.select | ${error.message}`);
-
-      return (
-        data?.map((property: Property & { contracts: (Contract & { tenants: Tenant })[] }) => {
-          const activeContract = property.contracts.find((c) => c.status === 'active');
-          const details = property.details as { type?: string };
-          return {
-            id: property.id,
-            title: property.title,
-            type: details?.type || 'Inconnu',
-            monthly_rent: activeContract?.monthly_rent || 0,
-            commission_amount: activeContract?.commission_amount || 0,
-            owner_payment: activeContract ? (activeContract.monthly_rent || 0) - (activeContract.commission_amount || 0) : 0,
-            contract_date: activeContract?.start_date || property.created_at,
-            status: activeContract?.status || 'expired',
-            tenant: activeContract?.tenants
-              ? {
-                  name: `${activeContract.tenants.first_name} ${activeContract.tenants.last_name}`,
-                  phone: activeContract.tenants.phone,
-                }
-              : undefined,
-          };
-        }) ?? []
-      );
+      return data ?? [];
     },
     'properties'
   );
+
+  // Transform raw data into OwnerProperty
+  const properties: OwnerProperty[] = rawProperties.map((property) => {
+    const activeContract = property.contracts.find((c) => c.status === 'active');
+    const details = property.details as { type?: string };
+    return {
+      id: property.id,
+      title: property.title,
+      type: details?.type || 'Inconnu',
+      monthly_rent: activeContract?.monthly_rent || 0,
+      commission_amount: activeContract?.commission_amount || 0,
+      owner_payment: activeContract ? (activeContract.monthly_rent || 0) - (activeContract.commission_amount || 0) : 0,
+      contract_date: activeContract?.start_date || property.created_at,
+      status: activeContract?.status || 'expired',
+      tenant: activeContract?.tenants
+        ? {
+            name: `${activeContract.tenants.first_name} ${activeContract.tenants.last_name}`,
+            phone: activeContract.tenants.phone,
+          }
+        : undefined,
+    };
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {

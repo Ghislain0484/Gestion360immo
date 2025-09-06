@@ -8,30 +8,7 @@ import { AgencyRegistration } from './AgencyRegistration';
 import { dbService } from '../../lib/supabase';
 import { BibleVerseCard } from '../ui/BibleVerse';
 import { Toaster, toast } from 'react-hot-toast';
-import { AgencyRegistrationRequest, AuditLog } from '../../types/db'; // Adjusted path
-
-// Define interfaces to match AgencyRegistration.tsx
-interface AgencyFormData {
-  name: string;
-  commercialRegister: string;
-  logo_url: string | null; // Changed to string | null to match AgencyRegistration
-  isAccredited: boolean;
-  accreditationNumber: string | null;
-  address: string;
-  city: string;
-  phone: string;
-  email: string;
-}
-
-interface UserFormData {
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: 'director';
-  permissions: Record<string, boolean>;
-  isActive: boolean;
-  password: string;
-}
+import { AuditLog, AgencyFormData, UserFormData } from '../../types/db';
 
 export const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -43,8 +20,19 @@ export const LoginForm: React.FC = () => {
 
   const { login } = useAuth();
 
+  const getClientIP = async () => {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip || '0.0.0.0';
+    } catch {
+      return '0.0.0.0';
+    }
+  };
+
   const logAudit = useCallback(async (action: string, userId: string | null, details: any) => {
     try {
+      const ip_address = await getClientIP();
       const auditLog: Partial<AuditLog> = {
         user_id: userId,
         action,
@@ -52,7 +40,7 @@ export const LoginForm: React.FC = () => {
         record_id: userId,
         old_values: null,
         new_values: details,
-        ip_address: 'unknown', // Replace with actual IP if available
+        ip_address,
         user_agent: navigator.userAgent,
       };
       await dbService.auditLogs.insert(auditLog);
@@ -73,7 +61,10 @@ export const LoginForm: React.FC = () => {
       }
 
       await login(email, password);
-      await logAudit('user_login_success', null, { email, timestamp: new Date().toISOString() });
+      await logAudit('user_login_success', null, {
+        email,
+        timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+      });
       toast.success('Connexion réussie ! Bienvenue.');
     } catch (err: any) {
       const errorMessage = err.message.includes('Invalid login credentials')
@@ -82,52 +73,40 @@ export const LoginForm: React.FC = () => {
         ? 'Compte non activé. Contactez votre administrateur.'
         : err.message || 'Erreur lors de la connexion';
       setError(errorMessage);
-      await logAudit('user_login_failure', null, { email, error: errorMessage, timestamp: new Date().toISOString() });
+      await logAudit('user_login_failure', null, {
+        email,
+        error: errorMessage,
+        timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+      });
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAgencyRegistration = async (agencyData: AgencyFormData, directorData: UserFormData) => {
+  const handleAgencyRegistration = async (agencyData: AgencyFormData, directorData: UserFormData, registrationId: string) => {
     setIsLoading(true);
     try {
-      const requestData: Partial<AgencyRegistrationRequest> = {
-        agency_name: agencyData.name,
-        commercial_register: agencyData.commercialRegister,
-        director_first_name: directorData.firstName,
-        director_last_name: directorData.lastName,
-        director_email: directorData.email,
-        phone: agencyData.phone,
-        city: agencyData.city,
-        address: agencyData.address,
-        logo_url: agencyData.logo_url,
-        is_accredited: agencyData.isAccredited,
-        accreditation_number: agencyData.accreditationNumber,
-        status: 'pending',
-        director_password: directorData.password,
-      };
-
-      const result = await dbService.agencyRegistrationRequests.create(requestData);
       await logAudit('registration_request_submitted', null, {
         agency_name: agencyData.name,
         director_email: directorData.email,
-        registration_id: result.id,
-        timestamp: new Date().toISOString(),
+        registration_id: registrationId,
+        timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
       });
       toast.success(
-        `✅ Demande d'inscription envoyée !\n\n` +
+        `✅ Demande d'inscription envoyée à ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' })}!\n\n` +
         `🏢 Agence : ${agencyData.name}\n` +
-        `👤 Directeur : ${directorData.firstName} ${directorData.lastName}\n` +
+        `👤 Directeur : ${directorData.first_name} ${directorData.last_name}\n` +
         `📧 Email : ${directorData.email}\n` +
         `📱 Téléphone : ${agencyData.phone}\n` +
         `🏙️ Ville : ${agencyData.city}\n\n` +
-        `🆔 ID : ${result.id}\n` +
+        `🆔 ID : ${registrationId}\n` +
         `⏱️ Validation sous 24–48h\n` +
         `📧 Vous recevrez vos identifiants par email`
       );
       setShowRegistration(false);
     } catch (err: any) {
+      console.error('Erreur inscription agence:', err);
       const errorMessage = err.message.includes('duplicate key')
         ? 'Cette agence ou cet email est déjà enregistré'
         : err.message || 'Erreur lors de l’inscription';
@@ -135,34 +114,9 @@ export const LoginForm: React.FC = () => {
         agency_name: agencyData.name,
         director_email: directorData.email,
         error: errorMessage,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
       });
-
-      /*
-      const localRequest = {
-        id: `local_${Date.now()}`,
-        ...requestData,
-        created_at: new Date().toISOString(),
-        synced: false,
-      };
-      const stored = JSON.parse(localStorage.getItem('demo_registration_requests') || '[]');
-      stored.unshift(localRequest);
-      localStorage.setItem('demo_registration_requests', JSON.stringify(stored));
-
-      toast.success(
-        `✅ Demande sauvegardée localement !\n\n` +
-        `🏢 Agence : ${agencyData.name}\n` +
-        `👤 Directeur : ${directorData.firstName} ${directorData.lastName}\n` +
-        `📧 Email : ${directorData.email}\n` +
-        `🆔 ID local : ${localRequest.id}\n\n` +
-        `⚠️ Problème de connexion détecté\n` +
-        `🔄 Elle sera synchronisée dès que la connexion sera rétablie\n\n` +
-        `Conservez vos identifiants :\n` +
-        `📧 Email : ${directorData.email}\n` +
-        `🔑 Mot de passe : [Celui que vous avez saisi]`
-      );
-      */
-      setShowRegistration(false);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

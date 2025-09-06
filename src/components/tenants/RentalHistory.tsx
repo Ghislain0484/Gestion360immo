@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Calendar, DollarSign, Home, User, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { Calendar, DollarSign, Home, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
-import { Rental, PaymentRecord, RenewalRecord } from '../../types/tenant';
+import { Rental, PaymentRecord } from '../../types/db';
 
 interface RentalHistoryProps {
   tenantId: string;
