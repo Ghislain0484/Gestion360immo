@@ -533,6 +533,28 @@ export interface Notification {
   agency_id: string;
 }
 
+export interface NotificationSettings {
+  id: string;
+  user_id: string;
+  payment_reminder: boolean;
+  new_message: boolean;
+  contract_expiry: boolean;
+  new_interest: boolean;
+  property_update: boolean;
+  email: boolean;
+  push: boolean;
+  sms: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+
+// Type pour upsert (sans id, user_id, timestamps)
+export type NotificationSettingsUpsert = Omit<
+  NotificationSettings,
+  'id' | 'user_id' | 'created_at' | 'updated_at'
+>;
+
 export interface EmailNotification {
   id: string;
   type: 'new_user' | 'new_contract' | 'receipt_generated' | 'payment_reminder' | 'contract_expiry';
