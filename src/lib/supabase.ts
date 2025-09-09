@@ -1,31 +1,11 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import {
-    Agency,
-    AgencyUser,
-    AgencyRegistrationRequest,
-    AgencySubscription,
-    SubscriptionPayment,
-    AgencyRanking,
-    Owner,
-    Tenant,
-    Property,
-    Announcement,
-    AnnouncementInterest,
-    Contract,
-    RentReceipt,
-    FinancialStatement,
-    Message,
-    Notification,
-    PlatformSetting,
-    AuditLog,
-    User,
-    PlatformAdmin,
-    AgencyUserRole,
-    UserPermissions,
-    EmailNotification,
-    TenantFilters,
-    RentReceiptWithContract,
+    Agency, AgencyUser, AgencyRegistrationRequest, AgencySubscription, SubscriptionPayment,
+    AgencyRanking, Owner, Tenant, Property, Announcement, AnnouncementInterest, Contract,
+    RentReceipt, FinancialStatement, Message, Notification, PlatformSetting, AuditLog, User,
+    PlatformAdmin, AgencyUserRole, UserPermissions, EmailNotification, TenantFilters, RentReceiptWithContract,
 } from "../types/db";
+import { v4 as uuidv4 } from 'uuid';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -179,22 +159,13 @@ const normalizeAgencyRanking = (ar: Partial<AgencyRanking>) => ({
     rewards: ar.rewards ?? [],
 });
 
-const normalizeOwner = (o: Partial<Owner>) => ({
-    agency_id: nilIfEmpty(o.agency_id),
-    first_name: nilIfEmpty(o.first_name),
-    last_name: nilIfEmpty(o.last_name),
-    phone: nilIfEmpty(o.phone),
-    email: nilIfEmpty(o.email),
-    address: nilIfEmpty(o.address),
-    city: nilIfEmpty(o.city),
-    property_title: nilIfEmpty(o.property_title),
-    property_title_details: nilIfEmpty(o.property_title_details),
-    marital_status: nilIfEmpty(o.marital_status),
-    spouse_name: nilIfEmpty(o.spouse_name),
-    spouse_phone: nilIfEmpty(o.spouse_phone),
-    children_count: o.children_count ?? 0,
-    created_at: o.created_at ?? new Date().toISOString(),
-    updated_at: o.updated_at ?? new Date().toISOString(),
+const normalizeOwner = (owner: Partial<Owner>): Partial<Owner> => ({
+    ...owner,
+    email: owner.email?.trim() || null,
+    property_title_details: owner.property_title_details?.trim() || null,
+    spouse_name: owner.spouse_name?.trim() || null,
+    spouse_phone: owner.spouse_phone?.trim() || null,
+    children_count: owner.children_count ?? 0,
 });
 
 const normalizeTenant = (t: Partial<Tenant>) => ({
@@ -286,7 +257,7 @@ const normalizeRentReceipt = (rr: Partial<RentReceipt>) => ({
 });
 
 const normalizeFinancialStatement = (fs: any): FinancialStatement => ({
-    id: nilIfEmpty(fs.id) ?? crypto.randomUUID(),
+    id: nilIfEmpty(fs.id) ?? uuidv4(),
     agency_id: nilIfEmpty(fs.agency_id),
     owner_id: nilIfEmpty(fs.owner_id) ?? nilIfEmpty(fs.tenant_id),
     tenant_id: nilIfEmpty(fs.tenant_id),
@@ -296,13 +267,13 @@ const normalizeFinancialStatement = (fs: any): FinancialStatement => ({
         end_date: nilIfEmpty(fs.period?.endDate ?? fs.period?.end_date) ?? new Date().toISOString(),
     },
     summary: {
-        total_income: fs.summary?.totalIncome ?? fs.summary?.total_income ?? 0,
-        total_expenses: fs.summary?.totalExpenses ?? fs.summary?.total_expenses ?? 0,
-        balance: fs.summary?.netBalance ?? fs.summary?.balance ?? 0,
-        pending_payments: fs.summary?.pendingPayments ?? fs.summary?.pending_payments ?? 0,
+        total_income: fs.summary?.totalIncome ?? fs.summary?.total_income ?? fs.total_income ?? 0,
+        total_expenses: fs.summary?.totalExpenses ?? fs.summary?.total_expenses ?? fs.total_expenses ?? 0,
+        balance: fs.summary?.netBalance ?? fs.summary?.balance ?? fs.net_balance ?? 0,
+        pending_payments: fs.summary?.pendingPayments ?? fs.summary?.pending_payments ?? fs.pending_payments ?? 0,
     },
     transactions: (fs.transactions ?? []).map((t: any) => ({
-        id: nilIfEmpty(t.id) ?? crypto.randomUUID(),
+        id: nilIfEmpty(t.id) ?? uuidv4(),
         date: nilIfEmpty(t.transactionDate ?? t.date) ?? new Date().toISOString(),
         description: nilIfEmpty(t.description) ?? 'Unknown',
         category: nilIfEmpty(t.category) ?? 'Other',
@@ -312,8 +283,8 @@ const normalizeFinancialStatement = (fs: any): FinancialStatement => ({
     })),
     generated_by: nilIfEmpty(fs.generated_by),
     generated_at: nilIfEmpty(fs.generatedAt ?? fs.generated_at) ?? new Date().toISOString(),
-    created_at: nilIfEmpty(fs.created_at) ?? '',
-    updated_at: nilIfEmpty(fs.updated_at) ?? '',
+    created_at: nilIfEmpty(fs.created_at) ?? new Date().toISOString(),
+    updated_at: nilIfEmpty(fs.updated_at) ?? new Date().toISOString(),
 });
 
 const normalizeMessage = (m: Partial<Message>) => ({
@@ -326,7 +297,7 @@ const normalizeMessage = (m: Partial<Message>) => ({
     content: nilIfEmpty(m.content),
     is_read: m.is_read ?? false,
     attachments: m.attachments ?? [],
-    created_at: nilIfEmpty(m.created_at),
+    created_at: nilIfEmpty(m.created_at) ?? new Date().toISOString(),
 });
 
 const normalizeNotification = (n: Partial<Notification>) => ({
@@ -336,8 +307,8 @@ const normalizeNotification = (n: Partial<Notification>) => ({
     message: nilIfEmpty(n.message),
     data: n.data ?? {},
     is_read: n.is_read ?? false,
-    priority: nilIfEmpty(n.priority),
-    created_at: nilIfEmpty(n.created_at),
+    priority: nilIfEmpty(n.priority) ?? 'normal',
+    created_at: nilIfEmpty(n.created_at) ?? new Date().toISOString(),
 });
 
 const normalizePlatformSetting = (ps: Partial<PlatformSetting>) => ({
@@ -361,10 +332,12 @@ const normalizeAuditLog = (al: Partial<AuditLog>) => {
         new_values: al.new_values ?? null,
         ip_address,
         user_agent: nilIfEmpty(al.user_agent),
+        created_at: nilIfEmpty(al.created_at) ?? new Date().toISOString(),
     };
-}
+};
+
 const normalizeEmailNotification = (en: Partial<EmailNotification>) => ({
-    id: nilIfEmpty(en.id),
+    id: nilIfEmpty(en.id) ?? uuidv4(),
     type: nilIfEmpty(en.type),
     recipient: nilIfEmpty(en.recipient),
     subject: nilIfEmpty(en.subject),
@@ -390,6 +363,10 @@ export const dbService = {
         occupancyRate: number;
     }> {
         try {
+            if (!agencyId) {
+                throw new Error('agencyId manquant');
+            }
+
             const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
             const endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
 
@@ -400,41 +377,40 @@ export const dbService = {
                 { count: totalContracts, error: contractsError },
                 { data: rentReceiptsRaw, error: receiptsError },
                 { count: activeContracts, error: activeContractsError },
+                { data: occupiedProperties, error: occupiedPropertiesError },
             ] = await Promise.all([
                 supabase
                     .from('properties')
                     .select('*', { count: 'exact', head: true })
                     .eq('agency_id', agencyId),
-
                 supabase
                     .from('owners')
                     .select('*', { count: 'exact', head: true })
                     .eq('agency_id', agencyId),
-
                 supabase
                     .from('tenants')
                     .select('*', { count: 'exact', head: true })
                     .eq('agency_id', agencyId),
-
                 supabase
                     .from('contracts')
                     .select('*', { count: 'exact', head: true })
                     .eq('agency_id', agencyId),
-
                 supabase
                     .from('rent_receipts')
-                    .select('total_amount, contract(agency_id)')
+                    .select('total_amount, contracts(agency_id)')
                     .gte('payment_date', startDate.toISOString())
-                    .lte('payment_date', endDate.toISOString()) as unknown as {
-                        data: RentReceiptWithContract[] | null;
-                        error: any;
-                    },
-
+                    .lte('payment_date', endDate.toISOString())
+                    .eq('contracts.agency_id', agencyId) as unknown as { data: RentReceiptWithContract[] | null; error: any },
                 supabase
                     .from('contracts')
                     .select('*', { count: 'exact', head: true })
                     .eq('agency_id', agencyId)
                     .eq('status', 'active'),
+                supabase
+                    .from('properties')
+                    .select('*')
+                    .eq('agency_id', agencyId)
+                    .eq('is_available', false),
             ]);
 
             // Gestion des erreurs
@@ -444,10 +420,14 @@ export const dbService = {
             if (contractsError) throw new Error(formatSbError('❌ contracts.count', contractsError));
             if (receiptsError) throw new Error(formatSbError('❌ rent_receipts.select', receiptsError));
             if (activeContractsError) throw new Error(formatSbError('❌ contracts.count (active)', activeContractsError));
+            if (occupiedPropertiesError) throw new Error(formatSbError('❌ properties.select (occupied)', occupiedPropertiesError));
 
-            // Filtrer uniquement les rent_receipts liés à l’agence
+            // Log pour débogage
+            console.log('🔍 rentReceiptsRaw:', rentReceiptsRaw);
+
+            // Filtrer les rent_receipts pour l'agence
             const rentReceipts = (rentReceiptsRaw ?? []).filter(
-                r => r.contract?.agency_id === agencyId
+                r => r.contracts?.agency_id === agencyId
             );
 
             const monthlyRevenue = rentReceipts.reduce(
@@ -456,11 +436,11 @@ export const dbService = {
             );
 
             const safeTotalProperties = totalProperties ?? 0;
-            const safeActiveContracts = activeContracts ?? 0;
+            const safeOccupiedProperties = occupiedProperties?.length ?? 0;
 
             const occupancyRate =
                 safeTotalProperties > 0
-                    ? (safeActiveContracts / safeTotalProperties) * 100
+                    ? (safeOccupiedProperties / safeTotalProperties) * 100
                     : 0;
 
             return {
@@ -469,7 +449,7 @@ export const dbService = {
                 totalTenants: totalTenants || 0,
                 totalContracts: totalContracts || 0,
                 monthlyRevenue,
-                activeContracts: safeActiveContracts,
+                activeContracts: activeContracts || 0,
                 occupancyRate: Number(occupancyRate.toFixed(2)),
             };
         } catch (err) {
@@ -516,9 +496,10 @@ export const dbService = {
         }) {
             try {
                 console.log('Inserting user into users table:', user);
+                const normalizedUser = normalizeUser(user);
                 const { data, error } = await supabase
                     .from('users')
-                    .insert([user])
+                    .insert([normalizedUser])
                     .select('*')
                     .single();
                 if (error) {
@@ -592,7 +573,7 @@ export const dbService = {
             return data ?? [];
         },
         async getById(id: string): Promise<Agency | null> {
-            const { data, error } = await supabase.from('agencies').select('*').eq('id', id).single();
+            const { data, error } = await supabase.from('agencies').select('*').eq('id', id).maybeSingle();
             if (error) throw new Error(formatSbError('❌ agencies.select (by id)', error));
             return data;
         },
@@ -631,24 +612,23 @@ export const dbService = {
             if (error) throw new Error(formatSbError('❌ agency_users.select', error));
             return data ?? [];
         },
-        /*async create(agencyUser: Partial<AgencyUser>): Promise<AgencyUser> {
-            const clean = normalizeAgencyUser(agencyUser);
-            const { data, error } = await supabase.from('agency_users').insert(clean).select('*').single();
-            if (error) throw new Error(formatSbError('❌ agency_users.insert', error));
-            return data;
-        },*/
         async create(agencyUser: {
             user_id: string;
-            agency_id: string; // Allow null
-            role: string;
-            created_at: string;
-            updated_at: string;
+            agency_id: string;
+            role: AgencyUserRole;
+            created_at?: string;
+            updated_at?: string;
         }) {
             try {
-                console.log('Inserting agency_user:', agencyUser);
+                const normalizedUser = normalizeAgencyUser({
+                    ...agencyUser,
+                    created_at: agencyUser.created_at ?? new Date().toISOString(),
+                    updated_at: agencyUser.updated_at ?? new Date().toISOString(),
+                });
+                console.log('Inserting agency_user:', normalizedUser);
                 const { data, error } = await supabase
                     .from('agency_users')
-                    .insert([agencyUser])
+                    .insert([normalizedUser])
                     .select('*')
                     .single();
                 if (error) {
@@ -706,141 +686,17 @@ export const dbService = {
             if (error) throw new Error(formatSbError('❌ agency_registration_requests.delete', error));
             return true;
         },
-        /*
-        async approve(requestId: string): Promise<{ agencyId: string }> {
-            const { user } = await logAuthContext('approveAgencyRequest');
-            if (!user) throw new Error('Utilisateur non authentifié');
- 
-            // Vérifier si l'utilisateur est admin
-            const { data: admin } = await supabase
-                .from('platform_admins')
-                .select('role')
-                .eq('user_id', user.id)
-                .single();
-            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-                throw new Error('Permissions insuffisantes');
-            }
- 
-            // Récupérer la demande
-            const { data: req, error: reqError } = await supabase
-                .from('agency_registration_requests')
-                .select('*')
-                .eq('id', requestId)
-                .single();
-            if (reqError || !req) throw new Error('Demande introuvable');
- 
-            // Vérifier si la demande est déjà approuvée
-            if (req.status === 'approved') {
-                throw new Error('Demande déjà approuvée');
-            }
- 
-            // Mettre à jour le statut de la demande
-            const { error: updateError } = await supabase
-                .from('agency_registration_requests')
-                .update({
-                    status: 'approved',
-                    processed_by: user.id,
-                    processed_at: new Date().toISOString(),
-                })
-                .eq('id', requestId);
-            if (updateError) throw updateError;
- 
-            // Créer l'agence
-            const agencyData = normalizeAgency({
-                name: req.agency_name,
-                commercial_register: req.commercial_register,
-                logo_url: req.logo_url,
-                is_accredited: req.is_accredited,
-                accreditation_number: req.accreditation_number,
-                address: req.address,
-                city: req.city,
-                phone: req.phone,
-                email: req.director_email,
-                director_id: req.director_auth_user_id,
-                status: 'approved',
-            });
- 
-            const { data: agency, error: agencyError } = await supabase
-                .from('agencies')
-                .insert(agencyData)
-                .select('id')
-                .single();
-            if (agencyError || !agency) throw new Error('Échec de la création de l\'agence');
- 
-            // Créer l'abonnement par défaut
-            const subscriptionData = normalizeAgencySubscription({
-                agency_id: agency.id,
-                plan_type: 'basic',
-                status: 'trial',
-                monthly_fee: 25000,
-                start_date: new Date().toISOString().split('T')[0],
-                next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                trial_days_remaining: 30,
-            });
-            const { error: subError } = await supabase.from('agency_subscriptions').insert(subscriptionData);
-            if (subError) throw subError;
- 
-            // Vérifier si une entrée agency_users existe déjà pour cet utilisateur
-            if (req.director_auth_user_id) {
-                const { data: existingAgencyUser, error: checkError } = await supabase
-                    .from('agency_users')
-                    .select('user_id')
-                    .eq('user_id', req.director_auth_user_id)
-                    .single();
-                if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
-                    console.error('Error checking existing agency_users:', checkError);
-                    throw new Error(`agency_users.check | code=${checkError.code} | msg=${checkError.message}`);
-                }
- 
-                if (!existingAgencyUser) {
-                    const agencyUserData = normalizeAgencyUser({
-                        user_id: req.director_auth_user_id,
-                        agency_id: agency.id,
-                        role: 'director',
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                    });
-                    console.log('Creating agency_users entry:', agencyUserData);
-                    const { error: auError } = await supabase.from('agency_users').insert(agencyUserData);
-                    if (auError) {
-                        console.error('agency_users.insert error:', auError);
-                        throw new Error(`agency_users.insert | code=${auError.code} | msg=${auError.message}`);
-                    }
-                    console.log('Agency user created successfully');
-                } else {
-                    console.log('Agency user already exists for user_id:', req.director_auth_user_id);
-                }
-            }
- 
-            // Enregistrer un log d'audit
-            await dbService.auditLogs.insert({
-                user_id: user.id,
-                action: 'agency_approved',
-                table_name: 'agency_registration_requests',
-                record_id: requestId,
-                new_values: {
-                    agency_id: agency.id,
-                    director_id: req.director_auth_user_id,
-                    timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
-                },
-                ip_address: '0.0.0.0',
-                user_agent: navigator.userAgent,
-            });
- 
-            return { agencyId: agency.id };
-        },
-        */
         async approve(requestId: string): Promise<{ agencyId: string }> {
             const { user } = await logAuthContext('approveAgencyRequest');
             if (!user) throw new Error('Utilisateur non authentifié');
 
             // Vérifier si l'utilisateur est admin
-            const { data: admin } = await supabase
+            const { data: admin, error: adminError } = await supabase
                 .from('platform_admins')
                 .select('role')
                 .eq('user_id', user.id)
                 .single();
-            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+            if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
                 throw new Error('Permissions insuffisantes');
             }
 
@@ -850,7 +706,7 @@ export const dbService = {
                 .select('*')
                 .eq('id', requestId)
                 .single();
-            if (reqError || !req) throw new Error('Demande introuvable');
+            if (reqError || !req) throw new Error(formatSbError('❌ agency_registration_requests.select', reqError));
 
             // Vérifier si la demande est déjà approuvée
             if (req.status === 'approved') {
@@ -868,7 +724,7 @@ export const dbService = {
             }
             if (existingAgencyError && existingAgencyError.code !== 'PGRST116') {
                 console.error('Error checking existing agency:', existingAgencyError);
-                throw new Error(`agencies.check | code=${existingAgencyError.code} | msg=${existingAgencyError.message}`);
+                throw new Error(formatSbError('❌ agencies.check', existingAgencyError));
             }
 
             // Mettre à jour le statut de la demande
@@ -880,7 +736,7 @@ export const dbService = {
                     processed_at: new Date().toISOString(),
                 })
                 .eq('id', requestId);
-            if (updateError) throw updateError;
+            if (updateError) throw new Error(formatSbError('❌ agency_registration_requests.update', updateError));
 
             // Créer l'agence
             const agencyData = normalizeAgency({
@@ -904,7 +760,7 @@ export const dbService = {
                 .single();
             if (agencyError || !agency) {
                 console.error('agencies.insert error:', agencyError);
-                throw new Error(`agencies.insert | code=${agencyError?.code} | msg=${agencyError?.message || 'Échec de la création de l\'agence'}`);
+                throw new Error(formatSbError('❌ agencies.insert', agencyError));
             }
             console.log('Agency created successfully:', agency);
 
@@ -919,7 +775,7 @@ export const dbService = {
                 trial_days_remaining: 30,
             });
             const { error: subError } = await supabase.from('agency_subscriptions').insert(subscriptionData);
-            if (subError) throw subError;
+            if (subError) throw new Error(formatSbError('❌ agency_subscriptions.insert', subError));
 
             // Vérifier si une entrée agency_users existe déjà
             if (req.director_auth_user_id) {
@@ -928,9 +784,9 @@ export const dbService = {
                     .select('user_id')
                     .eq('user_id', req.director_auth_user_id)
                     .single();
-                if (checkError && checkError.code !== 'PGRST116' && checkError.code !== '406') {
+                if (checkError && checkError.code !== 'PGRST116') {
                     console.error('Error checking existing agency_users:', checkError);
-                    throw new Error(`agency_users.check | code=${checkError.code} | msg=${checkError.message}`);
+                    throw new Error(formatSbError('❌ agency_users.check', checkError));
                 }
 
                 if (!existingAgencyUser) {
@@ -945,7 +801,7 @@ export const dbService = {
                     const { error: auError } = await supabase.from('agency_users').insert(agencyUserData);
                     if (auError) {
                         console.error('agency_users.insert error:', auError);
-                        throw new Error(`agency_users.insert | code=${auError.code} | msg=${auError.message}`);
+                        throw new Error(formatSbError('❌ agency_users.insert', auError));
                     }
                     console.log('Agency user created successfully');
                 } else {
@@ -975,12 +831,12 @@ export const dbService = {
             if (!user) throw new Error('Utilisateur non authentifié');
 
             // Vérifier si l'utilisateur est admin
-            const { data: admin } = await supabase
+            const { data: admin, error: adminError } = await supabase
                 .from('platform_admins')
                 .select('role')
                 .eq('user_id', user.id)
                 .single();
-            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+            if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
                 throw new Error('Permissions insuffisantes');
             }
 
@@ -1029,12 +885,12 @@ export const dbService = {
             if (!user) throw new Error('Utilisateur non authentifié');
 
             // Vérifier si l'utilisateur est admin
-            const { data: admin } = await supabase
+            const { data: admin, error: adminError } = await supabase
                 .from('platform_admins')
                 .select('role')
                 .eq('user_id', user.id)
                 .single();
-            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+            if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
                 throw new Error('Permissions insuffisantes');
             }
 
@@ -1043,7 +899,7 @@ export const dbService = {
                 .select('*')
                 .eq('agency_id', agencyId)
                 .single();
-            if (subError || !sub) throw new Error('Abonnement introuvable');
+            if (subError || !sub) throw new Error(formatSbError('❌ agency_subscriptions.select', subError));
 
             const nextPaymentDate = new Date(sub.next_payment_date || Date.now());
             nextPaymentDate.setMonth(nextPaymentDate.getMonth() + months);
@@ -1065,7 +921,7 @@ export const dbService = {
                 .from('agency_subscriptions')
                 .update(updates)
                 .eq('id', sub.id);
-            if (error) throw error;
+            if (error) throw new Error(formatSbError('❌ agency_subscriptions.update', error));
 
             return true;
         },
@@ -1074,12 +930,12 @@ export const dbService = {
             if (!user) throw new Error('Utilisateur non authentifié');
 
             // Vérifier si l'utilisateur est admin
-            const { data: admin } = await supabase
+            const { data: admin, error: adminError } = await supabase
                 .from('platform_admins')
                 .select('role')
                 .eq('user_id', user.id)
                 .single();
-            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+            if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
                 throw new Error('Permissions insuffisantes');
             }
 
@@ -1088,13 +944,13 @@ export const dbService = {
                 .select('id')
                 .eq('agency_id', agencyId)
                 .single();
-            if (subError || !sub) throw new Error('Abonnement introuvable');
+            if (subError || !sub) throw new Error(formatSbError('❌ agency_subscriptions.select', subError));
 
             const { error } = await supabase
                 .from('agency_subscriptions')
-                .update({ status: 'suspended', suspension_reason: reason }) // Ajoutez un champ suspension_reason si nécessaire dans le schéma
+                .update({ status: 'suspended', suspension_reason: reason })
                 .eq('id', sub.id);
-            if (error) throw error;
+            if (error) throw new Error(formatSbError('❌ agency_subscriptions.update', error));
 
             return true;
         },
@@ -1103,12 +959,12 @@ export const dbService = {
             if (!user) throw new Error('Utilisateur non authentifié');
 
             // Vérifier si l'utilisateur est admin
-            const { data: admin } = await supabase
+            const { data: admin, error: adminError } = await supabase
                 .from('platform_admins')
                 .select('role')
                 .eq('user_id', user.id)
                 .single();
-            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+            if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
                 throw new Error('Permissions insuffisantes');
             }
 
@@ -1117,7 +973,7 @@ export const dbService = {
                 .select('*')
                 .eq('agency_id', agencyId)
                 .single();
-            if (subError || !sub) throw new Error('Abonnement introuvable');
+            if (subError || !sub) throw new Error(formatSbError('❌ agency_subscriptions.select', subError));
 
             const nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -1125,7 +981,7 @@ export const dbService = {
                 .from('agency_subscriptions')
                 .update({ status: 'active', next_payment_date: nextPaymentDate })
                 .eq('id', sub.id);
-            if (error) throw error;
+            if (error) throw new Error(formatSbError('❌ agency_subscriptions.update', error));
 
             return true;
         },
@@ -1195,12 +1051,12 @@ export const dbService = {
             if (!user) throw new Error('Utilisateur non authentifié');
 
             // Vérifier si l'utilisateur est admin
-            const { data: admin } = await supabase
+            const { data: admin, error: adminError } = await supabase
                 .from('platform_admins')
                 .select('role')
                 .eq('user_id', user.id)
                 .single();
-            if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
+            if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
                 throw new Error('Permissions insuffisantes');
             }
 
@@ -1211,44 +1067,70 @@ export const dbService = {
 
     // ----------------- OWNERS -----------------
     owners: {
-        async getAll(): Promise<Owner[]> {
-            const { data, error } = await supabase.from('owners').select('*').order('created_at', { ascending: false });
-            if (error) throw new Error(formatSbError('❌ owners.select', error));
-            return data ?? [];
-        },
-        async create(owner: Partial<Owner>): Promise<Owner> {
-            const clean = normalizeOwner(owner);
-            const { data, error } = await supabase.from('owners').insert(clean).select('*').single();
-            if (error) {
-                if (isRlsDenied(error)) {
-                    console.warn('↪️ RLS bloqué pour owners.insert, fallback possible si implémenté');
-                }
-                throw new Error(formatSbError('❌ owners.insert', error));
-            }
-            return data;
-        },
-        async update(id: string, updates: Partial<Owner>): Promise<Owner> {
-            const clean = normalizeOwner(updates);
-            const { data, error } = await supabase.from('owners').update(clean).eq('id', id).select('*').single();
-            if (error) throw new Error(formatSbError('❌ owners.update', error));
-            return data;
-        },
-        async delete(id: string): Promise<boolean> {
-            const { error } = await supabase.from('owners').delete().eq('id', id);
-            if (error) throw new Error(formatSbError('❌ owners.delete', error));
-            return true;
-        },
         async findOne(id: string): Promise<Owner | null> {
             const { data, error } = await supabase
                 .from('owners')
                 .select('*')
                 .eq('id', id)
-                .single();
+                .maybeSingle();
             if (error) {
-                if (error.code === 'PGRST116') return null; // pas trouvé
+                if (error.code === 'PGRST116') return null;
                 throw new Error(formatSbError('❌ owners.findOne', error));
             }
             return data;
+        },
+        async getAll(filter?: string | Partial<Owner>): Promise<Owner[]> {
+            let query = supabase.from('owners')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (typeof filter === 'string') {
+                query = query.eq('agency_id', filter);
+            } else if (filter) {
+                Object.entries(filter).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null) {
+                        query = query.eq(key, value);
+                    }
+                });
+            }
+
+            const { data, error } = await query;
+            if (error) throw new Error(formatSbError('❌ owners.select', error));
+            return data ?? [];
+        },
+        getById: async (id: string): Promise<Owner> => {
+            const { data, error } = await supabase
+                .from('owners')
+                .select('*')
+                .eq('id', id)
+                .single();
+            if (error) throw new Error(formatSbError('❌ owners.select', error));
+            return data;
+        },
+        async create(owner: Partial<Owner>): Promise<Owner> {
+            const cleanOwner = normalizeOwner(owner);
+            const { data, error } = await supabase
+                .from('owners')
+                .insert(cleanOwner)
+                .select('*')
+                .single();
+            if (error) throw new Error(formatSbError('❌ owners.insert', error));
+            return data;
+        },
+        async update(id: string, updates: Partial<Owner>): Promise<Owner> {
+            const cleanUpdates = normalizeOwner(updates);
+            const { data, error } = await supabase
+                .from('owners')
+                .update(cleanUpdates)
+                .eq('id', id)
+                .select('*')
+                .single();
+            if (error) throw new Error(formatSbError('❌ owners.update', error));
+            return data;
+        },
+        async delete(id: string): Promise<void> {
+            const { error } = await supabase.from('owners').delete().eq('id', id);
+            if (error) throw new Error(formatSbError('❌ owners.delete', error));
         },
     },
 
@@ -1276,7 +1158,7 @@ export const dbService = {
             if (filters.limit !== undefined) {
                 const from = filters.offset ?? 0;
                 const to = from + filters.limit - 1;
-                query = query.range(from, to); // remplace offset + limit
+                query = query.range(from, to);
             }
 
             const { data, error } = await query;
@@ -1305,7 +1187,7 @@ export const dbService = {
                 .from('tenants')
                 .select('*')
                 .eq('id', id)
-                .single();
+                .maybeSingle();
             if (error) {
                 if (error.code === 'PGRST116') return null;
                 throw new Error(formatSbError('❌ tenants.findOne', error));
@@ -1316,8 +1198,38 @@ export const dbService = {
 
     // ----------------- PROPERTIES -----------------
     properties: {
-        async getAll(): Promise<Property[]> {
-            const { data, error } = await supabase.from('properties').select('*').order('created_at', { ascending: false });
+        async getAll({
+            agency_id,
+            limit,
+            offset,
+            search,
+            standing
+        }: {
+            agency_id?: string;
+            limit?: number;
+            offset?: number;
+            search?: string;
+            standing?: string;
+        } = {}): Promise<Property[]> {
+            let query = supabase
+                .from('properties')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (agency_id) {
+                query = query.eq('agency_id', agency_id);
+            }
+            if (search) {
+                query = query.or(`title.ilike.%${search}%,location->>commune.ilike.%${search}%,location->>quartier.ilike.%${search}%`);
+            }
+            if (standing) {
+                query = query.eq('standing', standing);
+            }
+            if (limit !== undefined && offset !== undefined) {
+                query = query.range(offset, offset + limit - 1);
+            }
+
+            const { data, error } = await query;
             if (error) throw new Error(formatSbError('❌ properties.select', error));
             return data ?? [];
         },
@@ -1343,11 +1255,35 @@ export const dbService = {
                 .from('properties')
                 .select('*')
                 .eq('id', id)
-                .single();
+                .maybeSingle();
             if (error) {
                 if (error.code === 'PGRST116') return null;
                 throw new Error(formatSbError('❌ properties.findOne', error));
             }
+            return data;
+        },
+        getByOwnerId: async (
+            ownerId: string,
+            agencyId: string
+        ): Promise<{
+            data: (Property & { contracts: (Contract & { tenants: Tenant })[] })[] | null;
+            error: any;
+        }> => {
+            const { data, error } = await supabase
+                .from('properties')
+                .select('*, contracts(*, tenants(*))')
+                .eq('owner_id', ownerId)
+                .eq('agency_id', agencyId);
+            if (error) throw new Error(formatSbError('❌ properties.select', error));
+            return { data: data ?? [], error: null };
+        },
+        getById: async (id: string): Promise<Property> => {
+            const { data, error } = await supabase
+                .from('properties')
+                .select('*, owner_id, agency_id')
+                .eq('id', id)
+                .single();
+            if (error) throw new Error(formatSbError('❌ properties.select', error));
             return data;
         },
     },
@@ -1433,7 +1369,7 @@ export const dbService = {
                 .from('contracts')
                 .select('*')
                 .eq('id', id)
-                .single();
+                .maybeSingle();
             if (error) {
                 if (error.code === 'PGRST116') return null;
                 throw new Error(formatSbError('❌ contracts.findOne', error));
@@ -1449,7 +1385,7 @@ export const dbService = {
                 .from("rent_receipts")
                 .select("*")
                 .order("created_at", { ascending: false });
-            if (error) throw new Error(formatSbError("❌ rentReceipts.select", error));
+            if (error) throw new Error(formatSbError("❌ rent_receipts.select", error));
             return data ?? [];
         },
 
@@ -1458,15 +1394,17 @@ export const dbService = {
                 .from("rent_receipts")
                 .select("*")
                 .eq("id", id)
-                .single();
-            if (error) throw new Error(formatSbError("❌ rentReceipts.findOne", error));
-            return data ?? null;
+                .maybeSingle();
+            if (error) {
+                if (error.code === 'PGRST116') return null;
+                throw new Error(formatSbError("❌ rent_receipts.findOne", error));
+            }
+            return data;
         },
 
         async create(receipt: Partial<RentReceipt>): Promise<RentReceipt> {
-            // Normalisation via fonction utilitaire
             const clean: Partial<RentReceipt> = {
-                id: receipt.id ?? crypto.randomUUID(),
+                id: receipt.id ?? uuidv4(),
                 agency_id: receipt.agency_id,
                 created_at: new Date().toISOString(),
                 ...normalizeRentReceipt(receipt),
@@ -1478,26 +1416,25 @@ export const dbService = {
                 .select("*")
                 .single();
 
-            if (error) throw new Error(formatSbError("❌ rentReceipts.insert", error));
+            if (error) throw new Error(formatSbError("❌ rent_receipts.insert", error));
             return data;
         },
 
         async update(id: string, updates: Partial<RentReceipt>): Promise<RentReceipt> {
             const cleanUpdates = normalizeRentReceipt(updates);
-
             const { data, error } = await supabase
                 .from("rent_receipts")
                 .update(cleanUpdates)
                 .eq("id", id)
                 .select("*")
                 .single();
-            if (error) throw new Error(formatSbError("❌ rentReceipts.update", error));
+            if (error) throw new Error(formatSbError("❌ rent_receipts.update", error));
             return data;
         },
 
         async delete(id: string): Promise<boolean> {
             const { error } = await supabase.from("rent_receipts").delete().eq("id", id);
-            if (error) throw new Error(formatSbError("❌ rentReceipts.delete", error));
+            if (error) throw new Error(formatSbError("❌ rent_receipts.delete", error));
             return true;
         },
     },
@@ -1508,37 +1445,37 @@ export const dbService = {
             const { data, error } = await supabase
                 .from("financial_statements")
                 .select(`
-        id,
-        agency_id,
-        owner_id,
-        tenant_id,
-        period_start,
-        period_end,
-        total_income,
-        total_expenses,
-        net_balance,
-        pending_payments,
-        generated_by,
-        generated_at,
-        created_at,
-        updated_at,
-        transactions:financial_transactions (
-          id,
-          agency_id,
-          owner_id,
-          entity_type,
-          type,
-          amount,
-          description,
-          category,
-          date,
-          property_id,
-          created_at,
-          updated_at
-        )
-      `);
+                    id,
+                    agency_id,
+                    owner_id,
+                    tenant_id,
+                    period_start,
+                    period_end,
+                    total_income,
+                    total_expenses,
+                    net_balance,
+                    pending_payments,
+                    generated_by,
+                    generated_at,
+                    created_at,
+                    updated_at,
+                    transactions:financial_transactions (
+                        id,
+                        agency_id,
+                        owner_id,
+                        entity_type,
+                        type,
+                        amount,
+                        description,
+                        category,
+                        date,
+                        property_id,
+                        created_at,
+                        updated_at
+                    )
+                `);
 
-            if (error) throw new Error(formatSbError("❌ financial_statements.getAll", error));
+            if (error) throw new Error(formatSbError("❌ financial_statements.select", error));
             return data?.map(normalizeFinancialStatement) ?? [];
         },
         async getByEntity(
@@ -1553,46 +1490,46 @@ export const dbService = {
             const { data, error } = await supabase
                 .from("financial_statements")
                 .select(`
-        id,
-        agency_id,
-        owner_id,
-        tenant_id,
-        period_start,
-        period_end,
-        total_income,
-        total_expenses,
-        net_balance,
-        pending_payments,
-        generated_by,
-        generated_at,
-        created_at,
-        updated_at,
-        transactions:financial_transactions (
-          id,
-          agency_id,
-          owner_id,
-          entity_type,
-          type,
-          amount,
-          description,
-          category,
-          date,
-          property_id,
-          created_at,
-          updated_at
-        )
-      `)
+                    id,
+                    agency_id,
+                    owner_id,
+                    tenant_id,
+                    period_start,
+                    period_end,
+                    total_income,
+                    total_expenses,
+                    net_balance,
+                    pending_payments,
+                    generated_by,
+                    generated_at,
+                    created_at,
+                    updated_at,
+                    transactions:financial_transactions (
+                        id,
+                        agency_id,
+                        owner_id,
+                        entity_type,
+                        type,
+                        amount,
+                        description,
+                        category,
+                        date,
+                        property_id,
+                        created_at,
+                        updated_at
+                    )
+                `)
                 .eq(entityType === "owner" ? "owner_id" : "tenant_id", entityId)
                 .gte("period_start", startDate)
                 .lte("period_end", endDate);
 
-            if (error) throw new Error(formatSbError("❌ financial_statements.getByEntity", error));
+            if (error) throw new Error(formatSbError("❌ financial_statements.select", error));
             return data?.map(normalizeFinancialStatement) ?? [];
         },
-        async create(statement: Partial<FinancialStatement>): Promise<FinancialStatement[]> {
+        async create(statement: Partial<FinancialStatement>): Promise<FinancialStatement> {
             const normalizedStatement = normalizeFinancialStatement({
                 ...statement,
-                id: statement.id ?? crypto.randomUUID(),
+                id: statement.id ?? uuidv4(),
                 generated_at: statement.generated_at ?? new Date().toISOString(),
                 created_at: statement.created_at ?? new Date().toISOString(),
                 updated_at: statement.updated_at ?? new Date().toISOString(),
@@ -1604,7 +1541,7 @@ export const dbService = {
                     id: normalizedStatement.id,
                     agency_id: normalizedStatement.agency_id,
                     owner_id: normalizedStatement.entity_type === "owner" ? normalizedStatement.owner_id : null,
-                    tenant_id: normalizedStatement.entity_type === "tenant" ? normalizedStatement.owner_id : null,
+                    tenant_id: normalizedStatement.entity_type === "tenant" ? normalizedStatement.tenant_id : null,
                     period_start: normalizedStatement.period.start_date,
                     period_end: normalizedStatement.period.end_date,
                     total_income: normalizedStatement.summary.total_income,
@@ -1616,17 +1553,29 @@ export const dbService = {
                     created_at: normalizedStatement.created_at,
                     updated_at: normalizedStatement.updated_at,
                 })
-                .select();
+                .select()
+                .single();
 
-            if (error) throw new Error(formatSbError("❌ financial_statements.create", error));
-            return data?.map(d =>
-                normalizeFinancialStatement({
-                    ...d,
-                    transactions: statement.transactions || [],
-                })
-            ) ?? [];
+            if (error) throw new Error(formatSbError("❌ financial_statements.insert", error));
+
+            // Insert transactions if any
+            if (normalizedStatement.transactions?.length) {
+                const transactions = normalizedStatement.transactions.map(t => ({
+                    ...t,
+                    financial_statement_id: normalizedStatement.id,
+                }));
+                const { error: transactionError } = await supabase
+                    .from("financial_transactions")
+                    .insert(transactions);
+                if (transactionError) throw new Error(formatSbError("❌ financial_transactions.insert", transactionError));
+            }
+
+            return normalizeFinancialStatement({
+                ...data,
+                transactions: normalizedStatement.transactions || [],
+            });
         },
-        async update(id: string, updates: Partial<FinancialStatement>): Promise<FinancialStatement[]> {
+        async update(id: string, updates: Partial<FinancialStatement>): Promise<FinancialStatement> {
             const normalizedUpdates = normalizeFinancialStatement({
                 ...updates,
                 id,
@@ -1638,7 +1587,7 @@ export const dbService = {
                 .update({
                     agency_id: normalizedUpdates.agency_id,
                     owner_id: normalizedUpdates.entity_type === "owner" ? normalizedUpdates.owner_id : null,
-                    tenant_id: normalizedUpdates.entity_type === "tenant" ? normalizedUpdates.owner_id : null,
+                    tenant_id: normalizedUpdates.entity_type === "tenant" ? normalizedUpdates.tenant_id : null,
                     period_start: normalizedUpdates.period.start_date,
                     period_end: normalizedUpdates.period.end_date,
                     total_income: normalizedUpdates.summary.total_income,
@@ -1650,17 +1599,41 @@ export const dbService = {
                     updated_at: normalizedUpdates.updated_at,
                 })
                 .eq("id", id)
-                .select();
+                .select()
+                .single();
 
             if (error) throw new Error(formatSbError("❌ financial_statements.update", error));
-            return data?.map(d =>
-                normalizeFinancialStatement({
-                    ...d,
-                    transactions: updates.transactions || [],
-                })
-            ) ?? [];
+
+            // Update transactions if provided
+            if (normalizedUpdates.transactions?.length) {
+                const { error: deleteError } = await supabase
+                    .from("financial_transactions")
+                    .delete()
+                    .eq("financial_statement_id", id);
+                if (deleteError) throw new Error(formatSbError("❌ financial_transactions.delete", deleteError));
+
+                const transactions = normalizedUpdates.transactions.map(t => ({
+                    ...t,
+                    financial_statement_id: id,
+                }));
+                const { error: transactionError } = await supabase
+                    .from("financial_transactions")
+                    .insert(transactions);
+                if (transactionError) throw new Error(formatSbError("❌ financial_transactions.insert", transactionError));
+            }
+
+            return normalizeFinancialStatement({
+                ...data,
+                transactions: normalizedUpdates.transactions || [],
+            });
         },
         async delete(id: string): Promise<boolean> {
+            const { error: transactionError } = await supabase
+                .from("financial_transactions")
+                .delete()
+                .eq("financial_statement_id", id);
+            if (transactionError) throw new Error(formatSbError("❌ financial_transactions.delete", transactionError));
+
             const { error } = await supabase
                 .from("financial_statements")
                 .delete()
@@ -1677,9 +1650,12 @@ export const dbService = {
             if (error) throw new Error(formatSbError('❌ messages.select', error));
             return data ?? [];
         },
-        async create(message: Partial<Message>): Promise<Message> {
-            const clean = normalizeMessage(message);
-            const { data, error } = await supabase.from('messages').insert(clean).select('*').single();
+        create: async (message: Partial<Message>): Promise<Message> => {
+            const { data, error } = await supabase
+                .from('messages')
+                .insert(message)
+                .select()
+                .single();
             if (error) throw new Error(formatSbError('❌ messages.insert', error));
             return data;
         },
@@ -1709,12 +1685,15 @@ export const dbService = {
                 .select('*')
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false });
-            if (error) throw new Error(`Erreur lors de la récupération des notifications: ${error.message}`);
-            return data;
+            if (error) throw new Error(formatSbError('❌ notifications.select', error));
+            return data ?? [];
         },
-        async create(notification: Partial<Notification>): Promise<Notification> {
-            const clean = normalizeNotification(notification);
-            const { data, error } = await supabase.from('notifications').insert(clean).select('*').single();
+        create: async (notification: Partial<Notification>): Promise<Notification> => {
+            const { data, error } = await supabase
+                .from('notifications')
+                .insert(notification)
+                .select()
+                .single();
             if (error) throw new Error(formatSbError('❌ notifications.insert', error));
             return data;
         },
@@ -1739,21 +1718,25 @@ export const dbService = {
                 .select('*')
                 .eq('agency_id', agencyId)
                 .order('created_at', { ascending: false });
-            if (error) throw new Error(`Erreur lors de la récupération des notifications par email: ${error.message}`);
-            return data;
+            if (error) throw new Error(formatSbError('❌ email_notifications.select', error));
+            return data ?? [];
         },
-        create: async (notification: EmailNotification) => {
+        create: async (notification: Partial<EmailNotification>) => {
             const clean = normalizeEmailNotification(notification);
-            const { error } = await supabase.from('email_notifications').insert(clean);
-            if (error) throw new Error(`Erreur lors de la création de la notification par email: ${error.message}`);
+            const { data, error } = await supabase.from('email_notifications').insert(clean).select('*').single();
+            if (error) throw new Error(formatSbError('❌ email_notifications.insert', error));
+            return data;
         },
         update: async (notificationId: string, updates: Partial<EmailNotification>) => {
             const clean = normalizeEmailNotification(updates);
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('email_notifications')
                 .update(clean)
-                .eq('id', notificationId);
-            if (error) throw new Error(`Erreur lors de la mise à jour de la notification par email: ${error.message}`);
+                .eq('id', notificationId)
+                .select('*')
+                .single();
+            if (error) throw new Error(formatSbError('❌ email_notifications.update', error));
+            return data;
         },
     },
 

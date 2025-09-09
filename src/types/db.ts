@@ -1,5 +1,3 @@
-// types/db.ts
-
 // ENUM Types
 export type AgencyUserRole = 'director' | 'manager' | 'agent';
 export type PlanType = 'basic' | 'premium' | 'enterprise';
@@ -16,19 +14,13 @@ export type PropertyTitle = 'attestation_villageoise' | 'lettre_attribution' | '
 export type PropertyStanding = 'economique' | 'moyen' | 'haut';
 export type RegistrationStatus = 'pending' | 'approved' | 'rejected';
 export type JsonB = string | number | boolean | null | { [key: string]: any } | JsonB[];
+
 // Contrainte de type pour limiter T aux entités du schéma
 export type Entity =
   | User | Agency | Owner | Tenant | Property | Contract | Announcement | RentReceipt
   | FinancialStatement | Message | Notification | EmailNotification | AgencySubscription
   | SubscriptionPayment | AgencyRanking | PlatformSetting | AuditLog | AnnouncementInterest;
 
-export type RentReceiptWithContract = {
-  total_amount: number | null;
-  contract: {
-    agency_id: string;
-  } | null;
-};
-// Interface pour les utilisateurs (lié à auth.users)
 export interface User {
   id: string; // UUID, FK vers auth.users(id)
   email: string;
@@ -145,7 +137,6 @@ export interface AgencySubscription {
   next_payment_date: string; // date
   trial_days_remaining: number;
   payment_history: { amount: number; date: string }[] | null;
-  //payment_history: JsonB; // Tableau JSONB
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
 }
@@ -184,9 +175,6 @@ export interface Reward {
   description: string;
   validUntil: string;
 }
-
-// Interface pour les classements d'agence
-
 
 export interface AgencyRanking {
   id: string; // UUID
@@ -333,6 +321,7 @@ export interface PropertyDetails {
 }
 
 export interface RoomDetails {
+  id?: string; // Added optional id for room identification
   type: 'sejour' | 'cuisine' | 'chambre_principale' | 'chambre_2' | 'chambre_3' | 'salle_bain' | 'wc' | 'autre';
   nom?: string;
   superficie?: number;
@@ -359,7 +348,7 @@ export interface RoomDetails {
   };
   serrure: {
     typePoignee: string;
-    marquePoignee: string;
+    marquePoignee?: string; // Made optional to match RoomDetailsForm
     typeCle: string;
   };
   sol: {
@@ -464,7 +453,6 @@ export interface RentReceipt {
   created_at: string;           // Date de création en base, timestamptz
   commission_amount: number;    // Commission agence retenue
 
-
   // Relations pour générer une quittance
   contract_id: string;          // Lien avec le contrat
   tenant_id: string;
@@ -472,6 +460,12 @@ export interface RentReceipt {
   owner_id: string;
   agency_id?: string;           // Agence émettrice (optionnel si multi-agence)
   owner_payment?: number;       // Montant reversé au propriétaire
+}
+
+export interface RentReceiptWithContract extends RentReceipt {
+  contracts: {
+    agency_id: string;
+  };
 }
 
 // Interface pour les états financiers
