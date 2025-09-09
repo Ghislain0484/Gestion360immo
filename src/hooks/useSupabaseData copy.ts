@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { isRlsDenied, formatSbError, supabase, dbService } from '../lib/supabase';
+import { isRlsDenied, formatSbError, dbService, supabase } from '../lib/supabase';
 import { Entity } from '../types/db';
 import { toast } from 'react-hot-toast';
 import debounce from 'lodash/debounce';
@@ -33,65 +33,47 @@ interface UseRealtimeDataOptions {
   onError?: (err: string) => void;
 }
 
-export interface UseRealtimeDataResult<T extends Entity> {
-  data: T[];
-  loading: boolean;
-  error: string | null;
-  refetch: () => void;
-  setData: React.Dispatch<React.SetStateAction<T[]>>;
-}
-
 export function useRealtimeData<T extends Entity>(
   fetchFunction: (agencyId: string) => Promise<T[]>,
   tableName: string,
   options?: UseRealtimeDataOptions
-): UseRealtimeDataResult<T> {
-  const { user, isLoading: authLoading } = useAuth();
+) {
+  const { user } = useAuth();
+
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const latestDataRef = useRef<T[]>([]);
   const isFetchingRef = useRef(false);
-  const channelRef = useRef<any>(null);
-  const subscriptionStatusRef = useRef<string>('INITIAL');
-  const isMountedRef = useRef(true);
-  const lastDepsRef = useRef({ agencyId: null as string | null, authLoading: null as boolean | null });
 
-  // Stabiliser agencyId
-  const agencyId = useMemo(() => (authLoading ? null : user?.agency_id ?? null), [user?.agency_id, authLoading]);
+  // ⚠️ agencyId peut changer souvent → on le rend stable
+  const agencyId = user?.agency_id ?? null;
+  const stableAgencyIdRef = useRef<string | null>(null);
 
-  // Vérifier si les dépendances ont changé de manière significative
-  const depsChanged = !equal(
-    { agencyId, authLoading },
-    { agencyId: lastDepsRef.current.agencyId, authLoading: lastDepsRef.current.authLoading }
-  );
+  useEffect(() => {
+    if (agencyId && agencyId !== stableAgencyIdRef.current) {
+      stableAgencyIdRef.current = agencyId;
+    }
+  }, [agencyId]);
 
-  // Fonction de fetch stabilisée
+  const stableAgencyId = stableAgencyIdRef.current;
+  const stableTableName = tableName;
+
   const fetchData = useCallback(
     async (agencyId: string, signal: AbortSignal) => {
-      if (!isMountedRef.current) {
-        log(`🚫 Ignorer fetch ${tableName} : composant démonté`);
-        return;
-      }
-      if (!agencyId) {
-        log(`🚫 Ignorer fetch ${tableName} : agencyId manquant`);
-        setError('Aucune agence associée à l’utilisateur');
-        setLoading(false);
-        return;
-      }
-      if (isFetchingRef.current) {
-        log(`🚫 Ignorer fetch ${tableName} : déjà en cours`);
+      if (!agencyId || isFetchingRef.current) {
+        log(`🚫 Ignorer fetch ${tableName} : agence invalide ou déjà en cours`);
         return;
       }
 
       isFetchingRef.current = true;
-      setLoading(true);
-      setError(null);
-      log(`🔄 Chargement ${tableName} pour agence:`, agencyId);
-
       try {
+        setLoading(true);
+        setError(null);
+        log(`🔄 Chargement ${tableName} pour agence:`, agencyId);
+
         const result = await fetchFunction(agencyId);
-        if (!signal.aborted && isMountedRef.current) {
+        if (!signal.aborted) {
           if (!equal(latestDataRef.current, result)) {
             log(`✅ ${tableName} mis à jour:`, result.length);
             latestDataRef.current = result;
@@ -101,96 +83,81 @@ export function useRealtimeData<T extends Entity>(
           }
         }
       } catch (err) {
-        if (signal.aborted || !isMountedRef.current) {
-          log(`🚫 Fetch ${tableName} annulé ou composant démonté`);
-          return;
-        }
+        if (signal.aborted) return;
         log(`❌ Erreur chargement ${tableName}:`, err);
         const errMsg = mapSupabaseError(err, `Erreur chargement ${tableName}`);
         setError(errMsg);
         options?.onError?.(errMsg);
         setData([]);
       } finally {
-        if (!signal.aborted && isMountedRef.current) {
-          isFetchingRef.current = false;
+        if (!signal.aborted) {
           setLoading(false);
-          log(`✅ Fetch ${tableName} terminé`);
+          isFetchingRef.current = false;
         }
       }
     },
     [fetchFunction, tableName, options]
   );
 
-  // Gestion des abonnements en temps réel
+  useEffect(() => {
+    if (!stableAgencyId) {
+      setData([]);
+      setLoading(false);
+      setError('Aucune agence associée à l’utilisateur');
+      return;
+    }
+
+    const abortController = new AbortController();
+    fetchData(stableAgencyId, abortController.signal);
+    return () => abortController.abort();
+  }, [stableAgencyId, fetchFunction]);
+
+  useEffect(() => {
+    if (!stableAgencyId) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
+    const abortController = new AbortController();
+    fetchData(stableAgencyId, abortController.signal);
+    return () => abortController.abort();
+  }, [stableAgencyId, fetchData]);
+
   const debouncedRefetch = useCallback(
-    debounce((agencyId: string) => {
-      if (!isMountedRef.current) {
-        log(`🚫 Ignorer refetch ${tableName} : composant démonté`);
-        return;
-      }
-      log(`🔄 Refetch déclenché pour ${tableName}`);
-      fetchData(agencyId, new AbortController().signal);
-    }, 1000),
-    [fetchData, tableName]
+    debounce(() => {
+      if (!stableAgencyId) return;
+      fetchData(stableAgencyId, new AbortController().signal);
+    }, 2000),
+    [stableAgencyId, fetchData]
   );
 
   useEffect(() => {
-    log(`🔄 useEffect exécuté pour ${tableName}, agencyId: ${agencyId}, authLoading: ${authLoading}`);
-    log(`🔄 Dépendances:`, { agencyId, authLoading, tableName });
-    console.log('🔄 Dépendances useRealtimeData:', { agencyId, authLoading, tableName });
-
-    if (!depsChanged) {
-      log(`🚫 useEffect ignoré pour ${tableName} : dépendances inchangées`);
+    if (!stableAgencyId || !stableTableName) {
+      log(`🚫 Pas de subscription pour ${tableName}: agency_id ou tableName manquant`);
       return;
     }
 
-    lastDepsRef.current = { agencyId, authLoading };
-    isMountedRef.current = true;
-
-    if (authLoading) {
-      log(`⏳ Authentification en cours, attente pour ${tableName}`);
-      setLoading(true);
-      return;
-    }
-
-    if (!agencyId) {
-      log(`🚫 Pas d'agence pour ${tableName}`);
-      setLoading(false);
-      setError('Aucune agence associée à l’utilisateur');
-      setData([]);
-      return;
-    }
-
-    log(`🔍 Initialisation fetch pour ${tableName} avec agencyId:`, agencyId);
-    const abortController = new AbortController();
-    fetchData(agencyId, abortController.signal);
-
-    // Vérifier si un canal actif existe
-    if (channelRef.current && subscriptionStatusRef.current === 'SUBSCRIBED') {
-      log(`🚫 Canal actif pour ${tableName}, ignorer réinitialisation`);
-      return;
-    }
-
-    log(`📡 Initialisation subscription pour ${tableName}, agency: ${agencyId}`);
+    log(`📡 Initialisation subscription pour ${tableName}, agency: ${stableAgencyId}`);
     const channel = supabase
-      .channel(`public:${tableName}:${agencyId}`)
+      .channel(`public:${stableTableName}:${stableAgencyId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: tableName,
-          filter: `agency_id=eq.${agencyId}`,
+          table: stableTableName,
+          filter: `agency_id=eq.${stableAgencyId}`,
         },
         (payload: RealtimePostgresChangesPayload<{ [key: string]: any }>) => {
           log(`📡 Événement reçu pour ${tableName}:`, payload);
           const row = (payload.new || payload.old) as { agency_id?: string };
           if (
-            row?.agency_id === agencyId &&
+            row?.agency_id === stableAgencyId &&
             ['INSERT', 'UPDATE', 'DELETE'].includes(payload.eventType)
           ) {
-            log(`✅ Changement valide dans ${tableName} (agence ${agencyId})`);
-            debouncedRefetch(agencyId);
+            log(`✅ Changement valide dans ${tableName} (agence ${stableAgencyId})`);
+            debouncedRefetch();
           } else {
             log(`🚫 Événement ignoré pour ${tableName}`);
           }
@@ -198,30 +165,18 @@ export function useRealtimeData<T extends Entity>(
       )
       .subscribe((status) => {
         log(`📡 Statut subscription ${tableName}:`, status);
-        subscriptionStatusRef.current = status;
       });
 
-    channelRef.current = channel;
-
     return () => {
-      log(`🛑 Cleanup pour ${tableName}`);
-      isMountedRef.current = false;
-      abortController.abort();
-      // Only remove channel if agencyId changes or component is permanently unmounted
-      if (depsChanged && channelRef.current) {
-        log(`🛑 Suppression subscription ${tableName}`);
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-        subscriptionStatusRef.current = 'CLOSED';
-      }
+      log(`🛑 Cleanup subscription ${tableName}`);
+      supabase.removeChannel(channel);
+      debouncedRefetch.cancel();
     };
-  }, [agencyId, authLoading, tableName]);
+  }, [stableAgencyId, stableTableName, debouncedRefetch]);
 
   const refetch = useCallback(() => {
-    if (agencyId && isMountedRef.current) {
-      debouncedRefetch(agencyId);
-    }
-  }, [agencyId, debouncedRefetch]);
+    debouncedRefetch();
+  }, [debouncedRefetch]);
 
   return { data, loading, error, refetch, setData };
 }
@@ -230,7 +185,7 @@ export function useRealtimeData<T extends Entity>(
 // useDashboardStats
 // -----------------------------
 export function useDashboardStats() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [stats, setStats] = useState<{
     totalProperties: number;
     totalOwners: number;
@@ -434,42 +389,3 @@ export function useSupabaseDelete(
 
   return { deleteItem, loading, error, success, reset };
 }
-
-// hooks/usePermissions
-
-export const usePermissions = () => {
-  const { user } = useAuth();
-  const [permissions, setPermissions] = useState<{
-    canEdit: boolean;
-    canDelete: boolean;
-    canContact: boolean;
-  }>({ canEdit: false, canDelete: false, canContact: true });
-
-  const checkPermission = async (agencyId: string) => {
-    if (!user?.id) return { canEdit: false, canDelete: false, canContact: false };
-
-    try {
-      const { data } = await supabase
-        .from('agency_users')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('agency_id', agencyId)
-        .single();
-
-      if (!data) return { canEdit: false, canDelete: false, canContact: true };
-
-      const role = data.role;
-      const isDirectorOrAdmin = role === 'director' || role === 'admin';
-      setPermissions({
-        canEdit: isDirectorOrAdmin,
-        canDelete: isDirectorOrAdmin,
-        canContact: true, // Tous les utilisateurs peuvent contacter
-      });
-    } catch (err) {
-      console.error('Erreur lors de la vérification des permissions:', err);
-      return { canEdit: false, canDelete: false, canContact: true };
-    }
-  };
-
-  return { checkPermission, permissions };
-};

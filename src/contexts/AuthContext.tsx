@@ -1,7 +1,9 @@
 // @refresh skip
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, PlatformAdmin, AgencyUserRole } from '../types/db';
+import { User, PlatformAdmin, AgencyUserRole, UserPermissions } from '../types/db';
+import debounce from 'lodash/debounce';
+import toast from 'react-hot-toast';
 
 const isSupabaseConfigured = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -11,12 +13,14 @@ export interface AuthUser extends User {
   agency_id: string | null;
   role: AgencyUserRole | null;
   temp_password?: string;
+  permissions: UserPermissions;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   admin: PlatformAdmin | null;
   isLoading: boolean;
+  agencyId: string | null;
   login: (email: string, password: string) => Promise<void>;
   loginAdmin: (email: string, password: string) => Promise<PlatformAdmin>;
   logout: () => Promise<void>;
@@ -30,23 +34,32 @@ export const useAuth = () => {
   return context;
 };
 
+// 🔹 Utility to omit properties for comparison
+const omit = <T extends object, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> => {
+  const result = { ...obj };
+  keys.forEach((key) => delete result[key]);
+  return result;
+};
+
 // 🔹 Fonction utilitaire pour charger un utilisateur + agence
 const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => {
+  console.log('🔍 AuthContext: fetchUserWithAgency pour userId:', userId);
   const { data, error } = await supabase
     .from("users")
     .select(
-      "id, email, first_name, last_name, avatar, is_active, permissions, created_at, updated_at, agency_users(agency_id, role)"
+      "id, email, first_name, last_name, avatar, is_active, permissions, created_at, updated_at, agency_users:agency_users!left(agency_id, role)"
     )
     .eq("id", userId)
     .single();
 
-  if (error || !data) return null;
+  if (error || !data) {
+    console.error('❌ AuthContext: Erreur fetchUserWithAgency:', error);
+    return null;
+  }
 
-  const agencyUser = Array.isArray(data.agency_users)
-    ? data.agency_users[0]
-    : data.agency_users;
+  const agencyUser = Array.isArray(data.agency_users) ? data.agency_users[0] : data.agency_users;
 
-  return {
+  const userData: AuthUser = {
     id: data.id,
     email: data.email,
     first_name: data.first_name,
@@ -59,32 +72,56 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
     agency_id: agencyUser?.agency_id ?? null,
     role: agencyUser?.role ?? null,
   };
+  console.log('✅ AuthContext: Utilisateur chargé:', userData);
+  return userData;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [admin, setAdmin] = useState<PlatformAdmin | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isCheckingSessionRef = useRef(false);
 
-  useEffect(() => {
-    const checkSession = async () => {
+  const checkSession = useCallback(
+    debounce(async () => {
+      if (isCheckingSessionRef.current) {
+        console.log('🚫 AuthContext: Ignorer checkSession, déjà en cours');
+        return;
+      }
+
+      console.log('🔄 AuthContext: checkSession');
+      isCheckingSessionRef.current = true;
       setIsLoading(true);
       try {
-        if (!supabase || !isSupabaseConfigured) return;
+        if (!supabase || !isSupabaseConfigured) {
+          console.error('❌ AuthContext: Supabase non configuré');
+          return;
+        }
 
         const { data, error } = await supabase.auth.getSession();
-        if (error || !data.session?.user) return;
+        if (error || !data.session?.user) {
+          console.error('❌ AuthContext: Pas de session utilisateur', error);
+          setUser(null);
+          setAdmin(null);
+          return;
+        }
 
         // Essayer en tant qu'utilisateur normal
         const u = await fetchUserWithAgency(data.session.user.id);
         if (u) {
-          setUser(u);
+          setUser((prev) => {
+            const prevData = prev ? omit(prev, ['updated_at']) : null;
+            const newData = u ? omit(u, ['updated_at']) : null;
+            if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
+              console.log('🔄 AuthContext: Mise à jour utilisateur:', u);
+              return u;
+            }
+            console.log('🔄 AuthContext: Utilisateur inchangé');
+            return prev;
+          });
           return;
         }
 
-        // Sinon fallback admin
         const { data: adminData } = await supabase
           .from("platform_admins")
           .select(
@@ -94,61 +131,91 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           .single();
 
         if (adminData) {
-          setAdmin({
+          const newAdmin: PlatformAdmin = {
             ...adminData,
             permissions: adminData.permissions || {},
             is_active: adminData.is_active ?? true,
+          };
+          setAdmin((prev) => {
+            const prevData = prev ? omit(prev, ['updated_at']) : null;
+            const newData = omit(newAdmin, ['updated_at']);
+            if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
+              console.log('🔄 AuthContext: Mise à jour admin:', newAdmin);
+              return newAdmin;
+            }
+            console.log('🔄 AuthContext: Admin inchangé');
+            return prev;
           });
         }
       } catch (err) {
-        console.error("Erreur checkSession:", err);
+        console.error('❌ AuthContext: Erreur checkSession:', err);
       } finally {
+        isCheckingSessionRef.current = false;
         setIsLoading(false);
+        console.log('✅ AuthContext: Chargement terminé, isLoading:', false);
       }
-    };
+    }, 500),
+    []
+  );
 
+  useEffect(() => {
+    console.log('🔄 AuthContext: Initialisation useEffect');
     checkSession();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-      if (!session?.user) {
-        setUser(null);
-        setAdmin(null);
-      } else {
-        checkSession();
-      }
+    const { data: authListener } = supabase.auth.onAuthStateChange((evt, session) => {
+      console.log('🔄 AuthContext: Événement auth state change', { evt, userId: session?.user?.id });
+      checkSession();
     });
 
-    return () => sub?.subscription.unsubscribe();
-  }, []);
+    return () => {
+      console.log('🛑 AuthContext: Cleanup');
+      authListener.subscription.unsubscribe();
+    };
+  }, [checkSession]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
+    console.log('🔄 AuthContext: login', { email });
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password.trim(),
       });
-      if (error || !data.user) throw error;
-
+      if (error) {
+        if (error.message.includes('invalid credentials')) {
+          throw new Error('Email ou mot de passe incorrect');
+        }
+        throw error;
+      }
+      if (!data.user) throw new Error('Utilisateur non trouvé');
       const u = await fetchUserWithAgency(data.user.id);
-      if (!u) throw new Error("Utilisateur non trouvé");
+      if (!u) throw new Error('Utilisateur non associé à une agence');
       setUser(u);
+    } catch (err: any) {
+      console.error('❌ AuthContext: Erreur login:', err);
+      toast.error(err.message || 'Erreur lors de la connexion');
+      throw err;
     } finally {
       setIsLoading(false);
+      console.log('✅ AuthContext: login terminé, isLoading:', false);
     }
-  };
+  }, []);
 
-  const loginAdmin = async (
-    email: string,
-    password: string
-  ): Promise<PlatformAdmin> => {
+  const loginAdmin = useCallback(async (email: string, password: string): Promise<PlatformAdmin> => {
+    console.log('🔄 AuthContext: loginAdmin', { email });
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password.trim(),
       });
-      if (error || !data.user) throw error;
+      if (error) {
+        if (error.message.includes('invalid credentials')) {
+          throw new Error('Email ou mot de passe incorrect');
+        }
+        throw error;
+      }
+      if (!data.user) throw new Error('Utilisateur non trouvé');
 
       const { data: adminData, error: adminError } = await supabase
         .from("platform_admins")
@@ -156,7 +223,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         .eq("user_id", data.user.id)
         .single();
 
-      if (adminError || !adminData) throw new Error("Compte admin non trouvé");
+      if (adminError || !adminData) {
+        console.error('❌ AuthContext: Erreur loginAdmin, compte admin non trouvé:', adminError);
+        throw new Error('Compte admin non trouvé');
+      }
 
       const admin: PlatformAdmin = {
         ...adminData,
@@ -165,20 +235,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       };
 
       setAdmin(admin);
-
-      // update last_login
       await supabase
         .from("platform_admins")
         .update({ last_login: new Date().toISOString() })
         .eq("user_id", data.user.id);
 
       return admin;
+    } catch (err: any) {
+      console.error('❌ AuthContext: Erreur loginAdmin:', err);
+      toast.error(err.message || 'Erreur lors de la connexion admin');
+      throw err;
     } finally {
       setIsLoading(false);
+      console.log('✅ AuthContext: loginAdmin terminé, isLoading:', false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
+    console.log('🔄 AuthContext: logout');
     setIsLoading(true);
     try {
       await supabase.auth.signOut();
@@ -186,14 +260,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setAdmin(null);
     } finally {
       setIsLoading(false);
+      console.log('✅ AuthContext: logout terminé, isLoading:', false);
     }
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{ user, admin, isLoading, login, loginAdmin, logout }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      user,
+      admin,
+      isLoading,
+      agencyId: user?.agency_id ?? null,
+      login,
+      loginAdmin,
+      logout,
+    }),
+    [user, admin, isLoading, login, loginAdmin, logout]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
