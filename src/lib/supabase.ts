@@ -3,7 +3,8 @@ import {
     Agency, AgencyUser, AgencyRegistrationRequest, AgencySubscription, SubscriptionPayment,
     AgencyRanking, Owner, Tenant, Property, Announcement, AnnouncementInterest, Contract,
     RentReceipt, FinancialStatement, Message, Notification, PlatformSetting, AuditLog, User,
-    PlatformAdmin, AgencyUserRole, UserPermissions, EmailNotification, TenantFilters, RentReceiptWithContract,
+    PlatformAdmin, AgencyUserRole, UserPermissions, EmailNotification, TenantFilters,
+    RentReceiptWithContract, NotificationSettings, NotificationSettingsUpsert,
 } from "../types/db";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -1707,6 +1708,41 @@ export const dbService = {
             const { error } = await supabase.from('notifications').delete().eq('id', id);
             if (error) throw new Error(formatSbError('❌ notifications.delete', error));
             return true;
+        },
+    },
+
+    // ----------------- NOTIFICATION SETTINGS -----------------
+    notificationSettings: {
+        async getByUser(userId: string): Promise<NotificationSettings | null> {
+            const { data, error } = await supabase
+                .from('notification_settings')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
+
+            if (error && error.code !== 'PGRST116') {
+                throw new Error(formatSbError('❌ notification_settings.select', error));
+            }
+            return data ?? null;
+        },
+        async upsert(
+            userId: string,
+            settings: NotificationSettingsUpsert
+        ): Promise<NotificationSettings> {
+            const insertPayload = {
+                ...settings,
+                user_id: userId,
+                updated_at: new Date().toISOString(),
+            } as const; // ✅ TS voit que c'est une valeur fixe, pas un type complexe
+
+            const { data, error } = await supabase
+                .from('notification_settings') // juste le nom de la table
+                .upsert(insertPayload, { onConflict: 'user_id' })
+                .select('*')
+                .single();
+
+            if (error) throw new Error(formatSbError('❌ notification_settings.upsert', error));
+            return data!;
         },
     },
 
