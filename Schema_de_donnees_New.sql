@@ -101,14 +101,17 @@ create table public.users (
   email text not null unique,
   first_name text not null,
   last_name text not null,
+  phone text,
   avatar text,
-  is_active boolean default true,
+  is_active boolean default false,
   permissions jsonb default '{}'::jsonb,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 create trigger trg_users_updated_at before update on public.users
   for each row execute function set_updated_at();
+
+create index if not exists idx_users_phone on users(phone);
 
 -- =========================================================
 -- Administrateurs plateforme
@@ -157,9 +160,10 @@ create trigger trg_agencies_updated_at before update on public.agencies
 create table public.agency_users (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
-  agency_id uuid not null references public.agencies(id) on delete cascade,
+  agency_id uuid references public.agencies(id) on delete cascade, -- Suppression de not null pour permettre la création d'utilisateur avant validation et création d'Agence.
   role agency_user_role not null,
   created_at timestamptz not null default now(),
+  updated_at timestamptz,
   unique (user_id, agency_id)
 );
 -- Un seul director par agence
@@ -188,7 +192,7 @@ create table public.agency_registration_requests (
   processed_by uuid references public.users(id) on delete set null,
   processed_at timestamptz,
   created_at timestamptz default now(),
-  director_password text,              -- à chiffrer/retirer en prod si inutile
+  director_password text,
   director_auth_user_id uuid references public.users(id) on delete set null
 );
 
@@ -243,11 +247,11 @@ create table public.agency_rankings (
   metrics jsonb default '{}'::jsonb,
   rewards jsonb default '[]'::jsonb,
   created_at timestamptz default now(),
-  unique (agency_id, year),
-  
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT unique_ranking_per_agency_year UNIQUE (agency_id, year)
+  updated_at timestamptz default now(),
+  constraint unique_ranking_per_agency_year unique (agency_id, year)
 );
+create trigger trg_agency_rankings_updated_at before update on public.agency_rankings
+  for each row execute function set_updated_at();
 
 -- =========================================================
 -- Propriétaires / Locataires
@@ -464,6 +468,24 @@ create table public.notifications (
   created_at timestamptz default now()
 );
 create index idx_notifications_user on public.notifications(user_id);
+
+-- =========================================================
+-- Notification Settings
+-- =========================================================
+create table public.notification_settings (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null unique references public.users(id) on delete cascade,
+  payment_reminder boolean not null default true,
+  new_message boolean not null default true,
+  rental_alert boolean not null default true,
+  property_update boolean not null default true,
+  contract_expiry boolean not null default true,
+  new_interest boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create trigger trg_notification_settings_updated_at before update on public.notification_settings
+  for each row execute function set_updated_at();
 
 -- =========================================================
 -- Paramètres plateforme

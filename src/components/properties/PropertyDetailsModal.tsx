@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Edit, MapPin } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Property, PropertyFormData } from '../../types/db'; // Updated import
+import { Property, PropertyFormData } from '../../types/db';
 import { PropertyForm } from './PropertyForm';
 
 interface PropertyDetailsModalProps {
@@ -23,31 +23,30 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
   const [showEditForm, setShowEditForm] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  if (!property) return null;
-
-  const getStandingColor = (standing: string) => {
+  const getStandingColor = useCallback((standing: string) => {
     switch (standing) {
       case 'economique': return 'warning';
       case 'moyen': return 'info';
       case 'haut': return 'success';
       default: return 'secondary';
     }
-  };
+  }, []);
 
-  const handleEdit = () => {
+  const handleEdit = useCallback(() => {
     setShowEditForm(true);
-  };
+  }, []);
 
-  const handleUpdate = (updatedProperty: PropertyFormData) => {
-    onUpdate(updatedProperty as Property); // Cast to Property since PropertyFormData should align
+  const handleUpdate = useCallback((updatedProperty: PropertyFormData) => {
+    onUpdate(updatedProperty as Property);
     setShowEditForm(false);
-  };
+  }, [onUpdate]);
+
+  if (!property) return null;
 
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} size="xl" title="Détails de la propriété">
         <div className="space-y-6">
-          {/* Header */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{property.title}</h2>
@@ -59,14 +58,13 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
               <Badge variant={getStandingColor(property.standing)} size="md">
                 {property.standing.charAt(0).toUpperCase() + property.standing.slice(1)}
               </Badge>
-              <Button variant="outline" onClick={handleEdit}>
+              <Button variant="outline" onClick={handleEdit} aria-label={`Modifier ${property.title}`}>
                 <Edit className="h-4 w-4 mr-2" />
                 Modifier
               </Button>
             </div>
           </div>
 
-          {/* Images Gallery */}
           {property.images && property.images.length > 0 && (
             <Card>
               <div className="p-4">
@@ -87,6 +85,7 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
                         className={`aspect-w-1 aspect-h-1 rounded-lg overflow-hidden border-2 ${
                           selectedImageIndex === index ? 'border-blue-500' : 'border-gray-200'
                         }`}
+                        aria-label={`Sélectionner l'image ${index + 1}`}
                       >
                         <img
                           src={image.url}
@@ -101,7 +100,6 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
             </Card>
           )}
 
-          {/* Property Information */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <div className="p-4">
@@ -130,7 +128,6 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
                 </div>
               </div>
             </Card>
-
             <Card>
               <div className="p-4">
                 <h3 className="font-medium text-gray-900 mb-4">Localisation</h3>
@@ -167,7 +164,6 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
             </Card>
           </div>
 
-          {/* Rooms Details */}
           {property.rooms && property.rooms.length > 0 && (
             <Card>
               <div className="p-4">
@@ -197,7 +193,6 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
             </Card>
           )}
 
-          {/* Description */}
           {property.description && (
             <Card>
               <div className="p-4">
@@ -207,7 +202,6 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
             </Card>
           )}
 
-          {/* Metadata */}
           <Card>
             <div className="p-4">
               <h3 className="font-medium text-gray-900 mb-4">Informations système</h3>
@@ -227,7 +221,6 @@ export const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
         </div>
       </Modal>
 
-      {/* Edit Form Modal */}
       <PropertyForm
         isOpen={showEditForm}
         onClose={() => setShowEditForm(false)}

@@ -3,8 +3,8 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Building2, MapPin, Eye, Settings } from 'lucide-react';
-import { Agency, SubscriptionStatus, PlanType } from '../../types/db';
-import { BadgeVariant } from '../../types/ui';
+import { Agency } from '../../types/db';
+import { BadgeVariant, SubscriptionStatus, PlanType } from '../../types/enums';
 import { Dispatch, SetStateAction } from 'react';
 
 interface AgencyCardProps {

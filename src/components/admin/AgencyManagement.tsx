@@ -4,13 +4,13 @@ import { Building2, Search, UserPlus } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { dbService } from '../../lib/supabase';
 import { RegistrationRequestCard } from './RegistrationRequestCard';
 import { AgencyDetailsModal } from './AgencyDetailsModal';
 import { AgencyCard } from './AgencyCard';
 import { useAuth } from '../../contexts/AuthContext';
-import { Agency, AgencyRegistrationRequest, SubscriptionStatus, PlanType } from '../../types/db';
-import { BadgeVariant } from '../../types/ui';
+import { Agency, AgencyRegistrationRequest } from '../../types/db';
+import { BadgeVariant, SubscriptionStatus, PlanType } from '../../types/enums';
+import { dbService } from '../../lib/supabase';
 
 // Interface pour les notifications toast
 interface Toast {

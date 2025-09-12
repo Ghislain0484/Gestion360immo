@@ -5,9 +5,11 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
-import { UserFormData, UserPermissions, User, AgencyUserRole } from '../../types/db';
+import { UserFormData, UserPermissions, User } from '../../types/db';
+import { AgencyUserRole } from '../../types/enums';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, dbService } from '../../lib/supabase';
+import { dbService } from '../../lib/supabase';
+import { supabase } from '../../lib/config';
 import toast from 'react-hot-toast';
 
 interface AuthUser extends User {
@@ -220,17 +222,17 @@ export const UserManagement: React.FC = () => {
         }
         console.log('Auth user created:', authData.user);
 
-        // Vérifier si l'utilisateur existe dans auth.users
-        const { data: authUserCheck, error: authCheckError } = await supabase
-          .from('auth.users')
-          .select('id, email, confirmed_at')
-          .eq('id', authData.user.id)
-          .single();
-        if (authCheckError || !authUserCheck) {
-          console.error('Auth user check error:', authCheckError);
-          throw new Error('Utilisateur non trouvé dans auth.users après inscription');
-        }
-        console.log('Auth user verified:', authUserCheck);
+        // ⚠️ SUPPRIMER cette vérification : auth.users n'est pas accessible via REST
+        // const { data: authUserCheck, error: authCheckError } = await supabase
+        //   .from('auth.users')
+        //   .select('id, email, confirmed_at')
+        //   .eq('id', authData.user.id)
+        //   .single();
+        // if (authCheckError || !authUserCheck) {
+        //   console.error('Auth user check error:', authCheckError);
+        //   throw new Error('Utilisateur non trouvé dans auth.users après inscription');
+        // }
+        // console.log('Auth user verified:', authUserCheck);
 
         // Créer l'utilisateur dans la table users
         console.log('Creating user in users table:', authData.user.id);

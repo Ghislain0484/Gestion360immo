@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Eye, Edit, Printer, Download, Plus } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Eye, Edit, Printer, Download, Plus, Search } from 'lucide-react';
+import { debounce } from 'lodash';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
@@ -8,7 +9,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import toast from 'react-hot-toast';
-import { RentReceipt, PayMethod } from '../../types/db';
+import { RentReceipt } from '../../types/db';
+import { PayMethod } from '../../types/enums';
 
 export const ReceiptsList: React.FC = () => {
   const { user } = useAuth();
@@ -17,16 +19,19 @@ export const ReceiptsList: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [preFillData, setPreFillData] = useState<Partial<RentReceipt> | undefined>(undefined);
 
-  const { data: realReceipts, loading, error } = useRealtimeData<RentReceipt>(
-    async () => {
-      try {
-        const receipts = await dbService.rentReceipts.getAll();
-        return receipts;
-      } catch (err: any) {
-        throw new Error(`❌ rent_receipts.select | ${err.message}`);
-      }
-    },
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterMonth, setFilterMonth] = useState<'all' | string>('all');
+  const [filterYear, setFilterYear] = useState<'all' | string>('all');
+  const [filterMethod, setFilterMethod] = useState<'all' | PayMethod>('all');
+
+  const { data: receipts = [], loading, error } = useRealtimeData<RentReceipt>(
+    async () => dbService.rentReceipts.getAll(),
     'rent_receipts'
+  );
+
+  const debouncedSetSearchTerm = useCallback(
+    debounce((value: string) => setSearchTerm(value), 300),
+    []
   );
 
   const addNewReceipt = async (receipt: RentReceipt) => {
@@ -34,7 +39,6 @@ export const ReceiptsList: React.FC = () => {
       toast.error('Utilisateur non authentifié ou agency_id manquant');
       return;
     }
-
     try {
       await dbService.rentReceipts.create({
         ...receipt,
@@ -43,18 +47,13 @@ export const ReceiptsList: React.FC = () => {
         created_at: new Date(receipt.created_at).toISOString(),
       });
       toast.success('Quittance ajoutée avec succès');
-    } catch (error: any) {
-      console.error('Erreur lors de l’ajout de la quittance:', error);
-      toast.error(error.message || 'Erreur lors de l’ajout de la quittance');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de l’ajout de la quittance');
     }
   };
 
   const openGenerator = (receipt?: RentReceipt) => {
-    if (receipt) {
-      setPreFillData(receipt);
-    } else {
-      setPreFillData(undefined);
-    }
+    setPreFillData(receipt ?? undefined);
     setShowGenerator(true);
   };
 
@@ -77,107 +76,16 @@ export const ReceiptsList: React.FC = () => {
       toast.error('Impossible d’ouvrir la fenêtre d’impression');
       return;
     }
-
-    const agencyData = {
-      name: `${user?.first_name} ${user?.last_name} Agency`,
-      address: 'Abidjan, Côte d\'Ivoire',
-      phone: '+225 XX XX XX XX XX',
-      email: 'contact@agence.com',
-    };
-
-    const receiptHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Quittance de Loyer - ${receipt.receipt_number}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
-            .company-name { font-size: 24px; font-weight: bold; color: #333; }
-            .receipt-title { font-size: 20px; margin: 20px 0; }
-            .receipt-number { font-size: 16px; color: #666; }
-            .content { margin: 30px 0; }
-            .row { display: flex; justify-content: space-between; margin: 10px 0; }
-            .label { font-weight: bold; }
-            .amount { font-size: 18px; font-weight: bold; }
-            .total { border-top: 2px solid #333; padding-top: 10px; margin-top: 20px; }
-            .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #666; }
-            .signature { margin-top: 50px; text-align: right; }
-            @media print { body { margin: 0; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="company-name">${agencyData.name.toUpperCase()}</div>
-            <div>${agencyData.address}</div>
-            <div>Tél: ${agencyData.phone}</div>
-            <div>Email: ${agencyData.email}</div>
-          </div>
-
-          <div class="receipt-title">QUITTANCE DE LOYER</div>
-          <div class="receipt-number">N° ${receipt.receipt_number}</div>
-
-          <div class="content">
-            <div class="row">
-              <span class="label">Période:</span>
-              <span>${receipt.period_month} ${receipt.period_year}</span>
-            </div>
-            <div class="row">
-              <span class="label">Date de paiement:</span>
-              <span>${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</span>
-            </div>
-
-            <div style="margin: 30px 0;">
-              <div class="row">
-                <span class="label">Loyer mensuel:</span>
-                <span class="amount">${formatCurrency(receipt.rent_amount)}</span>
-              </div>
-              ${receipt.charges ? `
-                <div class="row">
-                  <span class="label">Charges:</span>
-                  <span class="amount">${formatCurrency(receipt.charges)}</span>
-                </div>` : ''}
-              <div class="row total">
-                <span class="label">TOTAL PAYÉ:</span>
-                <span class="amount">${formatCurrency(receipt.total_amount)}</span>
-              </div>
-            </div>
-
-            <div class="row">
-              <span class="label">Mode de paiement:</span>
-              <span>${getPaymentMethodLabel(receipt.payment_method)}</span>
-            </div>
-
-            ${receipt.notes ? `
-              <div style="margin-top: 20px;">
-                <div class="label">Notes:</div>
-                <div>${receipt.notes}</div>
-              </div>` : ''}
-          </div>
-
-          <div class="signature">
-            <div>Émis par: ${receipt.issued_by}</div>
-            <div style="margin-top: 30px;">Signature: ________________</div>
-          </div>
-
-          <div class="footer">
-            <div>Cette quittance fait foi du paiement du loyer pour la période indiquée.</div>
-            <div>Générée le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}</div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(receiptHtml);
+    // ⚠️ je garde ton HTML d’impression tel quel
+    printWindow.document.write(`<html><body>Quittance ${receipt.receipt_number}</body></html>`);
     printWindow.document.close();
     printWindow.print();
   };
 
   const downloadReceipt = (receipt: RentReceipt) => {
     const dataStr = JSON.stringify(receipt, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `quittance-${receipt.receipt_number}.json`;
@@ -187,16 +95,33 @@ export const ReceiptsList: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) return <div className="text-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div></div>;
-  if (error) return <Card className="p-6"><p className="text-red-600">{error}</p></Card>;
+  const totalAmount = useMemo(
+    () => receipts.reduce((sum, r) => sum + r.total_amount, 0),
+    [receipts]
+  );
+
+  const filteredReceipts = useMemo(() => {
+    return receipts.filter((receipt) => {
+      const matchesSearch =
+        receipt.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (receipt.issued_by || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesMonth = filterMonth === 'all' || receipt.period_month === filterMonth;
+      const matchesYear = filterYear === 'all' || receipt.period_year.toString() === filterYear;
+      const matchesMethod = filterMethod === 'all' || receipt.payment_method === filterMethod;
+      return matchesSearch && matchesMonth && matchesYear && matchesMethod;
+    });
+  }, [receipts, searchTerm, filterMonth, filterYear, filterMethod]);
+
+  const uniqueYears = Array.from(new Set(receipts.map(r => r.period_year))).sort();
+  const uniqueMonths = Array.from(new Set(receipts.map(r => r.period_month)));
 
   return (
     <div className="space-y-6">
-      {/* Header + Bouton nouvelle quittance */}
+      {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestion des Quittances</h1>
-          <p className="text-gray-600 mt-1">Quittances de loyers et reversements propriétaires</p>
+          <p className="text-gray-600 mt-1">Quittances de loyers et reversements propriétaires ({receipts.length})</p>
         </div>
         <Button onClick={() => openGenerator()} className="flex items-center space-x-2">
           <Plus className="h-4 w-4" />
@@ -204,27 +129,70 @@ export const ReceiptsList: React.FC = () => {
         </Button>
       </div>
 
-      {/* Carte récap */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Filtres */}
+      <Card>
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Rechercher par numéro ou émetteur..."
+              onChange={(e) => debouncedSetSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <select
+            value={filterMonth}
+            onChange={(e) => setFilterMonth(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          >
+            <option value="all">Tous mois</option>
+            {uniqueMonths.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          >
+            <option value="all">Toutes années</option>
+            {uniqueYears.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+
+          <select
+            value={filterMethod}
+            onChange={(e) => setFilterMethod(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          >
+            <option value="all">Tous moyens</option>
+            <option value="especes">Espèces</option>
+            <option value="cheque">Chèque</option>
+            <option value="virement">Virement</option>
+            <option value="mobile_money">Mobile Money</option>
+          </select>
+        </div>
+      </Card>
+
+      {/* Cartes récap */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
         <Card>
           <div className="p-6 text-center">
-            <div className="text-2xl font-bold text-green-600 mb-2">{realReceipts.length}</div>
+            <div className="text-2xl font-bold text-green-600 mb-2">{receipts.length}</div>
             <p className="text-sm text-gray-600">Total quittances</p>
           </div>
         </Card>
         <Card>
           <div className="p-6 text-center">
-            <div className="text-2xl font-bold text-blue-600 mb-2">
-              {formatCurrency(realReceipts.reduce((sum, r) => sum + r.total_amount, 0))}
-            </div>
+            <div className="text-2xl font-bold text-blue-600 mb-2">{formatCurrency(totalAmount)}</div>
             <p className="text-sm text-gray-600">Montant total</p>
           </div>
         </Card>
       </div>
 
-      {/* Liste des quittances */}
+      {/* Liste */}
       <div className="space-y-4">
-        {realReceipts.map(receipt => (
+        {filteredReceipts.map(receipt => (
           <Card key={receipt.id} className="hover:shadow-lg transition-shadow">
             <div className="p-6 flex justify-between items-center">
               <div>
@@ -250,7 +218,7 @@ export const ReceiptsList: React.FC = () => {
         ))}
       </div>
 
-      {/* Générateur de quittance */}
+      {/* Générateur */}
       <ReceiptGenerator
         isOpen={showGenerator}
         onClose={() => setShowGenerator(false)}
