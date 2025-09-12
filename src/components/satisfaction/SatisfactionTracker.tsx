@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, ThumbsUp, ThumbsDown, MessageCircle, TrendingUp, Users, Home } from 'lucide-react';
+import { Star, Users, Home } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { dbService } from "../../lib/supabase";
-import { Contract, Tenant, Owner, Property, RentReceipt, PayMethod } from "../../types/db";
+import { Contract, Tenant, Owner, Property, RentReceipt } from "../../types/db";
+import { PayMethod } from "../../types/enums";
 import toast from "react-hot-toast";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { Button } from "../ui/Button";

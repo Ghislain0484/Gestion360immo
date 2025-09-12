@@ -1,4 +1,5 @@
-import { RoomDetails, PropertyStanding } from '../types/db';
+import { RoomDetails } from '../types/db';
+import { PropertyStanding } from '../types/enums';
 
 export class StandingCalculator {
   static calculateStanding(rooms: RoomDetails[]): PropertyStanding {

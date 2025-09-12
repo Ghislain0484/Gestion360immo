@@ -9,7 +9,8 @@ import { Announcement, AnnouncementInterest, Message, Notification } from '../..
 import { TenantHistorySearch } from './TenantHistorySearch';
 import { OwnerHistorySearch } from './OwnerHistorySearch';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService, supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/config';
+import { dbService } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 interface FormData {

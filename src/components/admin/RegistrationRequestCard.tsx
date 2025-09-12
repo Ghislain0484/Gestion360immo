@@ -6,7 +6,7 @@ import { Clock, CheckCircle, Ban } from 'lucide-react';
 import { AgencyRegistrationRequest } from '../../types/db';
 
 interface RegistrationRequestCardProps {
-  request: AgencyRegistrationRequest; // Use AgencyRegistrationRequest
+  request: AgencyRegistrationRequest;
   approveRegistration: (requestId: string) => Promise<void>;
   rejectRegistration: (requestId: string) => Promise<void>;
 }
@@ -45,6 +45,19 @@ export const RegistrationRequestCard: React.FC<RegistrationRequestCardProps> = (
               <p><strong>Téléphone:</strong> {request.phone}</p>
               {request.is_accredited && (
                 <p><strong>Numéro d'accréditation:</strong> {request.accreditation_number || 'N/A'}</p>
+              )}
+              {request.logo_url && (
+                <div>
+                  <p><strong>Logo:</strong></p>
+                  <img
+                    src={request.logo_url}
+                    alt="Logo de l'agence"
+                    className="w-24 h-24 object-contain mt-2"
+                    onError={(e) => {
+                      e.currentTarget.src = '/placeholder-logo.png'; // Fallback
+                    }}
+                  />
+                </div>
               )}
             </div>
           </div>

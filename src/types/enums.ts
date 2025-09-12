@@ -1,0 +1,16 @@
+export type AgencyUserRole = 'director' | 'manager' | 'agent';
+export type PlanType = 'basic' | 'premium' | 'enterprise';
+export type SubscriptionStatus = 'trial' | 'active' | 'suspended' | 'cancelled';
+export type MaritalStatus = 'celibataire' | 'marie' | 'divorce' | 'veuf';
+export type PaymentReliability = 'bon' | 'irregulier' | 'mauvais';
+export type ContractType = 'location' | 'vente' | 'gestion';
+export type ContractStatus = 'draft' | 'active' | 'expired' | 'terminated' | 'renewed';
+export type AnnouncementType = 'location' | 'vente';
+export type PayMethod = 'especes' | 'cheque' | 'virement' | 'mobile_money' | 'bank_transfer' | 'cash' | 'check';
+export type NotifType = 'rental_alert' | 'payment_reminder' | 'new_message' | 'property_update' | 'contract_expiry' | 'new_interest';
+export type NotifPriority = 'low' | 'medium' | 'high';
+export type PropertyTitle = 'attestation_villageoise' | 'lettre_attribution' | 'permis_habiter' | 'acd' | 'tf' | 'cpf' | 'autres';
+export type PropertyStanding = 'economique' | 'moyen' | 'haut';
+export type RegistrationStatus = 'pending' | 'approved' | 'rejected';
+export type JsonB = string | number | boolean | null | { [key: string]: any } | JsonB[];
+export type BadgeVariant = | 'success' | 'danger' | 'warning' | 'secondary' | 'primary' | 'info' | undefined;

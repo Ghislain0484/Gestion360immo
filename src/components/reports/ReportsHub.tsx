@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,10 +16,12 @@ import { BarChart3, TrendingUp, Download, Calendar, DollarSign, Home, Users } fr
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboardStats, useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { Property, Contract, Owner, Tenant } from '../../types/db';
+import { MonthlyRevenueItem } from '../../types/contracts';
 
 ChartJS.register(
   CategoryScale,
@@ -36,89 +38,135 @@ ChartJS.register(
 export const ReportsHub: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const [selectedReport, setSelectedReport] = useState('overview');
+  //const [monthlyRevenue, setMonthlyRevenue] = useState<{ month: string; revenue: number; commissions: number }[]>([]);
+  const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenueItem[]>([]);
 
   const { user } = useAuth();
 
   // Données réelles de l'agence
-  const { stats: dashboardStats, loading: statsLoading } = useDashboardStats();
-  const { data: properties, loading: propertiesLoading } = useRealtimeData<Property>(dbService.properties.getAll, 'properties');
-  const { data: contracts, loading: contractsLoading } = useRealtimeData<Contract>(dbService.contracts.getAll, 'contracts');
-  const { data: owners, loading: ownersLoading } = useRealtimeData<Owner>(dbService.owners.getAll, 'owners');
-  //const { data: tenants, loading: tenantsLoading } = useRealtimeData<Tenant>(dbService.tenants.getAll(), 'tenants');
-  const { data: tenants, loading: tenantsLoading } = useRealtimeData<Tenant>(
-    () => dbService.tenants.getAll({ agency_id: user?.agency_id ?? undefined }),
-    'tenants'
+  const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
+  const { data: properties, loading: propertiesLoading, error: propertiesError } = useRealtimeData<Property>(
+    (params) => dbService.properties.getAll(params),
+    'properties',
+    { agency_id: user?.agency_id ?? undefined } // Handle null to satisfy TS2322
   );
+  const { data: contracts, loading: contractsLoading, error: contractsError } = useRealtimeData<Contract>(
+    (params) => dbService.contracts.getAll(params),
+    'contracts',
+    { agency_id: user?.agency_id ?? undefined } // Handle null
+  );
+  const { data: owners, loading: ownersLoading, error: ownersError } = useRealtimeData<Owner>(
+    (params) => dbService.owners.getAll(params),
+    'owners',
+    { agency_id: user?.agency_id ?? undefined } // Handle null
+  );
+  const { data: tenants, loading: tenantsLoading, error: tenantsError } = useRealtimeData<Tenant>(
+    (params) => dbService.tenants.getAll(params),
+    'tenants',
+    { agency_id: user?.agency_id ?? undefined } // Handle null
+  );
+
+  // Fetch monthly revenue
+  useEffect(() => {
+    if (user?.agency_id) {
+      dbService.getMonthlyRevenue(user.agency_id)
+        .then(setMonthlyRevenue)
+        .catch(err => {
+          console.error('Erreur chargement revenu mensuel:', err);
+          toast.error('Erreur lors du chargement des revenus mensuels');
+        });
+    }
+  }, [user?.agency_id]);
+
+  // Handle errors
+  useEffect(() => {
+    if (statsError) toast.error(statsError);
+    if (propertiesError) toast.error(propertiesError);
+    if (contractsError) toast.error(contractsError);
+    if (ownersError) toast.error(ownersError);
+    if (tenantsError) toast.error(tenantsError);
+  }, [statsError, propertiesError, contractsError, ownersError, tenantsError]);
 
   // Calculs basés sur les vraies données
   const reportData = dashboardStats ? {
     overview: {
       totalRevenue: dashboardStats.monthlyRevenue,
-      totalCommissions: dashboardStats.monthlyRevenue * 0.1,
+      totalCommissions: monthlyRevenue.length > 0 ? monthlyRevenue[monthlyRevenue.length - 1].commissions : 0,
       activeContracts: dashboardStats.activeContracts,
-      newClients: owners.length + tenants.length,
-      occupancyRate: dashboardStats.occupancyRate
+      newClients: (owners?.length || 0) + (tenants?.length || 0),
+      occupancyRate: dashboardStats.occupancyRate,
     },
     properties: {
-      totalProperties: properties.length,
-      availableProperties: properties.filter(p => p.is_available).length,
-      rentedProperties: properties.filter(p => !p.is_available).length,
-      soldProperties: contracts.filter(c => c.type === 'vente').length
+      totalProperties: properties?.length || 0,
+      availableProperties: properties?.filter(p => p.is_available).length || 0,
+      rentedProperties: properties?.filter(p => !p.is_available).length || 0,
+      soldProperties: contracts?.filter(c => c.type === 'vente').length || 0,
     },
     financial: {
-      monthlyRevenue: [
-        { month: 'Jan', revenue: dashboardStats.monthlyRevenue * 0.8, commissions: dashboardStats.monthlyRevenue * 0.08 },
-        { month: 'Fév', revenue: dashboardStats.monthlyRevenue * 0.9, commissions: dashboardStats.monthlyRevenue * 0.09 },
-        { month: 'Mar', revenue: dashboardStats.monthlyRevenue, commissions: dashboardStats.monthlyRevenue * 0.1 }
-      ]
-    }
+      monthlyRevenue: monthlyRevenue.length > 0 ? monthlyRevenue : [
+        { month: 'Jan', revenue: 0, commissions: 0 },
+        { month: 'Fév', revenue: 0, commissions: 0 },
+        { month: 'Mar', revenue: 0, commissions: 0 },
+        { month: 'Avr', revenue: 0, commissions: 0 },
+        { month: 'Mai', revenue: 0, commissions: 0 },
+        { month: 'Jun', revenue: 0, commissions: 0 },
+      ],
+    },
   } : null;
+
+  // Calculate growth percentages
+  const getGrowthPercentage = (current: number, previous: number) => {
+    if (previous === 0) return 0;
+    return Number(((current - previous) / previous * 100).toFixed(1));
+  };
+
+  const revenueGrowth = monthlyRevenue.length >= 2
+    ? getGrowthPercentage(monthlyRevenue[monthlyRevenue.length - 1].revenue, monthlyRevenue[monthlyRevenue.length - 2].revenue)
+    : 0;
+  const commissionsGrowth = monthlyRevenue.length >= 2
+    ? getGrowthPercentage(monthlyRevenue[monthlyRevenue.length - 1].commissions, monthlyRevenue[monthlyRevenue.length - 2].commissions)
+    : 0;
+  const contractsGrowth = dashboardStats && dashboardStats.activeContracts > 0
+    ? 5 // Placeholder: Calculate from historical contract data
+    : 0;
+  const clientsGrowth = reportData
+    ? getGrowthPercentage(reportData.overview.newClients, reportData.overview.newClients * 0.85) // Placeholder: Use historical client data
+    : 0;
 
   // Chart data
   const revenueChartData = reportData ? {
-    labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun'],
+    labels: reportData.financial.monthlyRevenue.map(m => m.month),
     datasets: [
       {
         label: 'Revenus (FCFA)',
-        data: [
-          reportData.financial.monthlyRevenue[0].revenue,
-          reportData.financial.monthlyRevenue[1].revenue,
-          reportData.financial.monthlyRevenue[2].revenue,
-          reportData.overview.totalRevenue * 0.95,
-          reportData.overview.totalRevenue * 1.1,
-          reportData.overview.totalRevenue * 1.2
-        ],
+        data: reportData.financial.monthlyRevenue.map(m => m.revenue),
         backgroundColor: 'rgba(59, 130, 246, 0.5)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1,
       },
       {
         label: 'Commissions (FCFA)',
-        data: [
-          reportData.financial.monthlyRevenue[0].commissions,
-          reportData.financial.monthlyRevenue[1].commissions,
-          reportData.financial.monthlyRevenue[2].commissions,
-          reportData.overview.totalCommissions * 0.95,
-          reportData.overview.totalCommissions * 1.1,
-          reportData.overview.totalCommissions * 1.2
-        ],
+        data: reportData.financial.monthlyRevenue.map(m => m.commissions),
         backgroundColor: 'rgba(16, 185, 129, 0.5)',
         borderColor: 'rgba(16, 185, 129, 1)',
         borderWidth: 1,
       },
     ],
-  } : null;
+  } : {
+    labels: [],
+    datasets: [],
+  };
 
   const propertyTypeData = reportData ? {
     labels: ['Villas', 'Appartements', 'Terrains', 'Immeubles', 'Autres'],
     datasets: [
       {
         data: [
-          properties.filter(p => p.details?.type === 'villa').length,
-          properties.filter(p => p.details?.type === 'appartement').length,
-          properties.filter(p => p.details?.type === 'terrain_nu').length,
-          properties.filter(p => p.details?.type === 'immeuble').length,
-          properties.filter(p => p.details?.type === 'autres').length,
+          properties?.filter(p => p.details?.type === 'villa').length || 0,
+          properties?.filter(p => p.details?.type === 'appartement').length || 0,
+          properties?.filter(p => p.details?.type === 'terrain_nu').length || 0,
+          properties?.filter(p => p.details?.type === 'immeuble').length || 0,
+          properties?.filter(p => p.details?.type === 'autres').length || 0,
         ],
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
@@ -131,28 +179,27 @@ export const ReportsHub: React.FC = () => {
         borderColor: '#fff',
       },
     ],
-  } : null;
+  } : {
+    labels: [],
+    datasets: [],
+  };
 
   const occupancyData = reportData ? {
-    labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun'],
+    labels: reportData.financial.monthlyRevenue.map(m => m.month),
     datasets: [
       {
         label: 'Taux d\'occupation (%)',
-        data: [
-          reportData.overview.occupancyRate * 0.9,
-          reportData.overview.occupancyRate * 0.95,
-          reportData.overview.occupancyRate,
-          reportData.overview.occupancyRate * 1.02,
-          reportData.overview.occupancyRate * 1.05,
-          reportData.overview.occupancyRate * 0.98
-        ],
+        data: reportData.financial.monthlyRevenue.map((_, i) => reportData.overview.occupancyRate * (0.9 + i * 0.02)),
         borderColor: 'rgba(59, 130, 246, 1)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.4,
         fill: true,
       },
     ],
-  } : null;
+  } : {
+    labels: [],
+    datasets: [],
+  };
 
   const chartOptions = {
     responsive: true,
@@ -222,10 +269,11 @@ export const ReportsHub: React.FC = () => {
             <button
               key={type.id}
               onClick={() => setSelectedReport(type.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${selectedReport === type.id
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                selectedReport === type.id
                   ? 'bg-blue-100 text-blue-700 border border-blue-200'
                   : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                }`}
+              }`}
             >
               <type.icon className="h-4 w-4" />
               <span>{type.name}</span>
@@ -267,8 +315,8 @@ export const ReportsHub: React.FC = () => {
                       </div>
                       <div className="mt-4">
                         <div className="flex items-center text-sm">
-                          <span className="flex items-center text-green-600">
-                            ↗ 12%
+                          <span className={`flex items-center ${revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {revenueGrowth >= 0 ? '↗' : '↘'} {Math.abs(revenueGrowth)}%
                           </span>
                           <span className="ml-2 text-gray-500">vs mois précédent</span>
                         </div>
@@ -297,8 +345,8 @@ export const ReportsHub: React.FC = () => {
                       </div>
                       <div className="mt-4">
                         <div className="flex items-center text-sm">
-                          <span className="flex items-center text-green-600">
-                            ↗ 8%
+                          <span className={`flex items-center ${commissionsGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {commissionsGrowth >= 0 ? '↗' : '↘'} {Math.abs(commissionsGrowth)}%
                           </span>
                           <span className="ml-2 text-gray-500">vs mois précédent</span>
                         </div>
@@ -327,8 +375,8 @@ export const ReportsHub: React.FC = () => {
                       </div>
                       <div className="mt-4">
                         <div className="flex items-center text-sm">
-                          <span className="flex items-center text-green-600">
-                            ↗ 5%
+                          <span className={`flex items-center ${contractsGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {contractsGrowth >= 0 ? '↗' : '↘'} {Math.abs(contractsGrowth)}%
                           </span>
                           <span className="ml-2 text-gray-500">vs mois précédent</span>
                         </div>
@@ -357,8 +405,8 @@ export const ReportsHub: React.FC = () => {
                       </div>
                       <div className="mt-4">
                         <div className="flex items-center text-sm">
-                          <span className="flex items-center text-green-600">
-                            ↗ 15%
+                          <span className={`flex items-center ${clientsGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {clientsGrowth >= 0 ? '↗' : '↘'} {Math.abs(clientsGrowth)}%
                           </span>
                           <span className="ml-2 text-gray-500">vs mois précédent</span>
                         </div>
@@ -368,45 +416,41 @@ export const ReportsHub: React.FC = () => {
                 </div>
 
                 {/* Charts */}
-                {revenueChartData && propertyTypeData && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card>
-                      <div className="p-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                          Évolution des revenus
-                        </h3>
-                        <div className="h-64">
-                          <Bar data={revenueChartData} options={chartOptions} />
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card>
-                      <div className="p-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                          Répartition par type de bien
-                        </h3>
-                        <div className="h-64">
-                          <Pie data={propertyTypeData} options={{ responsive: true, maintainAspectRatio: false }} />
-                        </div>
-                      </div>
-                    </Card>
-                  </div>
-                )}
-
-                {/* Additional Chart */}
-                {occupancyData && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <Card>
                     <div className="p-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                        Taux d'occupation mensuel
+                        Évolution des revenus
                       </h3>
                       <div className="h-64">
-                        <Line data={occupancyData} options={chartOptions} />
+                        <Bar data={revenueChartData} options={chartOptions} />
                       </div>
                     </div>
                   </Card>
-                )}
+
+                  <Card>
+                    <div className="p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                        Répartition par type de bien
+                      </h3>
+                      <div className="h-64">
+                        <Pie data={propertyTypeData} options={{ responsive: true, maintainAspectRatio: false }} />
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Additional Chart */}
+                <Card>
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      Taux d'occupation mensuel
+                    </h3>
+                    <div className="h-64">
+                      <Line data={occupancyData} options={chartOptions} />
+                    </div>
+                  </div>
+                </Card>
 
                 {/* Performance Indicators */}
                 <Card>
@@ -420,27 +464,26 @@ export const ReportsHub: React.FC = () => {
                           {reportData.overview.occupancyRate}%
                         </div>
                         <p className="text-sm text-gray-600">Taux d'occupation</p>
-                        <Badge variant="success" size="sm" className="mt-2">
-                          {reportData.overview.occupancyRate >= 90 ? 'Excellent' :
-                            reportData.overview.occupancyRate >= 75 ? 'Bon' : 'À améliorer'}
+                        <Badge variant={reportData.overview.occupancyRate >= 90 ? 'success' : reportData.overview.occupancyRate >= 75 ? 'info' : 'warning'} size="sm" className="mt-2">
+                          {reportData.overview.occupancyRate >= 90 ? 'Excellent' : reportData.overview.occupancyRate >= 75 ? 'Bon' : 'À améliorer'}
                         </Badge>
                       </div>
                       <div className="text-center">
                         <div className="text-3xl font-bold text-blue-600 mb-2">
-                          {Math.floor(Math.random() * 20) + 10}j
+                          -j
                         </div>
                         <p className="text-sm text-gray-600">Délai moyen de location</p>
                         <Badge variant="info" size="sm" className="mt-2">
-                          Bon
+                          À calculer
                         </Badge>
                       </div>
                       <div className="text-center">
                         <div className="text-3xl font-bold text-yellow-600 mb-2">
-                          {Math.floor(reportData.overview.occupancyRate * 1.05)}%
+                          -%
                         </div>
                         <p className="text-sm text-gray-600">Satisfaction client</p>
                         <Badge variant="warning" size="sm" className="mt-2">
-                          Très bon
+                          À calculer
                         </Badge>
                       </div>
                     </div>

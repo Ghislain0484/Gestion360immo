@@ -1,5 +1,5 @@
-import { PlatformStats } from "../types/admin";
-import { supabase } from "./supabase";
+import { PlatformStats } from "../types/db";
+import { supabase } from "./config";
 
 export async function getPlatformStats(): Promise<PlatformStats> {
   const { count: pending } = await supabase

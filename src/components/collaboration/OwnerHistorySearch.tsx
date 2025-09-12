@@ -7,7 +7,8 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Owner, Message, Notification } from '../../types/db';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, dbService } from '../../lib/supabase';
+import { supabase } from '../../lib/config';
+import { dbService } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 interface OwnerHistory extends Owner {

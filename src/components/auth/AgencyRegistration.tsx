@@ -8,7 +8,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import { AgencyRegistrationRequest, AuditLog, AgencyFormData, UserFormData } from '../../types/db';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase, supabaseAnon } from '../../lib/config';
 
 interface AgencyRegistrationProps {
   isOpen: boolean;
@@ -77,9 +77,13 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     setLogoFile(file);
 
     try {
-      const fileName = `logos/${Date.now()}_${file.name}`;
+      // Log pour déboguer la session (doit être null pour anonyme)
+      console.log('SupabaseAnon session:', await supabaseAnon.auth.getSession());
+
+      // Utiliser temp-registration/ pour respecter RLS anon
+      const fileName = `temp-registration/${Date.now()}_${file.name}`;
       console.log('Uploading logo to bucket: agency-logos, file:', fileName);
-      const { data, error } = await supabase.storage
+      const { data, error } = await supabaseAnon.storage  // Utiliser supabaseAnon pour anonyme
         .from('agency-logos')
         .upload(fileName, file, { cacheControl: '3600', upsert: false });
       if (error) {
@@ -87,7 +91,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         toast.error(`Erreur lors du téléchargement du logo: ${error.message}`);
         return;
       }
-      const publicUrl = supabase.storage.from('agency-logos').getPublicUrl(fileName).data.publicUrl;
+      const publicUrl = supabaseAnon.storage.from('agency-logos').getPublicUrl(fileName).data.publicUrl;
       console.log('Logo uploaded successfully, public URL:', publicUrl);
       updateAgencyData({ logo_url: publicUrl });
       toast.success('Logo téléchargé avec succès');
@@ -120,6 +124,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     [admin]
   );
 
+  /*
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -197,7 +202,10 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      console.log('Creating user in users table with payload:', userPayload);
+      console.log('Creating user in users table with payload:', userPayload); // Log pour tracer id
+      if (!userPayload.id) {
+        throw new Error('ID utilisateur manquant après signUp');
+      }
       const newUser = await dbService.users.create(userPayload);
       console.log('User created in users table:', newUser);
 
@@ -243,6 +251,153 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
       );
 
       // Call onSubmit for UI updates
+      await onSubmit(agencyData, directorData, result.id);
+
+      toast.success(
+        `✅ Demande d'inscription envoyée !\n\n` +
+        `🏢 Agence : ${agencyData.name}\n` +
+        `👤 Directeur : ${directorData.first_name} ${directorData.last_name}\n` +
+        `📧 Email : ${directorData.email}\n` +
+        `📱 Téléphone : ${agencyData.phone}\n` +
+        `🏙️ Ville : ${agencyData.city}\n\n` +
+        `🆔 ID : ${result.id}\n` +
+        `⏱️ Validation sous 24–48h\n` +
+        `📧 Vous recevrez vos identifiants par email`
+      );
+      onClose();
+    } catch (err: any) {
+      console.error('❌ Erreur inscription agence:', err.message, err.stack);
+      const errorMessage = err.message.includes('duplicate key')
+        ? 'Cette agence ou cet email est déjà enregistré'
+        : err.message || 'Erreur lors de l’inscription';
+      await logAudit('registration_request_failed', {
+        agency_name: agencyData.name,
+        director_email: directorData.email.toLowerCase(),
+        error: errorMessage,
+        timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+      });
+      toast.error(errorMessage);
+    }
+  };
+  */
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // --- Validations ---
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?\d{10,15}$/;
+
+    if (!agencyData.name.trim() || !agencyData.commercialRegister.trim()) {
+      toast.error('Le nom de l’agence et le registre de commerce sont obligatoires');
+      return;
+    }
+    if (!directorData.first_name.trim() || !directorData.last_name.trim() || !directorData.email.trim()) {
+      toast.error('Les informations du directeur sont obligatoires');
+      return;
+    }
+    if (!emailRegex.test(directorData.email)) {
+      toast.error('Format d’email invalide');
+      return;
+    }
+    if (!agencyData.phone.trim() || !phoneRegex.test(agencyData.phone)) {
+      toast.error('Numéro de téléphone invalide (10-15 chiffres, ex: +225XXXXXXXXXX)');
+      return;
+    }
+    if (!agencyData.city.trim() || !agencyData.address.trim()) {
+      toast.error('Ville et adresse sont obligatoires');
+      return;
+    }
+    if (!directorData.password || directorData.password.length < 8) {
+      toast.error('Mot de passe : minimum 8 caractères');
+      return;
+    }
+    if (agencyData.isAccredited && !agencyData.accreditationNumber?.trim()) {
+      toast.error('Numéro d’agrément requis si l’agence est agréée');
+      return;
+    }
+
+    try {
+      // --- Vérifier si email déjà utilisé ---
+      const { data: existingUsers } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', directorData.email.toLowerCase());
+      if (existingUsers?.length) {
+        toast.error('Cet email est déjà utilisé');
+        return;
+      }
+
+      // --- Créer l'utilisateur Auth ---
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: directorData.email.toLowerCase(),
+        password: directorData.password,
+        options: {
+          data: {
+            first_name: directorData.first_name,
+            last_name: directorData.last_name,
+            role: directorData.role,
+          },
+        },
+      });
+      if (authError || !authData.user) {
+        console.error('Auth signUp error:', authError);
+        throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur");
+      }
+
+      // --- Insérer dans la table users ---
+      const userPayload = {
+        id: authData.user.id,
+        email: directorData.email.toLowerCase(),
+        first_name: directorData.first_name,
+        last_name: directorData.last_name,
+        is_active: directorData.is_active,
+        permissions: directorData.permissions,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const newUser = await dbService.users.create(userPayload);
+
+      // --- Créer la demande d’inscription d’agence ---
+      const requestData: Partial<AgencyRegistrationRequest> = {
+        agency_name: agencyData.name,
+        commercial_register: agencyData.commercialRegister,
+        director_first_name: directorData.first_name,
+        director_last_name: directorData.last_name,
+        director_email: directorData.email.toLowerCase(),
+        phone: agencyData.phone,
+        city: agencyData.city,
+        address: agencyData.address,
+        logo_url: agencyData.logo_url || null,
+        is_accredited: agencyData.isAccredited,
+        accreditation_number: agencyData.isAccredited ? agencyData.accreditationNumber : null,
+        status: 'pending',
+        director_auth_user_id: authData.user.id,
+        created_at: new Date().toISOString(),
+      };
+
+      const { data: result, error: requestError } = await supabase
+        .from('agency_registration_requests')
+        .insert([requestData])
+        .select('id')
+        .single();
+      if (requestError) {
+        console.error('agency_registration_requests.insert error:', requestError);
+        throw new Error(`agency_registration_requests.insert | code=${requestError.code} | msg=${requestError.message}`);
+      }
+
+      // --- Audit ---
+      await logAudit(
+        'registration_request_submitted',
+        {
+          ...requestData,
+          registration_id: result.id,
+          user_id: authData.user.id,
+          timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+        },
+        result.id
+      );
+
+      // --- Feedback UI ---
       await onSubmit(agencyData, directorData, result.id);
 
       toast.success(

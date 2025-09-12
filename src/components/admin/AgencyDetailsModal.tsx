@@ -2,8 +2,8 @@ import React from 'react';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Agency, SubscriptionStatus, PlanType } from '../../types/db';
-import { BadgeVariant } from '../../types/ui';
+import { Agency } from '../../types/db';
+import { BadgeVariant, SubscriptionStatus, PlanType } from '../../types/enums';
 
 interface AgencyDetailsModalProps {
   isOpen: boolean;

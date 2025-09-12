@@ -6,8 +6,8 @@ import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { dbService } from '../../lib/supabase';
-import { AgencySubscription, SubscriptionStatus, PlanType, AuditLog } from '../../types/db';
-import { BadgeVariant } from '../../types/ui';
+import { AgencySubscription, AuditLog } from '../../types/db';
+import { BadgeVariant, SubscriptionStatus, PlanType } from '../../types/enums';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Plan {

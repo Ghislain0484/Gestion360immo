@@ -4,7 +4,8 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { dbService } from '../../lib/supabase';
-import { AgencyRegistrationRequest, RegistrationStatus } from '../../types/db';
+import { AgencyRegistrationRequest } from '../../types/db';
+import { RegistrationStatus } from '../../types/enums';
 
 interface Toast {
   message: string;

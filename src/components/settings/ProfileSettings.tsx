@@ -4,22 +4,32 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService, supabase } from '../../lib/supabase';
+import { dbService } from '../../lib/supabase';
+import { supabase } from '../../lib/config';
 
 export const ProfileSettings: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
-    firstName: user?.first_name || '',
-    lastName: user?.last_name || '',
+    first_name: user?.first_name || '',
+    last_name: user?.last_name || '',
     email: user?.email || '',
-    phone: '',
+    phone: user?.phone || '',
     avatar: user?.avatar || '',
   });
 
   const handleAvatarUpload = (file: File) => {
+    if (!user?.id) {
+      toast.error('Utilisateur non authentifié pour upload avatar');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Le fichier doit être inférieur à 2 Mo');
+      return;
+    }
     setAvatarFile(file);
     const url = URL.createObjectURL(file);
     setFormData(prev => ({ ...prev, avatar: url }));
@@ -27,23 +37,22 @@ export const ProfileSettings: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user?.id) {
+      toast.error('Utilisateur non authentifié');
+      return;
+    }
 
-    // Validation des données
-    if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      alert('Le prénom et le nom sont obligatoires');
+    // --- Validation ---
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      toast.error('Le prénom et le nom sont obligatoires');
       return;
     }
-    
-    // Validation email
     if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      alert('Format d\'email invalide');
+      toast.error('Format d\'email invalide');
       return;
     }
-    
-    // Validation téléphone si fourni
     if (formData.phone && !/^(\+225)?[0-9\s-]{8,15}$/.test(formData.phone)) {
-      alert('Format de téléphone invalide');
+      toast.error('Format de téléphone invalide');
       return;
     }
 
@@ -57,78 +66,65 @@ export const ProfileSettings: React.FC = () => {
       if (avatarFile && supabase) {
         try {
           console.log('📤 Upload avatar vers Supabase Storage...');
-          const fileName = `avatars/${user.id}-${Date.now()}.${avatarFile.name.split('.').pop()}`;
-          
-          const { data: uploadData, error: uploadError } = await supabase.storage
+          const ext = avatarFile.name.split('.').pop();
+          const fileName = `${user.id}-${Date.now()}.${ext}`;
+
+          const { error: uploadError } = await supabase.storage
             .from('avatars')
             .upload(fileName, avatarFile, {
               cacheControl: '3600',
               upsert: true
             });
-            
+
           if (uploadError) {
             console.warn('⚠️ Erreur upload avatar:', uploadError);
+            toast.error('Erreur lors de l\'upload de l\'avatar');
           } else {
-            const { data: { publicUrl } } = supabase.storage
+            const { data } = supabase.storage
               .from('avatars')
               .getPublicUrl(fileName);
-            avatarUrl = publicUrl;
-            console.log('✅ Avatar uploadé:', publicUrl);
+
+            avatarUrl = data?.publicUrl || avatarUrl;
+            console.log('✅ Avatar uploadé:', avatarUrl);
+            toast.success('Avatar mis à jour avec succès');
           }
         } catch (uploadError) {
-          console.warn('⚠️ Erreur upload avatar, utilisation URL locale');
+          console.warn('⚠️ Erreur upload avatar, utilisation URL locale', uploadError);
+          toast.error('Erreur lors de l\'upload de l\'avatar');
         }
       }
-      
-      // Mise à jour du profil utilisateur
+
+      // --- Mise à jour du profil ---
       const updateData = {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
         email: formData.email,
         avatar: avatarUrl,
+        phone: formData.phone,
       };
-      
+
       console.log('📝 Données à sauvegarder:', updateData);
-      
-      try {
-        const result = await dbService.users.update(user.id, updateData);
-        console.log('✅ Profil sauvegardé:', result);
-        
-        // Mettre à jour les données utilisateur en localStorage
-        const updatedUser = {
-          ...user,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          avatar: avatarUrl,
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        
-        alert('✅ Profil mis à jour avec succès !');
-        
-        // Recharger la page pour appliquer les changements
-        window.location.reload();
-        
-      } catch (updateError) {
-        console.error('❌ Erreur mise à jour profil:', updateError);
-        
-        // Sauvegarder localement en cas d'erreur
-        const updatedUser = {
-          ...user,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          avatar: avatarUrl,
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        
-        alert('✅ Profil mis à jour localement ! Les changements seront synchronisés dès que possible.');
-        window.location.reload();
-      }
-      
-    } catch (error) {
-      console.error('❌ Erreur générale mise à jour profil:', error);
-      alert('❌ Erreur lors de la mise à jour du profil. Veuillez réessayer.');
+
+      const result = await dbService.users.update(user.id, updateData);
+      console.log('✅ Profil sauvegardé:', result);
+
+      // --- Mettre à jour localStorage ---
+      const updatedUser = {
+        ...user,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        avatar: avatarUrl,
+        phone: formData.phone,
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      toast.success('✅ Profil mis à jour avec succès !');
+      // window.location.reload(); // Optionnel : rafraîchir pour recharger useAuth
+
+    } catch (err) {
+      console.error('❌ Erreur mise à jour profil:', err);
+      toast.error('❌ Erreur lors de la mise à jour du profil. Veuillez réessayer.');
     } finally {
       setLoading(false);
     }
@@ -140,9 +136,9 @@ export const ProfileSettings: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-6">
           Informations du profil
         </h3>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Avatar Section */}
+          {/* Avatar */}
           <div className="flex items-center space-x-6">
             <div className="relative">
               {formData.avatar ? (
@@ -154,7 +150,7 @@ export const ProfileSettings: React.FC = () => {
               ) : (
                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
                   <span className="text-2xl font-semibold text-blue-600">
-                    {formData.firstName?.[0]}{formData.lastName?.[0]}
+                    {formData.first_name?.[0]}{formData.last_name?.[0]}
                   </span>
                 </div>
               )}
@@ -188,14 +184,14 @@ export const ProfileSettings: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Prénom"
-              value={formData.firstName}
-              onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+              value={formData.first_name}
+              onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
               required
             />
             <Input
               label="Nom"
-              value={formData.lastName}
-              onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+              value={formData.last_name}
+              onChange={(e) => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
               required
             />
           </div>
@@ -225,8 +221,8 @@ export const ProfileSettings: React.FC = () => {
               </p>
             </div>
             <Badge variant="info" size="sm">
-              {user?.role === 'director' ? 'Directeur' : 
-               user?.role === 'manager' ? 'Chef d\'agence' : 'Agent'}
+              {user?.role === 'director' ? 'Directeur' :
+                user?.role === 'manager' ? 'Chef d\'agence' : 'Agent'}
             </Badge>
           </div>
 

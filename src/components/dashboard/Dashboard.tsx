@@ -1,18 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  Building2, 
-  Users, 
-  UserCheck, 
-  FileText, 
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Receipt,
-  Eye,
-  Edit,
-  Printer
+import {
+  Building2, Users, UserCheck, FileText, TrendingUp, AlertTriangle,
+  CheckCircle, Clock, Receipt, Eye, Edit, Printer
 } from 'lucide-react';
 import { StatsCard } from './StatsCard';
 import { Card } from '../ui/Card';
@@ -55,13 +45,25 @@ interface Payment {
   status: 'completed';
 }
 
+interface GetAllParams {
+  agency_id?: string;
+}
+
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, admin } = useAuth();
+  const { user, admin, isLoading: authLoading } = useAuth();
   const [showAllActivities, setShowAllActivities] = useState(false);
   const [showAllRentals, setShowAllRentals] = useState(false);
   const [showAllPayments, setShowAllPayments] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+      </div>
+    );
+  }
 
   if (!user && !admin) {
     return (
@@ -76,19 +78,15 @@ export const Dashboard: React.FC = () => {
 
   // Real-time data
   const { data: recentContracts, loading: contractsLoading, error: contractsError } = useRealtimeData<Contract>(
-    async (agencyId: string) => {
-      const contracts = await dbService.contracts.getAll();
-      return contracts.filter((c: Contract) => c.agency_id === agencyId);
-    },
-    'contracts'
+    (params?: GetAllParams) => dbService.contracts.getAll(params),
+    'contracts',
+    { agency_id: user?.agency_id ?? undefined }
   );
 
   const { data: recentProperties, loading: propertiesLoading, error: propertiesError } = useRealtimeData<Property>(
-    async (agencyId: string) => {
-      const properties = await dbService.properties.getAll();
-      return properties.filter((p: Property) => p.agency_id === agencyId);
-    },
-    'properties'
+    (params?: GetAllParams) => dbService.properties.getAll(params),
+    'properties',
+    { agency_id: user?.agency_id ?? undefined }
   );
 
   const [recentReceipts, setRecentReceipts] = useState<RentReceipt[]>([]);
@@ -107,12 +105,9 @@ export const Dashboard: React.FC = () => {
       try {
         setReceiptsLoading(true);
         setReceiptsError(null);
-        const receipts = await dbService.rentReceipts.getAll();
+        const receipts = await dbService.rentReceipts.getAll({ agency_id: user.agency_id ?? undefined });
         if (!abortController.signal.aborted) {
-          const filteredReceipts = receipts.filter((r: RentReceipt) => 
-            recentContracts.some((c: Contract) => c.id === r.contract_id && c.agency_id === user.agency_id)
-          );
-          setRecentReceipts(filteredReceipts);
+          setRecentReceipts(receipts);
         }
       } catch (err) {
         if (abortController.signal.aborted) return;
@@ -160,13 +155,28 @@ export const Dashboard: React.FC = () => {
       title: 'Contrats en Cours',
       value: dashboardStats.activeContracts.toString(),
       icon: FileText,
-      trend: { 
-        value: dashboardStats.totalContracts > dashboardStats.activeContracts ? 3 : -3, 
-        isPositive: dashboardStats.totalContracts <= dashboardStats.activeContracts 
+      trend: {
+        value: dashboardStats.totalContracts > dashboardStats.activeContracts ? 3 : -3,
+        isPositive: dashboardStats.totalContracts <= dashboardStats.activeContracts
       },
       color: 'red' as const,
     },
   ] : [], [dashboardStats]);
+
+  const getTimeAgo = (date: string | Date): string => {
+    try {
+      const now = new Date();
+      const past = typeof date === 'string' ? new Date(date) : date;
+      if (isNaN(past.getTime())) throw new Error('Invalid date');
+      const diffInMinutes = Math.floor((now.getTime() - past.getTime()) / (1000 * 60));
+
+      if (diffInMinutes < 60) return `${diffInMinutes} min`;
+      if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} h`;
+      return `${Math.floor(diffInMinutes / 1440)} j`;
+    } catch {
+      return 'Inconnu';
+    }
+  };
 
   const generateRecentActivities = useMemo((): Activity[] => {
     const activities: Activity[] = [];
@@ -198,21 +208,11 @@ export const Dashboard: React.FC = () => {
     }
 
     return activities.sort((a, b) => {
-      const dateA = new Date(a.time.includes('min') ? Date.now() - parseInt(a.time) * 60 * 1000 : a.time.includes('h') ? Date.now() - parseInt(a.time) * 60 * 60 * 1000 : Date.now() - parseInt(a.time) * 24 * 60 * 60 * 1000);
-      const dateB = new Date(b.time.includes('min') ? Date.now() - parseInt(b.time) * 60 * 1000 : b.time.includes('h') ? Date.now() - parseInt(b.time) * 60 * 60 * 1000 : Date.now() - parseInt(b.time) * 24 * 60 * 60 * 1000);
+      const dateA = new Date(a.time.includes('min') ? Date.now() - parseInt(a.time) * 60 * 1000 : a.time.includes('h') ? Date.now() - parseInt(a.time) * 60 * 60 * 1000 : a.time.includes('j') ? Date.now() - parseInt(a.time) * 24 * 60 * 60 * 1000 : Date.now());
+      const dateB = new Date(b.time.includes('min') ? Date.now() - parseInt(b.time) * 60 * 1000 : b.time.includes('h') ? Date.now() - parseInt(b.time) * 60 * 60 * 1000 : b.time.includes('j') ? Date.now() - parseInt(b.time) * 24 * 60 * 60 * 1000 : Date.now());
       return dateB.getTime() - dateA.getTime();
     }).slice(0, 4);
   }, [recentProperties, recentContracts]);
-
-  const getTimeAgo = (date: string | Date): string => {
-    const now = new Date();
-    const past = new Date(date);
-    const diffInMinutes = Math.floor((now.getTime() - past.getTime()) / (1000 * 60));
-
-    if (diffInMinutes < 60) return `${diffInMinutes} min`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} h`;
-    return `${Math.floor(diffInMinutes / 1440)} j`;
-  };
 
   const generateUpcomingRentals = useMemo((): Rental[] => {
     if (!Array.isArray(recentContracts)) return [];
@@ -244,7 +244,7 @@ export const Dashboard: React.FC = () => {
         owner: `Propriétaire #${recentContracts.find((c: Contract) => c.id === receipt.contract_id)?.owner_id || 'Inconnu'}`,
         property: `Propriété #${recentContracts.find((c: Contract) => c.id === receipt.contract_id)?.property_id || 'Inconnu'}`,
         amount: receipt.total_amount,
-        date: new Date(receipt.created_at).toISOString().split('T')[0],
+        date: new Date(receipt.payment_date || receipt.created_at).toISOString().split('T')[0],
         receiptNumber: receipt.receipt_number,
         status: 'completed',
       }));
@@ -290,16 +290,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const isLoading = statsLoading || contractsLoading || propertiesLoading || receiptsLoading;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {error && (
@@ -319,13 +309,19 @@ export const Dashboard: React.FC = () => {
         </p>
       </div>
 
-      {stats.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statsLoading ? (
+          <div className="col-span-4 flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+          </div>
+        ) : stats.length > 0 ? (
+          stats.map((stat) => (
             <StatsCard key={stat.title} {...stat} />
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <p className="col-span-4 text-sm text-gray-500">Aucune statistique disponible</p>
+        )}
+      </div>
 
       {dashboardStats && (
         <Card className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border-emerald-200 shadow-elegant">
@@ -371,29 +367,34 @@ export const Dashboard: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {generateRecentActivities.length === 0 && (
-              <p className="text-sm text-gray-500">Aucune activité récente</p>
-            )}
-            {generateRecentActivities.map((activity) => (
-              <div key={activity.id} className="flex items-start space-x-3">
-                <div className="flex-shrink-0 mt-1">
-                  {getStatusIcon(activity.status)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {activity.title}
-                    </p>
-                    <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                      {activity.time}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 truncate">
-                    {activity.description}
-                  </p>
-                </div>
+            {propertiesLoading || contractsLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
               </div>
-            ))}
+            ) : generateRecentActivities.length === 0 ? (
+              <p className="text-sm text-gray-500">Aucune activité récente</p>
+            ) : (
+              generateRecentActivities.map((activity) => (
+                <div key={activity.id} className="flex items-start space-x-3">
+                  <div className="flex-shrink-0 mt-1">
+                    {getStatusIcon(activity.status)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {activity.title}
+                      </p>
+                      <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                        {activity.time}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 truncate">
+                      {activity.description}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </Card>
 
@@ -412,27 +413,32 @@ export const Dashboard: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {generateUpcomingRentals.length === 0 && (
-              <p className="text-sm text-gray-500">Aucun loyer à venir</p>
-            )}
-            {generateUpcomingRentals.map((rental) => (
-              <div key={rental.id} className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {rental.property}
-                  </p>
-                  <p className="text-sm text-gray-500 truncate">
-                    {rental.tenant} • {rental.dueDate}
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-900">
-                    {rental.amount}
-                  </span>
-                  {getStatusBadge(rental.status)}
-                </div>
+            {contractsLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
               </div>
-            ))}
+            ) : generateUpcomingRentals.length === 0 ? (
+              <p className="text-sm text-gray-500">Aucun loyer à venir</p>
+            ) : (
+              generateUpcomingRentals.map((rental) => (
+                <div key={rental.id} className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {rental.property}
+                    </p>
+                    <p className="text-sm text-gray-500 truncate">
+                      {rental.tenant} • {rental.dueDate}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-gray-900">
+                      {rental.amount}
+                    </span>
+                    {getStatusBadge(rental.status)}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </Card>
       </div>
@@ -460,63 +466,67 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          {generateRecentPayments.length === 0 && (
-            <p className="text-sm text-gray-500">Aucun paiement récent</p>
-          )}
-          {generateRecentPayments.map((payment) => (
-            <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <div className={`w-3 h-3 rounded-full ${
-                  payment.type === 'received' ? 'bg-green-500' : 'bg-blue-500'
-                }`} aria-hidden="true"></div>
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {payment.type === 'received' 
-                      ? `Loyer reçu - ${payment.tenant}` 
-                      : `Reversement - ${payment.owner}`
-                    }
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {payment.property} • {payment.receiptNumber}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="font-medium text-gray-900">
-                    {formatCurrency(payment.amount)}
-                  </p>
-                  <p className="text-sm text-gray-500">{payment.date}</p>
-                </div>
-                <div className="flex space-x-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => alert('Visualisation non implémentée')}
-                    aria-label="Voir les détails du paiement"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => alert('Modification non implémentée')}
-                    aria-label="Modifier le paiement"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => alert('Impression non implémentée')}
-                    aria-label="Imprimer le reçu"
-                  >
-                    <Printer className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+          {receiptsLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
             </div>
-          ))}
+          ) : generateRecentPayments.length === 0 ? (
+            <p className="text-sm text-gray-500">Aucun paiement récent</p>
+          ) : (
+            generateRecentPayments.map((payment) => (
+              <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${payment.type === 'received' ? 'bg-green-500' : 'bg-blue-500'
+                    }`} aria-hidden="true"></div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {payment.type === 'received'
+                        ? `Loyer reçu - ${payment.tenant}`
+                        : `Reversement - ${payment.owner}`
+                      }
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {payment.property} • {payment.receiptNumber}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="text-right">
+                    <p className="font-medium text-gray-900">
+                      {formatCurrency(payment.amount)}
+                    </p>
+                    <p className="text-sm text-gray-500">{payment.date}</p>
+                  </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => alert('Visualisation non implémentée')}
+                      aria-label="Voir les détails du paiement"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => alert('Modification non implémentée')}
+                      aria-label="Modifier le paiement"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => alert('Impression non implémentée')}
+                      aria-label="Imprimer le reçu"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
 
@@ -586,29 +596,30 @@ export const Dashboard: React.FC = () => {
         size="lg"
       >
         <div className="space-y-4">
-          {generateRecentActivities.length === 0 && (
+          {generateRecentActivities.length === 0 ? (
             <p className="text-sm text-gray-500">Aucune activité disponible</p>
-          )}
-          {generateRecentActivities.map((activity) => (
-            <div key={activity.id} className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg">
-              <div className="flex-shrink-0 mt-1">
-                {getStatusIcon(activity.status)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {activity.title}
-                  </p>
-                  <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                    {activity.time}
-                  </span>
+          ) : (
+            generateRecentActivities.map((activity) => (
+              <div key={activity.id} className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg">
+                <div className="flex-shrink-0 mt-1">
+                  {getStatusIcon(activity.status)}
                 </div>
-                <p className="text-sm text-gray-500 truncate">
-                  {activity.description}
-                </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {activity.title}
+                    </p>
+                    <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                      {activity.time}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 truncate">
+                    {activity.description}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </Modal>
 
@@ -619,27 +630,28 @@ export const Dashboard: React.FC = () => {
         size="lg"
       >
         <div className="space-y-3">
-          {generateUpcomingRentals.length === 0 && (
+          {generateUpcomingRentals.length === 0 ? (
             <p className="text-sm text-gray-500">Aucun loyer à venir</p>
+          ) : (
+            generateUpcomingRentals.map((rental) => (
+              <div key={rental.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {rental.property}
+                  </p>
+                  <p className="text-sm text-gray-500 truncate">
+                    {rental.tenant} • {rental.dueDate}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-gray-900">
+                    {rental.amount}
+                  </span>
+                  {getStatusBadge(rental.status)}
+                </div>
+              </div>
+            ))
           )}
-          {generateUpcomingRentals.map((rental) => (
-            <div key={rental.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {rental.property}
-                </p>
-                <p className="text-sm text-gray-500 truncate">
-                  {rental.tenant} • {rental.dueDate}
-                </p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-900">
-                  {rental.amount}
-                </span>
-                {getStatusBadge(rental.status)}
-              </div>
-            </div>
-          ))}
         </div>
       </Modal>
 
@@ -650,60 +662,60 @@ export const Dashboard: React.FC = () => {
         size="lg"
       >
         <div className="space-y-3">
-          {generateRecentPayments.length === 0 && (
+          {generateRecentPayments.length === 0 ? (
             <p className="text-sm text-gray-500">Aucun paiement récent</p>
+          ) : (
+            generateRecentPayments.map((payment) => (
+              <div key={payment.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-4 h-4 rounded-full ${payment.type === 'received' ? 'bg-green-500' : 'bg-blue-500'
+                    }`} aria-hidden="true"></div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {payment.type === 'received'
+                        ? `Loyer reçu - ${payment.tenant}`
+                        : `Reversement - ${payment.owner}`
+                      }
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {payment.property} • {payment.receiptNumber} • {payment.date}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <span className="font-medium text-gray-900">
+                    {formatCurrency(payment.amount)}
+                  </span>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => alert('Visualisation non implémentée')}
+                      aria-label="Voir les détails du paiement"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => alert('Modification non implémentée')}
+                      aria-label="Modifier le paiement"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => alert('Impression non implémentée')}
+                      aria-label="Imprimer le reçu"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
           )}
-          {generateRecentPayments.map((payment) => (
-            <div key={payment.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <div className={`w-4 h-4 rounded-full ${
-                  payment.type === 'received' ? 'bg-green-500' : 'bg-blue-500'
-                }`} aria-hidden="true"></div>
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {payment.type === 'received' 
-                      ? `Loyer reçu - ${payment.tenant}` 
-                      : `Reversement - ${payment.owner}`
-                    }
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {payment.property} • {payment.receiptNumber} • {payment.date}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <span className="font-medium text-gray-900">
-                  {formatCurrency(payment.amount)}
-                </span>
-                <div className="flex space-x-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => alert('Visualisation non implémentée')}
-                    aria-label="Voir les détails du paiement"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => alert('Modification non implémentée')}
-                    aria-label="Modifier le paiement"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => alert('Impression non implémentée')}
-                    aria-label="Imprimer le reçu"
-                  >
-                    <Printer className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
       </Modal>
     </div>

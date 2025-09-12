@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Building2, Eye, EyeOff } from 'lucide-react';
-import { supabase, dbService } from '../../lib/supabase';
+import { supabase } from '../../lib/config';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Toaster, toast } from 'react-hot-toast';
 import { getClientIP } from '../../utils/getUserIp';
+import { dbService } from '../../lib/supabase';
 
 export const PasswordResetConfirm: React.FC = () => {
   const [password, setPassword] = useState('');
