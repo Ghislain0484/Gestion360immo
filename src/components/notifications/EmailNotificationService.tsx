@@ -4,7 +4,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
-import { EmailNotification, Contract, Property, RentReceipt, Tenant } from '../../types/db';
+import { EmailNotification, Contract, Property } from '../../types/db';
 import { useAuth, AuthUser } from '../../contexts/AuthContext';
 import Chart from 'chart.js/auto';
 
@@ -195,7 +195,7 @@ export const EmailNotificationService: React.FC<EmailNotificationServiceProps> =
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstanceRef = useRef<Chart | null>(null);
 
-  const { data: notifications, loading, error } = useRealtimeData<EmailNotification>(
+  const { data: notifications, initialLoading, error } = useRealtimeData<EmailNotification>(
     async (agencyId: string) => dbService.emailNotifications.getByAgency(agencyId),
     'email_notifications'
   );
@@ -212,7 +212,7 @@ export const EmailNotificationService: React.FC<EmailNotificationServiceProps> =
   }, [notifications]);
 
   useEffect(() => {
-    if (chartRef.current && !loading && !error && notifications) {
+    if (chartRef.current && !initialLoading && !error && notifications) {
       if (chartInstanceRef.current) chartInstanceRef.current.destroy();
 
       chartInstanceRef.current = new Chart(chartRef.current, {
@@ -244,7 +244,7 @@ export const EmailNotificationService: React.FC<EmailNotificationServiceProps> =
         chartInstanceRef.current = null;
       }
     };
-  }, [statusCounts, loading, error, notifications]);
+  }, [statusCounts, initialLoading, error, notifications]);
 
   if (!agencyId) {
     return (
@@ -254,7 +254,7 @@ export const EmailNotificationService: React.FC<EmailNotificationServiceProps> =
     );
   }
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>

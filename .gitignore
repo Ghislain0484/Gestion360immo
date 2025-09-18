@@ -27,5 +27,7 @@ dist-ssr
 
 # Files
 Schema_de_donnees_New.sql
+create_get_rent_receipts_by_agency.sql
+ToApply_OnProduction.md
 ToDo.md
 README.md

@@ -45,22 +45,22 @@ export const ReportsHub: React.FC = () => {
 
   // Données réelles de l'agence
   const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
-  const { data: properties, loading: propertiesLoading, error: propertiesError } = useRealtimeData<Property>(
+  const { data: properties, initialLoading: propertiesLoading, error: propertiesError } = useRealtimeData<Property>(
     (params) => dbService.properties.getAll(params),
     'properties',
     { agency_id: user?.agency_id ?? undefined } // Handle null to satisfy TS2322
   );
-  const { data: contracts, loading: contractsLoading, error: contractsError } = useRealtimeData<Contract>(
+  const { data: contracts, initialLoading: contractsLoading, error: contractsError } = useRealtimeData<Contract>(
     (params) => dbService.contracts.getAll(params),
     'contracts',
     { agency_id: user?.agency_id ?? undefined } // Handle null
   );
-  const { data: owners, loading: ownersLoading, error: ownersError } = useRealtimeData<Owner>(
+  const { data: owners, initialLoading: ownersLoading, error: ownersError } = useRealtimeData<Owner>(
     (params) => dbService.owners.getAll(params),
     'owners',
     { agency_id: user?.agency_id ?? undefined } // Handle null
   );
-  const { data: tenants, loading: tenantsLoading, error: tenantsError } = useRealtimeData<Tenant>(
+  const { data: tenants, initialLoading: tenantsLoading, error: tenantsError } = useRealtimeData<Tenant>(
     (params) => dbService.tenants.getAll(params),
     'tenants',
     { agency_id: user?.agency_id ?? undefined } // Handle null

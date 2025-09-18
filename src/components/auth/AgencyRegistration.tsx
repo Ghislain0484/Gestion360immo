@@ -8,7 +8,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import { AgencyRegistrationRequest, AuditLog, AgencyFormData, UserFormData } from '../../types/db';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, supabaseAnon } from '../../lib/config';
+import { supabase } from '../../lib/config';
 
 interface AgencyRegistrationProps {
   isOpen: boolean;
@@ -42,7 +42,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     first_name: '',
     last_name: '',
     role: 'director',
-    agency_id: null,
+    agency_id: undefined,
     permissions: {
       dashboard: true,
       properties: true,
@@ -78,12 +78,12 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 
     try {
       // Log pour déboguer la session (doit être null pour anonyme)
-      console.log('SupabaseAnon session:', await supabaseAnon.auth.getSession());
+      console.log('SupabaseAnon session:', await supabase.auth.getSession());
 
       // Utiliser temp-registration/ pour respecter RLS anon
       const fileName = `temp-registration/${Date.now()}_${file.name}`;
       console.log('Uploading logo to bucket: agency-logos, file:', fileName);
-      const { data, error } = await supabaseAnon.storage  // Utiliser supabaseAnon pour anonyme
+      const { data, error } = await supabase.storage  // Utiliser supabaseAnon pour anonyme
         .from('agency-logos')
         .upload(fileName, file, { cacheControl: '3600', upsert: false });
       if (error) {
@@ -91,7 +91,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         toast.error(`Erreur lors du téléchargement du logo: ${error.message}`);
         return;
       }
-      const publicUrl = supabaseAnon.storage.from('agency-logos').getPublicUrl(fileName).data.publicUrl;
+      const publicUrl = supabase.storage.from('agency-logos').getPublicUrl(fileName).data.publicUrl;
       console.log('Logo uploaded successfully, public URL:', publicUrl);
       updateAgencyData({ logo_url: publicUrl });
       toast.success('Logo téléchargé avec succès');

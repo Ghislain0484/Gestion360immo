@@ -5,7 +5,10 @@ import { Tenant, TenantFilters } from "../../types/db";
 
 export const tenantsService = {
     async getAll(filters: TenantFilters = {}): Promise<Tenant[]> {
-        let query = supabase.from('tenants').select('*').order('created_at', { ascending: false });
+        let query = supabase
+        .from('tenants')
+        .select('*')
+        .order('created_at', { ascending: false });
 
         if (filters.agency_id) {
             query = query.eq('agency_id', filters.agency_id);

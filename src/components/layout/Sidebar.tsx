@@ -19,8 +19,8 @@ interface NavigationItem {
 
 const getUserNavigation = (userRole: string | null): NavigationItem[] => [
   { name: 'Tableau de bord', href: '/dashboard', icon: Home },
-  { name: 'Propriétés', href: '/properties', icon: Building2 },
   { name: 'Propriétaires', href: '/owners', icon: Users },
+  { name: 'Propriétés', href: '/properties', icon: Building2 },
   { name: 'Locataires', href: '/tenants', icon: UserCheck },
   { name: 'Contrats', href: '/contracts', icon: FileText },
   { name: 'Quittances', href: '/receipts', icon: Receipt },

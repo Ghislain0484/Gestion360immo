@@ -24,7 +24,7 @@ export const ReceiptsList: React.FC = () => {
   const [filterYear, setFilterYear] = useState<'all' | string>('all');
   const [filterMethod, setFilterMethod] = useState<'all' | PayMethod>('all');
 
-  const { data: receipts = [], loading, error } = useRealtimeData<RentReceipt>(
+  const { data: receipts = [], initialLoading, error } = useRealtimeData<RentReceipt>(
     async () => dbService.rentReceipts.getAll(),
     'rent_receipts'
   );
