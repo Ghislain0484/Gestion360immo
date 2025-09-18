@@ -1,8 +1,8 @@
+import { AgencyEntity } from './db';
 import { MaritalStatus, PropertyTitle } from './enums';
 
-export interface Owner {
+export interface Owner extends AgencyEntity {
   id: string; // UUID
-  agency_id: string; // UUID, FK vers agencies(id)
   first_name: string;
   last_name: string;
   phone: string;

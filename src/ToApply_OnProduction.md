@@ -1,118 +1,104 @@
-1. Create agency-logos Bucket in Supabase
-The StorageApiError: Bucket not found indicates that the agency-logos bucket does not exist. Follow these steps to create it:
+1. Fix Multiple GoTrueClient Instances
+The config.ts creates two clients, which is causing the warning. While supabaseAnon is intended for unauthenticated uploads, it’s still initialized with the same URL and key, triggering the GoTrueClient warning. To fix this:
 
-a. Go to Supabase Dashboard:
+Solution: Use a single Supabase client (supabase) for all operations, including uploads, and handle authentication state explicitly in components or services that need anonymous access. Supabase supports anonymous operations with the same client by not requiring a session for public tables or storage buckets.
+Alternative: If supabaseAnon is strictly needed for specific upload scenarios, configure it with a different storageKey or disable its auth module entirely.
 
-    - Navigate to Storage > Buckets in your Supabase project.
-    - Click New Bucket and name it agency-logos.
-    - Set the bucket as public (or configure RLS for restricted access if needed).
+Updated config.ts:
+tsimport { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY manquants');
+  throw new Error('Configuration Supabase manquante');
+}
+
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: localStorage,
+    storageKey: 'supabase.auth.token',
+  },
+});
+
+// Note: Removed supabaseAnon to avoid multiple GoTrueClient instances
+// Use `supabase` for all operations, including anonymous uploads
+
+Rationale: The supabase client can handle both authenticated and anonymous operations (e.g., uploads to public storage buckets). Removing supabaseAnon eliminates the warning and simplifies the codebase.
+Action: Update dbService or any upload-related code (e.g., ImageUploader in PropertyForm.tsx) to use supabase instead of supabaseAnon. Ensure public storage buckets or tables have appropriate permissions for anonymous access.
 
 
-2. Set Storage Permissions:
 
-    - In the Supabase SQL Editor, run the following to allow uploads to the agency-logos bucket:
-    CREATE POLICY "Allow public upload to agency-logos" ON storage.objects
-    FOR INSERT
-    WITH CHECK (bucket_id = 'agency-logos' AND auth.role() IN ('anon', 'authenticated'));
+2. Document Upload in ContractForm:
 
-    If you want only authenticated users to upload, remove 'anon' from the auth.role() check.
-
-
-3. Update agency_users Table Schema
-Run the following SQL in the Supabase SQL Editor to make agency_id nullable:
-    ALTER TABLE agency_users
-        ALTER COLUMN agency_id DROP NOT NULL;
-
-
-
-
-Step 6: Addressing Implicit Questions
-
-Integration with Dashboard.tsx: The NotificationsCenter.tsx component can be linked from Dashboard.tsx by adding a button in the "Quick Actions" section:
-tsx<Button
-  variant="ghost"
-  onClick={() => navigate('/notifications')}
-  className="flex items-center space-x-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl hover:from-blue-100 hover:to-cyan-100 transition-smooth shadow-soft hover:shadow-elegant"
-  aria-label="Voir le centre de notifications"
->
-  <Bell className="h-8 w-8 text-blue-600" />
-  <div className="text-left">
-    <p className="font-medium text-gray-900">Notifications</p>
-    <p className="text-sm text-gray-500">Voir toutes</p>
+Add a file input for documents using supabase.storage:
+tsx
+<Card>
+  <div className="flex items-center mb-4">
+    <Upload className="h-5 w-5 text-purple-600 mr-2" />
+    <h3 className="text-lg font-medium text-gray-900">Documents</h3>
   </div>
-</Button>
+  <div>
+    <label htmlFor="documents" className="block text-sm font-medium text-gray-700 mb-2">
+      Télécharger des documents
+    </label>
+    <input
+      id="documents"
+      type="file"
+      multiple
+      onChange={async (e) => {
+        const files = e.target.files;
+        if (!files) return;
+        const uploadedUrls: string[] = [];
+        for (const file of files) {
+          const filePath = `contracts/${formData.agency_id}/${Date.now()}_${file.name}`;
+          const { error } = await supabase.storage.from('contract-documents').upload(filePath, file);
+          if (error) {
+            toast.error('Erreur lors du téléchargement du document');
+            return;
+          }
+          const { data: { publicUrl } } = supabase.storage.from('contract-documents').getPublicUrl(filePath);
+          uploadedUrls.push(publicUrl);
+        }
+        updateFormData({ documents: [...(formData.documents || []), ...uploadedUrls] });
+      }}
+      className="w-full"
+    />
+  </div>
+</Card>
 
-Error Handling: The component now handles errors gracefully with null checks and proper typing, consistent with Dashboard.tsx.
-Next Steps: Implementing notificationSettings.upsert and loading settings from the database will make the settings modal fully functional. Additionally, integrating with EmailNotificationService.tsx will enhance the notification system.
+Ensure the contract-documents bucket has an RLS policy:
 
-If you need the Notification interface added to db.ts, a chart for notification trends, or further integration with other components, let me know!28,7s
+create policy "Authenticated users upload" on storage.objects
+for insert
+with check (
+  bucket_id = 'contract-documents' and
+  auth.role() = 'authenticated'
+);
+create policy "Authenticated users read" on storage.objects
+for select
+using (
+  bucket_id = 'contract-documents' and
+  auth.role() = 'authenticated'
+);
 
-Next Steps: Implementing notificationSettings.upsert and loading settings from the database will make the settings modal fully functional. Additionally, integrating with EmailNotificationService.tsx will enhance the notification system.
 
 
-A vérifier :::::
-interface EmailNotification {
-  id: string;
-  type: 'new_user' | 'new_contract' | 'receipt_generated' | 'payment_reminder' | 'contract_expiry';
-  recipient: string;
-  subject: string;
-  content: string;
-  status: 'pending' | 'sent' | 'failed';
-  sent_at?: string;
-  agency_id: string;
-  created_at: string;
-}
+3. Verify RLS policies:
 
-interface RentReceipt {
-  id: string;
-  contract_id: string;
-  receipt_number: string;
-  total_amount: number;
-  period_month: string;
-  period_year: number;
-  created_at: string;
-}
-
-interface Contract {
-  id: string;
-  agency_id: string;
-  owner_id: string;
-  tenant_id: string;
-  property_id: string;
-  type: string;
-  monthly_rent?: number;
-  sale_price?: number;
-  start_date: string;
-  end_date?: string | null;
-  status: string;
-  created_at: string;
-}
-
-interface Property {
-  id: string;
-  agency_id: string;
-  owner_id: string;
-  title: string;
-  description: string;
-  location: JsonB;
-  details: JsonB;
-  standing: string;
-  rooms: JsonB[];
-  images: string[];
-  is_available: boolean;
-  for_sale: boolean;
-  for_rent: boolean;
-  city: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Tenant {
-  id: string;
-  agency_id: string;
-  first_name?: string;
-  last_name?: string;
-  email: string;
-  phone?: string;
-  created_at: string;
-}
+create policy "Agency users read" on contracts
+for select
+using (agency_id in (select agency_id from agency_users where user_id = auth.uid()));
+create policy "Agency users insert" on contracts
+for insert
+with check (agency_id in (select agency_id from agency_users where user_id = auth.uid()));
+create policy "Agency users update" on contracts
+for update
+using (agency_id in (select agency_id from agency_users where user_id = auth.uid()));
+create policy "Agency users delete" on contracts
+for delete
+using (agency_id in (select agency_id from agency_users where user_id = auth.uid()));

@@ -77,13 +77,13 @@ export const Dashboard: React.FC = () => {
   const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
 
   // Real-time data
-  const { data: recentContracts, loading: contractsLoading, error: contractsError } = useRealtimeData<Contract>(
+  const { data: recentContracts, initialLoading: contractsLoading, error: contractsError } = useRealtimeData<Contract>(
     (params?: GetAllParams) => dbService.contracts.getAll(params),
     'contracts',
     { agency_id: user?.agency_id ?? undefined }
   );
 
-  const { data: recentProperties, loading: propertiesLoading, error: propertiesError } = useRealtimeData<Property>(
+  const { data: recentProperties, initialLoading: propertiesLoading, error: propertiesError } = useRealtimeData<Property>(
     (params?: GetAllParams) => dbService.properties.getAll(params),
     'properties',
     { agency_id: user?.agency_id ?? undefined }

@@ -3,11 +3,24 @@ import { normalizeAgency } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { Agency } from "../../types/db";
 
+interface GetAllParams {
+  agency_id?: string;
+}
+
 export const agenciesService = {
-    async getAll(): Promise<Agency[]> {
-        const { data, error } = await supabase.from('agencies').select('*').order('created_at', { ascending: false });
-        if (error) throw new Error(formatSbError('❌ agencies.select', error));
-        return data ?? [];
+  async getAll({ agency_id }: GetAllParams = {}): Promise<Agency[]> {
+    let query = supabase
+      .from('agencies')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (agency_id) {
+      query = query.eq('id', agency_id);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(formatSbError('❌ agencies.select', error));
+    return data ?? [];
     },
     async getById(id: string): Promise<Agency | null> {
         const { data, error } = await supabase.from('agencies').select('*').eq('id', id).maybeSingle();

@@ -1,6 +1,7 @@
 import { PlanType, SubscriptionStatus, RegistrationStatus, PayMethod } from './enums';
+import { AgencyEntity } from './db';
 
-export interface Agency {
+export interface Agency extends AgencyEntity {
   id: string; // UUID
   name: string;
   commercial_register: string;
@@ -51,9 +52,8 @@ export interface AgencyRegistrationRequest {
   director_auth_user_id?: string | null; // UUID, FK vers users(id)
 }
 
-export interface AgencySubscription {
+export interface AgencySubscription extends AgencyEntity {
   id: string; // UUID
-  agency_id: string; // UUID, FK vers agencies(id)
   plan_type: PlanType;
   status: SubscriptionStatus;
   suspension_reason?: string | null;
@@ -90,9 +90,8 @@ export interface Reward {
   validUntil: string;
 }
 
-export interface AgencyRanking {
+export interface AgencyRanking extends AgencyEntity {
   id: string; // UUID
-  agency_id: string; // UUID, FK vers agencies(id)
   year: number;
   rank: number;
   total_score: number;

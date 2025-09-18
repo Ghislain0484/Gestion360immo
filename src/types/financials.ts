@@ -1,6 +1,8 @@
-export interface FinancialTransaction {
+import { AgencyEntity } from "./db";
+
+export interface FinancialTransaction extends AgencyEntity {
   id: string; // UUID
-  agency_id: string; // UUID, FK vers agencies(id)
+  //agency_id: string; // UUID, FK vers agencies(id)
   owner_id?: string | null; // UUID, FK vers owners(id)
   entity_type: 'owner' | 'tenant';
   type: 'income' | 'expense';
@@ -13,9 +15,9 @@ export interface FinancialTransaction {
   updated_at: string; // timestamptz
 }
 
-export interface FinancialStatement {
+export interface FinancialStatement extends AgencyEntity {
   id: string; // UUID
-  agency_id: string; // UUID, FK vers agencies(id)
+  //agency_id: string; // UUID, FK vers agencies(id)
   owner_id?: string | null; // UUID, FK vers owners(id)
   tenant_id?: string | null; // UUID, FK vers tenants(id)
   entity_type: 'owner' | 'tenant';

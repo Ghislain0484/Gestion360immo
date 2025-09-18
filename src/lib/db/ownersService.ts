@@ -5,7 +5,9 @@ import { Owner } from "../../types/db";
 
 interface GetAllParams {
   agency_id?: string;
-  [key: string]: any;
+  search?: string;
+  limit?: number;
+  offset?: number;
 }
 
 
@@ -21,21 +23,32 @@ export const ownersService = {
             throw new Error(formatSbError('❌ owners.findOne', error));
         }
         return data;
-  },
-  async getAll(params?: GetAllParams): Promise<Owner[]> {
-    let query = supabase
-      .from('owners')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (params?.agency_id) {
-      query = query.eq('agency_id', params.agency_id);
-    }
-
-            const { data, error } = await query;
-            if (error) throw new Error(formatSbError('❌ owners.select', error));
-            return data ?? [];
-        },
+    },
+    async getAll({
+        agency_id,
+        search,
+        limit = 10,
+        offset = 0,
+      }: GetAllParams = {}): Promise<Owner[]> {
+        let query = supabase
+          .from('owners')
+          .select('*')
+          .order('created_at', { ascending: false });
+    
+        if (agency_id) {
+          query = query.eq('agency_id', agency_id);
+        }
+        if (search) {
+          query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
+        }
+        if (limit !== undefined && offset !== undefined) {
+          query = query.range(offset, offset + limit - 1);
+        }
+    
+        const { data, error } = await query;
+        if (error) throw new Error(formatSbError('❌ owners.select', error));
+        return data ?? [];
+      },
     async getById(id: string): Promise<Owner> {
         const { data, error } = await supabase
             .from('owners')

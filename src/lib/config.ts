@@ -12,12 +12,12 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
-        storage: localStorage,
+        //detectSessionInUrl: true,
+        //storage: localStorage,
         storageKey: 'supabase.auth.token',
     },
 });
-
+/*
 // Client anonyme pour uploads sans session
 export const supabaseAnon: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
@@ -26,4 +26,4 @@ export const supabaseAnon: SupabaseClient = createClient(supabaseUrl, supabaseAn
         detectSessionInUrl: false,
         storage: undefined, // Désactiver le stockage de session
     },
-});
+});*/

@@ -11,7 +11,7 @@ const isSupabaseConfigured = Boolean(
 );
 
 export interface AuthUser extends User {
-  agency_id: string | null;
+  agency_id?: string | undefined;
   role: AgencyUserRole | null;
   temp_password?: string;
   permissions: UserPermissions;
@@ -31,7 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
 
@@ -45,37 +45,42 @@ const omit = <T extends object, K extends keyof T>(obj: T, keys: K[]): Omit<T, K
 // 🔹 Fonction utilitaire pour charger un utilisateur + agence
 const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => {
   console.log('🔍 AuthContext: fetchUserWithAgency pour userId:', userId);
-  const { data, error } = await supabase
-    .from("users")
-    .select(
-      "id, email, first_name, last_name, phone, avatar, is_active, permissions, created_at, updated_at, agency_users:agency_users!left(agency_id, role)"
-    )
-    .eq("id", userId)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select(
+        'id, email, first_name, last_name, phone, avatar, is_active, permissions, created_at, updated_at, agency_users:agency_users!left(agency_id, role)'
+      )
+      .eq('id', userId)
+      .single();
 
-  if (error || !data) {
-    console.error('❌ AuthContext: Erreur fetchUserWithAgency:', error);
+    if (error || !data) {
+      console.error('❌ AuthContext: Erreur fetchUserWithAgency:', error);
+      return null;
+    }
+
+    const agencyUser = Array.isArray(data.agency_users) ? data.agency_users[0] : data.agency_users;
+
+    const userData: AuthUser = {
+      id: data.id,
+      email: data.email,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      phone: data.phone,
+      avatar: data.avatar,
+      is_active: data.is_active ?? true,
+      permissions: data.permissions || {},
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      agency_id: agencyUser?.agency_id ?? undefined,
+      role: agencyUser?.role ?? null,
+    };
+    console.log('✅ AuthContext: Utilisateur chargé:', userData);
+    return userData;
+  } catch (err) {
+    console.error('❌ AuthContext: Erreur fetchUserWithAgency:', err);
     return null;
   }
-
-  const agencyUser = Array.isArray(data.agency_users) ? data.agency_users[0] : data.agency_users;
-
-  const userData: AuthUser = {
-    id: data.id,
-    email: data.email,
-    first_name: data.first_name,
-    last_name: data.last_name,
-    phone: data.phone,
-    avatar: data.avatar,
-    is_active: data.is_active ?? true,
-    permissions: data.permissions || {},
-    created_at: data.created_at,
-    updated_at: data.updated_at,
-    agency_id: agencyUser?.agency_id ?? null,
-    role: agencyUser?.role ?? null,
-  };
-  console.log('✅ AuthContext: Utilisateur chargé:', userData);
-  return userData;
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -93,10 +98,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('🔄 AuthContext: checkSession');
       isCheckingSessionRef.current = true;
-      setIsLoading(true);
       try {
         if (!supabase || !isSupabaseConfigured) {
           console.error('❌ AuthContext: Supabase non configuré');
+          setUser(null);
+          setAdmin(null);
           return;
         }
 
@@ -121,36 +127,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('🔄 AuthContext: Utilisateur inchangé');
             return prev;
           });
+          setAdmin(null);
           return;
         }
 
-        const { data: adminData } = await supabase
-          .from("platform_admins")
-          .select(
-            "id, user_id, role, permissions, is_active, last_login, created_at, updated_at"
-          )
-          .eq("user_id", data.session.user.id)
+        // Try as admin
+        const { data: adminData, error: adminError } = await supabase
+          .from('platform_admins')
+          .select('id, user_id, role, permissions, is_active, last_login, created_at, updated_at')
+          .eq('user_id', data.session.user.id)
           .single();
 
-        if (adminData) {
-          const newAdmin: PlatformAdmin = {
-            ...adminData,
-            permissions: adminData.permissions || {},
-            is_active: adminData.is_active ?? true,
-          };
-          setAdmin((prev) => {
-            const prevData = prev ? omit(prev, ['updated_at']) : null;
-            const newData = omit(newAdmin, ['updated_at']);
-            if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
-              console.log('🔄 AuthContext: Mise à jour admin:', newAdmin);
-              return newAdmin;
-            }
-            console.log('🔄 AuthContext: Admin inchangé');
-            return prev;
-          });
+        if (adminError || !adminData) {
+          console.error('❌ AuthContext: Pas de compte admin trouvé:', adminError);
+          setUser(null);
+          setAdmin(null);
+          return;
         }
+
+        const newAdmin: PlatformAdmin = {
+          ...adminData,
+          permissions: adminData.permissions || {},
+          is_active: adminData.is_active ?? true,
+        };
+        setAdmin((prev) => {
+          const prevData = prev ? omit(prev, ['updated_at']) : null;
+          const newData = omit(newAdmin, ['updated_at']);
+          if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
+            console.log('🔄 AuthContext: Mise à jour admin:', newAdmin);
+            return newAdmin;
+          }
+          console.log('🔄 AuthContext: Admin inchangé');
+          return prev;
+        });
+        setUser(null);
       } catch (err) {
         console.error('❌ AuthContext: Erreur checkSession:', err);
+        setUser(null);
+        setAdmin(null);
       } finally {
         isCheckingSessionRef.current = false;
         setIsLoading(false);
@@ -162,15 +176,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     console.log('🔄 AuthContext: Initialisation useEffect');
+    let isMounted = true;
+
     checkSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((evt, session) => {
       console.log('🔄 AuthContext: Événement auth state change', { evt, userId: session?.user?.id });
-      checkSession();
+      if (!isMounted) return;
+      if (evt === 'SIGNED_IN' || evt === 'INITIAL_SESSION') {
+        checkSession();
+      } else if (evt === 'SIGNED_OUT') {
+        setUser(null);
+        setAdmin(null);
+        setIsLoading(false);
+      }
     });
 
     return () => {
       console.log('🛑 AuthContext: Cleanup');
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
   }, [checkSession]);
@@ -193,6 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const u = await fetchUserWithAgency(data.user.id);
       if (!u) throw new Error('Utilisateur non associé à une agence');
       setUser(u);
+      setAdmin(null);
     } catch (err: any) {
       console.error('❌ AuthContext: Erreur login:', err);
       toast.error(err.message || 'Erreur lors de la connexion');
@@ -220,9 +245,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!data.user) throw new Error('Utilisateur non trouvé');
 
       const { data: adminData, error: adminError } = await supabase
-        .from("platform_admins")
-        .select("*")
-        .eq("user_id", data.user.id)
+        .from('platform_admins')
+        .select('*')
+        .eq('user_id', data.user.id)
         .single();
 
       if (adminError || !adminData) {
@@ -237,10 +262,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setAdmin(admin);
+      setUser(null);
       await supabase
-        .from("platform_admins")
+        .from('platform_admins')
         .update({ last_login: new Date().toISOString() })
-        .eq("user_id", data.user.id);
+        .eq('user_id', data.user.id);
 
       return admin;
     } catch (err: any) {

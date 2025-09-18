@@ -2,6 +2,7 @@ import { JsonB } from './enums';
 import {
   User, UserPermissions, UserFormData, PlatformAdmin, AgencyUser
 } from './users';
+import { AgencyEntity } from './common';
 import {
   Agency, AgencyFormData, AgencyRegistrationRequest, AgencySubscription,
   SubscriptionPayment, Reward, AgencyRanking
@@ -54,6 +55,7 @@ export type {
   SubscriptionPayment,
   Reward,
   AgencyRanking,
+  AgencyEntity,
   // Owners
   Owner,
   // Tenants

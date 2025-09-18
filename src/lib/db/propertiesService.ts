@@ -3,41 +3,48 @@ import { normalizeProperty } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { Property, Contract, Tenant } from "../../types/db";
 
+interface GetAllParams {
+  agency_id?: string;
+  owner_id?: string;
+  search?: string;
+  standing?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export const propertiesService = {
-    async getAll({
-        agency_id,
-        limit,
-        offset,
-        search,
-        standing
-    }: {
-        agency_id?: string;
-        limit?: number;
-        offset?: number;
-        search?: string;
-        standing?: string;
-    } = {}): Promise<Property[]> {
-        let query = supabase
-            .from('properties')
-            .select('*')
-            .order('created_at', { ascending: false });
+  async getAll({
+    agency_id,
+    owner_id,
+    search,
+    standing,
+    limit = 10,
+    offset = 0,
+  }: GetAllParams = {}): Promise<Property[]> {
+    let query = supabase
+      .from('properties')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-        if (agency_id) {
-            query = query.eq('agency_id', agency_id);
-        }
-        if (search) {
-            query = query.or(`title.ilike.%${search}%,location->>commune.ilike.%${search}%,location->>quartier.ilike.%${search}%`);
-        }
-        if (standing) {
-            query = query.eq('standing', standing);
-        }
-        if (limit !== undefined && offset !== undefined) {
-            query = query.range(offset, offset + limit - 1);
-        }
+      if (agency_id) {
+        query = query.eq('agency_id', agency_id);
+      }
+      if (owner_id) {
+        query = query.eq('owner_id', owner_id);
+      }
+      if (search) {
+        query = query.or(`title.ilike.%${search}%,location->>commune.ilike.%${search}%,location->>quartier.ilike.%${search}%`);
+      }
+      if (standing) {
+        query = query.eq('standing', standing);
+      }
+      if (limit !== undefined && offset !== undefined) {
+        query = query.range(offset, offset + limit - 1);
+      }
 
-        const { data, error } = await query;
-        if (error) throw new Error(formatSbError("❌ properties.select", error));
-        return data ?? [];
+    const { data, error } = await query;
+    if (error) throw new Error(formatSbError('❌ properties.select', error));
+    return data ?? [];
     },
     async create(property: Partial<Property>): Promise<Property> {
         const clean = normalizeProperty(property);

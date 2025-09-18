@@ -1,29 +1,29 @@
-import { ContractType, ContractStatus, PayMethod, JsonB } from './enums';
+import { AgencyEntity } from './db';
+import { ContractType, ContractStatus, PayMethod } from './enums';
 
-export interface Contract {
+export interface Contract extends AgencyEntity {
   id: string; // UUID
-  agency_id: string; // UUID, FK vers agencies(id)
   property_id: string; // UUID, FK vers properties(id)
   owner_id: string; // UUID, FK vers owners(id)
   tenant_id: string; // UUID, FK vers tenants(id)
   type: ContractType;
   start_date: string; // date
-  end_date?: string | null; // date
-  monthly_rent?: number | null;
-  sale_price?: number | null;
-  deposit?: number | null;
-  charges?: number | null;
+  end_date?: string | undefined; // date
+  monthly_rent?: number | undefined;
+  sale_price?: number | undefined;
+  deposit?: number | undefined;
+  charges?: number | undefined;
   commission_rate: number;
   commission_amount: number;
   status: ContractStatus;
   terms: string;
-  documents: JsonB; // Tableau JSONB
+  documents: string[]; // Updated to string[] for document URLs
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
 }
 
 // Interface pour les reçus de loyer
-export interface RentReceipt {
+export interface RentReceipt extends AgencyEntity {
   id: string;
   receipt_number: string;       // Numéro unique (ex: REC-20250901-001)
   period_month: string;         // Mois concerné (ex: "septembre")
@@ -43,7 +43,7 @@ export interface RentReceipt {
   tenant_id: string;
   property_id: string;
   owner_id: string;
-  agency_id?: string;           // Agence émettrice (optionnel si multi-agence)
+  //agency_id?: string;           // Agence émettrice (optionnel si multi-agence)
   owner_payment?: number;       // Montant reversé au propriétaire
 }
 

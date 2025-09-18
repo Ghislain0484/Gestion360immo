@@ -1,8 +1,8 @@
+import { AgencyEntity } from './db';
 import { MaritalStatus, PaymentReliability } from './enums';
 
-export interface Tenant {
+export interface Tenant extends AgencyEntity {
   id: string; // UUID
-  agency_id: string; // UUID, FK vers agencies(id)
   first_name: string;
   last_name: string;
   phone: string;
@@ -24,8 +24,7 @@ export interface Tenant {
 
 export type TenantFormData = Omit<Tenant, 'id' | 'created_at' | 'updated_at'>;
 
-export interface TenantFilters {
-  agency_id?: string;
+export interface TenantFilters extends AgencyEntity {
   limit?: number;
   offset?: number;
   search?: string;
