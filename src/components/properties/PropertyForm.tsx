@@ -333,7 +333,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                 value={formData.title}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 required
-                aria-label="Titre de la propriété"
+                aria-label="ID du bien"
               />
               <Input
                 label="Commune"
