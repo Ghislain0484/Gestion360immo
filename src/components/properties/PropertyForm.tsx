@@ -329,7 +329,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="Titre de la propriété"
+                label="ID du bien"
                 value={formData.title}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 required
