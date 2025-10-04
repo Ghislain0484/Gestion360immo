@@ -23,7 +23,7 @@ interface AgencyRegistrationRequest {
   director_first_name: string;
   director_last_name: string;
   status: 'pending' | 'approved' | 'rejected';
-  logo_temp_path?: string; // Chemin temporaire du logo dans storage (filename only or full path)
+  logo_temp_path?: string; // Chemin temporaire complet du logo dans storage, e.g., 'temp_logos/request_id/filename'
   created_agency_id?: string; // Set by trigger
   // Ajoutez d'autres champs si nécessaire
 }
@@ -107,14 +107,15 @@ export const AdminDashboard: React.FC = () => {
         const fileName = request.logo_temp_path.split('/').pop();
         if (!fileName) throw new Error('Nom de fichier invalide');
 
-        // Chemin source supposé (ajustez selon votre code d'upload, par ex. 'temp_logos/request_id/filename')
-        const sourcePath = `temp_logos/${request.id}/${fileName}`;
+        // Utiliser logo_temp_path comme chemin source complet
+        const sourcePath = request.logo_temp_path;
         const bucket = 'agency-logos'; // Remplacez par le nom de votre bucket
 
-        // Vérifier si le fichier source existe
+        // Vérifier si le fichier source existe (list the parent folder)
+        const parentFolder = sourcePath.split('/').slice(0, -1).join('/');
         const { data: listData, error: listError } = await supabase.storage
           .from(bucket)
-          .list(`temp_logos/${request.id}`, { limit: 1, search: fileName });
+          .list(parentFolder, { limit: 1, search: fileName });
 
         if (listError || !listData || listData.length === 0) {
           console.error('❌ Fichier logo source non trouvé:', listError);
@@ -176,8 +177,7 @@ export const AdminDashboard: React.FC = () => {
 
       // Supprimer le logo temp si présent
       if (request.logo_temp_path) {
-        const sourcePath = `temp_logos/${request.id}/${request.logo_temp_path}`;
-        const { error: removeError } = await supabase.storage.from('agency-logos').remove([sourcePath]);
+        const { error: removeError } = await supabase.storage.from('agency-logos').remove([request.logo_temp_path]);
         if (removeError) console.error('❌ Erreur suppression logo temp:', removeError);
       }
 
