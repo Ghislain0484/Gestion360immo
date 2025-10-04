@@ -114,7 +114,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Essayer en tant qu'utilisateur normal
+        // Vérifier d'abord si c'est un admin
+        const { data: adminData, error: adminError } = await supabase
+          .from('platform_admins')
+          .select('*')
+          .eq('user_id', data.session.user.id)
+          .single();
+
+        if (!adminError && adminData) {
+          const newAdmin: PlatformAdmin = {
+            ...adminData,
+            permissions: adminData.permissions || {},
+            is_active: adminData.is_active ?? true,
+          };
+          setAdmin((prev) => {
+            const prevData = prev ? omit(prev, ['updated_at']) : null;
+            const newData = omit(newAdmin, ['updated_at']);
+            if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
+              console.log('🔄 AuthContext: Mise à jour admin:', newAdmin);
+              return newAdmin;
+            }
+            console.log('🔄 AuthContext: Admin inchangé');
+            return prev;
+          });
+          setUser(null);
+          return;
+        }
+
+        // Si ce n'est pas un admin, essayer en tant qu'utilisateur normal
         const u = await fetchUserWithAgency(data.session.user.id);
         if (u) {
           setUser((prev) => {
@@ -131,36 +158,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Try as admin
-        const { data: adminData, error: adminError } = await supabase
-          .from('platform_admins')
-          .select('id, user_id, role, permissions, is_active, last_login, created_at, updated_at')
-          .eq('user_id', data.session.user.id)
-          .single();
-
-        if (adminError || !adminData) {
-          console.error('❌ AuthContext: Pas de compte admin trouvé:', adminError);
-          setUser(null);
-          setAdmin(null);
-          return;
-        }
-
-        const newAdmin: PlatformAdmin = {
-          ...adminData,
-          permissions: adminData.permissions || {},
-          is_active: adminData.is_active ?? true,
-        };
-        setAdmin((prev) => {
-          const prevData = prev ? omit(prev, ['updated_at']) : null;
-          const newData = omit(newAdmin, ['updated_at']);
-          if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
-            console.log('🔄 AuthContext: Mise à jour admin:', newAdmin);
-            return newAdmin;
-          }
-          console.log('🔄 AuthContext: Admin inchangé');
-          return prev;
-        });
+        // Si ni user ni admin, réinitialiser
         setUser(null);
+        setAdmin(null);
       } catch (err) {
         console.error('❌ AuthContext: Erreur checkSession:', err);
         setUser(null);
