@@ -9,6 +9,23 @@ import { PlatformSettings } from './PlatformSettings';
 import { PlatformStats, Agency, SystemAlert } from '../../types/db';
 import { dbService } from '../../lib/supabase';
 import { getPlatformStats } from '../../lib/adminApi';
+import { supabase } from '../../lib/config'; // Import supabase for storage operations
+import { toast } from 'react-hot-toast';
+
+interface AgencyRegistrationRequest {
+  id: string;
+  name: string;
+  commercial_register: string;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+  director_first_name: string;
+  director_last_name: string;
+  status: 'pending' | 'approved' | 'rejected';
+  logo_temp_path?: string; // Chemin temporaire du logo dans storage
+  // Ajoutez d'autres champs si nécessaire
+}
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -17,6 +34,7 @@ export const AdminDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [recentAgencies, setRecentAgencies] = useState<Agency[]>([]);
   const [systemAlerts, setSystemAlerts] = useState<SystemAlert[]>([]);
+  const [requests, setRequests] = useState<AgencyRegistrationRequest[]>([]);
 
   useEffect(() => {
     const fetchPlatformStats = async () => {
@@ -29,6 +47,10 @@ export const AdminDashboard: React.FC = () => {
         // Récupérer les agences récemment inscrites
         const agencies = await dbService.agencies.getRecent(5);
         setRecentAgencies(agencies || []);
+
+        // Récupérer les demandes en attente
+        const pendingRequests = await dbService.agency_registration_request.getAll({ status: 'pending' });
+        setRequests(pendingRequests || []);
 
         // Générer les alertes système basées sur les vraies données
         const alerts = await dbService.systemAlerts.systemAlerts();
@@ -48,13 +70,121 @@ export const AdminDashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const adminTabs = [
-    { id: 'overview', name: 'Vue d\'ensemble', icon: BarChart3 },
-    { id: 'agencies', name: 'Gestion Agences', icon: Building2 },
-    { id: 'subscriptions', name: 'Abonnements', icon: DollarSign },
-    { id: 'rankings', name: 'Classements', icon: Award },
-    { id: 'settings', name: 'Paramètres', icon: Settings },
-  ];
+  const approve = async (request: AgencyRegistrationRequest) => {
+    let transactionStarted = false;
+    try {
+      console.log('🔄 Début approbation pour request:', request.id);
+      setLoading(true);
+
+      // Mise à jour du status à approved
+      const { data: updatedRequest, error: updateError } = await supabase
+        .from('agency_registration_request')
+        .update({
+          status: 'approved',
+          // approved_by: admin?.id, // Décommentez si vous avez admin.id
+          approval_comments: 'Approved' // Ajoutez un champ pour comments si nécessaire
+        })
+        .eq('id', request.id)
+        .select('*')
+        .single();
+
+      if (updateError) {
+        console.error('❌ Erreur update request:', updateError);
+        throw updateError;
+      }
+      console.log('✅ Request mise à jour:', updatedRequest);
+      transactionStarted = true;
+
+      // Déplacer le logo si présent
+      if (request.logo_temp_path) {
+        const fileName = request.logo_temp_path.split('/').pop();
+        if (!fileName) throw new Error('Nom de fichier invalide');
+
+        // Vérifier si le fichier source existe
+        const sourcePath = request.logo_temp_path;
+        const bucket = 'agency-logos'; // Remplacez par le nom de votre bucket
+
+        const { data: listData, error: listError } = await supabase.storage
+          .from(bucket)
+          .list(sourcePath.split('/').slice(0, -1).join('/'), { limit: 1, search: fileName });
+
+        if (listError || !listData || listData.length === 0) {
+          console.error('❌ Fichier logo source non trouvé:', listError);
+          throw new Error('Fichier logo non trouvé');
+        }
+
+        // Déplacer le fichier
+        const targetPath = `logos/${updatedRequest.created_agency_id}/${fileName}`;
+        const { error: moveError } = await supabase.storage
+          .from(bucket)
+          .move(sourcePath, targetPath);
+
+        if (moveError) {
+          console.error('❌ Erreur move logo:', moveError);
+          throw moveError;
+        }
+
+        console.log('✅ Logo déplacé vers:', targetPath);
+
+        // Mettre à jour le chemin du logo dans l'agence
+        const { error: updateAgencyError } = await supabase
+          .from('agencies')
+          .update({ logo: targetPath })
+          .eq('id', updatedRequest.created_agency_id);
+
+        if (updateAgencyError) {
+          console.error('❌ Erreur update agency logo:', updateAgencyError);
+          throw updateAgencyError;
+        }
+      }
+
+      toast.success('Demande approuvée avec succès');
+      fetchPlatformStats(); // Rafraîchir les stats
+    } catch (err: any) {
+      console.error('❌ Erreur approve:', err);
+      toast.error(err.message || 'Erreur lors de l''approbation');
+      if (transactionStarted) {
+        // Rollback si possible
+        await supabase
+          .from('agency_registration_request')
+          .update({ status: 'pending' })
+          .eq('id', request.id);
+        console.log('🔙 Rollback effectué');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reject = async (request: AgencyRegistrationRequest, comments: string) => {
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('agency_registration_request')
+        .update({
+          status: 'rejected',
+          // approved_by: admin?.id,
+          approval_comments: comments
+        })
+        .eq('id', request.id);
+
+      if (error) throw error;
+
+      // Supprimer le logo temp si présent
+      if (request.logo_temp_path) {
+        const { error: removeError } = await supabase.storage.from('agency-logos').remove([request.logo_temp_path]);
+        if (removeError) console.error('❌ Erreur suppression logo temp:', removeError);
+      }
+
+      toast.success('Demande rejetée');
+      fetchPlatformStats();
+    } catch (err: any) {
+      console.error('❌ Erreur reject:', err);
+      toast.error(err.message || 'Erreur lors du rejet');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -348,6 +478,34 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </Card>
             </div>
+
+            {/* Agency Requests Management */}
+            <Card>
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Demandes d''approbation d''agences
+                </h3>
+                {requests.length > 0 ? (
+                  <div className="space-y-3">
+                    {requests.map((req) => (
+                      <div key={req.id} className="p-4 border rounded-lg">
+                        <p>Nom: {req.name}</p>
+                        <p>Registre: {req.commercial_register}</p>
+                        <p>Email: {req.email}</p>
+                        <p>Directeur: {req.director_first_name} {req.director_last_name}</p>
+                        <p>Logo temp: {req.logo_temp_path || 'Aucun'}</p>
+                        <div className="mt-2 space-x-2">
+                          <Button onClick={() => approve(req)}>Approuver</Button>
+                          <Button onClick={() => reject(req, 'Raison du rejet')}>Rejeter</Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Aucune demande en attente</p>
+                )}
+              </div>
+            </Card>
           </div>
         )}
 
