@@ -23,7 +23,7 @@ interface AgencyRegistrationRequest {
   director_first_name: string;
   director_last_name: string;
   status: 'pending' | 'approved' | 'rejected';
-  logo_temp_path?: string; // Chemin temporaire complet du logo dans storage, e.g., 'temp_logos/request_id/filename'
+  logo_temp_path?: string; // Just the filename, e.g., '1759578436739_LOGO KIDSCONNECT.jpg'
   created_agency_id?: string; // Set by trigger
   // Ajoutez d'autres champs si nécessaire
 }
@@ -104,18 +104,17 @@ export const AdminDashboard: React.FC = () => {
 
       // Déplacer le logo si présent
       if (request.logo_temp_path) {
-        const fileName = request.logo_temp_path.split('/').pop();
+        const fileName = request.logo_temp_path;
         if (!fileName) throw new Error('Nom de fichier invalide');
 
-        // Utiliser logo_temp_path comme chemin source complet
-        const sourcePath = request.logo_temp_path;
-        const bucket = 'agency-logos'; // Remplacez par le nom de votre bucket
+        // Chemin source: 'temp-registration/filename' (from the image)
+        const sourcePath = `temp-registration/${fileName}`;
+        const bucket = 'agency-logos'; // Votre bucket
 
-        // Vérifier si le fichier source existe (list the parent folder)
-        const parentFolder = sourcePath.split('/').slice(0, -1).join('/');
+        // Vérifier si le fichier source existe
         const { data: listData, error: listError } = await supabase.storage
           .from(bucket)
-          .list(parentFolder, { limit: 1, search: fileName });
+          .list('temp-registration', { limit: 1, search: fileName });
 
         if (listError || !listData || listData.length === 0) {
           console.error('❌ Fichier logo source non trouvé:', listError);
@@ -177,7 +176,8 @@ export const AdminDashboard: React.FC = () => {
 
       // Supprimer le logo temp si présent
       if (request.logo_temp_path) {
-        const { error: removeError } = await supabase.storage.from('agency-logos').remove([request.logo_temp_path]);
+        const sourcePath = `temp-registration/${request.logo_temp_path}`;
+        const { error: removeError } = await supabase.storage.from('agency-logos').remove([sourcePath]);
         if (removeError) console.error('❌ Erreur suppression logo temp:', removeError);
       }
 
