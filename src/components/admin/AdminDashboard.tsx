@@ -23,7 +23,7 @@ interface AgencyRegistrationRequest {
   director_first_name: string;
   director_last_name: string;
   status: 'pending' | 'approved' | 'rejected';
-  logo_temp_path?: string; // Chemin temporaire du logo dans storage
+  logo_temp_path?: string; // Chemin temporaire du logo dans storage (filename only)
   // Ajoutez d'autres champs si nécessaire
 }
 
@@ -48,7 +48,7 @@ export const AdminDashboard: React.FC = () => {
         const agencies = await dbService.agencies.getRecent(5);
         setRecentAgencies(agencies || []);
 
-        // Récupérer les demandes en attente
+        // Récupérer les demandes en attente (use correct table)
         const pendingRequests = await dbService.agency_registration_request.getAll({ status: 'pending' });
         setRequests(pendingRequests || []);
 
@@ -100,13 +100,14 @@ export const AdminDashboard: React.FC = () => {
         const fileName = request.logo_temp_path.split('/').pop();
         if (!fileName) throw new Error('Nom de fichier invalide');
 
-        // Vérifier si le fichier source existe
-        const sourcePath = request.logo_temp_path;
-        const bucket = 'agency-logos'; // Remplacez par le nom de votre bucket
+        // Construct source path (assuming logo_temp_path is the filename, and temp folder is 'temp_logos/[request.id]/filename')
+        const sourcePath = `temp_logos/${request.id}/${fileName}`;
+        const bucket = 'agency-logos'; // Remplacez par le nom de votre bucket, e.g. 'logos'
 
+        // Vérifier si le fichier source existe
         const { data: listData, error: listError } = await supabase.storage
           .from(bucket)
-          .list(sourcePath.split('/').slice(0, -1).join('/'), { limit: 1, search: fileName });
+          .list(`temp_logos/${request.id}`, { limit: 1, search: fileName });
 
         if (listError || !listData || listData.length === 0) {
           console.error('❌ Fichier logo source non trouvé:', listError);
@@ -144,7 +145,7 @@ export const AdminDashboard: React.FC = () => {
       console.error('❌ Erreur approve:', err);
       toast.error(err.message || 'Erreur lors de l''approbation');
       if (transactionStarted) {
-        // Rollback si possible
+        // Rollback
         await supabase
           .from('agency_registration_request')
           .update({ status: 'pending' })
@@ -172,7 +173,8 @@ export const AdminDashboard: React.FC = () => {
 
       // Supprimer le logo temp si présent
       if (request.logo_temp_path) {
-        const { error: removeError } = await supabase.storage.from('agency-logos').remove([request.logo_temp_path]);
+        const sourcePath = `temp_logos/${request.id}/${request.logo_temp_path}`;
+        const { error: removeError } = await supabase.storage.from('agency-logos').remove([sourcePath]);
         if (removeError) console.error('❌ Erreur suppression logo temp:', removeError);
       }
 
