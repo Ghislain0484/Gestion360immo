@@ -23,9 +23,18 @@ interface AgencyRegistrationRequest {
   director_first_name: string;
   director_last_name: string;
   status: 'pending' | 'approved' | 'rejected';
-  logo_temp_path?: string; // Chemin temporaire du logo dans storage (filename only)
+  logo_temp_path?: string; // Chemin temporaire du logo dans storage (filename only or full path)
+  created_agency_id?: string; // Set by trigger
   // Ajoutez d'autres champs si nécessaire
 }
+
+const adminTabs = [
+  { id: 'overview', name: 'Vue d\'ensemble', icon: BarChart3 },
+  { id: 'agencies', name: 'Gestion Agences', icon: Building2 },
+  { id: 'subscriptions', name: 'Abonnements', icon: DollarSign },
+  { id: 'rankings', name: 'Classements', icon: Award },
+  { id: 'settings', name: 'Paramètres', icon: Settings },
+];
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -48,7 +57,7 @@ export const AdminDashboard: React.FC = () => {
         const agencies = await dbService.agencies.getRecent(5);
         setRecentAgencies(agencies || []);
 
-        // Récupérer les demandes en attente (use correct table)
+        // Récupérer les demandes en attente
         const pendingRequests = await dbService.agency_registration_request.getAll({ status: 'pending' });
         setRequests(pendingRequests || []);
 
@@ -71,7 +80,6 @@ export const AdminDashboard: React.FC = () => {
   }, []);
 
   const approve = async (request: AgencyRegistrationRequest) => {
-    let transactionStarted = false;
     try {
       console.log('🔄 Début approbation pour request:', request.id);
       setLoading(true);
@@ -93,16 +101,15 @@ export const AdminDashboard: React.FC = () => {
         throw updateError;
       }
       console.log('✅ Request mise à jour:', updatedRequest);
-      transactionStarted = true;
 
       // Déplacer le logo si présent
       if (request.logo_temp_path) {
         const fileName = request.logo_temp_path.split('/').pop();
         if (!fileName) throw new Error('Nom de fichier invalide');
 
-        // Construct source path (assuming logo_temp_path is the filename, and temp folder is 'temp_logos/[request.id]/filename')
+        // Chemin source supposé (ajustez selon votre code d'upload, par ex. 'temp_logos/request_id/filename')
         const sourcePath = `temp_logos/${request.id}/${fileName}`;
-        const bucket = 'agency-logos'; // Remplacez par le nom de votre bucket, e.g. 'logos'
+        const bucket = 'agency-logos'; // Remplacez par le nom de votre bucket
 
         // Vérifier si le fichier source existe
         const { data: listData, error: listError } = await supabase.storage
@@ -122,6 +129,8 @@ export const AdminDashboard: React.FC = () => {
 
         if (moveError) {
           console.error('❌ Erreur move logo:', moveError);
+          // Rollback update
+          await supabase.from('agency_registration_request').update({ status: 'pending' }).eq('id', request.id);
           throw moveError;
         }
 
@@ -135,6 +144,8 @@ export const AdminDashboard: React.FC = () => {
 
         if (updateAgencyError) {
           console.error('❌ Erreur update agency logo:', updateAgencyError);
+          // Rollback
+          await supabase.from('agency_registration_request').update({ status: 'pending' }).eq('id', request.id);
           throw updateAgencyError;
         }
       }
@@ -142,16 +153,8 @@ export const AdminDashboard: React.FC = () => {
       toast.success('Demande approuvée avec succès');
       fetchPlatformStats(); // Rafraîchir les stats
     } catch (err: any) {
-      console.error('❌ Erreur approve:', err);
+      console.error('❌ Erreur approve, rollback...', err);
       toast.error(err.message || 'Erreur lors de l''approbation');
-      if (transactionStarted) {
-        // Rollback
-        await supabase
-          .from('agency_registration_request')
-          .update({ status: 'pending' })
-          .eq('id', request.id);
-        console.log('🔙 Rollback effectué');
-      }
     } finally {
       setLoading(false);
     }
