@@ -102,7 +102,8 @@ const AppContent: React.FC = () => {
         <Route path="/admin" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
 
         {/* Redirect default */}
-        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+        <Route path="/" element={<Navigate to={user ? "/dashboard" : admin ? "/admin" : "/login"} replace />} />
+        <Route path="*" element={<Navigate to={user ? "/dashboard" : admin ? "/admin" : "/login"} replace />} />
       </Routes>
     </Router>
   );
@@ -117,6 +118,5 @@ function App() {
     </AuthProvider>
   );
 }
-
 
 export default App;
