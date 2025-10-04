@@ -1,3 +1,4 @@
+// @refresh skip
 import React, { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
@@ -45,7 +46,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     if (admin) {
       return getAdminNavigation(admin.role);
     }
-    return getUserNavigation(user?.role || null);
+    if (user) {
+      return getUserNavigation(user.role);
+    }
+    return []; // Si ni user ni admin, menu vide
   }, [user, admin]);
 
   return (
