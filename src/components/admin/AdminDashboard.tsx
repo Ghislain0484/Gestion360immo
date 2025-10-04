@@ -23,7 +23,7 @@ interface AgencyRegistrationRequest {
   director_first_name: string;
   director_last_name: string;
   status: 'pending' | 'approved' | 'rejected';
-  logo_temp_path?: string; // Just the filename, e.g., '1759578436739_LOGO KIDSCONNECT.jpg'
+  logo_temp_path?: string; // Filename only, e.g., '1759578436739_LOGO KIDSCONNECT.jpg'
   created_agency_id?: string; // Set by trigger
   // Ajoutez d'autres champs si nécessaire
 }
@@ -107,7 +107,7 @@ export const AdminDashboard: React.FC = () => {
         const fileName = request.logo_temp_path;
         if (!fileName) throw new Error('Nom de fichier invalide');
 
-        // Chemin source: 'temp-registration/filename' (from the image)
+        // Chemin source: 'temp-registration/filename'
         const sourcePath = `temp-registration/${fileName}`;
         const bucket = 'agency-logos'; // Votre bucket
 
@@ -144,7 +144,7 @@ export const AdminDashboard: React.FC = () => {
 
         if (updateAgencyError) {
           console.error('❌ Erreur update agency logo:', updateAgencyError);
-          // Rollback
+          // Rollback update
           await supabase.from('agency_registration_request').update({ status: 'pending' }).eq('id', request.id);
           throw updateAgencyError;
         }
