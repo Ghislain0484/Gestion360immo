@@ -23,7 +23,7 @@ interface AgencyRegistrationRequest {
   director_first_name: string;
   director_last_name: string;
   status: 'pending' | 'approved' | 'rejected';
-  logo_temp_path?: string; // Filename only, e.g., '1759578436739_LOGO KIDSCONNECT.jpg'
+  logo_temp_path?: string; // Chemin temporaire complet du logo dans storage, e.g., 'temp-registration/filename'
   created_agency_id?: string; // Set by trigger
   // Ajoutez d'autres champs si nécessaire
 }
@@ -144,7 +144,7 @@ export const AdminDashboard: React.FC = () => {
 
         if (updateAgencyError) {
           console.error('❌ Erreur update agency logo:', updateAgencyError);
-          // Rollback update
+          // Rollback
           await supabase.from('agency_registration_request').update({ status: 'pending' }).eq('id', request.id);
           throw updateAgencyError;
         }
@@ -154,7 +154,7 @@ export const AdminDashboard: React.FC = () => {
       fetchPlatformStats(); // Rafraîchir les stats
     } catch (err: any) {
       console.error('❌ Erreur approve, rollback...', err);
-      toast.error(err.message || 'Erreur lors de l''approbation');
+      toast.error(err.message || 'Erreur lors de l\'approbation');
     } finally {
       setLoading(false);
     }
