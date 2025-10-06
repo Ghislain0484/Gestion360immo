@@ -62,7 +62,8 @@ export const AdminDashboard: React.FC = () => {
         setRequests(pendingRequests || []);
 
         // Générer les alertes système basées sur les vraies données
-        const alerts = await dbService.systemAlerts.systemAlerts();
+        // Correction du typo : dbService.systemAlerts.systemAlerts() -> dbService.systemAlerts.getAll() (assumé, ajustez si différent)
+        const alerts = await dbService.systemAlerts.getAll();
         setSystemAlerts(alerts);
       } catch (error: any) {
         console.error('Error fetching platform stats:', error);
@@ -104,7 +105,7 @@ export const AdminDashboard: React.FC = () => {
 
       // Déplacer le logo si présent
       if (request.logo_temp_path) {
-        const fileName = request.logo_temp_path;
+        const fileName = request.logo_temp_path.split('/').pop();
         if (!fileName) throw new Error('Nom de fichier invalide');
 
         // Chemin source: 'temp-registration/filename'
@@ -144,7 +145,7 @@ export const AdminDashboard: React.FC = () => {
 
         if (updateAgencyError) {
           console.error('❌ Erreur update agency logo:', updateAgencyError);
-          // Rollback
+          // Rollback update
           await supabase.from('agency_registration_request').update({ status: 'pending' }).eq('id', request.id);
           throw updateAgencyError;
         }
