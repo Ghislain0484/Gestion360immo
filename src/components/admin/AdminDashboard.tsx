@@ -61,9 +61,9 @@ export const AdminDashboard: React.FC = () => {
         const pendingRequests = await dbService.agency_registration_request.getAll({ status: 'pending' });
         setRequests(pendingRequests || []);
 
-        // Correction: Supprimez la ligne systemAlerts car la table n'existe pas
-        // Utilisez un tableau vide ou des alertes statiques
-        setSystemAlerts([]); // Ou ajoutez des alertes statiques si nécessaire
+        // Générer les alertes système basées sur les vraies données
+        const alerts = await dbService.systemAlerts.systemAlerts();
+        setSystemAlerts(alerts);
       } catch (error: any) {
         console.error('Error fetching platform stats:', error);
         setError(error.message || 'Erreur lors du chargement des données');
