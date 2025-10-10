@@ -204,7 +204,7 @@ export const SubscriptionManagement: React.FC = () => {
           showToast('Nombre de mois invalide', 'error');
           return;
         }
-        await dbService.agencySubscriptions.extend(selectedSubscription.agency_id, months);
+        await dbService.agencySubscriptions.extend(selectedSubscription.agency_id ?? '', months);
         await logAudit('extend', 'agency_subscriptions', selectedSubscription.id, { next_payment_date: selectedSubscription.next_payment_date }, { months });
         showToast('Abonnement étendu avec succès ✅', 'success');
       } else if (selectedSubscription.action === 'suspend') {
@@ -213,11 +213,11 @@ export const SubscriptionManagement: React.FC = () => {
           showToast('Raison de suspension requise', 'error');
           return;
         }
-        await dbService.agencySubscriptions.suspend(selectedSubscription.agency_id, suspensionReason);
+        await dbService.agencySubscriptions.suspend(selectedSubscription.agency_id ?? '', suspensionReason);
         await logAudit('suspend', 'agency_subscriptions', selectedSubscription.id, { status: selectedSubscription.status }, { status: 'suspended', suspension_reason: suspensionReason });
         showToast('Abonnement suspendu avec succès ✅', 'success');
       } else if (selectedSubscription.action === 'activate') {
-        await dbService.agencySubscriptions.activate(selectedSubscription.agency_id);
+        await dbService.agencySubscriptions.activate(selectedSubscription.agency_id ?? '');
         await logAudit('activate', 'agency_subscriptions', selectedSubscription.id, { status: selectedSubscription.status }, { status: 'active' });
         showToast('Abonnement activé avec succès ✅', 'success');
       }
@@ -354,7 +354,7 @@ export const SubscriptionManagement: React.FC = () => {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-semibold text-gray-900">{agencyNames[subscription.agency_id] || subscription.agency_id}</h3>
+                    <h3 className="font-semibold text-gray-900">{agencyNames[subscription.agency_id ?? ''] || subscription.agency_id}</h3>
                     <p className="text-sm text-gray-500">
                       Plan {getPlanLabel(subscription.plan_type)} -{' '}
                       {formatCurrency(subscription.monthly_fee)}/mois
@@ -510,7 +510,7 @@ export const SubscriptionManagement: React.FC = () => {
         {selectedSubscription && (
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">{agencyNames[selectedSubscription.agency_id] || selectedSubscription.agency_id}</h4>
+              <h4 className="font-medium text-gray-900 mb-2">{agencyNames[selectedSubscription.agency_id ?? ''] || selectedSubscription.agency_id}</h4>
               <p className="text-sm text-gray-600">
                 Plan {getPlanLabel(selectedSubscription.plan_type)} -{' '}
                 {formatCurrency(selectedSubscription.monthly_fee)}/mois

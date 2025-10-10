@@ -47,7 +47,7 @@ export const OwnerPropertyList: React.FC<OwnerPropertyListProps> = ({
   const [selectedProperty, setSelectedProperty] = useState<OwnerProperty | null>(null);
 
   // -------------------- Fetch Properties --------------------
-  const { data: rawProperties, loading, error } = useRealtimeData<
+  const { data: rawProperties, initialLoading, error } = useRealtimeData<
     Property & { contracts: (Contract & { tenant: Tenant | null })[] }
   >(async (params?: GetAllParams) => {
     if (!params?.agency_id) throw new Error('Agency ID is required');
@@ -163,7 +163,7 @@ export const OwnerPropertyList: React.FC<OwnerPropertyListProps> = ({
   );
 
   // -------------------- Render --------------------
-  if (loading) return <p>Chargement...</p>;
+  if (initialLoading) return <p>Chargement...</p>;
   if (error) return <p className="text-red-600">{error}</p>;
 
   return (

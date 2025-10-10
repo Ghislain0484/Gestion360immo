@@ -130,7 +130,7 @@ export const NotificationsCenter: React.FC = () => {
 
   const userId = user?.id || admin?.user_id;
 
-  const { data: notifications, loading, error } = useRealtimeData<Notification>(
+  const { data: notifications, initialLoading, error } = useRealtimeData<Notification>(
     async () => userId ? await dbService.notifications.getByUser(userId) : [],
     `notifications_${userId || ''}`
   );
@@ -217,7 +217,7 @@ export const NotificationsCenter: React.FC = () => {
       {/* Liste */}
       <NotificationsList
         notifications={notifications || []}
-        loading={loading}
+        loading={initialLoading}
         error={error}
         filter={filter}
         searchTerm={searchTerm}

@@ -2,6 +2,7 @@ import { JsonB } from './enums';
 import {
   User, UserPermissions, UserFormData, PlatformAdmin, AgencyUser
 } from './users';
+import { AgencyEntity } from './common';
 import {
   Agency, AgencyFormData, AgencyRegistrationRequest, AgencySubscription,
   SubscriptionPayment, Reward, AgencyRanking
@@ -13,7 +14,15 @@ import {
   RoomDetails, PropertyImage
 } from './properties';
 import { Announcement, AnnouncementInterest } from './announcements';
-import { Contract, RentReceipt, RentReceiptWithContract } from './contracts';
+import {
+  Contract,
+  RentReceipt,
+  RentReceiptWithContract,
+  ContractTemplate,
+  ContractVersion,
+  ManagedContract,
+  PropertyTenantAssignment,
+} from './contracts';
 import { FinancialStatement, FinancialTransaction } from './financials';
 import { Message, Notification, EmailNotification, NotificationSettings, NotificationSettingsUpsert } from './messages';
 import { PlatformSetting, AuditLog, SystemAlert, PlatformStats, DashboardStats } from './platform';
@@ -24,6 +33,10 @@ export type Entity =
   | Owner
   | Tenant
   | Property
+  | ManagedContract
+  | ContractTemplate
+  | ContractVersion
+  | PropertyTenantAssignment
   | Contract
   | Announcement
   | RentReceipt
@@ -54,6 +67,7 @@ export type {
   SubscriptionPayment,
   Reward,
   AgencyRanking,
+  AgencyEntity,
   // Owners
   Owner,
   // Tenants
@@ -77,6 +91,10 @@ export type {
   Contract,
   RentReceipt,
   RentReceiptWithContract,
+  ContractTemplate,
+  ContractVersion,
+  ManagedContract,
+  PropertyTenantAssignment,
   // Financials
   FinancialStatement,
   FinancialTransaction,

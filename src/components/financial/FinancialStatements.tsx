@@ -71,7 +71,7 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({ entity
   const [selectedPeriod, setSelectedPeriod] = useState<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [debouncedPeriod] = useDebounce(selectedPeriod.toISOString().slice(0, 7), 500);
 
-  const { data: statements, loading, error } = useRealtimeData<FinancialStatement>(
+  const { data: statements, initialLoading, error } = useRealtimeData<FinancialStatement>(
     async () => await dbService.financialStatements.getByEntity(entityId, entityType, debouncedPeriod),
     `financial_statements_${entityId}_${entityType}_${debouncedPeriod}`
   );
@@ -170,7 +170,7 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({ entity
     } catch (err) { console.error(err); alert('Échec export Excel'); }
   }, [singleStatement, entityName, formatDate, debouncedPeriod]);
 
-  if (loading) return <div className="flex items-center justify-center h-64" aria-live="polite"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+  if (initialLoading) return <div className="flex items-center justify-center h-64" aria-live="polite"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
   if (error) return <div className="p-4 bg-red-50 text-red-800 rounded-lg" role="alert">{error}</div>;
   if (!singleStatement) return <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg" role="alert">Aucune donnée financière disponible</div>;
 

@@ -11,7 +11,7 @@ interface RentalHistoryProps {
   rentals: Rental[];
 }
 
-export const RentalHistory: React.FC<RentalHistoryProps> = ({ tenantId, rentals }) => {
+export const RentalHistory: React.FC<RentalHistoryProps> = ({ rentals }) => {
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
 
