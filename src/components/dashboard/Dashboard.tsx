@@ -129,39 +129,54 @@ export const Dashboard: React.FC = () => {
     setError(errors.length > 0 ? errors.join('; ') : null);
   }, [statsError, contractsError, propertiesError, receiptsError]);
 
-  const stats = useMemo(() => dashboardStats ? [
-    {
-      title: 'Propriétés Gérées',
-      value: dashboardStats.totalProperties.toString(),
-      icon: Building2,
-      trend: { value: 12, isPositive: true },
-      color: 'blue' as const,
-    },
-    {
-      title: 'Propriétaires',
-      value: dashboardStats.totalOwners.toString(),
-      icon: Users,
-      trend: { value: 5, isPositive: true },
-      color: 'green' as const,
-    },
-    {
-      title: 'Locataires Actifs',
-      value: dashboardStats.totalTenants.toString(),
-      icon: UserCheck,
-      trend: { value: 8, isPositive: true },
-      color: 'yellow' as const,
-    },
-    {
-      title: 'Contrats en Cours',
-      value: dashboardStats.activeContracts.toString(),
-      icon: FileText,
-      trend: {
-        value: dashboardStats.totalContracts > dashboardStats.activeContracts ? 3 : -3,
-        isPositive: dashboardStats.totalContracts <= dashboardStats.activeContracts
+  const stats = useMemo(() => {
+    if (!dashboardStats) return [];
+
+    const activeContractsCount = dashboardStats.activeContracts || dashboardStats.totalContracts || 0;
+    const inactiveContractsCount = Math.max((dashboardStats.totalContracts || 0) - activeContractsCount, 0);
+
+    return [
+      {
+        title: 'Propriétés Gérées',
+        value: dashboardStats.totalProperties.toString(),
+        icon: Building2,
+        trend: { value: 12, isPositive: true },
+        color: 'blue' as const,
       },
-      color: 'red' as const,
-    },
-  ] : [], [dashboardStats]);
+      {
+        title: 'Propriétaires',
+        value: dashboardStats.totalOwners.toString(),
+        icon: Users,
+        trend: { value: 5, isPositive: true },
+        color: 'green' as const,
+      },
+      {
+        title: 'Locataires Actifs',
+        value: dashboardStats.totalTenants.toString(),
+        icon: UserCheck,
+        trend: { value: 8, isPositive: true },
+        color: 'yellow' as const,
+      },
+      {
+        title: 'Contrats en Cours',
+        value: activeContractsCount.toString(),
+        icon: FileText,
+        trend: {
+          value: inactiveContractsCount,
+          isPositive: inactiveContractsCount === 0
+        },
+        color: 'red' as const,
+      },
+    ];
+  }, [dashboardStats]);
+
+  const formatCurrency = (amount: number | null | undefined): string => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'XOF',
+      minimumFractionDigits: 0,
+    }).format(amount ?? 0);
+  };
 
   const getTimeAgo = (date: string | Date): string => {
     try {
@@ -217,7 +232,7 @@ export const Dashboard: React.FC = () => {
   const generateUpcomingRentals = useMemo((): Rental[] => {
     if (!Array.isArray(recentContracts)) return [];
     return recentContracts
-      .filter((contract: Contract) => contract.status === 'active' && contract.monthly_rent)
+      .filter((contract: Contract) => ['active', 'renewed', 'draft'].includes(contract.status) && contract.monthly_rent)
       .slice(0, 5)
       .map((contract: Contract) => {
         const dueDate = new Date(contract.start_date);
@@ -249,14 +264,6 @@ export const Dashboard: React.FC = () => {
         status: 'completed',
       }));
   }, [recentReceipts, recentContracts]);
-
-  const formatCurrency = (amount: number | null | undefined): string => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(amount ?? 0);
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {

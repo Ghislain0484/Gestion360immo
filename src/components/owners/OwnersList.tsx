@@ -33,7 +33,7 @@ export const OwnersList: React.FC = () => {
   const [filterMaritalStatus, setFilterMaritalStatus] = useState('all');
   const [filterPropertyTitle, setFilterPropertyTitle] = useState('all');
 
-  const { data: owners, loading, error, refetch } = useRealtimeData<Owner>(
+  const { data: owners, initialLoading, error, refetch } = useRealtimeData<Owner>(
     dbService.owners.getAll,
     'owners'
   );
@@ -183,7 +183,7 @@ export const OwnersList: React.FC = () => {
       </Card>
 
       {/* 🔹 Zone de contenu dynamique */}
-      {loading ? (
+      {initialLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="animate-pulse">

@@ -3,6 +3,10 @@ import { formatSbError } from './helpers';
 import { RentReceipt, DashboardStats } from '../types/db';
 import { propertiesService } from './db/propertiesService';
 import { contractsService } from './db/contractsService';
+import { contractTemplatesService } from './db/contractTemplatesService';
+import { contractVersionsService } from './db/contractVersionsService';
+import { managedContractsService } from './db/managedContractsService';
+import { propertyTenantAssignmentsService } from './db/propertyTenantAssignmentsService';
 import { ownersService } from './db/ownersService';
 import { tenantsService } from './db/tenantsService';
 import { usersService } from './db/usersService';
@@ -70,7 +74,7 @@ export const dbService = {
           .from('contracts')
           .select('*', { count: 'exact', head: true })
           .eq('agency_id', agencyId)
-          .eq('status', 'active'),
+          .in('status', ['active', 'renewed', 'draft']),
         supabase
           .from('properties')
           .select('*', { count: 'exact', head: true })
@@ -172,6 +176,10 @@ async getMonthlyRevenue(agencyId: string, months: number = 6): Promise<MonthlyRe
   owners: ownersService,
   tenants: tenantsService,
   properties: propertiesService,
+  managedContracts: managedContractsService,
+  contractTemplates: contractTemplatesService,
+  contractVersions: contractVersionsService,
+  propertyTenantAssignments: propertyTenantAssignmentsService,
   announcements: announcementsService,
   announcementInterests: announcementInterestsService,
   contracts: contractsService,

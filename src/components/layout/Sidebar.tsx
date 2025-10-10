@@ -1,3 +1,4 @@
+// @refresh skip
 import React, { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
@@ -19,8 +20,8 @@ interface NavigationItem {
 
 const getUserNavigation = (userRole: string | null): NavigationItem[] => [
   { name: 'Tableau de bord', href: '/dashboard', icon: Home },
-  { name: 'Propriétés', href: '/properties', icon: Building2 },
   { name: 'Propriétaires', href: '/owners', icon: Users },
+  { name: 'Propriétés', href: '/properties', icon: Building2 },
   { name: 'Locataires', href: '/tenants', icon: UserCheck },
   { name: 'Contrats', href: '/contracts', icon: FileText },
   { name: 'Quittances', href: '/receipts', icon: Receipt },
@@ -45,7 +46,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     if (admin) {
       return getAdminNavigation(admin.role);
     }
-    return getUserNavigation(user?.role || null);
+    if (user) {
+      return getUserNavigation(user.role);
+    }
+    return []; // Si ni user ni admin, menu vide
   }, [user, admin]);
 
   return (

@@ -262,7 +262,7 @@ export const AgencyRankings: React.FC = () => {
                     <div>
                       <div className="flex items-center space-x-2">
                         <h3 className="text-xl font-bold text-gray-900">
-                          #{ranking.rank} {agencyNames[ranking.agency_id] || 'Agence inconnue'}
+                          #{ranking.rank} {agencyNames[ranking.agency_id ?? ''] || 'Agence inconnue'}
                         </h3>
                         {ranking.rank <= 3 && <Badge variant="warning" size="sm">Podium</Badge>}
                       </div>

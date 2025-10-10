@@ -1,45 +1,80 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import {
-  Plus,
-  Search,
-  FileText,
-  Calendar,
-  DollarSign,
-  Eye,
-  Trash2,
-  Download,
-} from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Download } from 'lucide-react';
 import { debounce } from 'lodash';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { ContractForm } from './ContractForm';
-import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
+import { useRealtimeData, useSupabaseCreate, useSupabaseUpdate, useSupabaseDelete } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Contract } from '../../types/db';
+import { Contract, Owner, Property, Tenant } from '../../types/db';
 import toast from 'react-hot-toast';
 
 export const ContractsList: React.FC = () => {
   const { user } = useAuth();
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState<{ open: boolean; contract?: Contract }>({ open: false });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | Contract['type']>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | Contract['status']>('all');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
-  const { data: contracts = [], refetch, setData } = useRealtimeData<Contract>(
-    () => dbService.contracts.getAll(),
-    'contracts'
+  const { data: contracts = [], refetch, setData, initialLoading } = useRealtimeData<Contract>(
+    () => dbService.contracts.getAll({
+      agency_id: user?.agency_id,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      search: searchTerm,
+      status: filterStatus !== 'all' ? filterStatus : undefined,
+    }),
+    'contracts',
+    { agency_id: user?.agency_id, limit: pageSize, offset: (page - 1) * pageSize, search: searchTerm, status: filterStatus !== 'all' ? filterStatus : undefined }
+  );
+
+  // Fetch related data for enhanced search
+  const { data: owners = [] } = useRealtimeData<Owner>(
+    () => dbService.owners.getAll({ agency_id: user?.agency_id }),
+    'owners',
+    { agency_id: user?.agency_id }
+  );
+  const { data: properties = [] } = useRealtimeData<Property>(
+    () => dbService.properties.getAll({ agency_id: user?.agency_id }),
+    'properties',
+    { agency_id: user?.agency_id }
+  );
+  const { data: tenants = [] } = useRealtimeData<Tenant>(
+    () => dbService.tenants.getAll({ agency_id: user?.agency_id }),
+    'tenants',
+    { agency_id: user?.agency_id }
   );
 
   const { create: createContract } = useSupabaseCreate<Contract>(dbService.contracts.create, {
     onSuccess: (newContract: Contract) => {
-      setData(prev => (prev ? [newContract, ...prev] : [newContract]));
-      setShowForm(false);
+      setData((prev) => (prev ? [newContract, ...prev] : [newContract]));
+      setShowForm({ open: false });
       toast.success('Contrat créé avec succès !');
     },
     onError: (err: string) => toast.error(err),
+    successMessage: 'Contrat créé avec succès !',
+    errorMessage: 'Erreur lors de la création du contrat',
   });
+
+  const { update: updateContract } = useSupabaseUpdate<Contract>(
+    dbService.contracts.update,
+    {
+      onSuccess: (updatedContract: Contract) => {
+        setData((prev) =>
+          prev ? prev.map((c) => (c.id === updatedContract.id ? updatedContract : c)) : [updatedContract]
+        );
+        setShowForm({ open: false });
+        toast.success('Contrat mis à jour avec succès !');
+      },
+      onError: (err: string) => toast.error(err),
+      successMessage: 'Contrat mis à jour avec succès !',
+      errorMessage: 'Erreur lors de la mise à jour du contrat',
+    }
+  );
 
   const { deleteItem: deleteContract } = useSupabaseDelete(dbService.contracts.delete, {
     onSuccess: () => {
@@ -47,36 +82,39 @@ export const ContractsList: React.FC = () => {
       toast.success('Contrat supprimé !');
     },
     onError: (err: string) => toast.error(err),
+    successMessage: 'Contrat supprimé !',
+    errorMessage: 'Erreur lors de la suppression du contrat',
   });
 
   const debouncedSetSearchTerm = useCallback(debounce((value: string) => setSearchTerm(value), 300), []);
 
-  const handleAddContract = async (contractData: Partial<Contract>) => {
+  const handleAddOrUpdateContract = async (contractData: Partial<Contract>, isUpdate: boolean = false) => {
     if (!user?.agency_id) {
       toast.error('Aucune agence associée');
       return;
     }
 
     try {
-      if (!contractData.property_id?.trim()) throw new Error("ID de la propriété requis");
-      if (!contractData.owner_id?.trim()) throw new Error("ID du propriétaire requis");
-      if (!contractData.tenant_id?.trim()) throw new Error("ID du locataire requis");
-      if (!contractData.type) throw new Error("Type de contrat requis");
-      if (!contractData.start_date) throw new Error("Date de début requise");
-      if (!contractData.terms?.trim()) throw new Error("Termes du contrat requis");
+      if (!contractData.property_id?.trim()) throw new Error('ID de la propriété requis');
+      if (!contractData.owner_id?.trim()) throw new Error('ID du propriétaire requis');
+      if (!contractData.tenant_id?.trim()) throw new Error('ID du locataire requis');
+      if (!contractData.type) throw new Error('Type de contrat requis');
+      if (!contractData.start_date) throw new Error('Date de début requise');
+      if (!contractData.terms?.trim()) throw new Error('Termes du contrat requis');
 
       const contractPayload: Partial<Contract> = {
+        id: contractData.id,
         agency_id: user.agency_id,
         property_id: contractData.property_id,
         owner_id: contractData.owner_id,
         tenant_id: contractData.tenant_id,
         type: contractData.type,
         start_date: contractData.start_date,
-        end_date: contractData.end_date || null,
-        monthly_rent: contractData.monthly_rent || null,
-        sale_price: contractData.sale_price || null,
-        deposit: contractData.deposit || null,
-        charges: contractData.charges || null,
+        end_date: contractData.end_date,
+        monthly_rent: contractData.monthly_rent,
+        sale_price: contractData.sale_price,
+        deposit: contractData.deposit,
+        charges: contractData.charges,
         commission_rate: contractData.commission_rate ?? 10,
         commission_amount: contractData.commission_amount ?? 0,
         status: contractData.status ?? 'draft',
@@ -84,10 +122,14 @@ export const ContractsList: React.FC = () => {
         documents: contractData.documents || [],
       };
 
-      await createContract(contractPayload);
+      if (isUpdate && contractPayload.id) {
+        await updateContract(contractPayload.id, contractPayload);
+      } else {
+        await createContract(contractPayload);
+      }
     } catch (err: any) {
-      console.error('Erreur création contrat:', err);
-      toast.error(err.message || 'Erreur lors de la création du contrat');
+      console.error('Erreur lors de la gestion du contrat:', err);
+      toast.error(err.message || 'Erreur lors de la gestion du contrat');
     }
   };
 
@@ -122,14 +164,22 @@ export const ContractsList: React.FC = () => {
 
   const filteredContracts = useMemo(() => {
     return contracts.filter((contract: Contract) => {
+      const owner = owners.find((o) => o.id === contract.owner_id);
+      const property = properties.find((p) => p.id === contract.property_id);
+      const tenant = tenants.find((t) => t.id === contract.tenant_id);
+      const searchLower = searchTerm.toLowerCase();
       const matchesSearch =
-        contract.id.includes(searchTerm) ||
-        (contract.terms || '').toLowerCase().includes(searchTerm.toLowerCase());
+        contract.id.includes(searchLower) ||
+        (contract.terms || '').toLowerCase().includes(searchLower) ||
+        (owner ? `${owner.first_name} ${owner.last_name}`.toLowerCase().includes(searchLower) : false) ||
+        (property ? property.title.toLowerCase().includes(searchLower) : false) ||
+        (tenant ? `${tenant.first_name} ${tenant.last_name}`.toLowerCase().includes(searchLower) : false);
       const matchesType = filterType === 'all' || contract.type === filterType;
-      const matchesStatus = filterStatus === 'all' || contract.status === filterStatus;
-      return matchesSearch && matchesType && matchesStatus;
+      return matchesSearch && matchesType;
     });
-  }, [contracts, searchTerm, filterType, filterStatus]);
+  }, [contracts, owners, properties, tenants, searchTerm, filterType]);
+
+  const openForm = (contract?: Contract) => setShowForm({ open: true, contract });
 
   return (
     <div className="space-y-6">
@@ -139,7 +189,7 @@ export const ContractsList: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Contrats</h1>
           <p className="text-gray-600 mt-1">Gestion des contrats ({contracts.length})</p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
+        <Button onClick={() => openForm()}>
           <Plus className="h-4 w-4 mr-2" />
           Nouveau contrat
         </Button>
@@ -152,7 +202,7 @@ export const ContractsList: React.FC = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Rechercher par ID ou termes..."
+              placeholder="Rechercher par ID, termes, propriétaire, propriété, locataire..."
               onChange={(e) => debouncedSetSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -184,13 +234,34 @@ export const ContractsList: React.FC = () => {
         </div>
       </Card>
 
+      {/* Pagination */}
+      <div className="flex justify-between items-center">
+        <Button
+          onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+          disabled={page === 1 || initialLoading}
+        >
+          Précédent
+        </Button>
+        <span>Page {page}</span>
+        <Button
+          onClick={() => setPage((prev) => prev + 1)}
+          disabled={contracts.length < pageSize || initialLoading}
+        >
+          Suivant
+        </Button>
+      </div>
+
       {/* Liste */}
-      {filteredContracts.length === 0 ? (
+      {initialLoading ? (
+        <div className="text-center py-12">
+          <p className="text-gray-600">Chargement des contrats...</p>
+        </div>
+      ) : filteredContracts.length === 0 ? (
         <div className="text-center py-12">
           <FileText className="h-16 w-16 mx-auto mb-4 text-gray-400" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun contrat</h3>
           <p className="text-gray-600 mb-4">Commencez par créer votre premier contrat.</p>
-          <Button onClick={() => setShowForm(true)}>
+          <Button onClick={() => openForm()}>
             <Plus className="h-4 w-4 mr-2" />
             Nouveau contrat
           </Button>
@@ -204,8 +275,10 @@ export const ContractsList: React.FC = () => {
                   <div className="flex items-center space-x-3">
                     <FileText className="h-8 w-8 text-blue-600" />
                     <div>
-                      <h3 className="font-semibold text-gray-900">Contrat #{contract.id}</h3>
-                      <p className="text-sm text-gray-500">Propriété #{contract.property_id}</p>
+                      <h3 className="font-semibold text-gray-900">Contrat #{contract.id.slice(0, 8)}</h3>
+                      <p className="text-sm text-gray-500">
+                        Propriété: {properties.find((p) => p.id === contract.property_id)?.title || 'N/A'}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -223,7 +296,9 @@ export const ContractsList: React.FC = () => {
                     <Calendar className="h-4 w-4 text-green-600" />
                     <div>
                       <p className="text-xs text-gray-500">Début</p>
-                      <p className="text-sm font-medium">{new Date(contract.start_date).toLocaleDateString('fr-FR')}</p>
+                      <p className="text-sm font-medium">
+                        {new Date(contract.start_date).toLocaleDateString('fr-FR')}
+                      </p>
                     </div>
                   </div>
                   {contract.end_date && (
@@ -231,7 +306,9 @@ export const ContractsList: React.FC = () => {
                       <Calendar className="h-4 w-4 text-red-600" />
                       <div>
                         <p className="text-xs text-gray-500">Fin</p>
-                        <p className="text-sm font-medium">{new Date(contract.end_date).toLocaleDateString('fr-FR')}</p>
+                        <p className="text-sm font-medium">
+                          {new Date(contract.end_date).toLocaleDateString('fr-FR')}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -245,15 +322,38 @@ export const ContractsList: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="text-xs text-gray-500">Créé le {new Date(contract.created_at).toLocaleDateString('fr-FR')}</div>
+                  <div className="text-xs text-gray-500">
+                    Créé le {new Date(contract.created_at).toLocaleDateString('fr-FR')}
+                  </div>
                   <div className="flex space-x-2">
-                    <Button variant="ghost" size="sm" onClick={() => alert('Visualisation non implémentée')}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openForm(contract)}
+                    >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => alert('Téléchargement non implémenté')}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!contract.documents?.length}
+                      onClick={async () => {
+                        for (const url of contract.documents || []) {
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = url.split('/').pop() || 'document';
+                          link.click();
+                        }
+                      }}
+                    >
                       <Download className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteContract(contract.id)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700"
+                      onClick={() => handleDeleteContract(contract.id)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -265,7 +365,12 @@ export const ContractsList: React.FC = () => {
       )}
 
       {/* Formulaire modale */}
-      <ContractForm isOpen={showForm} onClose={() => setShowForm(false)} onSubmit={handleAddContract} />
+      <ContractForm
+        isOpen={showForm.open}
+        onClose={() => setShowForm({ open: false })}
+        onSubmit={handleAddOrUpdateContract}
+        initialData={showForm.contract}
+      />
     </div>
   );
 };

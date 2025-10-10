@@ -12,6 +12,11 @@ const nilIfEmpty = <T>(value: T): T | null => {
     return value;
 };
 
+const undefinedIfEmpty = <T>(value: T): T | undefined => {
+  if (value === '' || value === undefined || value === null) return undefined;
+  return value;
+};
+
 export const normalizeUser = (u: Partial<User>) => ({
     id: nilIfEmpty(u.id),
     email: nilIfEmpty(u.email),
@@ -215,23 +220,24 @@ export const normalizeAnnouncementInterest = (ai: Partial<AnnouncementInterest>)
     status: nilIfEmpty(ai.status) ?? 'pending',
 });
 
-export const normalizeContract = (c: Partial<Contract>) => ({
-    agency_id: nilIfEmpty(c.agency_id),
-    property_id: nilIfEmpty(c.property_id),
-    owner_id: nilIfEmpty(c.owner_id),
-    tenant_id: nilIfEmpty(c.tenant_id),
-    type: nilIfEmpty(c.type),
-    start_date: nilIfEmpty(c.start_date),
-    end_date: nilIfEmpty(c.end_date),
-    monthly_rent: nilIfEmpty(c.monthly_rent),
-    sale_price: nilIfEmpty(c.sale_price),
-    deposit: nilIfEmpty(c.deposit),
-    charges: nilIfEmpty(c.charges),
-    commission_rate: c.commission_rate ?? 10.0,
-    commission_amount: c.commission_amount ?? 0,
-    status: nilIfEmpty(c.status),
-    terms: nilIfEmpty(c.terms),
-    documents: c.documents ?? [],
+export const normalizeContract = (c: Partial<Contract>): Partial<Contract> => ({
+  agency_id: undefinedIfEmpty(c.agency_id),
+  property_id: undefinedIfEmpty(c.property_id),
+  owner_id: undefinedIfEmpty(c.owner_id),
+  tenant_id: undefinedIfEmpty(c.tenant_id),
+  type: undefinedIfEmpty(c.type),
+  start_date: undefinedIfEmpty(c.start_date),
+  end_date: undefinedIfEmpty(c.end_date),
+  monthly_rent: undefinedIfEmpty(c.monthly_rent),
+  sale_price: undefinedIfEmpty(c.sale_price),
+  deposit: undefinedIfEmpty(c.deposit),
+  charges: undefinedIfEmpty(c.charges),
+  commission_rate: c.commission_rate ?? 10.0,
+  commission_amount: c.commission_amount ?? 0,
+  status: undefinedIfEmpty(c.status),
+  terms: undefinedIfEmpty(c.terms),
+  documents: Array.isArray(c.documents) ? c.documents : [],
+  created_at: undefinedIfEmpty(c.created_at),
 });
 
 export const normalizeRentReceipt = (rr: Partial<RentReceipt>) => ({

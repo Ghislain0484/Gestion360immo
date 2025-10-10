@@ -14,12 +14,12 @@ import toast from 'react-hot-toast';
 
 interface AuthUser extends User {
   role: AgencyUserRole;
-  agency_id: string | null;
+  agency_id: string | undefined;
 }
 
 interface ExtendedUser extends User {
   role: AgencyUserRole;
-  agency_id: string | null;
+  agency_id: string | undefined;
 }
 
 export const UserManagement: React.FC = () => {
@@ -36,7 +36,7 @@ export const UserManagement: React.FC = () => {
     first_name: '',
     last_name: '',
     role: 'agent',
-    agency_id: user?.agency_id || null,
+    agency_id: user?.agency_id || undefined,
     permissions: {
       dashboard: true,
       properties: false,

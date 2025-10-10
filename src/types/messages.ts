@@ -1,10 +1,10 @@
+import { AgencyEntity } from './db';
 import { JsonB, NotifType, NotifPriority } from './enums';
 
-export interface Message {
+export interface Message extends AgencyEntity {
   id: string; // UUID
   sender_id: string; // UUID, FK vers users(id)
   receiver_id: string; // UUID, FK vers users(id)
-  agency_id?: string | null; // UUID, FK vers agencies(id)
   property_id?: string | null; // UUID, FK vers properties(id)
   announcement_id?: string | null; // UUID, FK vers announcements(id)
   subject: string;
@@ -14,7 +14,7 @@ export interface Message {
   created_at: string; // timestamptz
 }
 
-export interface Notification {
+export interface Notification extends AgencyEntity {
   id: string; // UUID
   user_id: string; // UUID, FK vers users(id)
   type: NotifType;
@@ -24,10 +24,9 @@ export interface Notification {
   is_read: boolean;
   priority: NotifPriority;
   created_at: string; // timestamptz
-  agency_id?: string; // UUID, FK vers agencies(id)
 }
 
-export interface EmailNotification {
+export interface EmailNotification extends AgencyEntity {
   id: string; // UUID
   type: 'new_user' | 'new_contract' | 'receipt_generated' | 'payment_reminder' | 'contract_expiry';
   recipient: string;
@@ -35,7 +34,6 @@ export interface EmailNotification {
   content: string;
   status: 'pending' | 'sent' | 'failed';
   sent_at?: string;
-  agency_id: string; // UUID, FK vers agencies(id)
   created_at: string; // timestamptz
 }
 

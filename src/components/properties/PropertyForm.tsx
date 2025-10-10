@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { MapPin, Upload, Plus, Trash2, Save } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -12,7 +12,6 @@ import { RoomDetailsForm } from './RoomDetailsForm';
 import { ImageUploader } from './ImageUploader';
 import { StandingCalculator } from '../../utils/standingCalculator';
 import { useAuth } from '../../contexts/AuthContext';
-import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { supabase } from '../../lib/config';
 import { toast } from 'react-hot-toast';
@@ -33,48 +32,33 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   const { user, isLoading: authLoading } = useAuth();
   const [agencyId, setAgencyId] = useState<string | null>(null);
   const [isLoadingAgency, setIsLoadingAgency] = useState(false);
-  const filteredInitialData = initialData
-    ? {
-      owner_id: initialData.owner_id,
-      agency_id: initialData.agency_id,
-      title: initialData.title,
-      description: initialData.description,
-      location: initialData.location,
-      details: initialData.details,
-      standing: initialData.standing,
-      rooms: initialData.rooms,
-      images: initialData.images,
-      is_available: initialData.is_available,
-      for_sale: initialData.for_sale,
-      for_rent: initialData.for_rent,
-    }
-    : undefined;
-
   const [formData, setFormData] = useState<PropertyFormData>({
-    owner_id: filteredInitialData?.owner_id || '',
-    agency_id: filteredInitialData?.agency_id || (user?.agency_id ?? ''),
-    title: filteredInitialData?.title || '',
-    description: filteredInitialData?.description ?? '',
-    location: filteredInitialData?.location || {
+    owner_id: initialData?.owner_id || '',
+    agency_id: initialData?.agency_id || (user?.agency_id ?? ''),
+    title: initialData?.title || '',
+    description: initialData?.description ?? '',
+    location: initialData?.location || {
       commune: '',
       quartier: '',
       numeroLot: '',
       numeroIlot: '',
       facilites: [],
     },
-    details: filteredInitialData?.details || { type: 'villa' },
-    standing: filteredInitialData?.standing || 'economique',
-    rooms: filteredInitialData?.rooms || [],
-    images: filteredInitialData?.images || [],
-    is_available: filteredInitialData?.is_available ?? true,
-    for_sale: filteredInitialData?.for_sale ?? false,
-    for_rent: filteredInitialData?.for_rent ?? true,
+    details: initialData?.details || { type: 'villa' },
+    standing: initialData?.standing || 'economique',
+    rooms: initialData?.rooms || [],
+    images: initialData?.images || [],
+    is_available: initialData?.is_available ?? true,
+    for_sale: initialData?.for_sale ?? false,
+    for_rent: initialData?.for_rent ?? true,
   });
   const [formError, setFormError] = useState<string | undefined>(undefined);
   const [currentStep, setCurrentStep] = useState(1);
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<number | null>(null);
-  const [ownerSearch, setOwnerSearch] = useState('');
+  const [owners, setOwners] = useState<Owner[]>([]);
+  const [ownersLoading, setOwnersLoading] = useState(false);
+  const [ownersError, setOwnersError] = useState<string | null>(null);
 
   // Fetch agency_id for the authenticated user
   useEffect(() => {
@@ -116,22 +100,37 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     }
   }, [isOpen, agencyId]);
 
-  const fetchOwners = useCallback(async () => {
+  // Define refetchOwners for fetching owners
+  const refetchOwners = useCallback(async () => {
     if (!agencyId) {
-      return [];
+      setOwners([]);
+      return;
     }
-    return dbService.owners.getAll({ agency_id: agencyId });
+
+    setOwnersLoading(true);
+    setOwnersError(null);
+
+    try {
+      const data = await dbService.owners.getAll({ agency_id: agencyId });
+      setOwners(data);
+    } catch (err: any) {
+      const errMsg = err.message || 'Erreur lors du chargement des propriétaires';
+      setOwnersError(errMsg);
+      toast.error(errMsg);
+      setOwners([]);
+    } finally {
+      setOwnersLoading(false);
+    }
   }, [agencyId]);
 
-  const { data: owners } = useRealtimeData<Owner>(fetchOwners, 'owners');
-
-  const filteredOwners = useMemo(() => {
-    if (!owners) return [];
-    return owners.filter((owner: Owner) =>
-      `${owner.first_name} ${owner.last_name}`.toLowerCase().includes(ownerSearch.toLowerCase()) ||
-      owner.phone.includes(ownerSearch)
-    );
-  }, [owners, ownerSearch]);
+  // Fetch owners when the form is opened and agencyId is available
+  useEffect(() => {
+    if (isOpen && agencyId) {
+      refetchOwners();
+    } else {
+      setOwners([]);
+    }
+  }, [isOpen, agencyId, refetchOwners]);
 
   const faciliteOptions = [
     'École primaire', 'École secondaire', 'Université', 'Hôpital', 'Clinique',
@@ -139,47 +138,45 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     'Banque', 'Restaurant', 'Mosquée', 'Église', 'Parc', 'Terrain de sport'
   ];
 
-  const updateFormData = useCallback((updates: Partial<PropertyFormData>) => {
-    setFormData((prev: PropertyFormData) => {
-      const updated: PropertyFormData = { ...prev, ...updates };
-      if (updates.rooms) {
-        updated.standing = StandingCalculator.calculateStanding(updated.rooms) as PropertyStanding;
-      }
-      if (updates.description !== undefined) {
-        updated.description = updates.description ?? '';
-      }
-      return updated;
+  const handleLocationChange = useCallback((newLocation: PropertyFormData['location']) => {
+    setFormData((prev) => ({ ...prev, location: newLocation }));
+  }, []);
+
+  const handleDetailsChange = useCallback((field: keyof PropertyDetails, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      details: { ...prev.details, [field]: value }
+    }));
+  }, []);
+
+  const handleFaciliteToggle = useCallback((facilite: string) => {
+    setFormData((prev) => {
+      const currentLocation = prev.location;
+      const newFacilites = currentLocation.facilites.includes(facilite)
+        ? currentLocation.facilites.filter((f: string) => f !== facilite)
+        : [...currentLocation.facilites, facilite];
+      return { ...prev, location: { ...currentLocation, facilites: newFacilites } };
     });
   }, []);
 
-  const handleLocationChange = useCallback((location: PropertyFormData['location']) => {
-    updateFormData({ location });
-  }, [updateFormData]);
-
-  const handleDetailsChange = useCallback((field: keyof PropertyDetails, value: string) => {
-    updateFormData({
-      details: { ...formData.details, [field]: value }
-    });
-  }, [formData.details, updateFormData]);
-
-  const handleFaciliteToggle = useCallback((facilite: string) => {
-    const facilites = formData.location.facilites.includes(facilite)
-      ? formData.location.facilites.filter((f: string) => f !== facilite)
-      : [...formData.location.facilites, facilite];
-    handleLocationChange({ ...formData.location, facilites });
-  }, [formData.location.facilites, handleLocationChange]);
-
   const handleAddRoom = useCallback((room: RoomDetails) => {
-    if (editingRoom !== null) {
-      const updatedRooms = [...formData.rooms];
-      updatedRooms[editingRoom] = room;
-      updateFormData({ rooms: updatedRooms });
-      setEditingRoom(null);
-    } else {
-      updateFormData({ rooms: [...formData.rooms, room] });
-    }
+    setFormData((prev) => {
+      if (editingRoom !== null) {
+        const updatedRooms = [...prev.rooms];
+        updatedRooms[editingRoom] = room;
+        const updated = { ...prev, rooms: updatedRooms };
+        updated.standing = StandingCalculator.calculateStanding(updatedRooms) as PropertyStanding;
+        return updated;
+      } else {
+        const updatedRooms = [...prev.rooms, room];
+        const updated = { ...prev, rooms: updatedRooms };
+        updated.standing = StandingCalculator.calculateStanding(updatedRooms) as PropertyStanding;
+        return updated;
+      }
+    });
     setShowRoomForm(false);
-  }, [editingRoom, formData.rooms, updateFormData]);
+    setEditingRoom(null);
+  }, [editingRoom]);
 
   const handleEditRoom = useCallback((index: number) => {
     setEditingRoom(index);
@@ -187,13 +184,17 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   }, []);
 
   const handleDeleteRoom = useCallback((index: number) => {
-    const updatedRooms = formData.rooms.filter((_: RoomDetails, i: number) => i !== index);
-    updateFormData({ rooms: updatedRooms });
-  }, [formData.rooms, updateFormData]);
+    setFormData((prev) => {
+      const updatedRooms = prev.rooms.filter((_: RoomDetails, i: number) => i !== index);
+      const updated = { ...prev, rooms: updatedRooms };
+      updated.standing = StandingCalculator.calculateStanding(updatedRooms) as PropertyStanding;
+      return updated;
+    });
+  }, []);
 
   const handleImageUpload = useCallback((images: PropertyImage[]) => {
-    updateFormData({ images });
-  }, [updateFormData]);
+    setFormData((prev) => ({ ...prev, images }));
+  }, []);
 
   const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -328,16 +329,16 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="Titre de la propriété"
+                label="ID du bien"
                 value={formData.title}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateFormData({ title: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 required
-                aria-label="Titre de la propriété"
+                aria-label="ID du bien"
               />
               <Input
                 label="Commune"
                 value={formData.location.commune}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLocationChange({ ...formData.location, commune: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, location: { ...prev.location, commune: e.target.value } }))}
                 required
                 aria-label="Commune"
               />
@@ -346,20 +347,20 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
               <Input
                 label="Quartier ou lotissement"
                 value={formData.location.quartier}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLocationChange({ ...formData.location, quartier: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, location: { ...prev.location, quartier: e.target.value } }))}
                 required
                 aria-label="Quartier ou lotissement"
               />
               <Input
                 label="Numéro du lot"
                 value={formData.location.numeroLot || ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLocationChange({ ...formData.location, numeroLot: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, location: { ...prev.location, numeroLot: e.target.value } }))}
                 aria-label="Numéro du lot"
               />
               <Input
                 label="Numéro de l'îlot"
                 value={formData.location.numeroIlot || ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLocationChange({ ...formData.location, numeroIlot: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, location: { ...prev.location, numeroIlot: e.target.value } }))}
                 aria-label="Numéro de l'îlot"
               />
             </div>
@@ -396,37 +397,45 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                 Propriétaire du bien *
               </label>
               <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Rechercher un propriétaire par nom ou téléphone..."
-                  value={ownerSearch}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOwnerSearch(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  aria-label="Rechercher un propriétaire"
-                />
-                {ownerSearch && (
-                  <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-md">
-                    {filteredOwners.length > 0 ? (
-                      filteredOwners.map((owner: Owner) => (
-                        <button
-                          key={owner.id}
-                          type="button"
-                          onClick={() => {
-                            updateFormData({ owner_id: owner.id });
-                            setOwnerSearch(`${owner.first_name} ${owner.last_name} - ${owner.phone}`);
-                          }}
-                          className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-200 last:border-b-0"
-                          aria-label={`Sélectionner ${owner.first_name} ${owner.last_name}`}
-                        >
-                          <div className="font-medium">{owner.first_name} {owner.last_name}</div>
-                          <div className="text-sm text-gray-500">{owner.phone} - {owner.city}</div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-gray-500 text-sm">
-                        Aucun propriétaire trouvé
-                      </div>
-                    )}
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={formData.owner_id}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData(prev => ({ ...prev, owner_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={ownersLoading}
+                    required
+                    aria-label="Sélectionner un propriétaire"
+                  >
+                    <option value="">Sélectionner un propriétaire</option>
+                    {owners.map((owner: Owner) => (
+                      <option key={owner.id} value={owner.id}>
+                        {owner.first_name} {owner.last_name} - {owner.phone}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={refetchOwners}
+                    disabled={ownersLoading}
+                    aria-label="Rafraîchir la liste des propriétaires"
+                  >
+                    Rafraîchir
+                  </Button>
+                </div>
+                {ownersLoading && (
+                  <div className="text-sm text-gray-500">
+                    Chargement des propriétaires...
+                  </div>
+                )}
+                {ownersError && (
+                  <div className="text-sm text-red-600">
+                    Erreur lors du chargement des propriétaires : {ownersError}
+                  </div>
+                )}
+                {!ownersLoading && !ownersError && owners.length === 0 && (
+                  <div className="text-sm text-gray-500">
+                    Aucun propriétaire disponible
                   </div>
                 )}
                 {formData.owner_id && (
@@ -515,7 +524,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
               </label>
               <textarea
                 value={formData.description ?? ''}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateFormData({ description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Description détaillée du bien..."

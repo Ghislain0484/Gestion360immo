@@ -1,3 +1,4 @@
+import { AgencyEntity } from './db';
 import { PropertyStanding } from './enums';
 
 export interface PropertyLocation {
@@ -69,9 +70,8 @@ export interface PropertyImage {
   isPrimary: boolean;
 }
 
-export interface Property {
+export interface Property extends AgencyEntity {
   id: string; // UUID
-  agency_id: string; // UUID, FK vers agencies(id)
   owner_id: string; // UUID, FK vers owners(id)
   title: string;
   description?: string | null;

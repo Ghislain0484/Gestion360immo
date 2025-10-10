@@ -9,7 +9,7 @@ export const contractsService = {
     limit,
     offset,
     search,
-    status
+    status,
   }: {
     agency_id?: string;
     limit?: number;
@@ -47,10 +47,16 @@ export const contractsService = {
   },
   async update(id: string, updates: Partial<Contract>): Promise<Contract> {
     const clean = normalizeContract(updates);
-    const { data, error } = await supabase.from('contracts').update(clean).eq('id', id).select('*').single();
+    const { data, error } = await supabase
+      .from('contracts')
+      .update(clean)
+      .eq('id', id)
+      .select('*')
+      .single();
     if (error) throw new Error(formatSbError('❌ contracts.update', error));
     return data;
   },
+
   async delete(id: string): Promise<boolean> {
     const { error } = await supabase.from('contracts').delete().eq('id', id);
     if (error) throw new Error(formatSbError('❌ contracts.delete', error));
