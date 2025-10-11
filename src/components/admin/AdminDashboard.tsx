@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
   Shield,
@@ -47,7 +47,7 @@ const adminTabs = [
   { id: 'agencies', name: 'Gestion Agences', icon: Building2 },
   { id: 'subscriptions', name: 'Abonnements', icon: DollarSign },
   { id: 'rankings', name: 'Classements', icon: Award },
-  { id: 'settings', name: 'Paramètres', icon: Settings },
+  { id: 'settings', name: 'Parametres', icon: Settings },
 ];
 
 export const AdminDashboard: React.FC = () => {
@@ -99,7 +99,7 @@ export const AdminDashboard: React.FC = () => {
       setSystemAlerts(alerts ?? []);
     } catch (err: any) {
       console.error('Error fetching platform stats:', err);
-      setError(err.message || 'Erreur lors du chargement des données.');
+      setError(err.message || 'Erreur lors du chargement des donnees.');
     } finally {
       setLoading(false);
     }
@@ -159,7 +159,7 @@ export const AdminDashboard: React.FC = () => {
           }
         }
 
-        toast.success('Demande approuvée avec succès');
+        toast.success('Demande approuvee avec succes');
         fetchPlatformStats();
       } catch (err: any) {
         toast.error(err.message || "Erreur lors de l'approbation");
@@ -191,7 +191,7 @@ export const AdminDashboard: React.FC = () => {
           }
         }
 
-        toast.success('Demande rejetée');
+        toast.success('Demande rejetee');
         fetchPlatformStats();
       } catch (err: any) {
         toast.error(err.message || 'Erreur lors du rejet');
@@ -212,12 +212,66 @@ export const AdminDashboard: React.FC = () => {
     [],
   );
 
+  const pendingRequestsCount = useMemo(
+    () => requests.filter((req) => req.status === 'pending').length,
+    [requests],
+  );
+
+  const heroSnapshots = useMemo(() => {
+    if (!platformStats) return [] as Array<{ label: string; value: string }>;
+    return [
+      { label: 'Agences totales', value: platformStats.totalAgencies.toLocaleString('fr-FR') },
+      { label: 'Revenus cumules', value: formatCurrency(platformStats.totalRevenue) },
+      { label: 'Croissance mensuelle', value: `${platformStats.monthlyGrowth}%` },
+    ];
+  }, [platformStats, formatCurrency]);
+
+  const overviewMetrics = useMemo(
+    () => {
+      if (!platformStats) {
+        return [] as Array<{ label: string; value: string; secondary?: string; icon: any; accent: string }>;
+      }
+
+      return [
+        {
+          label: 'Agences actives',
+          value: platformStats.activeAgencies.toLocaleString('fr-FR'),
+          secondary: `${pendingRequestsCount} demandes en attente`,
+          icon: Building2,
+          accent: 'bg-rose-100/70 text-rose-600',
+        },
+        {
+          label: 'Revenus abonnements',
+          value: formatCurrency(platformStats.subscriptionRevenue),
+          secondary: `Total cumules: ${formatCurrency(platformStats.totalRevenue)}`,
+          icon: DollarSign,
+          accent: 'bg-emerald-100/70 text-emerald-600',
+        },
+        {
+          label: 'Biens geres',
+          value: platformStats.totalProperties.toLocaleString('fr-FR'),
+          secondary: `${platformStats.totalContracts.toLocaleString('fr-FR')} contrats actifs`,
+          icon: Users,
+          accent: 'bg-blue-100/70 text-blue-600',
+        },
+        {
+          label: 'Croissance mensuelle',
+          value: `${platformStats.monthlyGrowth}%`,
+          secondary: 'Tendance du mois courant',
+          icon: TrendingUp,
+          accent: 'bg-indigo-100/70 text-indigo-600',
+        },
+      ];
+    },
+    [platformStats, pendingRequestsCount, formatCurrency],
+  );
+
   const handleLogout = useCallback(async () => {
     try {
       await logout();
-      toast.success('Déconnexion réussie');
+      toast.success('Deconnexion reussie');
     } catch (err: any) {
-      toast.error(err.message || 'Impossible de se déconnecter.');
+      toast.error(err.message || 'Impossible de se deconnecter.');
     }
   }, [logout]);
 
@@ -226,93 +280,137 @@ export const AdminDashboard: React.FC = () => {
     isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900',
   );
 
-  const cardClass = useMemo(
-    () => (isDarkMode ? 'bg-slate-900 border-slate-800 shadow-lg shadow-slate-900/40' : 'bg-white shadow-sm'),
-    [isDarkMode],
-  );
-
   if (loading) {
     return (
-      <div className={clsx(containerClass, 'flex items-center justify-center')}>
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
+      <div className={clsx(containerClass, 'flex min-h-screen items-center justify-center')}>
+        <div className="h-12 w-12 animate-spin rounded-full border-2 border-transparent border-t-rose-500" />
       </div>
     );
   }
 
   return (
-    <div className={containerClass}>
+    <div className={clsx(containerClass, 'relative min-h-screen overflow-hidden')}>
       <div
-        className={clsx(
-          'border-b transition-colors',
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm',
-        )}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 py-5">
-            <div className="flex items-center space-x-3">
-              <div
-                className={clsx(
-                  'p-2 rounded-xl shadow-inner',
-                  isDarkMode ? 'bg-rose-500/10 text-rose-300' : 'bg-rose-100 text-rose-600',
-                )}
-              >
-                <Shield className="h-8 w-8" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">Administration Gestion360Immo</h1>
-                <p className="text-sm text-muted-foreground">
-                  Pilotage global des agences, abonnements et performances
-                </p>
-              </div>
-              <Badge variant="danger" size="sm">
-                Super Admin
-              </Badge>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={() => setIsDarkMode((prev) => !prev)}>
-                {isDarkMode ? (
-                  <>
-                    <Sun className="h-4 w-4 mr-2" />
-                    Mode clair
-                  </>
-                ) : (
-                  <>
-                    <Moon className="h-4 w-4 mr-2" />
-                    Mode sombre
-                  </>
-                )}
-              </Button>
-              <Button variant="danger" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Déconnexion
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+        className="pointer-events-none absolute inset-x-0 top-0 h-[320px] bg-gradient-to-br from-rose-50 via-white to-indigo-100"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute -top-24 right-12 h-72 w-72 rounded-full bg-rose-200/40 blur-3xl"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute left-10 top-72 h-64 w-64 rounded-full bg-indigo-200/30 blur-3xl"
+        aria-hidden="true"
+      />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="relative z-10 mx-auto max-w-7xl space-y-10 px-4 pb-16 pt-12 sm:px-6 lg:px-8">
         {error && (
-          <Card className={clsx(cardClass, 'border border-red-400 bg-red-100/80 text-red-800')}>
-            <div className="p-4 flex justify-between items-center">
+          <Card className="border border-rose-200 bg-rose-50/90 text-rose-700 shadow-lg">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="font-semibold">Une erreur est survenue</p>
-                <p className="text-sm opacity-80">{error}</p>
+                <p className="text-sm text-rose-600/80">{error}</p>
               </div>
-              <Button variant="danger" size="sm" onClick={fetchPlatformStats}>
-                Réessayer
+              <Button variant="outline" size="sm" onClick={fetchPlatformStats}>
+                Actualiser
               </Button>
             </div>
           </Card>
         )}
 
-        <div
-          className={clsx(
-            'rounded-2xl p-2 shadow-inner overflow-x-auto',
-            isDarkMode ? 'bg-slate-900 border border-slate-800' : 'bg-white/80 border border-slate-200',
-          )}
-        >
-          <nav className="flex space-x-4 md:space-x-6">
+        <div className="grid items-stretch gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <Card className="relative overflow-hidden border-none bg-white/85 backdrop-blur-xl shadow-2xl shadow-rose-200/50">
+            <div className="relative flex flex-col gap-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shadow-inner">
+                    <Shield className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-rose-500">console admin</p>
+                    <h1 className="text-3xl font-semibold text-slate-900">Gestion360Immo</h1>
+                    <p className="text-sm text-slate-500">
+                      Surveillez les performances globales de la plateforme et accompagnez les agences en temps reel.
+                    </p>
+                  </div>
+                  <Badge variant="danger" size="sm" className="ml-2">Super admin</Badge>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setIsDarkMode((prev) => !prev)}>
+                    {isDarkMode ? (
+                      <>
+                        <Sun className="mr-2 h-4 w-4" />
+                        Mode clair
+                      </>
+                    ) : (
+                      <>
+                        <Moon className="mr-2 h-4 w-4" />
+                        Mode sombre
+                      </>
+                    )}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={fetchPlatformStats}>
+                    Actualiser
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Se deconnecter
+                  </Button>
+                </div>
+              </div>
+
+              {heroSnapshots.length > 0 && (
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {heroSnapshots.map((item) => (
+                    <div key={item.label} className="rounded-2xl border border-white/50 bg-white/80 px-4 py-5 shadow-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.label}</p>
+                      <p className="mt-2 text-xl font-semibold text-slate-900">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card className="border-none bg-white/85 backdrop-blur-xl shadow-xl">
+            <div className="flex h-full flex-col justify-between gap-4 p-6">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Demandes en cours</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-900">{pendingRequestsCount}</p>
+                <p className="text-sm text-slate-500">Agences en attente de validation</p>
+              </div>
+              <div className="space-y-2 text-sm text-slate-600">
+                <p>Agences totales: {platformStats?.totalAgencies.toLocaleString('fr-FR') ?? '-'}</p>
+                <p>Revenus cumules: {platformStats ? formatCurrency(platformStats.totalRevenue) : '-'}</p>
+                <p>Agences actives: {platformStats?.activeAgencies.toLocaleString('fr-FR') ?? '-'}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {platformStats && overviewMetrics.length > 0 && (
+          <section className="space-y-6">
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+              {overviewMetrics.map((metric) => (
+                <Card key={metric.label} className="border-none bg-white/90 shadow-md shadow-rose-200/40">
+                  <div className="flex items-start gap-4 p-5">
+                    <span className={clsx('flex h-10 w-10 items-center justify-center rounded-xl', metric.accent)}>
+                      <metric.icon className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{metric.label}</p>
+                      <p className="mt-1 text-xl font-semibold text-slate-900">{metric.value}</p>
+                      {metric.secondary && <p className="text-xs text-slate-500">{metric.secondary}</p>}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <div className="rounded-2xl border border-white/60 bg-white/80 p-2 shadow-inner backdrop-blur md:px-4">
+          <nav className="flex flex-wrap gap-2">
             {adminTabs.map((tab) => {
               const isActive = tab.id === activeTab;
               return (
@@ -320,12 +418,8 @@ export const AdminDashboard: React.FC = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={clsx(
-                    'flex items-center space-x-2 rounded-xl px-4 py-2 transition-all text-sm font-medium',
-                    isActive
-                      ? 'bg-rose-500 text-white shadow'
-                      : isDarkMode
-                      ? 'text-slate-300 hover:bg-slate-800'
-                      : 'text-slate-600 hover:bg-slate-100',
+                    'flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                    isActive ? 'bg-rose-500 text-white shadow' : 'text-slate-600 hover:bg-rose-100/60',
                   )}
                 >
                   <tab.icon className="h-4 w-4" />
@@ -336,235 +430,118 @@ export const AdminDashboard: React.FC = () => {
           </nav>
         </div>
 
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {platformStats && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className={clsx(cardClass, 'border-t-4 border-rose-500')}>
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={clsx(
-                            'p-3 rounded-xl',
-                            isDarkMode ? 'bg-rose-500/10 text-rose-300' : 'bg-rose-100 text-rose-600',
-                          )}
-                        >
-                          <Building2 className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <p className="text-sm uppercase tracking-wide opacity-70">Agences actives</p>
-                          <p className="text-2xl font-semibold">{platformStats.activeAgencies.toLocaleString()}</p>
-                        </div>
+        <div>
+          {activeTab === 'overview' ? (
+            <div className="space-y-8">
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card className="border-none bg-white/90 shadow-md">
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-slate-900">Agences recentes</h3>
+                    <p className="text-sm text-slate-500">Six dernieres validations</p>
+                    {recentAgencies.length > 0 ? (
+                      <div className="mt-4 space-y-3">
+                        {recentAgencies.slice(0, 6).map((agency) => (
+                          <div key={agency.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                            <div>
+                              <p className="font-medium text-slate-900">{agency.name}</p>
+                              <p className="text-xs text-slate-500">{agency.city}</p>
+                            </div>
+                            <span className="text-xs text-slate-400">
+                              {new Date(agency.created_at).toLocaleDateString('fr-FR')}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                      <Badge variant="danger">{platformStats.totalAgencies}</Badge>
-                    </div>
-                    <p className="text-xs opacity-70">
-                      {platformStats.pendingRequests} demandes d'inscription en attente
-                    </p>
+                    ) : (
+                      <div className="mt-6 text-center text-sm text-slate-500">Aucune agence recente</div>
+                    )}
                   </div>
                 </Card>
 
-                <Card className={clsx(cardClass, 'border-t-4 border-emerald-500')}>
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={clsx(
-                          'p-3 rounded-xl',
-                          isDarkMode ? 'bg-emerald-500/10 text-emerald-300' : 'bg-emerald-100 text-emerald-600',
-                        )}
-                      >
-                        <DollarSign className="h-6 w-6" />
+                <Card className="border-none bg-white/90 shadow-md">
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-slate-900">Alertes systeme</h3>
+                    <p className="text-sm text-slate-500">Suivi operationnel des services critiques</p>
+                    {systemAlerts.length > 0 ? (
+                      <div className="mt-4 space-y-3">
+                        {systemAlerts.map((alert, index) => (
+                          <div key={index} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                            <span className={clsx('mt-1 h-2 w-2 rounded-full',
+                              alert.type === 'warning' ? 'bg-amber-500' : alert.type === 'error' ? 'bg-rose-500' : alert.type === 'success' ? 'bg-emerald-500' : 'bg-blue-500'
+                            )} />
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">{alert.title}</p>
+                              <p className="text-xs text-slate-500">{alert.description}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <p className="text-sm uppercase tracking-wide opacity-70">Revenus abonnements</p>
-                        <p className="text-2xl font-semibold">
-                          {formatCurrency(platformStats.subscriptionRevenue)}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs opacity-70">
-                      Total cumulé : {formatCurrency(platformStats.totalRevenue)}
-                    </p>
-                  </div>
-                </Card>
-
-                <Card className={clsx(cardClass, 'border-t-4 border-blue-500')}>
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={clsx(
-                          'p-3 rounded-xl',
-                          isDarkMode ? 'bg-blue-500/10 text-blue-300' : 'bg-blue-100 text-blue-600',
-                        )}
-                      >
-                        <Users className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <p className="text-sm uppercase tracking-wide opacity-70">Biens gérés</p>
-                        <p className="text-2xl font-semibold">
-                          {platformStats.totalProperties.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs opacity-70">
-                      {platformStats.totalContracts.toLocaleString()} contrats actifs
-                    </p>
-                  </div>
-                </Card>
-
-                <Card className={clsx(cardClass, 'border-t-4 border-violet-500')}>
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={clsx(
-                          'p-3 rounded-xl',
-                          isDarkMode ? 'bg-violet-500/10 text-violet-300' : 'bg-violet-100 text-violet-600',
-                        )}
-                      >
-                        <TrendingUp className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <p className="text-sm uppercase tracking-wide opacity-70">Croissance mensuelle</p>
-                        <p className="text-2xl font-semibold">{platformStats.monthlyGrowth}%</p>
-                      </div>
-                    </div>
-                    <p className="text-xs opacity-70">Nouvelles agences ce mois</p>
+                    ) : (
+                      <div className="mt-6 text-center text-sm text-slate-500">Aucune alerte active</div>
+                    )}
                   </div>
                 </Card>
               </div>
-            )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className={cardClass}>
+              <Card className="border-none bg-white/90 shadow-md">
                 <div className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">Agences récemment inscrites</h3>
-                  {recentAgencies.length > 0 ? (
-                    <div className="space-y-3">
-                      {recentAgencies.map((agency) => (
-                        <div
-                          key={agency.id}
-                          className={clsx(
-                            'flex items-center justify-between rounded-xl border px-4 py-3 transition-colors',
-                            isDarkMode
-                              ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/80'
-                              : 'border-slate-200 bg-slate-50 hover:bg-white',
-                          )}
-                        >
-                          <div>
-                            <p className="font-medium">{agency.name}</p>
-                            <p className="text-xs opacity-70">{agency.city}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Demandes d'approbation</h3>
+                      <p className="text-sm text-slate-500">Gestion des nouvelles agences</p>
+                    </div>
+                    <Badge variant="secondary">{pendingRequestsCount} en attente</Badge>
+                  </div>
+
+                  {requests.length > 0 ? (
+                    <div className="mt-4 space-y-4">
+                      {requests.map((req) => (
+                        <div key={req.id} className="rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm">
+                          <div className="grid gap-3 text-sm md:grid-cols-2">
+                            <div>
+                              <p className="font-semibold text-slate-900">{req.name}</p>
+                              <p className="text-xs text-slate-500">Registre: {req.commercial_register}</p>
+                            </div>
+                            <div>
+                              <p>Email: {req.email}</p>
+                              <p>Directeur: {req.director_first_name} {req.director_last_name}</p>
+                            </div>
+                            <div>
+                              <p>Telephone: {req.phone}</p>
+                              <p>Ville: {req.city}</p>
+                            </div>
+                            <div>
+                              <p>Logo: {req.logo_temp_path ?? 'Aucun'}</p>
+                            </div>
                           </div>
-                          <span className="text-xs opacity-70">
-                            {new Date(agency.created_at).toLocaleDateString('fr-FR')}
-                          </span>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button size="sm" onClick={() => approve(req)}>Approuver</Button>
+                            <Button size="sm" variant="outline" onClick={() => reject(req, 'Rejet automatique')}>
+                              Rejeter
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-10 opacity-70">
-                      <Building2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                      <p>Aucune agence récente</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-
-              <Card className={cardClass}>
-                <div className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">Alertes système</h3>
-                  {systemAlerts.length > 0 ? (
-                    <div className="space-y-3">
-                      {systemAlerts.map((alert, index) => {
-                        const palette =
-                          alert.type === 'warning'
-                            ? { bg: 'bg-amber-100 dark:bg-amber-500/10', dot: 'bg-amber-500' }
-                            : alert.type === 'error'
-                            ? { bg: 'bg-rose-100 dark:bg-rose-500/10', dot: 'bg-rose-500' }
-                            : alert.type === 'success'
-                            ? { bg: 'bg-emerald-100 dark:bg-emerald-500/10', dot: 'bg-emerald-500' }
-                            : { bg: 'bg-sky-100 dark:bg-sky-500/10', dot: 'bg-sky-500' };
-                        return (
-                          <div
-                            key={index}
-                            className={clsx(
-                              'flex items-start space-x-3 rounded-xl px-4 py-3 text-sm',
-                              palette.bg,
-                              isDarkMode && 'border border-white/5',
-                            )}
-                          >
-                            <span className={clsx('mt-1 h-2 w-2 rounded-full', palette.dot)} />
-                            <div>
-                              <p className="font-medium">{alert.title}</p>
-                              <p className="text-xs opacity-80">{alert.description}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-10 opacity-70">Aucune alerte en cours</div>
+                    <p className="mt-6 text-center text-sm text-slate-500">Aucune demande a traiter</p>
                   )}
                 </div>
               </Card>
             </div>
-
-            <Card className={cardClass}>
-              <div className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Demandes d'approbation d'agences</h3>
-                {requests.length > 0 ? (
-                  <div className="space-y-4">
-                    {requests.map((req) => (
-                      <div
-                        key={req.id}
-                        className={clsx(
-                          'rounded-xl border p-4 transition-colors',
-                          isDarkMode
-                            ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/80'
-                            : 'border-slate-200 bg-white',
-                        )}
-                      >
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <p className="font-medium">{req.name}</p>
-                            <p className="opacity-70">Registre : {req.commercial_register}</p>
-                          </div>
-                          <div>
-                            <p>Email : {req.email}</p>
-                            <p>Directeur : {req.director_first_name} {req.director_last_name}</p>
-                          </div>
-                          <div>
-                            <p>Téléphone : {req.phone}</p>
-                            <p>Ville : {req.city}</p>
-                          </div>
-                          <div>
-                            <p>Logo : {req.logo_temp_path ? req.logo_temp_path : 'Aucun'}</p>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" onClick={() => approve(req)}>
-                            Approuver
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => reject(req, 'Rejet automatique')}>
-                            Rejeter
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm opacity-70 text-center py-6">Aucune demande en attente</p>
-                )}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {activeTab === 'agencies' && <AgencyManagement />}
-        {activeTab === 'subscriptions' && <SubscriptionManagement />}
-        {activeTab === 'rankings' && <AgencyRankings />}
-        {activeTab === 'settings' && <PlatformSettings />}
+          ) : activeTab === 'agencies' ? (
+            <AgencyManagement />
+          ) : activeTab === 'subscriptions' ? (
+            <SubscriptionManagement />
+          ) : activeTab === 'rankings' ? (
+            <AgencyRankings />
+          ) : (
+            <PlatformSettings />
+          )}
+        </div>
       </div>
     </div>
   );
 };
+
+
