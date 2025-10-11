@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+﻿import React, { useState, useCallback } from 'react';
 import { Upload, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -7,6 +7,7 @@ import { PropertyImage, RoomDetails } from '../../types/db';
 import { supabase } from '../../lib/config';
 import { toast } from 'react-hot-toast';
 import { Badge } from '../ui/Badge';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ImageUploaderProps {
   images: PropertyImage[];
@@ -14,104 +15,132 @@ interface ImageUploaderProps {
   rooms: RoomDetails[];
 }
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({
-  images,
-  onImagesChange,
-  rooms,
-}) => {
+const BUCKET_NAME = 'property-images';
+
+const sanitizeFileName = (fileName: string) =>
+  fileName
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9._-]/g, '');
+
+const createStoragePath = (prefix: string, fileName: string) => {
+  const safeName = sanitizeFileName(fileName);
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  return `${prefix}/${Date.now()}-${randomSuffix}-${safeName}`;
+};
+
+export const ImageUploader: React.FC<ImageUploaderProps> = ({ images, onImagesChange, rooms }) => {
   const [uploading, setUploading] = useState(false);
+  const { user } = useAuth();
+  const agencyPrefix = user?.agency_id ? `agencies/${user.agency_id}` : 'public';
 
   const handleFileSelect = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
-      if (!event.target.files || event.target.files.length === 0) return;
+      const fileList = event.target.files;
+      if (!fileList || fileList.length === 0) {
+        return;
+      }
 
       setUploading(true);
-      const newImages: PropertyImage[] = [];
+      const selectedFiles = Array.from(fileList);
 
       try {
-        for (const file of Array.from(event.target.files)) {
-          const fileName = `${Date.now()}_${file.name}`;
-          const { data, error } = await supabase.storage
-            .from('property-images')
-            .upload(fileName, file, {
-              cacheControl: '3600',
-              upsert: false,
-            });
+        const uploaded = await Promise.all(
+          selectedFiles.map(async (file) => {
+            const storagePath = createStoragePath(agencyPrefix, file.name);
+            const { data, error } = await supabase.storage
+              .from(BUCKET_NAME)
+              .upload(storagePath, file, {
+                cacheControl: '3600',
+                upsert: false,
+              });
 
-          if (error) {
-            throw new Error(`Erreur lors du téléversement de ${file.name}: ${error.message}`);
+            if (error || !data?.path) {
+              throw new Error(`Televersement impossible pour ${file.name}: ${error?.message ?? 'bucket introuvable'}`);
+            }
+
+            const { data: urlData, error: urlError } = supabase.storage.from(BUCKET_NAME).getPublicUrl(data.path);
+            if (urlError || !urlData?.publicUrl) {
+              throw new Error(`Impossible de recuperer le lien pour ${file.name}`);
+            }
+
+            const isFirstImage = images.length === 0;
+            return {
+              id: data.path,
+              url: urlData.publicUrl,
+              description: '',
+              isPrimary: isFirstImage,
+              room: '',
+            } as PropertyImage;
+          }),
+        );
+
+        const merged = [...images];
+        uploaded.forEach((image) => {
+          if (!merged.some((img) => img.isPrimary)) {
+            merged.push({ ...image, isPrimary: merged.length === 0 });
+          } else {
+            merged.push(image);
           }
+        });
 
-          const { data: urlData } = supabase.storage
-            .from('property-images')
-            .getPublicUrl(fileName);
-
-          newImages.push({
-            id: data.path,
-            url: urlData.publicUrl,
-            description: '',
-            isPrimary: images.length === 0 && newImages.length === 0,
-            room: '', // Use empty string as default, matches PropertyImage type
-          });
+        if (merged.length > 0 && !merged.some((img) => img.isPrimary)) {
+          merged[0].isPrimary = true;
         }
 
-        onImagesChange([...images, ...newImages]);
-        toast.success('Images téléversées avec succès');
-      } catch (error) {
-        const errMsg = error instanceof Error ? error.message : 'Erreur lors du téléversement';
-        toast.error(errMsg);
+        onImagesChange(merged);
+        toast.success('Images televersees avec succes');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erreur lors du televersement';
+        toast.error(message);
       } finally {
         setUploading(false);
-        event.target.value = ''; // Reset input
+        event.target.value = '';
       }
     },
-    [images, onImagesChange]
+    [agencyPrefix, images, onImagesChange],
   );
 
   const removeImage = useCallback(
     async (imageId: string) => {
       try {
-        const { error } = await supabase.storage
-          .from('property-images')
-          .remove([imageId]);
-
+        const { error } = await supabase.storage.from(BUCKET_NAME).remove([imageId]);
         if (error) {
-          throw new Error(`Erreur lors de la suppression de l'image: ${error.message}`);
+          throw new Error(`Suppression impossible: ${error.message}`);
         }
 
-        const updatedImages = images.filter((img) => img.id !== imageId);
-        if (updatedImages.length > 0 && !updatedImages.some((img) => img.isPrimary)) {
-          updatedImages[0].isPrimary = true;
+        const updated = images.filter((img) => img.id !== imageId);
+        if (updated.length > 0 && !updated.some((img) => img.isPrimary)) {
+          updated[0].isPrimary = true;
         }
-        onImagesChange(updatedImages);
-        toast.success('Image supprimée avec succès');
-      } catch (error) {
-        const errMsg = error instanceof Error ? error.message : 'Erreur lors de la suppression';
-        toast.error(errMsg);
+        onImagesChange(updated);
+        toast.success('Image supprimee avec succes');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erreur lors de la suppression';
+        toast.error(message);
       }
     },
-    [images, onImagesChange]
+    [images, onImagesChange],
   );
 
   const setPrimaryImage = useCallback(
     (imageId: string) => {
-      const updatedImages = images.map((img) => ({
+      const updated = images.map((img) => ({
         ...img,
         isPrimary: img.id === imageId,
       }));
-      onImagesChange(updatedImages);
+      onImagesChange(updated);
     },
-    [images, onImagesChange]
+    [images, onImagesChange],
   );
 
   const updateImageRoom = useCallback(
     (imageId: string, room: string) => {
-      const updatedImages = images.map((img) =>
-        img.id === imageId ? { ...img, room } : img
-      );
-      onImagesChange(updatedImages);
+      const updated = images.map((img) => (img.id === imageId ? { ...img, room } : img));
+      onImagesChange(updated);
     },
-    [images, onImagesChange]
+    [images, onImagesChange],
   );
 
   return (
@@ -119,9 +148,9 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-900">Images ({images.length})</h3>
         <label className="cursor-pointer">
-          <Button disabled={uploading} aria-label="Téléverser des images">
-            <Upload className="h-4 w-4 mr-2" />
-            {uploading ? 'Téléversement...' : 'Téléverser des images'}
+          <Button disabled={uploading} aria-label="Televerser des images">
+            <Upload className="mr-2 h-4 w-4" />
+            {uploading ? 'Televersement...' : 'Televerser des images'}
           </Button>
           <input
             type="file"
@@ -130,36 +159,32 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
             onChange={handleFileSelect}
             className="hidden"
             disabled={uploading}
-            aria-label="Sélectionner des images"
+            aria-label="Selectionner des images"
           />
         </label>
       </div>
 
       {images.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <Upload className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p>Aucune image téléversée</p>
-          <p className="text-sm">Téléversez des images pour illustrer la propriété</p>
+        <div className="py-8 text-center text-gray-500">
+          <Upload className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+          <p>Aucune image televersee</p>
+          <p className="text-sm">Ajoutez des visuels pour valoriser le bien</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {images.map((image) => (
             <Card key={image.id} className="p-2">
               <div className="relative">
-                <img
-                  src={image.url}
-                  alt={image.description || 'Image'}
-                  className="w-full h-32 object-cover rounded-md"
-                />
+                <img src={image.url} alt={image.description || 'Image'} className="h-32 w-full rounded-md object-cover" />
                 {image.isPrimary && (
-                  <Badge variant="success" className="absolute top-2 left-2">
+                  <Badge variant="success" className="absolute left-2 top-2">
                     Principale
                   </Badge>
                 )}
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="absolute top-2 right-2 text-red-600 hover:text-red-700"
+                  className="absolute right-2 top-2 text-red-600 hover:text-red-700"
                   onClick={() => removeImage(image.id)}
                   aria-label={`Supprimer l'image ${image.description || image.id}`}
                 >
@@ -171,9 +196,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                   value={image.description || ''}
                   onChange={(e) =>
                     onImagesChange(
-                      images.map((img) =>
-                        img.id === image.id ? { ...img, description: e.target.value } : img
-                      )
+                      images.map((img) => (img.id === image.id ? { ...img, description: e.target.value } : img)),
                     )
                   }
                   placeholder="Description de l'image"
@@ -182,10 +205,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                 <select
                   value={image.room || ''}
                   onChange={(e) => updateImageRoom(image.id, e.target.value)}
-                  className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  aria-label={`Associer l'image ${image.id} à une pièce`}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label={`Associer l'image ${image.id} a une piece`}
                 >
-                  <option value="">Aucune pièce</option>
+                  <option value="">Aucune piece</option>
                   {rooms.map((room) => (
                     <option key={room.id || room.type} value={room.id || room.type}>
                       {room.nom || room.type.replace('_', ' ')}
@@ -197,9 +220,9 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                   size="sm"
                   onClick={() => setPrimaryImage(image.id)}
                   disabled={image.isPrimary}
-                  aria-label={`Définir l'image ${image.id} comme principale`}
+                  aria-label={`Definir l'image ${image.id} comme principale`}
                 >
-                  Définir comme principale
+                  Definir comme principale
                 </Button>
               </div>
             </Card>

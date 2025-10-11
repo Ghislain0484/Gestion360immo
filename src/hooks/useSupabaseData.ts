@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+﻿import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { dbService } from '../lib/supabase';
 import { AgencyEntity, Entity } from '../types/db';
@@ -18,17 +18,17 @@ const log = (...args: any[]) => {
 // ---------------------------------------------
 export function mapSupabaseError(err: unknown, context: string): string {
   if (!(err instanceof Error)) return 'Erreur inconnue';
-  if (isRlsDenied(err)) return 'Accès refusé : permissions insuffisantes (RLS).';
-  if (err.message.includes('Supabase non configuré') || err.message.includes('401')) {
-    return 'Configuration Supabase manquante. Vérifiez les variables d\'environnement.';
+  if (isRlsDenied(err)) return 'Acces refuse : permissions insuffisantes (RLS).';
+  if (err.message.includes('Supabase non configure') || err.message.includes('401')) {
+    return 'Configuration Supabase manquante. Verifiez les variables d\'environnement.';
   }
-  if (err.message.includes('JWT')) return 'Session expirée. Veuillez vous reconnecter.';
+  if (err.message.includes('JWT')) return 'Session expiree. Veuillez vous reconnecter.';
   return formatSbError(context, err);
 }
 
 /**
- * Paramètres génériques pour toutes les requêtes `getAll` de dbService.
- * Sert à filtrer, paginer, chercher, et éventuellement trier les données.
+ * Parametres generiques pour toutes les requetes `getAll` de dbService.
+ * Sert   filtrer, paginer, chercher, et eventuellement trier les donnees.
  */
 export interface GetAllParams {
   /** Contexte multi-agences */
@@ -55,7 +55,7 @@ export interface GetAllParams {
   order_by?: string;
   order_dir?: 'asc' | 'desc';
 
-  /** Fourre-tout extensible (évite les erreurs TS à chaque nouveau filtre) */
+  /** Fourre-tout extensible (evite les erreurs TS   chaque nouveau filtre) */
   [key: string]: any;
 }
 
@@ -97,7 +97,11 @@ export function useRealtimeData<T extends AgencyEntity>(
 
   // Stabiliser agencyId et params
   const agencyId = useMemo(() => (authLoading ? null : user?.agency_id ?? null), [user?.agency_id, authLoading]);
-  const fetchParams = useMemo(() => ({ ...params, agency_id: agencyId ?? params.agency_id ?? undefined }), [params, agencyId]);
+  const paramsKey = useMemo(() => JSON.stringify(params ?? {}), [params]);
+  const fetchParams = useMemo(() => {
+    const baseParams = paramsKey ? (JSON.parse(paramsKey) as GetAllParams) : {};
+    return { ...baseParams, agency_id: agencyId ?? baseParams.agency_id ?? undefined };
+  }, [paramsKey, agencyId]);
 
   // -------------------------
   // Fonction de fetch
@@ -106,31 +110,31 @@ export function useRealtimeData<T extends AgencyEntity>(
     if (!isMountedRef.current) return;
 
     if (!params.agency_id) {
-      const msg = 'Aucune agence associée à l’utilisateur';
+      const msg = 'Aucune agence associee a l\'utilisateur';
       setError(msg);
       setInitialLoading(false);
       setFetching(false);
       setData([]);
       toast.error(msg);
-      log(`🚫 Ignorer fetch ${tableName}: agency_id manquant`);
+      log(`­ƒÜ½ Ignorer fetch ${tableName}: agency_id manquant`);
       return;
     }
 
     if (isFetchingRef.current) {
-      log(`🚫 Ignorer fetch ${tableName}: déjà en cours`);
+      log(`­ƒÜ½ Ignorer fetch ${tableName}: dej  en cours`);
       return;
     }
 
     isFetchingRef.current = true;
     setFetching(true);
     setError(null);
-    log(`🔍 Fetch ${tableName} avec params:`, params);
+    log(`­ƒöì Fetch ${tableName} avec params:`, params);
 
     try {
       const result = await fetchFunction(params);
       if (!isMountedRef.current) return;
       setData(result);
-      log(`✅ ${tableName} mis à jour: ${result.length} items`);
+      log(`[info] ${tableName} mis   jour: ${result.length} items`);
     } catch (err) {
       if (!isMountedRef.current) return;
       const msg = mapSupabaseError(err, `Erreur chargement ${tableName}`);
@@ -138,23 +142,23 @@ export function useRealtimeData<T extends AgencyEntity>(
       options?.onError?.(msg);
       toast.error(msg);
       setData([]);
-      log(`❌ Erreur fetch ${tableName}:`, err);
+      log(`[error] Erreur fetch ${tableName}:`, err);
     } finally {
       if (!isMountedRef.current) return;
       isFetchingRef.current = false;
       setInitialLoading(false);
       setFetching(false);
-      log(`✅ Fetch ${tableName} terminé`);
+      log(`[info] Fetch ${tableName} termine`);
     }
   }, [fetchFunction, tableName, options]);
 
   // ---------------------------------------
-  // Gestion des abonnements en temps réel
+  // Gestion des abonnements en temps reel
   // ---------------------------------------
   const debouncedRefetch = useCallback(
     debounce((params: GetAllParams) => {
       if (!isMountedRef.current) return;
-      log(`🔄 Refetch ${tableName} déclenché`);
+      log(`­ƒöä Refetch ${tableName} declenche`);
       fetchData(params);
     }, 500),
     [fetchData, tableName]
@@ -172,7 +176,7 @@ export function useRealtimeData<T extends AgencyEntity>(
     }
 
     if (!agencyId) {
-      const msg = 'Aucune agence associée à l’utilisateur';
+      const msg = 'Aucune agence associee a l\'utilisateur';
       setError(msg);
       setInitialLoading(false);
       setData([]);
@@ -183,7 +187,7 @@ export function useRealtimeData<T extends AgencyEntity>(
     fetchData(fetchParams);
 
     if (!channelRef.current) {
-      log(`📡 Subscription ${tableName}, agency: ${agencyId}`);
+      log(`­ƒôí Subscription ${tableName}, agency: ${agencyId}`);
       const channel = supabase
         .channel(`public:${tableName}:${agencyId}`)
         .on(
@@ -192,13 +196,13 @@ export function useRealtimeData<T extends AgencyEntity>(
           (payload: RealtimePostgresChangesPayload<T>) => {
             const row = (payload.new ?? payload.old) as T;
             if (!agencyId || row?.agency_id === agencyId) {
-              log(`📡 Event reçu pour ${tableName} valide (agence ${agencyId})`);
+              log(`­ƒôí Event recu pour ${tableName} valide (agence ${agencyId})`);
               debouncedRefetch(fetchParams);
             }
           }
         )
         .subscribe((status) => {
-          if (status === 'SUBSCRIBED') log(`✅ Subscription active pour ${tableName}`);
+          if (status === 'SUBSCRIBED') log(`[info] Subscription active pour ${tableName}`);
         });
 
       channelRef.current = channel;
@@ -207,7 +211,7 @@ export function useRealtimeData<T extends AgencyEntity>(
     return () => {
       isMountedRef.current = false;
       if (channelRef.current) {
-        log(`🛑 Cleanup subscription ${tableName}`);
+        log(`­ƒøæ Cleanup subscription ${tableName}`);
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
@@ -263,7 +267,7 @@ export function useDashboardStats() {
       if (!signal.aborted) setStats(result);
     } catch (err) {
       if (signal.aborted) return;
-      log('❌ Erreur stats:', err);
+      log('[error] Erreur stats:', err);
       const errMsg = mapSupabaseError(err, 'Erreur chargement stats');
       setError(errMsg);
       toast.error(errMsg);
@@ -322,8 +326,8 @@ export function useSupabaseCreate<T extends Entity>(
       setSuccess(true);
       return result;
     } catch (err) {
-      log('❌ Erreur création:', err);
-      const errMsg = mapSupabaseError(err, 'Erreur création');
+      log('[error] Erreur creation:', err);
+      const errMsg = mapSupabaseError(err, 'Erreur creation');
       setError(errMsg);
       options?.onError?.(errMsg);
       if (options?.errorMessage) toast.error(options.errorMessage);
@@ -369,8 +373,8 @@ export function useSupabaseUpdate<T extends Entity>(
       setSuccess(true);
       return result;
     } catch (err) {
-      log('❌ Erreur mise à jour:', err);
-      const errMsg = mapSupabaseError(err, 'Erreur mise à jour');
+      log('[error] Erreur mise   jour:', err);
+      const errMsg = mapSupabaseError(err, 'Erreur mise   jour');
       setError(errMsg);
       options?.onError?.(errMsg);
       if (options?.errorMessage) toast.error(options.errorMessage);
@@ -415,7 +419,7 @@ export function useSupabaseDelete(
       options?.onSuccess?.();
       if (options?.successMessage) toast.success(options.successMessage);
     } catch (err) {
-      log('❌ Erreur suppression:', err);
+      log('[error] Erreur suppression:', err);
       const errMsg = mapSupabaseError(err, 'Erreur suppression');
       setError(errMsg);
       options?.onError?.(errMsg);
@@ -465,10 +469,13 @@ export const usePermissions = () => {
         canContact: true, // Tous les utilisateurs peuvent contacter
       });
     } catch (err) {
-      console.error('Erreur lors de la vérification des permissions:', err);
+      console.error('Erreur lors de la verification des permissions:', err);
       return { canEdit: false, canDelete: false, canContact: true };
     }
   };
 
   return { checkPermission, permissions };
 };
+
+
+

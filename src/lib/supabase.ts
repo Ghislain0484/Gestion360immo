@@ -1,6 +1,6 @@
 import { supabase } from './config';
 import { formatSbError } from './helpers';
-import { RentReceipt, DashboardStats } from '../types/db';
+import { DashboardStats } from '../types/db';
 import { propertiesService } from './db/propertiesService';
 import { contractsService } from './db/contractsService';
 import { contractTemplatesService } from './db/contractTemplatesService';
