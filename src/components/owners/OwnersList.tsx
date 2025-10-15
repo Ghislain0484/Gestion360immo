@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { Plus, Search, MapPin, Phone, FileText, Edit, Trash2, Eye, DollarSign } from 'lucide-react';
+import { Plus, Search, Filter, MapPin, Phone, FileText, Edit, Trash2, Eye } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import { Modal } from '../ui/Modal';
 import { OwnerForm } from './OwnerForm';
-import { FinancialStatements } from '../financial/FinancialStatements';
-import { OwnerDetailsModal } from './OwnerDetailsModal';
 import { Owner, OwnerFormData } from '../../types/owner';
 import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { FinancialStatements } from '../financial/FinancialStatements';
+import { Modal } from '../ui/Modal';
+import { DollarSign } from 'lucide-react';
+
+import { OwnerDetailsModal } from './OwnerDetailsModal';
 
 export const OwnersList: React.FC = () => {
   const { user } = useAuth();
@@ -18,11 +20,12 @@ export const OwnersList: React.FC = () => {
   const [showFinancialStatements, setShowFinancialStatements] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMaritalStatus, setFilterMaritalStatus] = useState('all');
   const [filterPropertyTitle, setFilterPropertyTitle] = useState('all');
 
-  // Chargement des données
+  // Supabase data hooks
   const { data: owners, loading, error, refetch, setData } = useRealtimeData<Owner>(
     dbService.getOwners,
     'owners'
@@ -43,11 +46,42 @@ export const OwnersList: React.FC = () => {
 
   const handleAddOwner = async (ownerData: OwnerFormData) => {
     if (!user?.agencyId) {
-      alert('Aucune agence associée');
+      alert('❌ Aucune agence associée à votre compte. Veuillez vous reconnecter.');
       return;
     }
     
     try {
+      // Validation des données avant envoi
+      if (!ownerData.firstName || !ownerData.lastName || !ownerData.phone) {
+        alert('Veuillez remplir tous les champs obligatoires (prénom, nom, téléphone)');
+        return;
+      }
+      
+      // Validation du téléphone
+      const phoneRegex = /^(\+225)?[0-9\s-]{8,15}$/;
+      if (!phoneRegex.test(ownerData.phone)) {
+        alert('Format de téléphone invalide. Utilisez: +225 XX XX XX XX XX');
+        return;
+      }
+      
+      // Validation email si fourni
+      if (ownerData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerData.email)) {
+        alert('Format d\'email invalide');
+        return;
+      }
+      
+      // Validation des données du conjoint si marié
+      if (ownerData.maritalStatus === 'marie') {
+        if (!ownerData.spouseName?.trim() || !ownerData.spousePhone?.trim()) {
+          alert('Informations du conjoint obligatoires pour une personne mariée');
+          return;
+        }
+        if (!phoneRegex.test(ownerData.spousePhone)) {
+          alert('Format de téléphone du conjoint invalide');
+          return;
+        }
+      }
+      
       const ownerPayload = {
         agency_id: user.agencyId,
         first_name: ownerData.firstName,
@@ -67,18 +101,57 @@ export const OwnersList: React.FC = () => {
       await createOwner(ownerPayload);
       
     } catch (error) {
-      console.error('Erreur création propriétaire:', error);
-      alert('Erreur lors de la création');
+      console.error('Error creating owner:', error);
+      alert('Erreur lors de la création du propriétaire. Veuillez réessayer.');
     }
   };
 
   const handleDeleteOwner = async (ownerId: string) => {
-    if (confirm('Supprimer ce propriétaire ?')) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce propriétaire ?')) {
       try {
         await deleteOwner(ownerId);
       } catch (error) {
-        console.error('Erreur suppression:', error);
+        console.error('Error deleting owner:', error);
       }
+    }
+  };
+
+  const handleViewOwner = (owner: Owner) => {
+    setSelectedOwner(owner);
+    setShowDetailsModal(true);
+  };
+
+  const handleEditOwner = (owner: Owner) => {
+    setSelectedOwner(owner);
+    setShowDetailsModal(true);
+  };
+
+  const handleUpdateOwner = async (ownerData: OwnerFormData) => {
+    if (!selectedOwner) return;
+    
+    try {
+      await dbService.updateOwner(selectedOwner.id, {
+        first_name: ownerData.firstName,
+        last_name: ownerData.lastName,
+        phone: ownerData.phone,
+        email: ownerData.email || null,
+        address: ownerData.address,
+        city: ownerData.city,
+        property_title: ownerData.propertyTitle,
+        property_title_details: ownerData.propertyTitleDetails || null,
+        marital_status: ownerData.maritalStatus,
+        spouse_name: ownerData.spouseName || null,
+        spouse_phone: ownerData.spousePhone || null,
+        children_count: ownerData.childrenCount,
+      });
+      
+      setShowEditModal(false);
+      setSelectedOwner(null);
+      refetch();
+      alert('Propriétaire mis à jour avec succès !');
+    } catch (error) {
+      console.error('Error updating owner:', error);
+      alert('Erreur lors de la mise à jour du propriétaire.');
     }
   };
 
@@ -124,11 +197,16 @@ export const OwnersList: React.FC = () => {
 
   const getMaritalStatusColor = (status: string) => {
     switch (status) {
-      case 'marie': return 'success';
-      case 'celibataire': return 'info';
-      case 'divorce': return 'warning';
-      case 'veuf': return 'secondary';
-      default: return 'secondary';
+      case 'marie':
+        return 'success';
+      case 'celibataire':
+        return 'info';
+      case 'divorce':
+        return 'warning';
+      case 'veuf':
+        return 'secondary';
+      default:
+        return 'secondary';
     }
   };
 
@@ -168,12 +246,12 @@ export const OwnersList: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Propriétaires</h1>
           <p className="text-gray-600 mt-1">
-            Gestion des propriétaires ({owners.length})
+            Gestion des propriétaires de biens immobiliers
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Ajouter un propriétaire
+        <Button onClick={() => setShowForm(true)} className="flex items-center space-x-2">
+          <Plus className="h-4 w-4" />
+          <span>Ajouter un propriétaire</span>
         </Button>
       </div>
 
@@ -185,40 +263,42 @@ export const OwnersList: React.FC = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Rechercher..."
+                placeholder="Rechercher par nom, téléphone ou ville..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </div>
           
-          <select
-            value={filterMaritalStatus}
-            onChange={(e) => setFilterMaritalStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Toutes situations</option>
-            <option value="celibataire">Célibataire</option>
-            <option value="marie">Marié(e)</option>
-            <option value="divorce">Divorcé(e)</option>
-            <option value="veuf">Veuf/Veuve</option>
-          </select>
-          
-          <select
-            value={filterPropertyTitle}
-            onChange={(e) => setFilterPropertyTitle(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tous les titres</option>
-            <option value="tf">TF</option>
-            <option value="cpf">CPF</option>
-            <option value="acd">ACD</option>
-            <option value="lettre_attribution">Lettre d'attribution</option>
-            <option value="permis_habiter">Permis d'habiter</option>
-            <option value="attestation_villageoise">Attestation villageoise</option>
-            <option value="autres">Autres</option>
-          </select>
+          <div className="flex gap-4">
+            <select
+              value={filterMaritalStatus}
+              onChange={(e) => setFilterMaritalStatus(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Toutes situations</option>
+              <option value="celibataire">Célibataire</option>
+              <option value="marie">Marié(e)</option>
+              <option value="divorce">Divorcé(e)</option>
+              <option value="veuf">Veuf/Veuve</option>
+            </select>
+            
+            <select
+              value={filterPropertyTitle}
+              onChange={(e) => setFilterPropertyTitle(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Tous les titres</option>
+              <option value="tf">TF</option>
+              <option value="cpf">CPF</option>
+              <option value="acd">ACD</option>
+              <option value="lettre_attribution">Lettre d'attribution</option>
+              <option value="permis_habiter">Permis d'habiter</option>
+              <option value="attestation_villageoise">Attestation villageoise</option>
+              <option value="autres">Autres</option>
+            </select>
+          </div>
         </div>
       </Card>
 
@@ -249,10 +329,8 @@ export const OwnersList: React.FC = () => {
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    onClick={() => {
-                      setSelectedOwner(owner);
-                      setShowDetailsModal(true);
-                    }}
+                    onClick={() => handleViewOwner(owner)}
+                    title="Voir les détails"
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -263,8 +341,17 @@ export const OwnersList: React.FC = () => {
                       setSelectedOwner(owner);
                       setShowFinancialStatements(true);
                     }}
+                    title="État financier"
                   >
                     <DollarSign className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleEditOwner(owner)}
+                    title="Modifier"
+                  >
+                    <Edit className="h-4 w-4" />
                   </Button>
                   <Button 
                     variant="ghost" 
@@ -285,7 +372,10 @@ export const OwnersList: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Titre:</span>
+                  <div className="flex items-center text-sm">
+                    <FileText className="h-4 w-4 mr-2 text-orange-600" />
+                    <span className="text-gray-600">Titre:</span>
+                  </div>
                   <Badge variant={getPropertyTitleColor(owner.property_title)} size="sm">
                     {getPropertyTitleLabel(owner.property_title)}
                   </Badge>
@@ -301,6 +391,7 @@ export const OwnersList: React.FC = () => {
                 {owner.marital_status === 'marie' && owner.spouse_name && (
                   <div className="text-sm text-gray-600 bg-pink-50 p-2 rounded">
                     <p><strong>Conjoint:</strong> {owner.spouse_name}</p>
+                    <p><strong>Tél:</strong> {owner.spouse_phone}</p>
                   </div>
                 )}
 
@@ -308,11 +399,18 @@ export const OwnersList: React.FC = () => {
                   <span className="text-gray-600">Enfants:</span>
                   <span className="font-medium text-gray-900">{owner.children_count}</span>
                 </div>
+
+                {owner.email && (
+                  <div className="text-sm text-gray-600">
+                    <strong>Email:</strong> {owner.email}
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="text-xs text-gray-500">
-                  Ajouté le {new Date(owner.created_at).toLocaleDateString('fr-FR')}
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>Ajouté le {new Date(owner.created_at).toLocaleDateString('fr-FR')}</span>
+                  <span>ID: {owner.id}</span>
                 </div>
               </div>
             </div>
@@ -322,12 +420,16 @@ export const OwnersList: React.FC = () => {
 
       {filteredOwners.length === 0 && (
         <div className="text-center py-12">
-          <Plus className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+          <div className="text-gray-400 mb-4">
+            <Plus className="h-16 w-16 mx-auto" />
+          </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Aucun propriétaire
+            Aucun propriétaire trouvé
           </h3>
           <p className="text-gray-600 mb-4">
-            Commencez par ajouter votre premier propriétaire.
+            {searchTerm || filterMaritalStatus !== 'all' || filterPropertyTitle !== 'all'
+              ? 'Aucun propriétaire ne correspond à vos critères de recherche.'
+              : 'Commencez par ajouter votre premier propriétaire.'}
           </p>
           <Button onClick={() => setShowForm(true)}>
             <Plus className="h-4 w-4 mr-2" />
@@ -349,7 +451,32 @@ export const OwnersList: React.FC = () => {
           setSelectedOwner(null);
         }}
         owner={selectedOwner}
-        onUpdate={() => refetch()}
+        onUpdate={handleUpdateOwner}
+      />
+
+      {/* Edit Owner Modal */}
+      <OwnerForm
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedOwner(null);
+        }}
+        onSubmit={handleUpdateOwner}
+        initialData={selectedOwner ? {
+          firstName: selectedOwner.first_name,
+          lastName: selectedOwner.last_name,
+          phone: selectedOwner.phone,
+          email: selectedOwner.email || '',
+          address: selectedOwner.address,
+          city: selectedOwner.city,
+          propertyTitle: selectedOwner.property_title,
+          propertyTitleDetails: selectedOwner.property_title_details || '',
+          maritalStatus: selectedOwner.marital_status,
+          spouseName: selectedOwner.spouse_name || '',
+          spousePhone: selectedOwner.spouse_phone || '',
+          childrenCount: selectedOwner.children_count,
+          agencyId: selectedOwner.agency_id,
+        } : undefined}
       />
 
       {selectedOwner && (
@@ -359,7 +486,7 @@ export const OwnersList: React.FC = () => {
             setShowFinancialStatements(false);
             setSelectedOwner(null);
           }}
-          title="État financier"
+          title="État financier du propriétaire"
           size="xl"
         >
           <FinancialStatements

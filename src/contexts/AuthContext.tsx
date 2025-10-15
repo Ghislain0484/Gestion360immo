@@ -1,14 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, dbService } from '../lib/supabase';
 import { User } from '../types';
 import { PlatformAdmin } from '../types/admin';
 
-// Runtime flags
+// Check if Supabase is properly configured
 const isSupabaseConfigured = Boolean(
-  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
+  import.meta.env.VITE_SUPABASE_URL && 
+  import.meta.env.VITE_SUPABASE_ANON_KEY
 );
-const isProd = import.meta.env.MODE === 'production';
-const allowDemo = !isProd; // never used in prod; kept for dev-only fallbacks
 
 interface AuthContextType {
   user: User | null;
@@ -22,9 +21,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
-  return ctx;
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -33,83 +34,223 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // In production, purge any demo/local stray state
-    if (isProd) {
-      try {
-        Object.keys(localStorage)
-          .filter((k) => k.startsWith('demo_') || k === 'user' || k === 'admin' || k.startsWith('agency_users_') || k === 'approved_accounts')
-          .forEach((k) => localStorage.removeItem(k));
-      } catch {}
-    }
-
+    // Check for existing session
     const checkSession = async () => {
       try {
-        // Dev-only: pick local demo session if any
-        if (allowDemo) {
-          const storedAdmin = localStorage.getItem('admin');
-          if (storedAdmin) {
-            setAdmin(JSON.parse(storedAdmin));
-            setIsLoading(false);
-            return;
-          }
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        if (!supabase || !isSupabaseConfigured) {
-          if (!allowDemo) throw new Error('Supabase non configuré en production.');
-          console.warn('⚠️ Supabase non configuré - mode démo (dev uniquement)');
+        // Check for demo user in localStorage first
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
           setIsLoading(false);
           return;
         }
 
-        // 1) Read current auth session
-        const { data: { session } } = await supabase.auth.getSession();
-        const authUser = session?.user;
-        if (!authUser) {
+        // Check for demo admin in localStorage
+        const storedAdmin = localStorage.getItem('admin');
+        if (storedAdmin) {
+          setAdmin(JSON.parse(storedAdmin));
+          setIsLoading(false);
+          return;
+        }
+
+        // Only check Supabase if configured
+        if (supabase && isSupabaseConfigured) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            // Get user profile from database using Supabase auth user ID
+            console.log('📋 Récupération profil utilisateur...');
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (userError || !userData) {
+              const user: User = {
+                id: userData.id,
+                email: userData.email,
+                firstName: userData.first_name,
+                lastName: userData.last_name,
+                role: userData.role,
+                agencyId: userData.agency_id,
+                avatar: userData.avatar,
+                createdAt: new Date(userData.created_at),
+              };
+              throw new Error('Profil utilisateur non trouvé. Contactez votre administrateur.');
+            } else if (supabaseError.message?.includes('Profil utilisateur non trouvé')) {
+              throw new Error('Compte non activé. Contactez votre administrateur pour activer votre compte.');
+            }
+            
+            console.log('✅ Profil utilisateur récupéré:', userData.email);
+          }
+        } else if (!isSupabaseConfigured) {
+          console.warn('⚠️ Supabase non configuré - mode démo uniquement');
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+        // En cas d'erreur de session, vérifier les variables d'environnement
+        if (error instanceof Error && error.message.includes('Invalid API key')) {
+          console.error('🔑 Configuration Supabase invalide en production:', {
+            url: import.meta.env.VITE_SUPABASE_URL,
+            keyLength: import.meta.env.VITE_SUPABASE_ANON_KEY?.length,
+            keyStart: import.meta.env.VITE_SUPABASE_ANON_KEY?.substring(0, 10)
+          });
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // Listen for auth changes
+    let authListener: any = null;
+    if (supabase && isSupabaseConfigured) {
+      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT' || !session) {
           setUser(null);
-          setAdmin(null);
-          setIsLoading(false);
-          return;
+          localStorage.removeItem('user');
         }
+      });
+      authListener = data;
+    }
 
-        // 2) Try platform admin FIRST (does not depend on "users" table)
-        const { data: adminData, error: adminErr } = await supabase
-          .from('platform_admins')
-          .select('*')
-          .eq('id', authUser.id)
-          .maybeSingle();
+    return () => {
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe();
+      }
+    };
+  }, []);
 
-        if (adminErr) console.warn('platform_admins fetch error:', adminErr);
-        if (adminData) {
-          const mapped: PlatformAdmin = {
-            id: adminData.id,
-            email: adminData.email,
-            firstName: adminData.first_name,
-            lastName: adminData.last_name,
-            role: adminData.role,
-            permissions: adminData.permissions,
-            createdAt: new Date(adminData.created_at),
-          };
-          setAdmin(mapped);
-          setIsLoading(false);
-          return;
+  const login = async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      console.log('🔐 Tentative de connexion pour:', email);
+      
+      // Vérifier d'abord les comptes approuvés
+      const approvedAccounts = JSON.parse(localStorage.getItem('approved_accounts') || '[]');
+      const approvedAccount = approvedAccounts.find((acc: any) => 
+        acc.email.trim().toLowerCase() === email.trim().toLowerCase() && 
+        acc.password === password.trim()
+      );
+      
+      if (approvedAccount) {
+        console.log('✅ Compte approuvé trouvé:', approvedAccount.email);
+        
+        const user: User = {
+          id: approvedAccount.id,
+          email: approvedAccount.email,
+          firstName: approvedAccount.firstName,
+          lastName: approvedAccount.lastName,
+          role: approvedAccount.role,
+          agencyId: approvedAccount.agencyId,
+          avatar: approvedAccount.avatar,
+          createdAt: new Date(approvedAccount.createdAt),
+        };
+        
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('✅ Connexion réussie avec compte approuvé');
+        return;
+      }
+      
+      // Vérifier les utilisateurs créés dans les agences
+      const allAgencyUsers = Object.keys(localStorage)
+        .filter(key => key.startsWith('agency_users_'))
+        .flatMap(key => JSON.parse(localStorage.getItem(key) || '[]'));
+      
+      const agencyUser = allAgencyUsers.find((u: any) => 
+        u.email.trim().toLowerCase() === email.trim().toLowerCase() && 
+        u.password === password.trim()
+      );
+      
+      if (agencyUser) {
+        console.log('✅ Utilisateur d\'agence trouvé:', agencyUser.email);
+        
+        const user: User = {
+          id: agencyUser.id,
+          email: agencyUser.email,
+          firstName: agencyUser.firstName,
+          lastName: agencyUser.lastName,
+          role: agencyUser.role,
+          agencyId: agencyUser.agencyId,
+          avatar: agencyUser.avatar,
+          createdAt: new Date(agencyUser.createdAt),
+        };
+        
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('✅ Connexion réussie avec utilisateur d\'agence');
+        return;
+      }
+      
+      // Vérifier les comptes démo
+      const demoUsers = [
+        {
+          id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          email: 'marie.kouassi@agence.com',
+          password: 'demo123',
+          firstName: 'Marie',
+          lastName: 'Kouassi',
+          role: 'director',
+          agencyId: 'demo_agency_001',
         }
+      ];
+      
+      const demoUser = demoUsers.find(u => 
+        u.email.toLowerCase() === email.trim().toLowerCase() && 
+        u.password === password.trim()
+      );
+      
+      if (demoUser) {
+        console.log('✅ Compte démo trouvé:', demoUser.email);
+        
+        const user: User = {
+          id: demoUser.id,
+          email: demoUser.email,
+          firstName: demoUser.firstName,
+          lastName: demoUser.lastName,
+          role: demoUser.role as User['role'],
+          agencyId: demoUser.agencyId,
+          createdAt: new Date(),
+        };
+        
+        setUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('✅ Connexion démo réussie');
+        return;
+      }
+      
+      // Essayer Supabase en dernier recours
+      if (supabase && isSupabaseConfigured) {
+        try {
+          console.log('🔐 Tentative de connexion Supabase pour:', email);
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password: password.trim(),
+          });
 
-        // 3) Else, try application profile in "users" (may not exist for platform admins)
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .maybeSingle();
-        if (userError) console.warn('users fetch error:', userError);
+          if (authError) {
+            console.error('❌ Erreur auth Supabase:', authError);
+            throw authError;
+          }
 
-        if (userData) {
-          const mappedUser: User = {
+          // Get user profile from database using authenticated user ID
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single();
+
+          if (userError) {
+            console.error('❌ Erreur récupération profil utilisateur:', userError);
+            throw userError;
+          }
+
+          const user: User = {
             id: userData.id,
             email: userData.email,
             firstName: userData.first_name,
@@ -119,127 +260,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             avatar: userData.avatar,
             createdAt: new Date(userData.created_at),
           };
-          setUser(mappedUser);
-          setIsLoading(false);
+          
+          setUser(user);
+          console.log('✅ Connexion Supabase réussie');
           return;
+        } catch (supabaseError: any) {
+          console.error('❌ Erreur Supabase auth:', supabaseError);
         }
-
-        // 4) Graceful fallback: keep minimal auth session (no hard throw)
-        const minimal: User = {
-          id: authUser.id,
-          email: authUser.email ?? '',
-          firstName: '',
-          lastName: '',
-          role: 'staff', // sensible default; adjust to your ACL needs
-          agencyId: undefined,
-          createdAt: new Date(),
-        };
-        setUser(minimal);
-      } catch (e) {
-        console.error('Error checking session:', e);
-      } finally {
-        setIsLoading(false);
       }
-    };
-
-    checkSession();
-
-    // Subscribe to auth state changes
-    let unsubscribe: (() => void) | null = null;
-    if (supabase && isSupabaseConfigured) {
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (!session) {
-          setUser(null);
-          setAdmin(null);
-          try {
-            localStorage.removeItem('user');
-            localStorage.removeItem('admin');
-          } catch {}
-        } else {
-          // Re-run session logic to map admin/user
-          checkSession();
-        }
-      });
-      unsubscribe = () => data.subscription?.unsubscribe();
-    }
-
-    return () => {
-      try { unsubscribe?.(); } catch {}
-    };
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      if (!supabase || !isSupabaseConfigured) throw new Error('Supabase non configuré');
-
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password.trim(),
-      });
-      if (authError) throw authError;
-
-      const authUser = authData.user;
-      if (!authUser) throw new Error('Session invalide');
-
-      // Try app user first
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle();
-      if (userData) {
-        const mapped: User = {
-          id: userData.id,
-          email: userData.email,
-          firstName: userData.first_name,
-          lastName: userData.last_name,
-          role: userData.role,
-          agencyId: userData.agency_id,
-          avatar: userData.avatar,
-          createdAt: new Date(userData.created_at),
-        };
-        setUser(mapped);
-        if (allowDemo) localStorage.setItem('user', JSON.stringify(mapped));
-        return;
-      }
-
-      // Then try platform admin (in case a director logs into admin area)
-      const { data: adminData } = await supabase
-        .from('platform_admins')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle();
-      if (adminData) {
-        const mappedAdmin: PlatformAdmin = {
-          id: adminData.id,
-          email: adminData.email,
-          firstName: adminData.first_name,
-          lastName: adminData.last_name,
-          role: adminData.role,
-          permissions: adminData.permissions,
-          createdAt: new Date(adminData.created_at),
-        };
-        setAdmin(mappedAdmin);
-        if (allowDemo) localStorage.setItem('admin', JSON.stringify(mappedAdmin));
-        return;
-      }
-
-      // Minimal fallback
-      const minimal: User = {
-        id: authUser.id,
-        email: authUser.email ?? '',
-        firstName: '',
-        lastName: '',
-        role: 'staff',
-        agencyId: undefined,
-        createdAt: new Date(),
-      };
-      setUser(minimal);
-      if (allowDemo) localStorage.setItem('user', JSON.stringify(minimal));
-    } catch (e) {
-      console.error('Login error:', e);
-      throw e instanceof Error ? e : new Error('Erreur de connexion');
+      
+      // Si aucune méthode ne fonctionne
+      console.log('❌ Aucune méthode d\'authentification n\'a fonctionné');
+      throw new Error('Email ou mot de passe incorrect. Utilisez les comptes démo : marie.kouassi@agence.com / demo123');
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -248,39 +284,93 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginAdmin = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      if (!supabase || !isSupabaseConfigured) throw new Error('Supabase non configuré');
+      // Demo admin credentials
+      const demoAdmins = [
+        {
+          id: 'admin_production_001',
+          email: 'gagohi06@gmail.com',
+          password: 'Jesus2025$',
+          firstName: 'Maurel',
+          lastName: 'Agohi',
+          role: 'super_admin',
+          permissions: {
+            agencyManagement: true,
+            subscriptionManagement: true,
+            platformSettings: true,
+            reports: true,
+            userSupport: true,
+            systemMaintenance: true,
+            dataExport: true,
+            auditAccess: true,
+          },
+        },
+      ];
 
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password.trim(),
-      });
-      if (authError) throw authError;
+      // Check demo admin credentials
+      const demoAdmin = demoAdmins.find(a => a.email === email && a.password === password);
+      
+      if (demoAdmin) {
+        const admin: PlatformAdmin = {
+          id: demoAdmin.id,
+          email: demoAdmin.email,
+          firstName: demoAdmin.firstName,
+          lastName: demoAdmin.lastName,
+          role: demoAdmin.role as 'super_admin' | 'admin',
+          permissions: demoAdmin.permissions,
+          createdAt: new Date(),
+        };
+        
+        setAdmin(admin);
+        localStorage.setItem('admin', JSON.stringify(admin));
+        
+        return;
+      }
 
-      const authUser = authData.user;
-      if (!authUser) throw new Error('Session invalide');
+      // If not demo admin, try Supabase authentication
+      if (supabase && isSupabaseConfigured) {
+        try {
+          console.log('🔐 Tentative de connexion admin Supabase...');
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-      const { data: adminData, error: adminError } = await supabase
-        .from('platform_admins')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle();
-      if (adminError) throw adminError;
-      if (!adminData) throw new Error('Profil administrateur introuvable');
+          if (authError) throw authError;
 
-      const mapped: PlatformAdmin = {
-        id: adminData.id,
-        email: adminData.email,
-        firstName: adminData.first_name,
-        lastName: adminData.last_name,
-        role: adminData.role,
-        permissions: adminData.permissions,
-        createdAt: new Date(adminData.created_at),
-      };
-      setAdmin(mapped);
-      if (allowDemo) localStorage.setItem('admin', JSON.stringify(mapped));
-    } catch (e) {
-      console.error('Login admin error:', e);
-      throw e instanceof Error ? e : new Error('Erreur de connexion admin');
+          // Get admin profile from database
+          const { data: adminData, error: adminError } = await supabase
+            .from('platform_admins')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single();
+
+          if (adminError) throw adminError;
+
+          const admin: PlatformAdmin = {
+            id: adminData.id,
+            email: adminData.email,
+            firstName: adminData.first_name,
+            lastName: adminData.last_name,
+            role: adminData.role,
+            permissions: adminData.permissions,
+            createdAt: new Date(adminData.created_at),
+          };
+          
+          setAdmin(admin);
+          localStorage.setItem('admin', JSON.stringify(admin));
+          console.log('✅ Connexion admin Supabase réussie');
+          return;
+        } catch (supabaseError) {
+          console.error('❌ Erreur connexion admin Supabase:', supabaseError);
+          throw new Error('Identifiants administrateur incorrects');
+        }
+      } else {
+        console.warn('⚠️ Supabase non configuré pour admin');
+        throw new Error('Identifiants administrateur incorrects');
+      }
+      
+    } catch (error) {
+      throw new Error('Email ou mot de passe administrateur incorrect');
     } finally {
       setIsLoading(false);
     }
@@ -292,13 +382,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUser(null);
     setAdmin(null);
-    try {
-      localStorage.removeItem('user');
-      localStorage.removeItem('admin');
-    } catch {}
+    localStorage.removeItem('user');
+    localStorage.removeItem('admin');
   };
 
-  const value: AuthContextType = { user, admin, login, loginAdmin, logout, isLoading };
+  const value = {
+    user,
+    admin,
+    login,
+    loginAdmin,
+    logout,
+    isLoading,
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };

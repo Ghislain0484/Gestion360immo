@@ -1,0 +1,76 @@
+diff --git a/src/contexts/AuthContext.tsx b/src/contexts/AuthContext.tsx
+index 3333333..4444444 100644
+--- a/src/contexts/AuthContext.tsx
++++ b/src/contexts/AuthContext.tsx
+@@
+-        if (supabase && isSupabaseConfigured) {
++        if (supabase && isSupabaseConfigured) {
+           const { data: { session } } = await supabase.auth.getSession();
+           if (session?.user) {
+-            // Get user profile from database using Supabase auth user ID
++            // Get user profile from database using Supabase auth user ID
+             console.log('📋 Récupération profil utilisateur...');
+-            const { data: userData, error: userError } = await supabase
+-              .from('users')
+-              .select('*')
+-              .eq('id', session.user.id)
+-              .single();
++            let { data: userData, error: userError } = await supabase
++              .from('users')
++              .select('*')
++              .or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`)
++              .single();
++
++            // Si non trouvé, essayer par email
++            if ((userError && userError.code === 'PGRST116') || !userData) {
++              const { data: byEmail } = await supabase
++                .from('users')
++                .select('*')
++                .eq('email', session.user.email)
++                .single();
++              if (byEmail) userData = byEmail;
++            }
++
++            // Auto-création minimale si toujours absent
++            if (!userData) {
++              const minimal = {
++                id: session.user.id, // aligner avec auth.uid()
++                auth_user_id: session.user.id,
++                email: session.user.email,
++                first_name: session.user.user_metadata?.first_name || 'Directeur',
++                last_name: session.user.user_metadata?.last_name || '',
++                role: 'director',
++                agency_id: null,
++              };
++              const { data: inserted } = await supabase.from('users').insert(minimal).select().single();
++              userData = inserted || minimal;
++            }
+ 
+-            if (userError || !userData) {
+-              const user: User = {
+-                id: userData.id,
+-                email: userData.email,
+-                firstName: userData.first_name,
+-                lastName: userData.last_name,
+-                role: userData.role,
+-                agencyId: userData.agency_id,
+-                createdAt: new Date(),
+-              };
+-              setUser(user);
+-            } else {
++            if (!userData) {
++              console.warn('⚠️ Profil utilisateur introuvable, vérifiez la table users.');
++            } else {
+               const user: User = {
+                 id: userData.id,
+                 email: userData.email,
+                 firstName: userData.first_name,
+                 lastName: userData.last_name,
+                 role: userData.role,
+                 agencyId: userData.agency_id,
+                 createdAt: new Date(),
+               };
+               setUser(user);
+             }
+           }
+         }

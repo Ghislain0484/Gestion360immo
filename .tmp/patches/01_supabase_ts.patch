@@ -1,0 +1,75 @@
+diff --git a/src/lib/supabase.ts b/src/lib/supabase.ts
+index 1111111..2222222 100644
+--- a/src/lib/supabase.ts
++++ b/src/lib/supabase.ts
+@@
+ import { createClient } from '@supabase/supabase-js';
+ 
+ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+@@
+ export const supabase = supabaseUrl && supabaseAnonKey ? createClient(
+   supabaseUrl,
+   supabaseAnonKey,
+   {
+@@
+   }
+ ) : null;
+ 
+ if (supabase) {
+   console.log('✅ Client Supabase créé avec succès');
+ } else {
+   console.error('❌ Configuration Supabase manquante - vérifiez les variables d\'environnement');
+ }
+ 
+-// Database service functions - PRODUCTION UNIQUEMENT
++// Database service functions - PRODUCTION UNIQUEMENT
++// 🔐 IMPORTANT : pas de fallback "démo" en production
++const allowLocalFallback = import.meta.env.MODE !== 'production';
+ export const dbService = {
+@@
+-      if (error) {
++      if (error) {
+         console.error('❌ Erreur Supabase owners:', error);
+-        // Si erreur d'authentification, utiliser les données locales
+-        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
++        // En DEV uniquement : fallback local
++        if (allowLocalFallback && (error.code === 'PGRST301' || /JWT|RLS|permission/i.test(error.message))) {
+           console.log('🔄 Fallback sur données locales owners');
+           const localKey = agencyId ? `demo_owners_${agencyId}` : 'demo_owners';
+           const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+           return localData;
+         }
+         throw error;
+       }
+@@
+-        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
++        if (allowLocalFallback && (error.code === 'PGRST301' || /JWT|RLS|permission/i.test(error.message))) {
+           console.log('🔄 Fallback sur données locales properties');
+           const localKey = agencyId ? `demo_properties_${agencyId}` : 'demo_properties';
+           const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+           return localData;
+         }
+         throw error;
+       }
+@@
+-        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
++        if (allowLocalFallback && (error.code === 'PGRST301' || /JWT|RLS|permission/i.test(error.message))) {
+           console.log('🔄 Fallback sur données locales contracts');
+           const localKey = agencyId ? `demo_contracts_${agencyId}` : 'demo_contracts';
+           const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+           return localData;
+         }
+         throw error;
+       }
+@@
+-    const { error: authError } = await supabase.auth.admin.deleteUser(id);
+-    if (authError) console.warn('Erreur suppression auth:', authError);
+-    
++    // ⚠️ La suppression dans Auth nécessite une clé service côté serveur.
++    // À faire via une API serverless (Vercel) avec la clé service_role (jamais côté client).
+     const { error } = await supabase.from('users').delete().eq('id', id);
+     if (error) throw error;
+     return true;
+   },
+ };

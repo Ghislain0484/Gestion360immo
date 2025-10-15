@@ -1,0 +1,62 @@
+diff --git a/src/components/contracts/ContractsList.tsx b/src/components/contracts/ContractsList.tsx
+index 5555555..6666666 100644
+--- a/src/components/contracts/ContractsList.tsx
++++ b/src/components/contracts/ContractsList.tsx
+@@
+-import { dbService } from '../../lib/supabase';
++import { dbService } from '../../lib/supabase';
++import { OHADAContractGenerator } from './ContractTemplates';
+@@
+-  const handleAddContract = async (contractData: ContractFormData) => {
++  const handleAddContract = async (contractData: ContractFormData) => {
+     if (!user?.agencyId) {
+       alert('Aucune agence associée');
+       return;
+     }
+@@
+-      const contractPayload = {
++      // Génération automatique des clauses (OHADA)
++      let termsText = contractData.terms;
++      try {
++        if (contractData.type === 'gestion') {
++          termsText = OHADAContractGenerator.generateManagementContract(
++            { name: 'Agence', address: '', phone: '', email: '', commercial_register: '' },
++            { first_name: 'Propriétaire', last_name: '', address: '', phone: '', email: '', property_title: 'ACD', property_title_details: '' },
++            contractData.commission_rate || 10
++          );
++        } else if (contractData.type === 'location') {
++          termsText = OHADAContractGenerator.generateRentalContract(
++            { agency: { name: 'Agence', address: '' }, property: { address: '' } },
++            { first_name: 'Locataire', last_name: '' },
++            {
++              start_date: contractData.start_date,
++              end_date: contractData.end_date || undefined,
++              monthly_rent: contractData.monthly_rent || 0,
++              deposit: contractData.deposit || 0,
++              charges: contractData.charges || 0
++            }
++          );
++        }
++      } catch (e) {
++        console.warn('Génération contrat: fallback au champ terms saisi.');
++      }
++
++      const contractPayload = {
+         agency_id: user.agencyId,
+         property_id: contractData.property_id,
+         owner_id: contractData.owner_id,
+         tenant_id: contractData.tenant_id,
+         type: contractData.type,
+         start_date: contractData.start_date,
+         end_date: contractData.end_date || null,
+         monthly_rent: contractData.monthly_rent || null,
+         sale_price: contractData.sale_price || null,
+         deposit: contractData.deposit || null,
+         charges: contractData.charges || null,
+         commission_rate: contractData.commission_rate,
+         commission_amount: contractData.commission_amount,
+         status: contractData.status,
+-        terms: contractData.terms,
++        terms: termsText || contractData.terms || '',
+         documents: contractData.documents || [],
+       };
