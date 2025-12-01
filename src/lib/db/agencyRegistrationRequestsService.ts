@@ -101,20 +101,25 @@ export const agencyRegistrationRequestsService = {
             created.push({ table: 'agencies', id: agency.id });
 
             // ðŸ“¦ DÃ©placement logo
+            
             if (req.logo_url) {
-                const oldPath = req.logo_url.split('/storage/v1/object/public/agency-logos/')[1];
-                if (!oldPath) throw new Error('Chemin logo invalide');
-                const fileName = oldPath.split('/').pop();
-                const newPath = `logos/${agency.id}/${fileName}`;
+                const bucket = 'agency-logos';
+                const rawUrlPath = req.logo_url.split(`/storage/v1/object/public/${bucket}/`)[1];
+                const decodedOldPath = rawUrlPath ? decodeURIComponent(rawUrlPath) : null;
+                if (!decodedOldPath) throw new Error('Chemin logo invalide');
 
-                const { error: moveError } = await supabase.storage.from('agency-logos').move(oldPath, newPath);
-                if (moveError) throw new Error(formatSbError('âŒ storage.move (logo)', moveError));
+                // On decode le chemin pour retirer les %20 puis on assainit le nom
+                const originalFileName = decodedOldPath.split('/').pop() ?? `logo_${Date.now()}.png`;
+                const safeFileName = originalFileName.replace(/[^A-Za-z0-9._-]/g, '_');
+                const newPath = `logos/${agency.id}/${safeFileName}`;
 
-                finalLogoUrl = supabase.storage.from('agency-logos').getPublicUrl(newPath).data.publicUrl;
+                const { error: moveError } = await supabase.storage.from(bucket).move(decodedOldPath, newPath);
+                if (moveError) throw new Error(formatSbError('storage.move (logo)', moveError));
+
+                finalLogoUrl = supabase.storage.from(bucket).getPublicUrl(newPath).data.publicUrl;
                 const { error: updError } = await supabase.from('agencies').update({ logo_url: finalLogoUrl }).eq('id', agency.id);
-                if (updError) throw new Error(formatSbError('âŒ agencies.update.logo', updError));
+                if (updError) throw new Error(formatSbError('agencies.update.logo', updError));
             }
-
             // ðŸ‘¤ Ajout agency_user (directeur)
             if (!req.director_auth_user_id) throw new Error('directeur_auth_user_id manquant');
             const { data: exists } = await supabase
@@ -197,16 +202,20 @@ export const agencyRegistrationRequestsService = {
         if (reqError || !req) throw new Error(formatSbError('âŒ agency_registration_requests.select', reqError));
 
         // Supprimer le logo si prÃ©sent (de temp-registration/)
+        
         if (req.logo_url) {
-            const filePath = req.logo_url.split('/storage/v1/object/public/agency-logos/')[1];
-            const { error: deleteError } = await supabase.storage
-                .from('agency-logos')
-                .remove([filePath]);
-            if (deleteError) {
-                console.error('Erreur lors de la suppression du logo:', deleteError);
-                // Log l'erreur mais ne bloque pas le rejet
+            const bucket = 'agency-logos';
+            const rawPath = req.logo_url.split(`/storage/v1/object/public/${bucket}/`)[1];
+            const decodedPath = rawPath ? decodeURIComponent(rawPath) : null;
+            if (decodedPath) {
+                const { error: deleteError } = await supabase.storage.from(bucket).remove([decodedPath]);
+                if (deleteError) {
+                    console.error('Erreur lors de la suppression du logo:', deleteError);
+                    // Log l'erreur mais ne bloque pas le rejet
+                }
             }
         }
+
 
         const updates = {
             status: 'rejected',
