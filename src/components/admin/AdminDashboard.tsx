@@ -1,4 +1,5 @@
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
@@ -537,6 +538,8 @@ export const AdminDashboard: React.FC = () => {
   );
 };
 =======
+=======
+>>>>>>> Stashed changes
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
@@ -1073,5 +1076,9 @@ export const AdminDashboard: React.FC = () => {
       </div>
     </div>
   );
+<<<<<<< Updated upstream
+};
+>>>>>>> Stashed changes
+=======
 };
 >>>>>>> Stashed changes
