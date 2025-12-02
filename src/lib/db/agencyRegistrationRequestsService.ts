@@ -105,12 +105,18 @@ export const agencyRegistrationRequestsService = {
             if (req.logo_url) {
                 const bucket = 'agency-logos';
                 const rawUrlPath = req.logo_url.split(`/storage/v1/object/public/${bucket}/`)[1];
+                const normalize = (name: string) => {
+                    let decoded = name;
+                    try { decoded = decodeURIComponent(decoded); } catch { /* ignore */ }
+                    decoded = decoded.replace(/%20/g, ' ');
+                    try { decoded = decodeURIComponent(decoded); } catch { /* ignore */ }
+                    return decoded.replace(/[^A-Za-z0-9._-]/g, '_');
+                };
                 const decodedOldPath = rawUrlPath ? decodeURIComponent(rawUrlPath) : null;
                 if (!decodedOldPath) throw new Error('Chemin logo invalide');
 
-                // On decode le chemin pour retirer les %20 puis on assainit le nom
                 const originalFileName = decodedOldPath.split('/').pop() ?? `logo_${Date.now()}.png`;
-                const safeFileName = originalFileName.replace(/[^A-Za-z0-9._-]/g, '_');
+                const safeFileName = normalize(originalFileName);
                 const newPath = `logos/${agency.id}/${safeFileName}`;
 
                 const { error: moveError } = await supabase.storage.from(bucket).move(decodedOldPath, newPath);
