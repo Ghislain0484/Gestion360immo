@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from 'react';
+﻿import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -34,6 +34,12 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ images, onImagesCh
   const [uploading, setUploading] = useState(false);
   const { user } = useAuth();
   const agencyPrefix = user?.agency_id ? `agencies/${user.agency_id}` : 'public';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    console.log('📸 ImageUploader MOUNTED');
+    return () => console.log('👋 ImageUploader UNMOUNTED');
+  }, []);
 
   const handleFileSelect = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,10 +51,23 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ images, onImagesCh
       setUploading(true);
       const selectedFiles = Array.from(fileList);
 
+      console.log('🔍 ImageUploader: Début du téléversement', {
+        nombreFichiers: selectedFiles.length,
+        agencyPrefix,
+        bucket: BUCKET_NAME
+      });
+
       try {
+        // Vérifier que l'utilisateur est authentifié
+        if (!user?.agency_id) {
+          throw new Error('Vous devez être connecté pour téléverser des images');
+        }
+
         const uploaded = await Promise.all(
           selectedFiles.map(async (file) => {
+            console.log(`📤 Upload de ${file.name}...`);
             const storagePath = createStoragePath(agencyPrefix, file.name);
+
             const { data, error } = await supabase.storage
               .from(BUCKET_NAME)
               .upload(storagePath, file, {
@@ -56,14 +75,31 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ images, onImagesCh
                 upsert: false,
               });
 
-            if (error || !data?.path) {
-              throw new Error(`Televersement impossible pour ${file.name}: ${error?.message ?? 'bucket introuvable'}`);
+            if (error) {
+              console.error('❌ Erreur upload:', error);
+
+              // Messages d'erreur spécifiques
+              if (error.message.includes('not found') || error.message.includes('does not exist')) {
+                throw new Error(`Le bucket "${BUCKET_NAME}" n'existe pas. Veuillez le créer dans Supabase Storage.`);
+              }
+              if (error.message.includes('permission') || error.message.includes('policy')) {
+                throw new Error(`Permissions insuffisantes. Vérifiez les politiques RLS du bucket "${BUCKET_NAME}".`);
+              }
+              throw new Error(`Téléversement impossible pour ${file.name}: ${error.message}`);
             }
 
-            const { data: urlData, error: urlError } = supabase.storage.from(BUCKET_NAME).getPublicUrl(data.path);
-            if (urlError || !urlData?.publicUrl) {
-              throw new Error(`Impossible de recuperer le lien pour ${file.name}`);
+            if (!data?.path) {
+              throw new Error(`Aucun chemin retourné pour ${file.name}`);
             }
+
+            console.log(`✅ Upload réussi: ${data.path}`);
+
+            const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(data.path);
+            if (!urlData?.publicUrl) {
+              throw new Error(`Impossible de récupérer le lien pour ${file.name}`);
+            }
+
+            console.log(`🔗 URL publique: ${urlData.publicUrl}`);
 
             const isFirstImage = images.length === 0;
             return {
@@ -90,16 +126,18 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ images, onImagesCh
         }
 
         onImagesChange(merged);
-        toast.success('Images televersees avec succes');
+        console.log('✅ Téléversement terminé:', merged.length, 'images');
+        toast.success(`${uploaded.length} image(s) téléversée(s) avec succès`);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erreur lors du televersement';
+        const message = err instanceof Error ? err.message : 'Erreur lors du téléversement';
+        console.error('❌ Erreur téléversement:', err);
         toast.error(message);
       } finally {
         setUploading(false);
         event.target.value = '';
       }
     },
-    [agencyPrefix, images, onImagesChange],
+    [agencyPrefix, images, onImagesChange, user],
   );
 
   const removeImage = useCallback(
@@ -146,22 +184,26 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ images, onImagesCh
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-gray-900">Images ({images.length})</h3>
-        <label className="cursor-pointer">
-          <Button disabled={uploading} aria-label="Televerser des images">
-            <Upload className="mr-2 h-4 w-4" />
-            {uploading ? 'Televersement...' : 'Televerser des images'}
-          </Button>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleFileSelect}
-            className="hidden"
-            disabled={uploading}
-            aria-label="Selectionner des images"
-          />
-        </label>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-slate-100">Images ({images.length})</h3>
+        <Button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="Televerser des images"
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          {uploading ? 'Televersement...' : 'Televerser des images'}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+          disabled={uploading}
+          aria-label="Selectionner des images"
+        />
       </div>
 
       {images.length === 0 ? (
@@ -209,7 +251,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ images, onImagesCh
                   aria-label={`Associer l'image ${image.id} a une piece`}
                 >
                   <option value="">Aucune piece</option>
-                  {rooms.map((room) => (
+                  {(rooms || []).map((room) => (
                     <option key={room.id || room.type} value={room.id || room.type}>
                       {room.nom || room.type.replace('_', ' ')}
                     </option>

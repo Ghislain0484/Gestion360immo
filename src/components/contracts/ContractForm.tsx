@@ -165,17 +165,24 @@ export const ContractForm = React.memo<ContractFormProps>(
       setError(null);
 
       try {
+        // Validation des champs essentiels
         if (!formData.agency_id?.trim()) throw new Error("L'ID de l'agence est requis");
         if (!formData.owner_id?.trim()) throw new Error('Veuillez sélectionner un propriétaire');
         if (!formData.property_id?.trim()) throw new Error('Veuillez sélectionner une propriété');
         if (!formData.tenant_id?.trim()) throw new Error('Veuillez sélectionner un locataire');
         if (!formData.type) throw new Error('Veuillez sélectionner un type de contrat');
         if (!formData.start_date) throw new Error('Veuillez spécifier une date de début');
-        if (!formData.terms?.trim()) throw new Error('Veuillez saisir les termes du contrat');
-        if (formData.type === 'location' && (!formData.monthly_rent || formData.monthly_rent <= 0))
-          throw new Error('Veuillez saisir un loyer mensuel valide');
-        if (formData.type === 'vente' && (!formData.sale_price || formData.sale_price <= 0))
-          throw new Error('Veuillez saisir un prix de vente valide');
+
+        // Validation stricte uniquement pour les contrats actifs
+        if (formData.status === 'active') {
+          if (!formData.terms?.trim()) throw new Error('Veuillez saisir les termes du contrat');
+          if (formData.type === 'location' && (!formData.monthly_rent || formData.monthly_rent <= 0))
+            throw new Error('Veuillez saisir un loyer mensuel valide');
+          if (formData.type === 'vente' && (!formData.sale_price || formData.sale_price <= 0))
+            throw new Error('Veuillez saisir un prix de vente valide');
+        }
+
+        // Validation taux de commission (toujours requis)
         if (!formData.commission_rate || formData.commission_rate < 0 || formData.commission_rate > 100)
           throw new Error('Veuillez saisir un taux de commission valide (0-100%)');
 
@@ -491,7 +498,7 @@ export const ContractForm = React.memo<ContractFormProps>(
 
             <div>
               <label htmlFor="terms" className="block text-sm font-medium text-gray-700 mb-2">
-                Termes du contrat
+                Termes du contrat {formData.status === 'draft' && '(optionnel pour brouillon)'}
               </label>
               <textarea
                 id="terms"
@@ -499,8 +506,8 @@ export const ContractForm = React.memo<ContractFormProps>(
                 onChange={(e) => updateFormData({ terms: e.target.value })}
                 rows={5}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Décrivez les termes et conditions du contrat..."
-                required
+                placeholder="Décrivez les termes et conditions du contrat (vous pourrez les compléter plus tard si brouillon)..."
+                required={formData.status === 'active'}
               />
             </div>
           </Card>

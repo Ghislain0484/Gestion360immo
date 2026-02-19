@@ -20,13 +20,18 @@ export interface Contract extends AgencyEntity {
   documents: string[]; // Updated to string[] for document URLs
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
+
+  // Relations (optional as they depend on the query)
+  property?: { id: string; title?: string; business_id?: string };
+  tenant?: { id: string; first_name?: string; last_name?: string; business_id?: string; phone?: string };
+  owner?: { id: string; first_name?: string; last_name?: string; business_id?: string; phone?: string };
 }
 
 // Interface pour les reçus de loyer
 export interface RentReceipt extends AgencyEntity {
   id: string;
   receipt_number: string;       // Numéro unique (ex: REC-20250901-001)
-  period_month: string;         // Mois concerné (ex: "septembre")
+  period_month: number;         // Mois concerné (1-12)
   period_year: number;          // Année concernée
   rent_amount: number;          // Montant du loyer hors charges
   charges?: number;             // Charges mensuelles

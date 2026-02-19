@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { BarChart3, Download, Calendar, TrendingUp, TrendingDown, Pencil } from 'lucide-react';
+import { BarChart3, Download, Calendar, TrendingUp, TrendingDown, Pencil, Plus, ArrowDownLeft } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -13,11 +13,16 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { FinancialStatement, FinancialTransaction } from '../../types/db';
 import { useDebounce } from 'use-debounce';
+import ReceiptGenerator from '../receipts/ReceiptGenerator';
+import OwnerReversalModal from '../owners/OwnerReversalModal';
 
 interface FinancialStatementsProps {
   entityId: string;
   entityType: 'owner' | 'tenant';
   entityName: string;
+  contractId?: string;
+  propertyId?: string;
+  ownerId?: string;
 }
 
 const isValidEntityType = (type: string): type is 'owner' | 'tenant' =>
@@ -63,7 +68,14 @@ const TransactionItem: React.FC<{
   </div>
 );
 
-export const FinancialStatements: React.FC<FinancialStatementsProps> = ({ entityId, entityType, entityName }) => {
+export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
+  entityId,
+  entityType,
+  entityName,
+  contractId,
+  propertyId,
+  ownerId
+}) => {
   if (!isValidEntityType(entityType)) {
     return <div className="p-4 bg-red-50 text-red-800 rounded-lg" role="alert">Type d'entité invalide : "{entityType}"</div>;
   }
@@ -79,6 +91,8 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({ entity
   const singleStatement = statements?.[0] ?? null;
   const [showDetails, setShowDetails] = useState(false);
   const [editTransaction, setEditTransaction] = useState<EditTransactionState | null>(null);
+  const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
+  const [showOwnerReversal, setShowOwnerReversal] = useState(false);
 
   const formatCurrency = useCallback((amount: number) =>
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amount), []);
@@ -172,11 +186,10 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({ entity
 
   if (initialLoading) return <div className="flex items-center justify-center h-64" aria-live="polite"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
   if (error) return <div className="p-4 bg-red-50 text-red-800 rounded-lg" role="alert">{error}</div>;
-  if (!singleStatement) return <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg" role="alert">Aucune donnée financière disponible</div>;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header - Always visible */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">État Financier - {entityName}</h3>
@@ -184,97 +197,127 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({ entity
         </div>
         <div className="flex items-center space-x-3">
           <DatePicker selected={selectedPeriod} onChange={(d: Date | null) => d && setSelectedPeriod(d)} dateFormat="MM/yyyy" showMonthYearPicker className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
-          <Button variant="outline" size="sm" onClick={generatePDF}><Download className="h-4 w-4 mr-1" /> PDF</Button>
-          <Button variant="outline" size="sm" onClick={exportExcel}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+          {entityType === 'tenant' && contractId && propertyId && ownerId && (
+            <Button variant="primary" size="sm" onClick={() => setShowReceiptGenerator(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Enregistrer paiement
+            </Button>
+          )}
+          {entityType === 'owner' && (
+            <Button variant="primary" size="sm" onClick={() => setShowOwnerReversal(true)}>
+              <ArrowDownLeft className="h-4 w-4 mr-1" /> Reversement
+            </Button>
+          )}
+          {singleStatement && (
+            <>
+              <Button variant="outline" size="sm" onClick={generatePDF}><Download className="h-4 w-4 mr-1" /> PDF</Button>
+              <Button variant="outline" size="sm" onClick={exportExcel}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4" role="list">
-        <Card role="listitem">
-          <div className="p-4 text-center">
-            <TrendingUp className="h-5 w-5 text-green-600 mx-auto mb-2" />
-            <div className="text-lg font-semibold text-green-600">{formatCurrency(singleStatement.summary.total_income)}</div>
-            <p className="text-sm text-gray-500">Revenus</p>
+      {/* Show message if no data, but keep buttons visible */}
+      {!singleStatement ? (
+        <div className="p-8 bg-yellow-50 text-yellow-800 rounded-lg text-center" role="alert">
+          <p className="font-medium">Aucune donnée financière disponible pour cette période</p>
+          <p className="text-sm mt-2">Utilisez les boutons ci-dessus pour enregistrer des transactions</p>
+        </div>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4" role="list">
+            <Card role="listitem">
+              <div className="p-4 text-center">
+                <TrendingUp className="h-5 w-5 text-green-600 mx-auto mb-2" />
+                <div className="text-lg font-semibold text-green-600">{formatCurrency(singleStatement.summary.total_income)}</div>
+                <p className="text-sm text-gray-500">Revenus</p>
+              </div>
+            </Card>
+            <Card role="listitem">
+              <div className="p-4 text-center">
+                <TrendingDown className="h-5 w-5 text-red-600 mx-auto mb-2" />
+                <div className="text-lg font-semibold text-red-600">{formatCurrency(singleStatement.summary.total_expenses)}</div>
+                <p className="text-sm text-gray-500">Dépenses</p>
+              </div>
+            </Card>
+            <Card role="listitem">
+              <div className="p-4 text-center">
+                <BarChart3 className={`h-5 w-5 mx-auto mb-2 ${singleStatement.summary.balance >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                <div className={`text-lg font-semibold ${singleStatement.summary.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(singleStatement.summary.balance)}
+                </div>
+                <p className="text-sm text-gray-500">Solde</p>
+              </div>
+            </Card>
+            <Card role="listitem">
+              <div className="p-4 text-center">
+                <Calendar className="h-5 w-5 text-yellow-600 mx-auto mb-2" />
+                <div className="text-lg font-semibold text-yellow-600">{formatCurrency(singleStatement.summary.pending_payments)}</div>
+                <p className="text-sm text-gray-500">En attente</p>
+              </div>
+            </Card>
           </div>
-        </Card>
-        <Card role="listitem">
-          <div className="p-4 text-center">
-            <TrendingDown className="h-5 w-5 text-red-600 mx-auto mb-2" />
-            <div className="text-lg font-semibold text-red-600">{formatCurrency(singleStatement.summary.total_expenses)}</div>
-            <p className="text-sm text-gray-500">Dépenses</p>
-          </div>
-        </Card>
-        <Card role="listitem">
-          <div className="p-4 text-center">
-            <BarChart3 className={`h-5 w-5 mx-auto mb-2 ${singleStatement.summary.balance >= 0 ? 'text-green-600' : 'text-red-600'}`} />
-            <div className={`text-lg font-semibold ${singleStatement.summary.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(singleStatement.summary.balance)}
+
+          {/* Transactions List */}
+          <Card>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium text-gray-900">Transactions</h4>
+                <Button variant="outline" size="sm" onClick={() => setShowDetails(true)}>Voir détails</Button>
+              </div>
+              <div className="space-y-3" role="list">
+                {singleStatement.transactions.length === 0 ? <p className="text-sm text-gray-500">Aucune transaction</p> :
+                  singleStatement.transactions.map(tr => (
+                    <TransactionItem key={tr.id} transaction={tr} formatCurrency={formatCurrency} formatDate={formatDate} onEdit={handleEditTransaction} />
+                  ))}
+              </div>
             </div>
-            <p className="text-sm text-gray-500">Solde</p>
-          </div>
-        </Card>
-        <Card role="listitem">
-          <div className="p-4 text-center">
-            <Calendar className="h-5 w-5 text-yellow-600 mx-auto mb-2" />
-            <div className="text-lg font-semibold text-yellow-600">{formatCurrency(singleStatement.summary.pending_payments)}</div>
-            <p className="text-sm text-gray-500">En attente</p>
-          </div>
-        </Card>
-      </div>
-
-      {/* Transactions List */}
-      <Card>
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-medium text-gray-900">Transactions</h4>
-            <Button variant="outline" size="sm" onClick={() => setShowDetails(true)}>Voir détails</Button>
-          </div>
-          <div className="space-y-3" role="list">
-            {singleStatement.transactions.length === 0 ? <p className="text-sm text-gray-500">Aucune transaction</p> :
-              singleStatement.transactions.map(tr => (
-                <TransactionItem key={tr.id} transaction={tr} formatCurrency={formatCurrency} formatDate={formatDate} onEdit={handleEditTransaction} />
-              ))}
-          </div>
-        </div>
-      </Card>
+          </Card>
+        </>
+      )}
 
       {/* Detailed Modal */}
       <Modal isOpen={showDetails} onClose={() => setShowDetails(false)} title={`État financier détaillé - ${entityName}`} size="lg">
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><h5 className="font-medium text-gray-900 mb-2">Période</h5>
-              <p className="text-sm text-gray-600">Du {formatDate(singleStatement.period.start_date)} au {formatDate(singleStatement.period.end_date)}</p>
+        {singleStatement ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><h5 className="font-medium text-gray-900 mb-2">Période</h5>
+                <p className="text-sm text-gray-600">Du {formatDate(singleStatement.period.start_date)} au {formatDate(singleStatement.period.end_date)}</p>
+              </div>
+              <div><h5 className="font-medium text-gray-900 mb-2">Généré le</h5>
+                <p className="text-sm text-gray-600">{formatDate(singleStatement.generated_at)} à {new Date(singleStatement.generated_at).toLocaleTimeString('fr-FR')}</p>
+              </div>
             </div>
-            <div><h5 className="font-medium text-gray-900 mb-2">Généré le</h5>
-              <p className="text-sm text-gray-600">{formatDate(singleStatement.generated_at)} à {new Date(singleStatement.generated_at).toLocaleTimeString('fr-FR')}</p>
-            </div>
-          </div>
-          <div>
-            <h5 className="font-medium text-gray-900 mb-3">Toutes les transactions</h5>
-            <div className="max-h-[400px] overflow-y-auto space-y-2" role="list">
-              {singleStatement.transactions.length === 0 ? <p className="text-sm text-gray-500">Aucune transaction</p> :
-                singleStatement.transactions.map(tr => (
-                  <div key={tr.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg" role="listitem">
-                    <div>
-                      <p className="font-medium text-gray-900">{tr.description}</p>
-                      <p className="text-sm text-gray-500">{formatDate(tr.date)} • {tr.category}</p>
-                      {tr.property_id && <p className="text-xs text-gray-400">Propriété: {tr.property_id}</p>}
+            <div>
+              <h5 className="font-medium text-gray-900 mb-3">Toutes les transactions</h5>
+              <div className="max-h-[400px] overflow-y-auto space-y-2" role="list">
+                {singleStatement.transactions.length === 0 ? <p className="text-sm text-gray-500">Aucune transaction</p> :
+                  singleStatement.transactions.map(tr => (
+                    <div key={tr.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg" role="listitem">
+                      <div>
+                        <p className="font-medium text-gray-900">{tr.description}</p>
+                        <p className="text-sm text-gray-500">{formatDate(tr.date)} • {tr.category}</p>
+                        {tr.property_id && <p className="text-xs text-gray-400">Propriété: {tr.property_id}</p>}
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={tr.type === 'income' ? 'success' : 'danger'} size="sm">
+                          {tr.type === 'income' ? '+' : '-'}{formatCurrency(tr.amount)}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant={tr.type === 'income' ? 'success' : 'danger'} size="sm">
-                        {tr.type === 'income' ? '+' : '-'}{formatCurrency(tr.amount)}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+              <Button variant="outline" onClick={exportExcel}><Download className="h-4 w-4 mr-2" />Exporter Excel</Button>
+              <Button onClick={generatePDF}><Download className="h-4 w-4 mr-2" />Télécharger PDF</Button>
             </div>
           </div>
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t">
-            <Button variant="outline" onClick={exportExcel}><Download className="h-4 w-4 mr-2"/>Exporter Excel</Button>
-            <Button onClick={generatePDF}><Download className="h-4 w-4 mr-2"/>Télécharger PDF</Button>
+        ) : (
+          <div className="p-8 text-center text-gray-500">
+            <p>Aucune donnée disponible pour cette période</p>
           </div>
-        </div>
+        )}
       </Modal>
 
       {/* Edit Modal */}
@@ -283,22 +326,22 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({ entity
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Description</label>
-              <input type="text" value={editTransaction.description} onChange={e => setEditTransaction({...editTransaction, description: e.target.value})} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
+              <input type="text" value={editTransaction.description} onChange={e => setEditTransaction({ ...editTransaction, description: e.target.value })} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Montant</label>
-              <input type="number" value={editTransaction.amount} onChange={e => setEditTransaction({...editTransaction, amount: Number(e.target.value)})} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
+              <input type="number" value={editTransaction.amount} onChange={e => setEditTransaction({ ...editTransaction, amount: Number(e.target.value) })} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Type</label>
-              <select value={editTransaction.type} onChange={e => setEditTransaction({...editTransaction, type: e.target.value as 'income'|'expense'})} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+              <select value={editTransaction.type} onChange={e => setEditTransaction({ ...editTransaction, type: e.target.value as 'income' | 'expense' })} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                 <option value="income">Revenu</option>
                 <option value="expense">Dépense</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Catégorie</label>
-              <input type="text" value={editTransaction.category} onChange={e => setEditTransaction({...editTransaction, category: e.target.value})} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"/>
+              <input type="text" value={editTransaction.category} onChange={e => setEditTransaction({ ...editTransaction, category: e.target.value })} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div className="flex justify-end space-x-2 pt-4 border-t">
               <Button variant="outline" onClick={() => setEditTransaction(null)}>Annuler</Button>
@@ -307,6 +350,36 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({ entity
           </div>
         )}
       </Modal>
+
+      {/* Receipt Generator Modal */}
+      {showReceiptGenerator && contractId && propertyId && ownerId && (
+        <ReceiptGenerator
+          isOpen={showReceiptGenerator}
+          onClose={() => setShowReceiptGenerator(false)}
+          contractId={contractId}
+          tenantId={entityId}
+          propertyId={propertyId}
+          ownerId={ownerId}
+          onReceiptGenerated={async () => {
+            setShowReceiptGenerator(false);
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {/* Owner Reversal Modal */}
+      {showOwnerReversal && entityType === 'owner' && (
+        <OwnerReversalModal
+          isOpen={showOwnerReversal}
+          onClose={() => setShowOwnerReversal(false)}
+          ownerId={entityId}
+          ownerName={entityName}
+          onSuccess={() => {
+            setShowOwnerReversal(false);
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 };

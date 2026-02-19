@@ -13,7 +13,13 @@ export const rentReceiptsService = {
   async getAll(params?: GetAllParams): Promise<RentReceipt[]> {
     let query = supabase
       .from('rent_receipts')
-      .select('*, contracts!inner(agency_id)')
+      .select(`
+        *,
+        contracts!inner(agency_id),
+        property:properties(business_id),
+        tenant:tenants(business_id),
+        owner:owners(business_id)
+      `)
       .order('created_at', { ascending: false });
 
     if (params?.agency_id) {
@@ -39,12 +45,37 @@ export const rentReceiptsService = {
     return data;
   },
   async create(receipt: Partial<RentReceipt>): Promise<RentReceipt> {
+    console.log('🔧 Service: Starting create receipt...');
+    console.log('📥 Service: Input receipt:', receipt);
+
+    // Normalize first, then override critical fields
+    const normalized = normalizeRentReceipt(receipt);
+    console.log('🔄 Service: Normalized receipt:', normalized);
+
     const clean: Partial<RentReceipt> = {
+      ...normalized,
       id: receipt.id ?? uuidv4(),
-      agency_id: receipt.agency_id,
+      agency_id: receipt.agency_id, // Must not be undefined
       created_at: new Date().toISOString(),
-      ...normalizeRentReceipt(receipt),
     };
+
+    console.log('✨ Service: Clean receipt before validation:', clean);
+
+    // Validate required fields
+    if (!clean.agency_id) {
+      console.error('❌ Service: Missing agency_id');
+      throw new Error('agency_id is required');
+    }
+    if (!clean.contract_id) {
+      console.error('❌ Service: Missing contract_id');
+      throw new Error('contract_id is required');
+    }
+    if (!clean.tenant_id) {
+      console.error('❌ Service: Missing tenant_id');
+      throw new Error('tenant_id is required');
+    }
+
+    console.log('📤 Service: Inserting into database:', clean);
 
     const { data, error } = await supabase
       .from('rent_receipts')
@@ -52,7 +83,12 @@ export const rentReceiptsService = {
       .select('*')
       .single();
 
-    if (error) throw new Error(formatSbError('❌ rent_receipts.insert', error));
+    if (error) {
+      console.error('❌ Service: Database error:', error);
+      throw new Error(formatSbError('❌ rent_receipts.insert', error));
+    }
+
+    console.log('✅ Service: Receipt created successfully:', data);
     return data;
   },
   async update(id: string, updates: Partial<RentReceipt>): Promise<RentReceipt> {

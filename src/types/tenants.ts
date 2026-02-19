@@ -3,6 +3,7 @@ import { MaritalStatus, PaymentReliability } from './enums';
 
 export interface Tenant extends AgencyEntity {
   id: string; // UUID
+  business_id?: string;
   first_name: string;
   last_name: string;
   phone: string;

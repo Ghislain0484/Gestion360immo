@@ -1,44 +1,60 @@
-// src/components/ui/Tabs.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import clsx from 'clsx';
+import { LucideIcon } from 'lucide-react';
 
-export const Tabs: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return <div className="w-full">{children}</div>;
-};
+export interface TabItem {
+  id: string;
+  label: string;
+  icon?: LucideIcon;
+  count?: number;
+}
 
-export const TabList: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return <div className="flex flex-wrap gap-2 border-b mb-4">{children}</div>;
-};
+interface TabsProps {
+  tabs: TabItem[];
+  activeTab: string;
+  onChange: (id: string) => void;
+  className?: string;
+}
 
-export const Tab: React.FC<{ children: React.ReactNode; onClick?: () => void; isActive?: boolean }> = ({ children, onClick, isActive }) => {
+export const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, className }) => {
   return (
-    <button
-      className={clsx(
-        'px-3 py-2 text-sm rounded-t-md',
-        isActive ? 'bg-white border border-b-0' : 'bg-gray-100 hover:bg-gray-200 border-transparent'
-      )}
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-};
+    <div className={clsx('flex flex-wrap gap-2', className)}>
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+        const Icon = tab.icon;
 
-export const TabPanel: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return <div className="bg-white rounded-md border p-4">{children}</div>;
-};
-
-export const UseTabs: React.FC<{ labels: string[]; panels: React.ReactNode[] }> = ({ labels, panels }) => {
-  const [idx, setIdx] = useState(0);
-  return (
-    <div>
-      <TabList>
-        {labels.map((l, i) => (
-          <Tab key={l} isActive={i === idx} onClick={() => setIdx(i)}>{l}</Tab>
-        ))}
-      </TabList>
-      <TabPanel>{panels[idx]}</TabPanel>
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            className={clsx(
+              'group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200',
+              isActive
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            )}
+            aria-current={isActive ? 'page' : undefined}
+          >
+            {Icon && (
+              <Icon
+                className={clsx(
+                  'mr-2 h-5 w-5',
+                  isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
+                )}
+              />
+            )}
+            {tab.label}
+            {tab.count !== undefined && (
+              <span className={clsx(
+                'ml-2 py-0.5 px-2.5 rounded-full text-xs font-medium',
+                isActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-900'
+              )}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 };

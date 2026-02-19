@@ -6,6 +6,7 @@ voici une réécriture propre, normalisée et cohérente du schéma, avec :
   - un users aligné sur Supabase Auth (clé étrangère vers auth.users(id)),
   - suppression des redondances (ex. rent_receipts ne duplique plus owner/tenant/property),
   - colonnes updated_at gérées par trigger.
+  - AJOUT: Colonnes 'business_id' et triggers de génération automatique (TYPEAAMMJJ-NNNNN).
 */
 
 -- =========================================================
@@ -93,6 +94,52 @@ begin
 end $$;
 
 -- =========================================================
+-- Helpers: ID Generation Function (Professional Sequence)
+-- =========================================================
+-- Generates an ID like PREFIX240130-00001
+CREATE OR REPLACE FUNCTION generate_business_id()
+RETURNS TRIGGER AS $$
+DECLARE
+    prefix text;
+    date_part text;
+    seq_num int;
+    new_id text;
+    table_n text;
+BEGIN
+    -- Determine prefix based on table name
+    table_n := TG_TABLE_NAME;
+    
+    IF table_n = 'owners' THEN prefix := 'PROP';
+    ELSIF table_n = 'tenants' THEN prefix := 'LOC';
+    ELSIF table_n = 'properties' THEN prefix := 'BIEN';
+    ELSIF table_n = 'agencies' THEN prefix := 'AGEN';
+    ELSIF table_n = 'contracts' THEN prefix := 'CONT'; -- Optional
+    ELSE prefix := 'GEN';
+    END IF;
+
+    -- Get current date part (YYMMDD)
+    date_part := to_char(current_date, 'YYMMDD');
+
+    -- Find the max sequence for this prefix/date combination
+    -- Note: This locks the table briefly or relies on atomic updates. 
+    -- For high concurrency, a dedicated sequence table is better, but this suffices for typical usage.
+    EXECUTE format('
+        SELECT COALESCE(MAX(SUBSTRING(business_id FROM 12)::int), 0) + 1
+        FROM public.%I
+        WHERE business_id LIKE %L || %L || ''-%%''
+    ', table_n, prefix, date_part) INTO seq_num;
+
+    -- Format the new ID
+    new_id := prefix || date_part || '-' || lpad(seq_num::text, 5, '0');
+    
+    -- Assign to the new row
+    NEW.business_id := new_id;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =========================================================
 -- Utilisateurs (liés à Supabase Auth)
 -- =========================================================
 -- Convention: users.id = auth.users.id (FK forte, on supprime le profil si l’auth user est supprimé)
@@ -135,6 +182,7 @@ create trigger trg_platform_admins_updated_at before update on public.platform_a
 -- =========================================================
 create table public.agencies (
   id uuid primary key default uuid_generate_v4(),
+  business_id text unique, -- ADDED
   name text not null,
   commercial_register text not null unique,
   logo_url text,
@@ -153,6 +201,8 @@ create table public.agencies (
 create index idx_agencies_city on public.agencies(city);
 create trigger trg_agencies_updated_at before update on public.agencies
   for each row execute function set_updated_at();
+create trigger trg_agencies_id_gen before insert on public.agencies
+  for each row execute function generate_business_id();
 
 -- =========================================================
 -- Liaison utilisateurs/agences (rôles par agence)
@@ -258,6 +308,7 @@ create trigger trg_agency_rankings_updated_at before update on public.agency_ran
 -- =========================================================
 create table public.owners (
   id uuid primary key default uuid_generate_v4(),
+  business_id text unique, -- ADDED
   agency_id uuid not null references public.agencies(id) on delete cascade,
   first_name text not null,
   last_name text not null,
@@ -276,9 +327,12 @@ create table public.owners (
 );
 create trigger trg_owners_updated_at before update on public.owners
   for each row execute function set_updated_at();
+create trigger trg_owners_id_gen before insert on public.owners
+  for each row execute function generate_business_id();
 
 create table public.tenants (
   id uuid primary key default uuid_generate_v4(),
+  business_id text unique, -- ADDED
   agency_id uuid not null references public.agencies(id) on delete cascade,
   first_name text not null,
   last_name text not null,
@@ -300,12 +354,15 @@ create table public.tenants (
 );
 create trigger trg_tenants_updated_at before update on public.tenants
   for each row execute function set_updated_at();
+create trigger trg_tenants_id_gen before insert on public.tenants
+  for each row execute function generate_business_id();
 
 -- =========================================================
 -- Biens
 -- =========================================================
 create table public.properties (
   id uuid primary key default uuid_generate_v4(),
+  business_id text unique, -- ADDED
   agency_id uuid not null references public.agencies(id) on delete cascade,
   owner_id uuid not null references public.owners(id) on delete restrict,
   title text not null,
@@ -325,6 +382,8 @@ create index idx_properties_agency on public.properties(agency_id);
 create index idx_properties_owner on public.properties(owner_id);
 create trigger trg_properties_updated_at before update on public.properties
   for each row execute function set_updated_at();
+create trigger trg_properties_id_gen before insert on public.properties
+  for each row execute function generate_business_id();
 
 -- =========================================================
 -- Annonces + Intérêts
@@ -498,29 +557,5 @@ create table public.platform_settings (
   category text not null default 'general',
   is_public boolean default false,
   updated_by uuid references public.users(id) on delete set null,
-  updated_at timestamptz default now(),
-  created_at timestamptz default now()
+  updated_at timestamptz default now()
 );
-
--- =========================================================
--- Audit
--- =========================================================
-create table public.audit_logs (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references public.users(id) on delete set null,
-  action text not null,
-  table_name text not null,
-  record_id uuid,
-  old_values jsonb,
-  new_values jsonb,
-  ip_address inet,
-  user_agent text,
-  created_at timestamptz default now()
-);
-
--- =========================================================
--- Index complémentaires utiles
--- =========================================================
-create index idx_owners_agency on public.owners(agency_id);
-create index idx_tenants_agency on public.tenants(agency_id);
-create index idx_ann_interests_user on public.announcement_interests(user_id);

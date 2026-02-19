@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Search, User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2 } from 'lucide-react';
+import { Plus, Search, User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2, Edit } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -8,24 +9,32 @@ import { TenantForm } from './TenantForm';
 import ReceiptGenerator from '../receipts/ReceiptGenerator';
 import { FinancialStatements } from '../financial/FinancialStatements';
 import { Tenant, TenantFormData, TenantWithRental } from '../../types/db';
-import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
+import { useRealtimeData, useSupabaseCreate, useSupabaseDelete, useSupabaseUpdate } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
+import { OHADAContractGenerator } from '../../utils/contractTemplates';
+import { generateSlug } from '../../utils/idSystem';
 import { useAuth } from '../../contexts/AuthContext';
 import debounce from 'lodash/debounce';
+import { SuccessModal } from '../ui/SuccessModal';
 import { toast } from 'react-hot-toast';
 
 const PAGE_SIZE = 10;
 
 export const TenantsList: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
   const [showFinancialStatements, setShowFinancialStatements] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<TenantWithRental | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'bon' | 'irregulier' | 'mauvais'>('all');
   const [filterMaritalStatus, setFilterMaritalStatus] = useState<'all' | 'celibataire' | 'marie' | 'divorce' | 'veuf'>('all');
   const [currentPage, setCurrentPage] = useState(0);
+  const [searchParams] = useSearchParams();
+  const action = searchParams.get('action');
+  const queryPropertyId = searchParams.get('propertyId');
 
   const fetchTenants = useCallback(
     () => dbService.tenants.getAll({
@@ -44,17 +53,7 @@ export const TenantsList: React.FC = () => {
     'tenants'
   );
 
-  const { create: createTenant } = useSupabaseCreate(
-    dbService.tenants.create,
-    {
-      onSuccess: (newTenant) => {
-        setData(prev => [newTenant, ...prev]);
-        setShowForm(false);
-        toast.success('Locataire créé avec succès');
-      },
-      onError: (err) => toast.error(err)
-    }
-  );
+
 
   const { deleteItem: deleteTenant, loading: deleting } = useSupabaseDelete(
     dbService.tenants.delete,
@@ -67,7 +66,42 @@ export const TenantsList: React.FC = () => {
     }
   );
 
-  const handleAddTenant = useCallback(async (tenantData: TenantFormData) => {
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState({ title: '', message: '' });
+
+  const { update: updateTenant } = useSupabaseUpdate(
+    dbService.tenants.update,
+    {
+      onSuccess: (updatedTenant) => {
+        // Optimistic update
+        setData(prev => prev.map(t => t.id === updatedTenant.id ? updatedTenant : t));
+        refetch(); // Force sync with server
+        setShowForm(false);
+        setIsEditing(false);
+        setSuccessMessage({
+          title: 'Mise à jour réussie !',
+          message: `Les informations de ${updatedTenant.first_name} ${updatedTenant.last_name} ont bien été enregistrées.`
+        });
+        setShowSuccessModal(true);
+      },
+      onError: (err) => {
+        console.error("Update Error:", err);
+        toast.error("Erreur lors de la mise à jour : " + err);
+      }
+    }
+  );
+
+  const { create: createTenant } = useSupabaseCreate(
+    dbService.tenants.create,
+    {
+      onSuccess: () => {
+        refetch(); // Force sync
+      },
+      onError: (err) => toast.error(err)
+    }
+  );
+
+  const handleAddTenant = useCallback(async (tenantData: TenantFormData, rentalParams?: any, property?: any) => {
     if (!user?.agency_id) {
       toast.error('Aucune agence associée');
       return;
@@ -75,12 +109,144 @@ export const TenantsList: React.FC = () => {
 
     try {
       const tenantPayload = { ...tenantData, agency_id: user.agency_id };
-      await createTenant(tenantPayload);
+      // Note: createTenant is triggered, but we need to handle contract in onSuccess ideally,
+      // but useSupabaseCreate structure is simple.
+      // We will rely on the direct calls inside the form submit wrapper for complex Logic like contracts.
+
+      // ACTUALLY: The hook useSupabaseCreate wraps the DB call.
+      // To chain logic (Contract), we might need to do it slightly differently or inside the component logic.
+      // Current implementation: handleFormSubmit calls handleAddTenant, which calls createTenant hook.
+
+      // Let's execute create manually to await it, IF the hook exposes the promise.
+      // useSupabaseCreate usually exposes { create }.
+
+      const newTenant = await createTenant(tenantPayload);
+
+      if (newTenant && rentalParams && property) {
+        toast.loading('Génération du contrat en cours...', { id: 'contract-gen' });
+
+        const agency = await dbService.agencies.getById(user.agency_id);
+        const owner = await dbService.owners.getById(property.owner_id);
+
+        if (!agency || !owner) {
+          toast.error('Erreur: Agence ou Propriétaire introuvable pour le contrat', { id: 'contract-gen' });
+          return;
+        }
+
+        const contractPayload = {
+          ...OHADAContractGenerator.generateRentalContractForTenant(
+            newTenant,
+            agency,
+            property,
+            {
+              monthlyRent: rentalParams.monthlyRent,
+              deposit: rentalParams.deposit, // 2 months
+              agencyFee: rentalParams.agencyFee, // 1 month
+              advance: rentalParams.monthlyRent * 2, // 2 months advance
+              duration: 12,
+              startDate: new Date(rentalParams.startDate)
+            }
+          ),
+          status: 'active' as const
+        };
+
+        await dbService.contracts.create(contractPayload);
+        await dbService.properties.update(property.id, { is_available: false });
+
+        // Force refetch to sync all data
+        refetch();
+
+        if (confirm("Voulez-vous imprimer le contrat de bail maintenant ?")) {
+          await OHADAContractGenerator.printContract(contractPayload, agency, newTenant, property);
+        }
+
+        toast.dismiss('contract-gen');
+      } else {
+        setSuccessMessage({
+          title: 'Locataire créé !',
+          message: `Le locataire a été ajouté à la base de données.`
+        });
+      }
+
+      setShowForm(false);
+      setShowSuccessModal(true);
     } catch (err) {
       console.error(err);
-      toast.error('Erreur lors de la création du locataire');
+      toast.error('Erreur lors de la création');
     }
-  }, [user?.agency_id, createTenant]);
+  }, [user?.agency_id, createTenant, refetch]);
+
+  const handleEditClick = useCallback((tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    setIsEditing(true);
+    setShowForm(true);
+  }, []);
+
+  const handleCreateClick = useCallback(() => {
+    setSelectedTenant(null);
+    setIsEditing(false);
+    setShowForm(true);
+  }, []);
+
+  const handleFormSubmit = useCallback(async (tenantData: TenantFormData, rentalParams?: any, property?: any) => {
+    try {
+      if (isEditing && selectedTenant) {
+        await updateTenant(selectedTenant.id, tenantData);
+
+        // 2. If property assigned during edit, generate Contract
+        if (rentalParams && property) {
+          toast.loading('Génération du nouveau contrat...', { id: 'contract-update' });
+
+          const agency = await dbService.agencies.getById(user?.agency_id!);
+          const owner = await dbService.owners.getById(property.owner_id);
+
+          if (!agency || !owner) {
+            toast.error('Erreur: Introuvables pour le contrat', { id: 'contract-update' });
+            return;
+          }
+
+          const tenantForContract: Tenant = { ...selectedTenant, ...tenantData };
+
+          const contractPayload = {
+            ...OHADAContractGenerator.generateRentalContractForTenant(
+              tenantForContract,
+              agency,
+              property,
+              {
+                monthlyRent: rentalParams.monthlyRent,
+                deposit: rentalParams.deposit,
+                agencyFee: rentalParams.agencyFee,
+                advance: rentalParams.monthlyRent * 2,
+                duration: 12,
+                startDate: new Date(rentalParams.startDate)
+              }
+            ),
+            status: 'active' as const
+          };
+
+          await dbService.contracts.create(contractPayload);
+          await dbService.properties.update(property.id, { is_available: false });
+          refetch();
+
+          // Append info to success message
+          setSuccessMessage({
+            title: 'Mise à jour complétée',
+            message: `Locataire mis à jour et nouveau contrat généré pour ${property.title}.`
+          });
+
+          if (confirm("Voulez-vous imprimer le nouveau contrat ?")) {
+            await OHADAContractGenerator.printContract(contractPayload, agency, tenantForContract, property);
+          }
+        }
+
+      } else {
+        await handleAddTenant(tenantData, rentalParams, property);
+      }
+    } catch (error) {
+      console.error("Form Submit Error:", error);
+      toast.error("Une erreur s'est produite lors de l'enregistrement.");
+    }
+  }, [isEditing, selectedTenant, updateTenant, handleAddTenant, user?.agency_id]);
 
   const handleDeleteTenant = useCallback(async (tenantId: string) => {
     if (!confirm('Supprimer ce locataire ?')) return;
@@ -137,6 +303,12 @@ export const TenantsList: React.FC = () => {
     return () => debouncedRefetch.cancel();
   }, [searchTerm, filterPaymentStatus, filterMaritalStatus, currentPage, debouncedRefetch]);
 
+  useEffect(() => {
+    if (action === 'new') {
+      handleCreateClick();
+    }
+  }, [action, handleCreateClick]);
+
   if (authLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -160,7 +332,7 @@ export const TenantsList: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Locataires ({filteredTenants.length})</h1>
-        <Button onClick={() => setShowForm(true)} aria-label="Ajouter un locataire">
+        <Button onClick={handleCreateClick} aria-label="Ajouter un locataire">
           <Plus className="h-4 w-4 mr-2" />
           Ajouter un locataire
         </Button>
@@ -222,7 +394,14 @@ export const TenantsList: React.FC = () => {
           </div>
         ) : (
           filteredTenants.map(tenant => (
-            <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
+            <Card
+              key={tenant.id}
+              className="hover:shadow-lg transition-shadow cursor-pointer relative group"
+              onClick={() => {
+                const slug = generateSlug(tenant.id, `${tenant.first_name} ${tenant.last_name}`);
+                navigate(`/locataires/${slug}`);
+              }}
+            >
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center space-x-3">
@@ -231,13 +410,23 @@ export const TenantsList: React.FC = () => {
                       : <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center"><User className="h-6 w-6 text-blue-600" /></div>
                     }
                     <div>
-                      <h3 className="font-semibold">{tenant.first_name} {tenant.last_name}</h3>
+                      <h3 className="font-semibold group-hover:text-blue-600 transition-colors">
+                        {tenant.first_name} {tenant.last_name}
+                        {tenant.business_id && (
+                          <span className="ml-2 text-xs text-gray-500 font-mono bg-gray-100 px-1 rounded">
+                            {tenant.business_id}
+                          </span>
+                        )}
+                      </h3>
                       <div className="flex items-center text-sm text-gray-600"><Phone className="h-3 w-3 mr-1" />{tenant.phone}</div>
                     </div>
                   </div>
-                  <div className="flex space-x-1">
+                  <div className="flex space-x-1" onClick={(e) => e.stopPropagation()}>
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedTenant(tenant); setShowReceiptGenerator(true); }} aria-label={`Générer une quittance pour ${tenant.first_name} ${tenant.last_name}`}>
                       <FileText className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleEditClick(tenant)} aria-label={`Modifier ${tenant.first_name} ${tenant.last_name}`}>
+                      <Edit className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedTenant(tenant); setShowFinancialStatements(true); }} aria-label={`Voir l'état financier de ${tenant.first_name} ${tenant.last_name}`}>
                       <DollarSign className="h-4 w-4" />
@@ -294,7 +483,15 @@ export const TenantsList: React.FC = () => {
         </div>
       )}
 
-      <TenantForm isOpen={showForm} onClose={() => setShowForm(false)} onSubmit={handleAddTenant} />
+
+
+      <TenantForm
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        onSubmit={handleFormSubmit}
+        initialData={isEditing && selectedTenant ? selectedTenant : undefined}
+        preSelectedPropertyId={queryPropertyId || undefined}
+      />
       <ReceiptGenerator
         isOpen={showReceiptGenerator}
         onClose={() => { setShowReceiptGenerator(false); setSelectedTenant(null); }}
@@ -303,20 +500,28 @@ export const TenantsList: React.FC = () => {
         propertyId={selectedTenant?.propertyId}
         ownerId={selectedTenant?.ownerId}
       />
-      {selectedTenant && (
-        <Modal
-          isOpen={showFinancialStatements}
-          onClose={() => { setShowFinancialStatements(false); setSelectedTenant(null); }}
-          title="État financier"
-          size="xl"
-        >
-          <FinancialStatements
-            entityId={selectedTenant.id}
-            entityType="tenant"
-            entityName={`${selectedTenant.first_name} ${selectedTenant.last_name}`}
-          />
-        </Modal>
-      )}
-    </div>
+      {
+        selectedTenant && (
+          <Modal
+            isOpen={showFinancialStatements}
+            onClose={() => { setShowFinancialStatements(false); setSelectedTenant(null); }}
+            title="État financier"
+            size="xl"
+          >
+            <FinancialStatements
+              entityId={selectedTenant.id}
+              entityType="tenant"
+              entityName={`${selectedTenant.first_name} ${selectedTenant.last_name}`}
+            />
+          </Modal>
+        )
+      }
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title={successMessage.title}
+        message={successMessage.message}
+      />
+    </div >
   );
 };

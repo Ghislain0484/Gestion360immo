@@ -1,177 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { DollarSign, Calendar, AlertTriangle, CheckCircle, CreditCard, Ban } from 'lucide-react';
+import React, { useState } from 'react';
+import { DollarSign, Calendar, AlertTriangle, CheckCircle, CreditCard, Ban, RefreshCw } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
-import { dbService } from '../../lib/supabase';
-import { AgencySubscription, AuditLog } from '../../types/db';
-import { BadgeVariant, SubscriptionStatus, PlanType } from '../../types/enums';
-import { useAuth } from '../../contexts/AuthContext';
+import {
+  useAgencies,
+  useToggleAgencyStatus,
+  useExtendSubscription,
+  useUpdateAgencyPlan,
+  usePlatformSettings
+} from '../../hooks/useAdminQueries';
+import { Agency } from '../../types/db';
 
-interface Plan {
-  id: PlanType;
-  name: string;
-  price: number;
-  features: string[];
-}
-
-interface Toast {
-  message: string;
-  type: 'success' | 'error';
+interface ExtendModalData {
+  agency: Agency;
+  months: string;
 }
 
 export const SubscriptionManagement: React.FC = () => {
-  const { admin, isLoading: authLoading } = useAuth();
-  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
-  const [selectedSubscription, setSelectedSubscription] = useState<
-    (AgencySubscription & { action?: 'extend' | 'suspend' | 'activate' }) | null
-  >(null);
-  const [subscriptions, setSubscriptions] = useState<AgencySubscription[]>([]);
-  const [agencyNames, setAgencyNames] = useState<{ [key: string]: string }>({});
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [monthsToExtend, setMonthsToExtend] = useState<string>('1');
-  const [suspensionReason, setSuspensionReason] = useState<string>('');
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
+  const [monthsToExtend, setMonthsToExtend] = useState('1');
+  const [suspensionReason, setSuspensionReason] = useState('');
 
-  // Toast notification
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }, []);
+  // React Query hooks
+  const { data: agencies = [], isLoading, error, refetch } = useAgencies();
+  const { data: settings } = usePlatformSettings();
+  const toggleStatus = useToggleAgencyStatus();
+  const extendSubscription = useExtendSubscription();
+  const updatePlan = useUpdateAgencyPlan();
 
-  // Log audit action
-  const logAudit = useCallback(async (action: string, tableName: string, recordId: string | null, oldValues: any, newValues: any) => {
-    try {
-      const auditLog: Partial<AuditLog> = {
-        user_id: admin?.id ?? null,
-        action,
-        table_name: tableName,
-        record_id: recordId,
-        old_values: oldValues,
-        new_values: newValues,
-        ip_address: 'unknown', // Replace with actual IP if available
-        user_agent: navigator.userAgent,
-      };
-      await dbService.auditLogs.getAll(); // Placeholder; add insert method if needed
-    } catch (err) {
-      console.error('Erreur lors de l’enregistrement de l’audit:', err);
-    }
-  }, [admin]);
-
-  // Fetch subscriptions, agency names, and plan prices
-  const fetchSubscriptions = useCallback(async () => {
-    if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-      setError('Accès non autorisé. Veuillez vous connecter en tant qu’administrateur.');
-      showToast('Accès non autorisé', 'error');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const [subscriptionsData, settingsData, agencies] = await Promise.all([
-        dbService.agencySubscriptions.getAll(),
-        dbService.platformSettings.getAll(),
-        dbService.agencies.getAll(),
-      ]);
-      const settingsMap = settingsData.reduce((acc, setting) => {
-        acc[setting.setting_key] = setting.setting_value;
-        return acc;
-      }, {} as { [key: string]: any });
-
-      setPlans([
-        {
-          id: 'basic' as PlanType,
-          name: 'Basique',
-          price: Number(settingsMap['subscription_basic_price']) || 25000,
-          features: ['Jusqu’à 50 propriétés', 'Support email', 'Rapports basiques'],
-        },
-        {
-          id: 'premium' as PlanType,
-          name: 'Premium',
-          price: Number(settingsMap['subscription_premium_price']) || 50000,
-          features: ['Propriétés illimitées', 'Support prioritaire', 'Rapports avancés', 'Collaboration inter-agences'],
-        },
-        {
-          id: 'enterprise' as PlanType,
-          name: 'Entreprise',
-          price: Number(settingsMap['subscription_enterprise_price']) || 100000,
-          features: ['Tout Premium +', 'API personnalisée', 'Support dédié', 'Formation sur site'],
-        },
-      ]);
-
-      setSubscriptions(subscriptionsData);
-      const names = agencies.reduce((acc, agency) => {
-        acc[agency.id] = agency.name;
-        return acc;
-      }, {} as { [key: string]: string });
-      setAgencyNames(names);
-    } catch (err: any) {
-      console.error('Erreur lors du chargement des abonnements:', err);
-      const errorMessage = err.message || 'Erreur lors du chargement des abonnements';
-      setError(errorMessage);
-      showToast(errorMessage, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [admin, showToast]);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-      setError('Accès non autorisé. Veuillez vous connecter en tant qu’administrateur.');
-      showToast('Accès non autorisé', 'error');
-      return;
-    }
-    fetchSubscriptions();
-  }, [fetchSubscriptions, admin, authLoading]);
-
-  const getStatusColor = (status: SubscriptionStatus): BadgeVariant => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'suspended':
-        return 'danger';
-      case 'trial':
-        return 'warning';
-      case 'cancelled':
-        return 'secondary';
-      default:
-        return 'secondary';
-    }
-  };
-
-  const getStatusLabel = (status: SubscriptionStatus): string => {
-    switch (status) {
-      case 'active':
-        return 'Actif';
-      case 'suspended':
-        return 'Suspendu';
-      case 'trial':
-        return 'Essai';
-      case 'cancelled':
-        return 'Annulé';
-      default:
-        return status;
-    }
-  };
-
-  const getPlanLabel = (plan: PlanType): string => {
-    switch (plan) {
-      case 'basic':
-        return 'Basique';
-      case 'premium':
-        return 'Premium';
-      case 'enterprise':
-        return 'Entreprise';
-      default:
-        return plan;
-    }
-  };
+  // Calculs dérivés
+  const activeAgencies = agencies.filter((a) => a.subscription_status === 'active');
+  const suspendedAgencies = agencies.filter((a) => a.subscription_status === 'suspended');
+  const totalMonthlyRevenue = activeAgencies.reduce((sum, a) => sum + (a.monthly_fee || 0), 0);
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
@@ -181,71 +46,105 @@ export const SubscriptionManagement: React.FC = () => {
     }).format(amount);
   };
 
-  const handlePaymentAction = useCallback(
-    (subscription: AgencySubscription, action: 'extend' | 'suspend' | 'activate') => {
-      setSelectedSubscription({ ...subscription, action });
-      setShowPaymentModal(true);
-    },
-    []
-  );
+  const getStatusBadge = (status: string | null | undefined) => {
+    const actualStatus = status || 'active';
+    const variants: Record<string, any> = {
+      active: { variant: 'success', label: 'Actif' },
+      suspended: { variant: 'danger', label: 'Suspendu' },
+      trial: { variant: 'warning', label: 'Essai' },
+      cancelled: { variant: 'secondary', label: 'Annulé' },
+    };
+    const config = variants[actualStatus] || variants.active;
+    return <Badge variant={config.variant} size="sm">{config.label}</Badge>;
+  };
 
-  const confirmAction = useCallback(async () => {
-    if (!selectedSubscription || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-      setError('Accès non autorisé ou aucune action sélectionnée.');
-      showToast('Action non valide', 'error');
+  const getPlanLabel = (plan: string | null | undefined): string => {
+    const actualPlan = plan || 'basic';
+    const labels: Record<string, string> = {
+      basic: 'Basique',
+      premium: 'Premium',
+      enterprise: 'Entreprise',
+    };
+    return labels[actualPlan] || actualPlan;
+  };
+
+  const handleExtend = (agency: Agency) => {
+    setSelectedAgency(agency);
+    setShowExtendModal(true);
+  };
+
+  const handleSuspend = (agency: Agency) => {
+    setSelectedAgency(agency);
+    setShowSuspendModal(true);
+  };
+
+  const handleActivate = (agency: Agency) => {
+    toggleStatus.mutate({
+      id: agency.id,
+      currentStatus: agency.subscription_status
+    });
+  };
+
+  const confirmExtend = () => {
+    if (!selectedAgency) return;
+
+    const months = parseInt(monthsToExtend, 10);
+    if (isNaN(months) || months < 1 || months > 12) {
       return;
     }
 
-    try {
-      if (selectedSubscription.action === 'extend') {
-        const months = parseInt(monthsToExtend, 10);
-        if (isNaN(months) || months < 1 || months > 12) {
-          setError('Veuillez entrer un nombre de mois valide (1-12).');
-          showToast('Nombre de mois invalide', 'error');
-          return;
-        }
-        await dbService.agencySubscriptions.extend(selectedSubscription.agency_id ?? '', months);
-        await logAudit('extend', 'agency_subscriptions', selectedSubscription.id, { next_payment_date: selectedSubscription.next_payment_date }, { months });
-        showToast('Abonnement étendu avec succès ✅', 'success');
-      } else if (selectedSubscription.action === 'suspend') {
-        if (!suspensionReason) {
-          setError('Veuillez fournir une raison pour la suspension.');
-          showToast('Raison de suspension requise', 'error');
-          return;
-        }
-        await dbService.agencySubscriptions.suspend(selectedSubscription.agency_id ?? '', suspensionReason);
-        await logAudit('suspend', 'agency_subscriptions', selectedSubscription.id, { status: selectedSubscription.status }, { status: 'suspended', suspension_reason: suspensionReason });
-        showToast('Abonnement suspendu avec succès ✅', 'success');
-      } else if (selectedSubscription.action === 'activate') {
-        await dbService.agencySubscriptions.activate(selectedSubscription.agency_id ?? '');
-        await logAudit('activate', 'agency_subscriptions', selectedSubscription.id, { status: selectedSubscription.status }, { status: 'active' });
-        showToast('Abonnement activé avec succès ✅', 'success');
+    extendSubscription.mutate(
+      { agencyId: selectedAgency.id, months },
+      {
+        onSuccess: () => {
+          setShowExtendModal(false);
+          setSelectedAgency(null);
+          setMonthsToExtend('1');
+        },
       }
+    );
+  };
 
-      await fetchSubscriptions();
-      setShowPaymentModal(false);
-      setSelectedSubscription(null);
-      setMonthsToExtend('1');
-      setSuspensionReason('');
-      setError(null);
-    } catch (err: any) {
-      console.error(`Erreur lors de l’action ${selectedSubscription?.action}:`, err);
-      const errorMessage = err.message || 'Erreur inconnue';
-      setError(errorMessage);
-      showToast(`Erreur: ${errorMessage}`, 'error');
-    }
-  }, [selectedSubscription, monthsToExtend, suspensionReason, fetchSubscriptions, admin, showToast, logAudit]);
+  const confirmSuspend = () => {
+    if (!selectedAgency || !suspensionReason.trim()) return;
 
-  const totalMonthlyRevenue = subscriptions
-    .filter((sub) => sub.status === 'active')
-    .reduce((total, sub) => total + (sub.monthly_fee || 0), 0);
+    toggleStatus.mutate(
+      { id: selectedAgency.id, currentStatus: 'active' },
+      {
+        onSuccess: () => {
+          setShowSuspendModal(false);
+          setSelectedAgency(null);
+          setSuspensionReason('');
+        },
+      }
+    );
+  };
 
-  const suspendedCount = subscriptions.filter((sub) => sub.status === 'suspended').length;
+  const plans = [
+    {
+      id: 'basic',
+      name: 'Basique',
+      price: settings?.subscription_basic_price || 25000,
+      features: ['Jusqu\'à 50 propriétés', 'Support email', 'Rapports basiques'],
+    },
+    {
+      id: 'premium',
+      name: 'Premium',
+      price: settings?.subscription_premium_price || 35000,
+      features: ['Propriétés illimitées', 'Support prioritaire', 'Rapports avancés', 'Collaboration'],
+    },
+    {
+      id: 'enterprise',
+      name: 'Entreprise',
+      price: settings?.subscription_enterprise_price || 50000,
+      features: ['Tout Premium +', 'API personnalisée', 'Support dédié', 'Formation'],
+    },
+  ];
 
-  if (loading || authLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -253,11 +152,11 @@ export const SubscriptionManagement: React.FC = () => {
   if (error) {
     return (
       <div className="space-y-6">
-        <h2 className="text-xl font-bold text-gray-900">Gestion des Abonnements</h2>
         <Card className="p-8 text-center">
           <h3 className="text-lg font-medium text-gray-900 mb-2">Erreur</h3>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <Button variant="outline" onClick={fetchSubscriptions}>
+          <p className="text-gray-600 mb-4">Impossible de charger les abonnements</p>
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
             Réessayer
           </Button>
         </Card>
@@ -267,30 +166,20 @@ export const SubscriptionManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Gestion des Abonnements</h2>
         <div className="flex items-center space-x-3">
           <Badge variant="success" size="sm">
             {formatCurrency(totalMonthlyRevenue)} / mois
           </Badge>
-          {suspendedCount > 0 && (
+          {suspendedAgencies.length > 0 && (
             <Badge variant="danger" size="sm">
-              {suspendedCount} suspendu{suspendedCount > 1 ? 's' : ''}
+              {suspendedAgencies.length} suspendu{suspendedAgencies.length > 1 ? 's' : ''}
             </Badge>
           )}
         </div>
       </div>
-
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`fixed bottom-4 right-4 p-4 rounded-lg text-white ${
-            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -306,7 +195,7 @@ export const SubscriptionManagement: React.FC = () => {
         <Card>
           <div className="p-6 text-center">
             <div className="text-2xl font-bold text-blue-600 mb-2">
-              {subscriptions.filter((s) => s.status === 'active').length}
+              {activeAgencies.length}
             </div>
             <p className="text-sm text-gray-600">Abonnements actifs</p>
           </div>
@@ -314,7 +203,9 @@ export const SubscriptionManagement: React.FC = () => {
 
         <Card>
           <div className="p-6 text-center">
-            <div className="text-2xl font-bold text-red-600 mb-2">{suspendedCount}</div>
+            <div className="text-2xl font-bold text-red-600 mb-2">
+              {suspendedAgencies.length}
+            </div>
             <p className="text-sm text-gray-600">Abonnements suspendus</p>
           </div>
         </Card>
@@ -347,101 +238,46 @@ export const SubscriptionManagement: React.FC = () => {
       </Card>
 
       {/* Subscriptions List */}
-      {subscriptions.length > 0 ? (
+      {agencies.length > 0 ? (
         <div className="space-y-4">
-          {subscriptions.map((subscription) => (
-            <Card key={subscription.id} className="hover:shadow-lg transition-shadow">
+          {agencies.map((agency) => (
+            <Card key={agency.id} className="hover:shadow-lg transition-shadow">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-semibold text-gray-900">{agencyNames[subscription.agency_id ?? ''] || subscription.agency_id}</h3>
+                    <h3 className="font-semibold text-gray-900">{agency.name}</h3>
                     <p className="text-sm text-gray-500">
-                      Plan {getPlanLabel(subscription.plan_type)} -{' '}
-                      {formatCurrency(subscription.monthly_fee)}/mois
+                      Plan {getPlanLabel(agency.plan_type)} -{' '}
+                      {formatCurrency(agency.monthly_fee || 0)}/mois
                     </p>
                   </div>
-                  <Badge variant={getStatusColor(subscription.status)} size="sm">
-                    {getStatusLabel(subscription.status)}
-                  </Badge>
+                  {getStatusBadge(agency.subscription_status)}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
-                    <p className="text-xs text-gray-500">Dernier paiement</p>
+                    <p className="text-xs text-gray-500">Ville</p>
+                    <p className="font-medium">{agency.city}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Email</p>
+                    <p className="font-medium">{agency.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Date d'inscription</p>
                     <p className="font-medium">
-                      {subscription.last_payment_date
-                        ? new Date(subscription.last_payment_date).toLocaleDateString('fr-FR', {
-                            day: '2-digit',
-                            month: 'long',
-                            year: 'numeric',
-                          })
-                        : 'Aucun'}
+                      {new Date(agency.created_at).toLocaleDateString('fr-FR')}
                     </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Prochain paiement</p>
-                    <p className="font-medium">
-                      {subscription.next_payment_date
-                        ? new Date(subscription.next_payment_date).toLocaleDateString('fr-FR', {
-                            day: '2-digit',
-                            month: 'long',
-                            year: 'numeric',
-                          })
-                        : 'Non défini'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Statut échéance</p>
-                    <p className="font-medium text-blue-600">
-                      {subscription.status === 'trial'
-                        ? `${subscription.trial_days_remaining || 0} jours d'essai`
-                        : getStatusLabel(subscription.status)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Total payé</p>
-                    <p className="font-medium">
-                      {formatCurrency(
-                        (subscription.payment_history as { amount: number; date: string }[] | null)?.reduce(
-                          (total, payment) => total + payment.amount,
-                          0
-                        ) || 0
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Payment History Preview */}
-                <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Historique récent</p>
-                  <div className="flex space-x-2">
-                    {(subscription.payment_history as { amount: number; date: string }[] | null)?.slice(0, 3)?.map((payment, index) => (
-                      <div key={index} className="flex items-center space-x-1 text-xs">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                        <span>
-                          {new Date(payment.date).toLocaleDateString('fr-FR', {
-                            day: '2-digit',
-                            month: 'short',
-                          })}
-                        </span>
-                      </div>
-                    )) || <span className="text-xs text-gray-500">Aucun paiement</span>}
                   </div>
                 </div>
 
                 {/* Actions */}
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="flex items-center space-x-2">
-                    {subscription.status === 'suspended' && (
+                    {agency.subscription_status === 'suspended' && (
                       <div className="flex items-center text-red-600 text-sm">
                         <AlertTriangle className="h-4 w-4 mr-1" />
                         <span>Abonnement suspendu</span>
-                      </div>
-                    )}
-                    {subscription.status === 'trial' && (
-                      <div className="flex items-center text-yellow-600 text-sm">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        <span>Période d'essai</span>
                       </div>
                     )}
                   </div>
@@ -450,16 +286,17 @@ export const SubscriptionManagement: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handlePaymentAction(subscription, 'extend')}
+                      onClick={() => handleExtend(agency)}
                     >
                       <CreditCard className="h-4 w-4 mr-1" />
                       Étendre
                     </Button>
-                    {subscription.status === 'active' || subscription.status === 'trial' ? (
+                    {agency.subscription_status === 'active' ? (
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={() => handlePaymentAction(subscription, 'suspend')}
+                        onClick={() => handleSuspend(agency)}
+                        isLoading={toggleStatus.isPending}
                       >
                         <Ban className="h-4 w-4 mr-1" />
                         Suspendre
@@ -468,7 +305,8 @@ export const SubscriptionManagement: React.FC = () => {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => handlePaymentAction(subscription, 'activate')}
+                        onClick={() => handleActivate(agency)}
+                        isLoading={toggleStatus.isPending}
                       >
                         <CheckCircle className="h-4 w-4 mr-1" />
                         Activer
@@ -488,101 +326,114 @@ export const SubscriptionManagement: React.FC = () => {
         </Card>
       )}
 
-      {/* Payment Action Modal */}
+      {/* Extend Modal */}
       <Modal
-        isOpen={showPaymentModal}
+        isOpen={showExtendModal}
         onClose={() => {
-          setShowPaymentModal(false);
-          setSelectedSubscription(null);
+          setShowExtendModal(false);
+          setSelectedAgency(null);
           setMonthsToExtend('1');
-          setSuspensionReason('');
-          setError(null);
         }}
-        title={
-          selectedSubscription?.action === 'extend'
-            ? "Étendre l'abonnement"
-            : selectedSubscription?.action === 'suspend'
-            ? "Suspendre l'abonnement"
-            : "Activer l'abonnement"
-        }
+        title="Étendre l'abonnement"
         size="md"
       >
-        {selectedSubscription && (
+        {selectedAgency && (
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">{agencyNames[selectedSubscription.agency_id ?? ''] || selectedSubscription.agency_id}</h4>
+              <h4 className="font-medium text-gray-900 mb-2">{selectedAgency.name}</h4>
               <p className="text-sm text-gray-600">
-                Plan {getPlanLabel(selectedSubscription.plan_type)} -{' '}
-                {formatCurrency(selectedSubscription.monthly_fee)}/mois
+                Plan {getPlanLabel(selectedAgency.plan_type)} -{' '}
+                {formatCurrency(selectedAgency.monthly_fee || 0)}/mois
               </p>
             </div>
 
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            )}
+            <Input
+              label="Nombre de mois à ajouter"
+              type="number"
+              min="1"
+              max="12"
+              value={monthsToExtend}
+              onChange={(e) => setMonthsToExtend(e.target.value)}
+            />
 
-            {selectedSubscription.action === 'extend' && (
-              <div className="space-y-4">
-                <Input
-                  label="Nombre de mois à ajouter"
-                  type="number"
-                  min="1"
-                  max="12"
-                  value={monthsToExtend}
-                  onChange={(e) => setMonthsToExtend(e.target.value)}
-                />
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-800">
-                    L'abonnement sera étendu et le prochain paiement sera reporté.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {selectedSubscription.action === 'suspend' && (
-              <div className="space-y-4">
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-800">
-                    L'agence perdra l'accès à la plateforme jusqu'à la réactivation.
-                  </p>
-                </div>
-                <Input
-                  label="Raison de la suspension"
-                  placeholder="Ex: Non-paiement depuis 15 jours"
-                  value={suspensionReason}
-                  onChange={(e) => setSuspensionReason(e.target.value)}
-                />
-              </div>
-            )}
-
-            {selectedSubscription.action === 'activate' && (
-              <div className="space-y-4">
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-800">
-                    L'agence retrouvera l'accès complet à la plateforme.
-                  </p>
-                </div>
-              </div>
-            )}
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800">
+                L'abonnement sera étendu de {monthsToExtend} mois.
+              </p>
+            </div>
 
             <div className="flex items-center justify-end space-x-3 pt-4 border-t">
               <Button
                 variant="ghost"
                 onClick={() => {
-                  setShowPaymentModal(false);
-                  setSelectedSubscription(null);
+                  setShowExtendModal(false);
+                  setSelectedAgency(null);
                   setMonthsToExtend('1');
-                  setSuspensionReason('');
-                  setError(null);
                 }}
               >
                 Annuler
               </Button>
               <Button
-                variant={selectedSubscription.action === 'suspend' ? 'danger' : 'primary'}
-                onClick={confirmAction}
+                variant="primary"
+                onClick={confirmExtend}
+                isLoading={extendSubscription.isPending}
+              >
+                Confirmer
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Suspend Modal */}
+      <Modal
+        isOpen={showSuspendModal}
+        onClose={() => {
+          setShowSuspendModal(false);
+          setSelectedAgency(null);
+          setSuspensionReason('');
+        }}
+        title="Suspendre l'abonnement"
+        size="md"
+      >
+        {selectedAgency && (
+          <div className="space-y-4">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium text-gray-900 mb-2">{selectedAgency.name}</h4>
+              <p className="text-sm text-gray-600">
+                Plan {getPlanLabel(selectedAgency.plan_type)}
+              </p>
+            </div>
+
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">
+                L'agence perdra l'accès à la plateforme jusqu'à la réactivation.
+              </p>
+            </div>
+
+            <Input
+              label="Raison de la suspension"
+              placeholder="Ex: Non-paiement depuis 15 jours"
+              value={suspensionReason}
+              onChange={(e) => setSuspensionReason(e.target.value)}
+            />
+
+            <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowSuspendModal(false);
+                  setSelectedAgency(null);
+                  setSuspensionReason('');
+                }}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="danger"
+                onClick={confirmSuspend}
+                isLoading={toggleStatus.isPending}
+                disabled={!suspensionReason.trim()}
               >
                 Confirmer
               </Button>

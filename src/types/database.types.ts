@@ -14,6 +14,161 @@ export type Database = {
   }
   public: {
     Tables: {
+      tickets: {
+        Row: {
+          id: string
+          agency_id: string
+          property_id: string | null
+          unit_id: string | null
+          tenant_id: string | null
+          owner_id: string | null
+          title: string
+          description: string | null
+          status: "open" | "in_progress" | "resolved" | "closed"
+          priority: "low" | "medium" | "high" | "urgent"
+          cost: number
+          charge_to: "owner" | "agency" | "tenant" | null
+          is_billable: boolean
+          created_at: string
+          updated_at: string
+          created_by: string | null
+          assigned_to: string | null
+        }
+        Insert: {
+          id?: string
+          agency_id: string
+          property_id?: string | null
+          unit_id?: string | null
+          tenant_id?: string | null
+          owner_id?: string | null
+          title: string
+          description?: string | null
+          status?: "open" | "in_progress" | "resolved" | "closed"
+          priority?: "low" | "medium" | "high" | "urgent"
+          cost?: number
+          charge_to?: "owner" | "agency" | "tenant" | null
+          is_billable?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+          assigned_to?: string | null
+        }
+        Update: {
+          id?: string
+          agency_id?: string
+          property_id?: string | null
+          unit_id?: string | null
+          tenant_id?: string | null
+          owner_id?: string | null
+          title?: string
+          description?: string | null
+          status?: "open" | "in_progress" | "resolved" | "closed"
+          priority?: "low" | "medium" | "high" | "urgent"
+          cost?: number
+          charge_to?: "owner" | "agency" | "tenant" | null
+          is_billable?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+          assigned_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      cash_transactions: {
+        Row: {
+          id: string
+          agency_id: string
+          type: "credit" | "debit"
+          amount: number
+          category: string
+          description: string | null
+          transaction_date: string
+          related_property_id: string | null
+          related_owner_id: string | null
+          related_tenant_id: string | null
+          related_ticket_id: string | null
+          payment_method: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          agency_id: string
+          type: "credit" | "debit"
+          amount: number
+          category: string
+          description?: string | null
+          transaction_date?: string
+          related_property_id?: string | null
+          related_owner_id?: string | null
+          related_tenant_id?: string | null
+          related_ticket_id?: string | null
+          payment_method?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          agency_id?: string
+          type?: "credit" | "debit"
+          amount?: number
+          category?: string
+          description?: string | null
+          transaction_date?: string
+          related_property_id?: string | null
+          related_owner_id?: string | null
+          related_tenant_id?: string | null
+          related_ticket_id?: string | null
+          payment_method?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_transactions_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_transactions_related_property_id_fkey"
+            columns: ["related_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       agencies: {
         Row: {
           accreditation_number: string | null
@@ -1592,31 +1747,31 @@ export type Database = {
       marital_status: "celibataire" | "marie" | "divorce" | "veuf"
       notif_priority: "low" | "medium" | "high"
       notif_type:
-        | "rental_alert"
-        | "payment_reminder"
-        | "new_message"
-        | "property_update"
-        | "contract_expiry"
-        | "new_interest"
+      | "rental_alert"
+      | "payment_reminder"
+      | "new_message"
+      | "property_update"
+      | "contract_expiry"
+      | "new_interest"
       pay_method:
-        | "especes"
-        | "cheque"
-        | "virement"
-        | "mobile_money"
-        | "bank_transfer"
-        | "cash"
-        | "check"
+      | "especes"
+      | "cheque"
+      | "virement"
+      | "mobile_money"
+      | "bank_transfer"
+      | "cash"
+      | "check"
       payment_reliability: "bon" | "irregulier" | "mauvais"
       plan_type: "basic" | "premium" | "enterprise"
       property_standing: "economique" | "moyen" | "haut"
       property_title:
-        | "attestation_villageoise"
-        | "lettre_attribution"
-        | "permis_habiter"
-        | "acd"
-        | "tf"
-        | "cpf"
-        | "autres"
+      | "attestation_villageoise"
+      | "lettre_attribution"
+      | "permis_habiter"
+      | "acd"
+      | "tf"
+      | "cpf"
+      | "autres"
       subscription_status: "trial" | "active" | "suspended" | "cancelled"
     }
     CompositeTypes: {
@@ -1631,116 +1786,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-    ? R
-    : never
+  ? R
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
+    DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
+    Insert: infer I
+  }
+  ? I
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
+    Update: infer U
+  }
+  ? U
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Enums"]
+  | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["CompositeTypes"]
+  | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
   public: {

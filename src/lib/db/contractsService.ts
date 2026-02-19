@@ -10,16 +10,25 @@ export const contractsService = {
     offset,
     search,
     status,
+    tenant_id,
+    property_id,
   }: {
     agency_id?: string;
     limit?: number;
     offset?: number;
     search?: string;
     status?: string;
+    tenant_id?: string;
+    property_id?: string;
   } = {}): Promise<Contract[]> {
     let query = supabase
       .from('contracts')
-      .select('*')
+      .select(`
+        *,
+        property:properties(id, title, business_id),
+        tenant:tenants(id, first_name, last_name, business_id, phone),
+        owner:owners(id, first_name, last_name, business_id, phone)
+      `)
       .order('created_at', { ascending: false });
 
     if (agency_id) {
@@ -30,6 +39,12 @@ export const contractsService = {
     }
     if (status) {
       query = query.eq('status', status);
+    }
+    if (tenant_id) {
+      query = query.eq('tenant_id', tenant_id);
+    }
+    if (property_id) {
+      query = query.eq('property_id', property_id);
     }
     if (limit !== undefined && offset !== undefined) {
       query = query.range(offset, offset + limit - 1);

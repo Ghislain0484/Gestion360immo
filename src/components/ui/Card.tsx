@@ -1,17 +1,20 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   className?: string;
   padding?: 'sm' | 'md' | 'lg';
-  role?: string; // Optional role for accessibility
+  variant?: 'default' | 'glass' | 'hover';
+  role?: string;
 }
 
-export const Card: React.FC<CardProps> = ({ 
-  children, 
+export const Card: React.FC<CardProps> = ({
+  children,
   className,
-  padding = 'md' 
+  padding = 'md',
+  variant = 'default',
+  ...props
 }) => {
   const paddingClasses = {
     sm: 'p-4',
@@ -19,12 +22,23 @@ export const Card: React.FC<CardProps> = ({
     lg: 'p-8',
   };
 
+  const variantClasses = {
+    default: 'bg-white dark:bg-slate-800 shadow-soft border border-gray-200 dark:border-slate-600',
+    glass: 'card-glass',
+    hover: 'bg-white dark:bg-slate-800 shadow-soft border border-gray-200 dark:border-slate-600 card-hover',
+  };
+
   return (
-    <div className={cn(
-      'bg-white/90 backdrop-blur-sm rounded-xl shadow-soft border border-white/20 card-hover animate-fade-in-up',
-      paddingClasses[padding],
-      className
-    )}>
+    <div
+      className={cn(
+        'rounded-xl transition-all duration-300 animate-fade-in-up',
+        variantClasses[variant],
+        props.onClick && 'cursor-pointer interactive-scale',
+        paddingClasses[padding],
+        className
+      )}
+      {...props}
+    >
       {children}
     </div>
   );

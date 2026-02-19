@@ -16,6 +16,11 @@ export interface Agency extends AgencyEntity {
   status: string;
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
+
+  // Propriétés de subscription (peuvent être null si pas d'abonnement)
+  subscription_status?: SubscriptionStatus | null;
+  plan_type?: PlanType | null;
+  monthly_fee?: number | null;
 }
 
 export interface AgencyFormData {

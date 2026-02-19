@@ -5,16 +5,14 @@ export async function getPlatformStats(): Promise<PlatformStats> {
   const now = new Date();
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const startOfPrevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const startOfNextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
   const [
     pendingRes,
     totalAgenciesRes,
     approvedAgenciesRes,
-    activeSubscriptionsRes,
+    agenciesRes,
     totalPropertiesRes,
     totalContractsRes,
-    paymentsRes,
     agenciesCurrentMonthRes,
     agenciesPreviousMonthRes,
   ] = await Promise.all([
@@ -29,20 +27,16 @@ export async function getPlatformStats(): Promise<PlatformStats> {
       .from('agencies')
       .select('*', { head: true, count: 'exact' })
       .eq('status', 'approved'),
+    // Récupérer toutes les agences avec leurs monthly_fee
     supabase
-      .from('agency_subscriptions')
-      .select('*', { head: true, count: 'exact' })
-      .in('status', ['active', 'trial']),
+      .from('agencies')
+      .select('subscription_status, monthly_fee'),
     supabase
       .from('properties')
       .select('*', { head: true, count: 'exact' }),
     supabase
       .from('contracts')
       .select('*', { head: true, count: 'exact' }),
-    supabase
-      .from('subscription_payments')
-      .select('amount, payment_date')
-      .eq('status', 'completed'),
     supabase
       .from('agencies')
       .select('*', { head: true, count: 'exact' })
@@ -58,25 +52,32 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     pendingRes.error,
     totalAgenciesRes.error,
     approvedAgenciesRes.error,
-    activeSubscriptionsRes.error,
+    agenciesRes.error,
     totalPropertiesRes.error,
     totalContractsRes.error,
-    paymentsRes.error,
     agenciesCurrentMonthRes.error,
     agenciesPreviousMonthRes.error,
   ].filter(Boolean);
 
   if (errors.length > 0) {
+    console.error('Erreur lors de la récupération des stats:', errors[0]);
     throw errors[0];
   }
 
-  const payments = paymentsRes.data ?? [];
-  const totalRevenue = payments.reduce((sum: number, payment: { amount?: number | null }) => sum + (payment.amount ?? 0), 0);
-  const subscriptionRevenue = payments.reduce((sum: number, payment: { amount?: number | null; payment_date?: string | null }) => {
-    if (!payment.payment_date) return sum;
-    const paymentDate = new Date(payment.payment_date);
-    if (paymentDate >= startOfMonth && paymentDate < startOfNextMonth) {
-      return sum + (payment.amount ?? 0);
+  // Calculer les revenus à partir des agences actives
+  const agencies = agenciesRes.data ?? [];
+  const activeAgencies = agencies.filter((a: any) => a.subscription_status === 'active');
+
+  // Revenus mensuels = somme des monthly_fee des agences actives
+  const subscriptionRevenue = activeAgencies.reduce((sum: number, agency: any) => {
+    return sum + (agency.monthly_fee ?? 0);
+  }, 0);
+
+  // Revenus totaux = tous les monthly_fee (actifs + suspendus, etc.)
+  const totalRevenue = agencies.reduce((sum: number, agency: any) => {
+    // On compte seulement les agences actives pour le total
+    if (agency.subscription_status === 'active') {
+      return sum + (agency.monthly_fee ?? 0);
     }
     return sum;
   }, 0);
@@ -91,7 +92,7 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     pendingRequests: pendingRes.count ?? 0,
     approvedAgencies: approvedAgenciesRes.count ?? 0,
     totalAgencies: totalAgenciesRes.count ?? 0,
-    activeAgencies: activeSubscriptionsRes.count ?? approvedAgenciesRes.count ?? 0,
+    activeAgencies: activeAgencies.length,
     totalRevenue,
     monthlyGrowth: Math.round(monthlyGrowthRaw * 10) / 10,
     subscriptionRevenue,
@@ -99,6 +100,7 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     totalContracts: totalContractsRes.count ?? 0,
   };
 }
+
 export async function listPendingRegistrationRequests(limit = 100) {
   const { data, error } = await supabase
     .from("agency_registration_requests")
@@ -119,7 +121,7 @@ export async function updateRegistrationStatus(id: string, status: "approved" | 
   return true;
 }
 
-// Optionnel : approuver et crÃ©er une agence
+// Optionnel : approuver et créer une agence
 export async function approveAndCreateAgency(request: any) {
   await updateRegistrationStatus(request.id, "approved");
   const payload = {
@@ -136,4 +138,3 @@ export async function approveAndCreateAgency(request: any) {
   if (error) throw error;
   return true;
 }
-

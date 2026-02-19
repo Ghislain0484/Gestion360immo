@@ -1,194 +1,150 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, MapPin, Eye, Trash2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, Search, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
+import { Input } from '../ui/Input';
+import { Property } from '../../types/db';
 import { PropertyForm } from './PropertyForm';
-import { PropertyDetailsModal } from './PropertyDetailsModal';
-import { Property, PropertyFormData } from '../../types/db';
-import { useRealtimeData, useSupabaseCreate, useSupabaseDelete } from '../../hooks/useSupabaseData';
+import { PropertyCard } from './PropertyCard';
+import { useRealtimeData, useSupabaseCreate } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
-import { toast } from 'react-hot-toast';
+import { generateSlug } from '../../utils/idSystem';
 import debounce from 'lodash/debounce';
-
-const PAGE_SIZE = 10;
+import { toast } from 'react-hot-toast';
 
 export const PropertiesList: React.FC = () => {
-  const { user, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterStanding, setFilterStanding] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState(0);
 
-  const fetchProperties = useCallback(
-    () =>
-      dbService.properties.getAll({
-        agency_id: user?.agency_id ?? undefined,
-        limit: PAGE_SIZE,
-        offset: currentPage * PAGE_SIZE,
-        search: searchTerm,
-        standing: filterStanding === 'all' ? undefined : filterStanding,
-      }),
-    [user?.agency_id, currentPage, searchTerm, filterStanding]
+  const { data: properties, initialLoading, error, refetch } = useRealtimeData<Property>(
+    dbService.properties.getAll,
+    'properties',
+    { limit: 1000 }
   );
 
-  const { data: properties, initialLoading, error, refetch, setData } = useRealtimeData<Property>(fetchProperties, 'properties');
+  // Fetch contracts and tenants for display
+  const { data: contracts } = useRealtimeData(dbService.contracts.getAll, 'contracts');
+  const { data: tenants } = useRealtimeData(dbService.tenants.getAll, 'tenants');
 
-  const { create: createProperty, loading: creating } = useSupabaseCreate(
+  const { create: createProperty } = useSupabaseCreate(
     dbService.properties.create,
     {
-      onSuccess: (newProperty) => {
-        setData(prev => [newProperty, ...prev]);
-        setShowForm(false);
-        toast.success('Propriété créée avec succès');
-      },
-      onError: (err) => toast.error(err),
-    }
-  );
-
-  const { deleteItem: deleteProperty, loading: deleting } = useSupabaseDelete(
-    dbService.properties.delete,
-    {
       onSuccess: () => {
+        setShowForm(false);
         refetch();
-        toast.success('Propriété supprimée avec succès');
+        // Success message is handled by PropertyForm's internal SuccessModal
       },
-      onError: (err) => toast.error(err),
+      onError: (err) => {
+        console.error("Property Creation Error:", err);
+        toast.error("Erreur lors de la création du bien: " + err);
+      }
     }
   );
 
-  const handleAddProperty = useCallback(
-    async (propertyData: PropertyFormData) => {
-      if (!user?.agency_id) {
-        toast.error('Aucune agence associée');
-        return;
-      }
+  const getRentalInfo = (propertyId: string) => {
+    const activeContract = contracts?.find(c => c.property_id === propertyId && c.status === 'active');
+    if (!activeContract) return null;
 
-      try {
-        const propertyPayload: Partial<Property> = {
-          agency_id: user.agency_id,
-          owner_id: propertyData.owner_id,
-          title: propertyData.title,
-          description: propertyData.description || '',
-          location: propertyData.location,
-          details: propertyData.details,
-          standing: propertyData.standing,
-          rooms: propertyData.rooms || [],
-          images: propertyData.images || [],
-          is_available: propertyData.is_available,
-          for_sale: propertyData.for_sale,
-          for_rent: propertyData.for_rent,
-        };
+    const tenant = tenants?.find(t => t.id === activeContract.tenant_id);
+    return {
+      tenantName: tenant ? `${tenant.first_name} ${tenant.last_name}` : 'Inconnu',
+      rentAmount: activeContract.monthly_rent
+    };
+  };
 
-        await createProperty(propertyPayload);
-      } catch (error) {
-        console.error('Erreur création propriété:', error);
-        toast.error('Erreur lors de la création');
-      }
-    },
-    [user?.agency_id, createProperty]
-  );
+  const debouncedSetSearchTerm = debounce((value: string) => setSearchTerm(value), 300);
 
-  const handleDeleteProperty = useCallback(
-    async (propertyId: string) => {
-      if (!confirm('Supprimer cette propriété ?')) return;
-      try {
-        await deleteProperty(propertyId);
-      } catch (error) {
-        console.error('Erreur suppression:', error);
-        toast.error('Erreur lors de la suppression');
-      }
-    },
-    [deleteProperty]
-  );
+  const filteredProperties = useMemo(() => {
+    return properties.filter((property) => {
+      const matchesSearch =
+        property.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        property.location.quartier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        property.location.commune.toLowerCase().includes(searchTerm.toLowerCase());
 
-  const getStandingColor = useCallback((standing: string) => {
-    switch (standing) {
-      case 'economique':
-        return 'warning';
-      case 'moyen':
-        return 'info';
-      case 'haut':
-        return 'success';
-      default:
-        return 'secondary';
-    }
-  }, []);
+      const matchesStanding = filterStanding === 'all' || property.standing === filterStanding;
 
-  const debouncedRefetch = useCallback(debounce(() => refetch(), 500), [refetch]);
+      return matchesSearch && matchesStanding;
+    });
+  }, [properties, searchTerm, filterStanding]);
 
-  useEffect(() => {
-    debouncedRefetch();
-    return () => debouncedRefetch.cancel();
-  }, [searchTerm, filterStanding, currentPage, debouncedRefetch]);
+  const handlePropertyClick = (property: Property) => {
+    const slug = generateSlug(property.id, property.title);
+    navigate(`/proprietes/${slug}`); // Using generic slug route
+  };
 
-  if (authLoading) {
+  if (initialLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!user?.agency_id) {
-    return (
-      <div className="p-4 bg-red-50 text-red-800 rounded-lg" role="alert">
-        Aucune agence associée. Veuillez vérifier votre profil.
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+        {[1, 2, 3, 4, 5, 6].map(i => (
+          <div key={i} className="h-64 bg-gray-200 rounded-xl" />
+        ))}
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <p className="text-red-600 mb-4">{error}</p>
-        <Button onClick={refetch} aria-label="Réessayer le chargement des propriétés">
-          Réessayer
-        </Button>
+      <div className="p-8 text-center text-red-600 bg-red-50 rounded-lg">
+        <p>Une erreur est survenue : {error}</p>
+        <Button onClick={refetch} className="mt-4" variant="outline">Réessayer</Button>
       </div>
     );
   }
 
-  const totalPages = Math.ceil((properties?.length || 0) / PAGE_SIZE);
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Propriétés</h1>
-          <p className="text-gray-600 mt-1">Gestion du portefeuille ({properties?.length || 0})</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {properties.length} bien{properties.length > 1 ? 's' : ''} en gestion
+          </p>
         </div>
-        <Button onClick={() => setShowForm(true)} disabled={creating} aria-label="Ajouter une propriété">
-          <Plus className="h-4 w-4 mr-2" />
-          Ajouter une propriété
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="bg-white border p-1 rounded-lg flex items-center hidden sm:flex">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded ${viewMode === 'grid' ? 'bg-gray-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded ${viewMode === 'list' ? 'bg-gray-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <ListIcon className="w-4 h-4" />
+            </button>
+          </div>
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nouveau Bien
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Rechercher..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                aria-label="Rechercher une propriété"
-              />
-            </div>
+      {/* Filters */}
+      <Card className="p-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Rechercher par titre, quartier..."
+              className="pl-10"
+              onChange={(e) => debouncedSetSearchTerm(e.target.value)}
+            />
           </div>
+
           <select
             value={filterStanding}
             onChange={(e) => setFilterStanding(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Filtrer par standing"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="all">Tous les standings</option>
+            <option value="all">Tous standings</option>
             <option value="economique">Économique</option>
             <option value="moyen">Moyen</option>
             <option value="haut">Haut</option>
@@ -196,128 +152,59 @@ export const PropertiesList: React.FC = () => {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {initialLoading ? (
-          <div className="col-span-full flex justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      {/* Grid Content */}
+      {filteredProperties.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-lg border border-gray-200 border-dashed">
+          <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <Plus className="h-6 w-6 text-gray-400" />
           </div>
-        ) : !properties || properties.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <Plus className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune propriété</h3>
-            <p className="text-gray-600 mb-4">Commencez par ajouter votre première propriété.</p>
-            <Button onClick={() => setShowForm(true)} disabled={creating} aria-label="Ajouter une propriété">
-              <Plus className="h-4 w-4 mr-2" />
-              Ajouter une propriété
-            </Button>
-          </div>
-        ) : (
-          properties.map((property) => (
-            <Card key={property.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="aspect-w-16 aspect-h-12 bg-gray-200 relative">
-                {property.images && property.images.length > 0 ? (
-                  <img
-                    src={property.images.find((img: any) => img.isPrimary)?.url || property.images[0].url}
-                    alt={property.title}
-                    className="w-full h-48 object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                    <span className="text-gray-400">Aucune image</span>
+          <h3 className="text-lg font-medium text-gray-900">Aucun bien trouvé</h3>
+          <p className="text-gray-500 mt-1 mb-4">Ajoutez un bien pour commencer la commercialisation.</p>
+          <Button onClick={() => setShowForm(true)}>Ajouter un bien</Button>
+        </div>
+      ) : (
+        <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
+          {filteredProperties.map(property => (
+            viewMode === 'grid' ? (
+              <PropertyCard
+                key={property.id}
+                property={property}
+                {...getRentalInfo(property.id)}
+                onClick={() => handlePropertyClick(property)}
+              />
+            ) : (
+              <Card
+                key={property.id}
+                className="p-4 flex items-center justify-between hover:shadow-md cursor-pointer transition-shadow"
+                onClick={() => handlePropertyClick(property)}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gray-200 rounded-lg object-cover overflow-hidden">
+                    {property.images?.[0] && <img src={property.images[0].url} className="w-full h-full object-cover" />}
                   </div>
-                )}
-                <div className="absolute top-2 left-2">
-                  <Badge variant={getStandingColor(property.standing)} size="sm">
-                    {property.standing.charAt(0).toUpperCase() + property.standing.slice(1)}
-                  </Badge>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{property.title}</h3>
+                    <p className="text-sm text-gray-500">{property.location.quartier}, {property.location.commune}</p>
+                  </div>
                 </div>
-                <div className="absolute top-2 right-2">
-                  <Badge variant={property.is_available ? 'success' : 'danger'} size="sm">
+                <div className="flex items-center gap-4">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${property.is_available ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                     {property.is_available ? 'Disponible' : 'Occupé'}
-                  </Badge>
-                </div>
-              </div>
-              <div className="p-4">
-                <h3 className="font-semibold text-gray-900 mb-2">{property.title}</h3>
-                <div className="flex items-center text-sm text-gray-600 mb-2">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  <span>
-                    {property.location?.commune || 'Non spécifié'}, {property.location?.quartier || 'Non spécifié'}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{property.description}</p>
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-gray-500">
-                    Créée le {new Date(property.created_at).toLocaleDateString('fr-FR')}
-                  </div>
-                  <div className="flex space-x-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedProperty(property);
-                        setShowDetailsModal(true);
-                      }}
-                      aria-label={`Voir les détails de ${property.title}`}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() => handleDeleteProperty(property.id)}
-                      disabled={deleting}
-                      aria-label={`Supprimer ${property.title}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))
-        )}
-      </div>
-
-      {totalPages > 1 && (
-        <div className="flex justify-center space-x-2 mt-6">
-          <Button
-            variant="outline"
-            disabled={currentPage === 0}
-            onClick={() => setCurrentPage((prev) => prev - 1)}
-            aria-label="Page précédente"
-          >
-            Précédent
-          </Button>
-          <span className="text-sm text-gray-600">
-            Page {currentPage + 1} sur {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            disabled={currentPage >= totalPages - 1}
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-            aria-label="Page suivante"
-          >
-            Suivant
-          </Button>
+              </Card>
+            )
+          ))}
         </div>
       )}
 
+      {/* Property Form Modal */}
       <PropertyForm
         isOpen={showForm}
         onClose={() => setShowForm(false)}
-        onSubmit={handleAddProperty}
-      />
-
-      <PropertyDetailsModal
-        isOpen={showDetailsModal}
-        onClose={() => {
-          setShowDetailsModal(false);
-          setSelectedProperty(null);
+        onSubmit={async (data) => {
+          await createProperty(data);
         }}
-        property={selectedProperty}
-        onUpdate={() => refetch()}
       />
     </div>
   );
