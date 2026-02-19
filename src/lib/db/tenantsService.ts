@@ -6,9 +6,9 @@ import { Tenant, TenantFilters } from "../../types/db";
 export const tenantsService = {
     async getAll(filters: TenantFilters = {}): Promise<Tenant[]> {
         let query = supabase
-        .from('tenants')
-        .select('*')
-        .order('created_at', { ascending: false });
+            .from('tenants')
+            .select('*')
+            .order('created_at', { ascending: false });
 
         if (filters.agency_id) {
             query = query.eq('agency_id', filters.agency_id);
@@ -38,8 +38,12 @@ export const tenantsService = {
     },
     async create(tenant: Partial<Tenant>): Promise<Tenant> {
         const clean = normalizeTenant(tenant);
+        console.log("📡 tenantsService.create: envoi vers Supabase:", clean);
         const { data, error } = await supabase.from('tenants').insert(clean).select('*').single();
-        if (error) throw new Error(formatSbError('❌ tenants.insert', error));
+        if (error) {
+            console.error("📛 tenantsService.create ERROR:", error);
+            throw new Error(formatSbError('❌ tenants.insert', error));
+        }
         return data;
     },
     async update(id: string, updates: Partial<Tenant>): Promise<Tenant> {
@@ -62,6 +66,21 @@ export const tenantsService = {
         if (error) {
             if (error.code === 'PGRST116') return null;
             throw new Error(formatSbError('❌ tenants.findOne', error));
+        }
+        return data;
+    },
+    async getBySlugId(id: string): Promise<Tenant | null> {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let query = supabase.from('tenants').select('*');
+        if (isUuid) {
+            query = query.eq('id', id);
+        } else {
+            query = query.eq('business_id', id);
+        }
+        const { data, error } = await query.maybeSingle();
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw new Error(formatSbError('❌ tenants.getBySlugId', error));
         }
         return data;
     },

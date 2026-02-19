@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { MapPin, Upload, Plus, Trash2, Save } from 'lucide-react';
+import { MapPin, Upload, Plus, Trash2, Save, CheckCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
@@ -19,7 +19,7 @@ import { toast } from 'react-hot-toast';
 interface PropertyFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (property: PropertyFormData) => void;
+  onSubmit: (property: PropertyFormData) => Promise<void> | void;
   initialData?: Partial<PropertyFormData>;
 }
 
@@ -51,14 +51,27 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     is_available: initialData?.is_available ?? true,
     for_sale: initialData?.for_sale ?? false,
     for_rent: initialData?.for_rent ?? true,
+    monthly_rent: initialData?.monthly_rent || 0,
+    sale_price: initialData?.sale_price || 0,
   });
   const [formError, setFormError] = useState<string | undefined>(undefined);
   const [currentStep, setCurrentStep] = useState(1);
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<number | null>(null);
+
+  useEffect(() => {
+    console.log('🔄 PropertyForm MOUNTED');
+    return () => console.log('👋 PropertyForm UNMOUNTED');
+  }, []);
+
+  useEffect(() => {
+    console.log(`📍 PropertyForm Step Changed: ${currentStep}`);
+  }, [currentStep]);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(false);
   const [ownersError, setOwnersError] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successInfo, setSuccessInfo] = useState({ title: '', message: '' });
 
   // Fetch agency_id for the authenticated user
   useEffect(() => {
@@ -96,7 +109,10 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   // Update formData.agency_id when agencyId changes
   useEffect(() => {
     if (isOpen && agencyId) {
-      setFormData((prev) => ({ ...prev, agency_id: agencyId }));
+      setFormData((prev) => {
+        if (prev.agency_id === agencyId) return prev;
+        return { ...prev, agency_id: agencyId };
+      });
     }
   }, [isOpen, agencyId]);
 
@@ -111,7 +127,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     setOwnersError(null);
 
     try {
-      const data = await dbService.owners.getAll({ agency_id: agencyId });
+      const data = await dbService.owners.getAll({ agency_id: agencyId, limit: 1000 });
       setOwners(data);
     } catch (err: any) {
       const errMsg = err.message || 'Erreur lors du chargement des propriétaires';
@@ -193,15 +209,24 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   }, []);
 
   const handleImageUpload = useCallback((images: PropertyImage[]) => {
-    setFormData((prev) => ({ ...prev, images }));
+    console.log('🖼️ handleImageUpload appelé avec:', images.length, 'images', images);
+    setFormData((prev) => {
+      console.log('🖼️ formData.images AVANT:', prev.images.length);
+      const updated = { ...prev, images };
+      console.log('🖼️ formData.images APRÈS:', updated.images.length);
+      return updated;
+    });
   }, []);
 
-  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError(undefined);
 
+    // Validation des champs essentiels uniquement
     if (!formData.title.trim()) {
-      setFormError('Veuillez remplir le titre');
+      setFormError('Veuillez remplir le titre du bien');
       return;
     }
     if (!formData.location.commune.trim()) {
@@ -217,50 +242,51 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
       return;
     }
     if (!formData.agency_id) {
-      setFormError('L\'ID de l\'agence est requis');
-      return;
-    }
-    if (formData.rooms.length === 0) {
-      setFormError('Veuillez ajouter au moins une pièce');
+      console.error('❌ Erreur: Agency ID manquant dans le formulaire', formData);
+      setFormError('Erreur interne: L\'identifiant de l\'agence est manquant. Veuillez rafraîchir la page.');
       return;
     }
     if (!formData.details.type) {
       setFormError('Veuillez spécifier le type de propriété');
       return;
     }
-    if (formData.details.type === 'villa' && !formData.details.numeroNom?.trim()) {
-      setFormError('Veuillez spécifier le numéro ou nom pour la villa');
-      return;
-    }
-    if (formData.details.type === 'appartement' && !formData.details.numeroPorte?.trim()) {
-      setFormError('Veuillez spécifier le numéro de porte pour l\'appartement');
-      return;
-    }
-    if (formData.details.type === 'terrain_nu' && !formData.details.titreProprietaire?.trim()) {
-      setFormError('Veuillez spécifier le titre de propriétaire pour le terrain nu');
-      return;
-    }
-    if (formData.details.type === 'immeuble' && (!formData.details.numeroEtage?.trim() || !formData.details.numeroPorteImmeuble?.trim())) {
-      setFormError('Veuillez spécifier le numéro d\'étage et le numéro de porte pour l\'immeuble');
-      return;
-    }
-    if (formData.details.type === 'autres' && !formData.details.autresDetails?.trim()) {
-      setFormError('Veuillez spécifier les détails pour le type "autres"');
+
+    // Au moins une pièce est obligatoire pour décrire le bien
+    if (formData.rooms.length === 0) {
+      setFormError('Veuillez ajouter au moins une pièce pour décrire le bien');
       return;
     }
 
+    // Les détails spécifiques restent optionnels pour permettre une saisie rapide
+
+
     try {
+      setIsSubmitting(true);
       const submitData: PropertyFormData = {
         ...formData,
         description: formData.description ?? '',
       };
-      onSubmit(submitData);
-      toast.success(`Propriété créée avec succès : ${formData.title}`);
-      onClose();
+
+      console.log('🔍 PropertyForm: Données à soumettre:', {
+        images: submitData.images,
+        nombreImages: submitData.images?.length || 0,
+        submitData
+      });
+
+      await onSubmit(submitData);
+
+      setSuccessInfo({
+        title: 'Propriété enregistrée',
+        message: `Le bien "${formData.title}" a été enregistré avec succès.`
+      });
+      setShowSuccessModal(true);
     } catch (error) {
+      console.error("❌ Erreur validation/soumission propriété:", error);
       const errMsg = error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement';
       setFormError(errMsg);
       toast.error(errMsg);
+    } finally {
+      setIsSubmitting(false);
     }
   }, [formData, onSubmit, onClose]);
 
@@ -308,8 +334,8 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
           {steps.map((step, index) => (
             <div key={step.id} className="flex items-center">
               <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${currentStep >= step.id
-                  ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'border-gray-300 text-gray-500'
+                ? 'bg-blue-600 border-blue-600 text-white'
+                : 'border-gray-300 text-gray-500'
                 }`}>
                 <step.icon className="h-5 w-5" />
               </div>
@@ -327,6 +353,26 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
 
         {currentStep === 1 && (
           <div className="space-y-6">
+            <div className="flex items-center space-x-6 pb-4 border-b">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.for_rent}
+                  onChange={(e) => setFormData(prev => ({ ...prev, for_rent: e.target.checked }))}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">À louer</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.for_sale}
+                  onChange={(e) => setFormData(prev => ({ ...prev, for_sale: e.target.checked }))}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">À vendre</span>
+              </label>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="ID du bien"
@@ -352,16 +398,18 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                 aria-label="Quartier ou lotissement"
               />
               <Input
-                label="Numéro du lot"
+                label="Numéro du lot (optionnel)"
                 value={formData.location.numeroLot || ''}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, location: { ...prev.location, numeroLot: e.target.value } }))}
                 aria-label="Numéro du lot"
+                placeholder="Ex: Lot 123"
               />
               <Input
-                label="Numéro de l'îlot"
+                label="Numéro de l'îlot (optionnel)"
                 value={formData.location.numeroIlot || ''}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, location: { ...prev.location, numeroIlot: e.target.value } }))}
                 aria-label="Numéro de l'îlot"
+                placeholder="Ex: Îlot 45"
               />
             </div>
             <div>
@@ -464,70 +512,93 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                 <option value="autres">Autres</option>
               </select>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {formData.for_rent && (
+                <Input
+                  label="Loyer mensuel indicatif (FCFA)"
+                  type="number"
+                  value={formData.monthly_rent}
+                  onChange={(e) => setFormData(prev => ({ ...prev, monthly_rent: parseFloat(e.target.value) || 0 }))}
+                  placeholder="Ex: 150000"
+                  min="0"
+                />
+              )}
+              {formData.for_sale && (
+                <Input
+                  label="Prix de vente indicatif (FCFA)"
+                  type="number"
+                  value={formData.sale_price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, sale_price: parseFloat(e.target.value) || 0 }))}
+                  placeholder="Ex: 45000000"
+                  min="0"
+                />
+              )}
+            </div>
             {formData.details.type === 'villa' && (
               <Input
-                label="Numéro ou nom de la villa *"
+                label="Numéro ou nom de la villa (optionnel)"
                 value={formData.details.numeroNom || ''}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('numeroNom', e.target.value)}
-                required
                 aria-label="Numéro ou nom de la villa"
+                placeholder="Ex: Villa Jasmin ou V123"
               />
             )}
             {formData.details.type === 'appartement' && (
               <Input
-                label="Numéro de porte *"
+                label="Numéro de porte (optionnel)"
                 value={formData.details.numeroPorte || ''}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('numeroPorte', e.target.value)}
-                required
                 aria-label="Numéro de porte"
+                placeholder="Ex: Appt 201"
               />
             )}
             {formData.details.type === 'terrain_nu' && (
               <Input
-                label="Titre de propriétaire *"
+                label="Titre de propriétaire (optionnel)"
                 value={formData.details.titreProprietaire || ''}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('titreProprietaire', e.target.value)}
-                required
                 aria-label="Titre de propriétaire"
+                placeholder="Ex: TF 12345"
               />
             )}
             {formData.details.type === 'immeuble' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
-                  label="Numéro d'étage *"
+                  label="Numéro d'étage (optionnel)"
                   value={formData.details.numeroEtage || ''}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('numeroEtage', e.target.value)}
-                  required
                   aria-label="Numéro d'étage"
+                  placeholder="Ex: 3ème étage"
                 />
                 <Input
-                  label="Numéro de porte de l'immeuble *"
+                  label="Numéro de porte (optionnel)"
                   value={formData.details.numeroPorteImmeuble || ''}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('numeroPorteImmeuble', e.target.value)}
-                  required
                   aria-label="Numéro de porte de l'immeuble"
+                  placeholder="Ex: Porte 302"
                 />
               </div>
             )}
             {formData.details.type === 'autres' && (
               <Input
-                label="Détails supplémentaires *"
+                label="Détails supplémentaires (optionnel)"
                 value={formData.details.autresDetails || ''}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleDetailsChange('autresDetails', e.target.value)}
-                required
                 aria-label="Détails supplémentaires"
+                placeholder="Décrivez le type de bien"
               />
             )}
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description générale
+                Description générale (optionnel)
               </label>
               <textarea
                 value={formData.description ?? ''}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Description détaillée du bien..."
+                placeholder="Ajoutez une description détaillée du bien (vous pourrez la compléter plus tard)..."
                 aria-label="Description générale"
               />
             </div>
@@ -611,6 +682,36 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
 
         {currentStep === 4 && (
           <div className="space-y-6">
+            {formData.images.length === 0 && (
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-700 rounded-lg mb-4">
+                <div className="flex items-center">
+                  <Upload className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                      📸 Ajoutez des photos de votre bien
+                    </p>
+                    <p className="text-sm text-blue-800 dark:text-blue-300">
+                      Cliquez sur "Téléverser des images" ci-dessous pour ajouter des photos. Les images seront automatiquement sauvegardées avec le bien.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {formData.images.length > 0 && (
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700 rounded-lg mb-4">
+                <div className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mr-3 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-green-900 dark:text-green-100">
+                      ✅ {formData.images.length} image{formData.images.length > 1 ? 's' : ''} prête{formData.images.length > 1 ? 's' : ''} à être sauvegardée{formData.images.length > 1 ? 's' : ''}
+                    </p>
+                    <p className="text-sm text-green-800 dark:text-green-300">
+                      Cliquez sur "Enregistrer" pour sauvegarder le bien avec les images.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             <ImageUploader
               images={formData.images}
               onImagesChange={handleImageUpload}
@@ -650,9 +751,18 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                 Suivant
               </Button>
             ) : (
-              <Button type="submit" aria-label="Enregistrer la propriété">
-                <Save className="h-4 w-4 mr-2" />
-                Enregistrer
+              <Button type="submit" disabled={isSubmitting} aria-label="Enregistrer la propriété">
+                {isSubmitting ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Enregistrement...
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    <Save className="h-4 w-4 mr-2" />
+                    Enregistrer{formData.images.length > 0 ? ` avec ${formData.images.length} image${formData.images.length > 1 ? 's' : ''}` : ''}
+                  </div>
+                )}
               </Button>
             )}
           </div>
@@ -668,6 +778,46 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
         onSubmit={handleAddRoom}
         initialData={editingRoom !== null ? formData.rooms[editingRoom] : undefined}
       />
+
+      {/* Modal de succès personnalisé */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md shadow-xl">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mr-4">
+                <Save className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-green-600 dark:text-green-400">
+                  {successInfo.title}
+                </h3>
+              </div>
+            </div>
+            <p className="text-gray-700 dark:text-slate-300 mb-6">{successInfo.message}</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setCurrentStep(4);
+                }}
+                className="flex-1"
+              >
+                Ajouter des images
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  onClose();
+                }}
+                className="flex-1"
+              >
+                Fermer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 };

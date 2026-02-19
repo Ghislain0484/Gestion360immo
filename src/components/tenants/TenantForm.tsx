@@ -1,26 +1,36 @@
 import React, { useState, useCallback } from 'react';
-import { Save, User, MapPin, Phone, FileText, Heart, Camera, Upload } from 'lucide-react';
+import { Save, User, MapPin, Phone, FileText, Heart, Camera, Upload, Key, Calendar, DollarSign } from 'lucide-react';
+import AsyncSelect from 'react-select/async';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
 import { useAuth } from '../../contexts/AuthContext';
-import { TenantFormData } from '../../types/db';
+import { TenantFormData, Property } from '../../types/db';
 import { supabase } from '../../lib/config';
+import { dbService } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { validatePhoneCI, validateEmail } from '../../utils/validationUtils';
+
+interface RentalParams {
+  propertyId: string;
+  monthlyRent: number;
+  deposit: number;
+  startDate: string;
+}
 
 interface TenantFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (tenant: TenantFormData) => Promise<void>;
+  onSubmit: (tenant: TenantFormData, rentalParams?: RentalParams | null, property?: Property | null) => Promise<void>;
   initialData?: Partial<TenantFormData>;
+  preSelectedPropertyId?: string;
 }
 
-export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmit, initialData }) => {
+export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmit, initialData, preSelectedPropertyId }) => {
   const { user, isLoading: authLoading } = useAuth();
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [idCardFile, setIdCardFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState<TenantFormData>({
     first_name: initialData?.first_name || '',
@@ -59,6 +69,91 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
     { value: 'mauvais', label: 'Mauvais payeur', color: 'text-red-600' },
   ];
 
+  // Sync state with initialData when it changes or form opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        first_name: initialData?.first_name || '',
+        last_name: initialData?.last_name || '',
+        phone: initialData?.phone || '',
+        email: initialData?.email ?? '',
+        address: initialData?.address || '',
+        city: initialData?.city || '',
+        marital_status: initialData?.marital_status || 'celibataire',
+        spouse_name: initialData?.spouse_name || '',
+        spouse_phone: initialData?.spouse_phone || '',
+        children_count: initialData?.children_count || 0,
+        profession: initialData?.profession || '',
+        nationality: initialData?.nationality || 'Ivoirienne',
+        photo_url: initialData?.photo_url || '',
+        id_card_url: initialData?.id_card_url || '',
+        payment_status: initialData?.payment_status || 'bon',
+        agency_id: user?.agency_id || '',
+      });
+      // Reset rental wizard state
+      setAssignProperty(false);
+      setSelectedProperty(null);
+      setRentalTerms({
+        monthlyRent: 0,
+        deposit: 0,
+        agencyFee: 0,
+        startDate: new Date().toISOString().split('T')[0]
+      });
+      setFormError(null);
+
+      // Handle pre-selected property
+      if (preSelectedPropertyId) {
+        setAssignProperty(true);
+        dbService.properties.getById(preSelectedPropertyId).then(prop => {
+          if (prop) {
+            setSelectedProperty(prop);
+          }
+        }).catch(err => {
+          console.error("Error fetching pre-selected property:", err);
+        });
+      }
+    }
+  }, [isOpen, initialData, user?.agency_id, preSelectedPropertyId]);
+
+  // Rental Wizard State
+  const [assignProperty, setAssignProperty] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [rentalTerms, setRentalTerms] = useState({
+    monthlyRent: 0,
+    deposit: 0,
+    agencyFee: 0,
+    startDate: new Date().toISOString().split('T')[0]
+  });
+
+  const loadPropertyOptions = useCallback(async (inputValue: string) => {
+    if (!user?.agency_id) return [];
+    try {
+      const properties = await dbService.properties.getAll({
+        agency_id: user.agency_id,
+        search: inputValue,
+        limit: 10
+      });
+      // Filter only available properties
+      return properties.filter(p => p.is_available);
+    } catch {
+      return [];
+    }
+  }, [user?.agency_id]);
+
+  const handlePropertySelect = (property: Property | null) => {
+    setSelectedProperty(property);
+    if (property) {
+      // Auto-fill rent from property if available
+      const rent = property.monthly_rent || 0;
+      setRentalTerms(prev => ({
+        ...prev,
+        monthlyRent: rent,
+        deposit: rent * 2, // Default deposit (2 months)
+        agencyFee: rent * 1 // Default agency fee (1 month)
+      }));
+    }
+  };
+
   const updateFormData = useCallback((updates: Partial<TenantFormData>) => {
     setFormData(prev => ({ ...prev, ...updates }));
   }, []);
@@ -80,10 +175,8 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
         .getPublicUrl(filePath);
 
       if (type === 'photo') {
-        setPhotoFile(file);
         updateFormData({ photo_url: data.publicUrl });
       } else {
-        setIdCardFile(file);
         updateFormData({ id_card_url: data.publicUrl });
       }
     } catch (error) {
@@ -94,41 +187,69 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     setFormError(null);
 
-    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.phone.trim() || !formData.profession.trim()) {
-      setFormError('Veuillez remplir tous les champs obligatoires');
+    // Validation des champs essentiels
+    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.phone.trim()) {
+      setFormError('Veuillez remplir le prénom, nom et téléphone');
       return;
     }
 
-    const phoneRegex = /^(\+225)?[0-9\s-]{8,15}$/;
-    if (!phoneRegex.test(formData.phone)) {
-      setFormError('Format de téléphone invalide');
+    if (!formData.address.trim() || !formData.city.trim()) {
+      setFormError('Veuillez remplir l\'adresse et la ville');
       return;
     }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      setFormError('Format d\'email invalide');
+    // Validation téléphone permissive
+    if (!validatePhoneCI(formData.phone)) {
+      setFormError('Format de téléphone invalide. Exemples acceptés: 0708090102, +225 07 08 09 01 02');
       return;
     }
 
-    if (formData.marital_status === 'marie') {
-      if (!formData.spouse_name?.trim() || !formData.spouse_phone?.trim()) {
-        setFormError('Veuillez remplir les informations du conjoint');
+    if (assignProperty) {
+      if (!selectedProperty) {
+        setFormError('Veuillez sélectionner un bien immobilier');
+        return;
+      }
+      if (rentalTerms.monthlyRent <= 0) {
+        setFormError('Le loyer doit être supérieur à 0');
         return;
       }
     }
 
+    // Validation email optionnelle
+    if (formData.email && !validateEmail(formData.email)) {
+      setFormError('Format d\'email invalide');
+      return;
+    }
+
+    // Les champs conjoint sont maintenant optionnels même si marié
+
     try {
-      await onSubmit(formData);
-      toast.success(`Locataire créé avec succès : ${formData.first_name} ${formData.last_name}`);
+      // Profession plus obligatoire pour plus de souplesse
+      if (!formData.profession || formData.profession.trim() === '') {
+        // Optionnel: on pourrait juste logger un warning ou laisser passer
+      }
+
+      const rentalData = assignProperty && selectedProperty ? {
+        propertyId: selectedProperty.id,
+        monthlyRent: rentalTerms.monthlyRent,
+        deposit: rentalTerms.deposit,
+        agencyFee: rentalTerms.agencyFee,
+        startDate: rentalTerms.startDate
+      } : null;
+
+      await onSubmit(formData, rentalData, selectedProperty);
       onClose();
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement';
       setFormError(errMsg);
       toast.error(errMsg);
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [formData, onSubmit, onClose]);
+  }, [formData, onSubmit, onClose, assignProperty, selectedProperty, rentalTerms]);
 
   if (authLoading) {
     return (
@@ -196,10 +317,9 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Profession"
+              label="Profession (optionnelle)"
               value={formData.profession}
               onChange={(e) => updateFormData({ profession: e.target.value })}
-              required
               placeholder="Profession du locataire"
             />
             <div>
@@ -271,18 +391,16 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
             {isMarried && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-pink-50/80 rounded-lg backdrop-blur-sm">
                 <Input
-                  label="Nom du conjoint"
+                  label="Nom du conjoint (optionnel)"
                   value={formData.spouse_name || ''}
                   onChange={(e) => updateFormData({ spouse_name: e.target.value })}
-                  required={isMarried}
                   placeholder="Nom complet du conjoint"
                 />
                 <Input
-                  label="Téléphone du conjoint"
+                  label="Téléphone du conjoint (optionnel)"
                   type="tel"
                   value={formData.spouse_phone || ''}
                   onChange={(e) => updateFormData({ spouse_phone: e.target.value })}
-                  required={isMarried}
                   placeholder="+225 XX XX XX XX XX"
                 />
               </div>
@@ -431,13 +549,123 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
           </div>
         </Card>
 
+
+
+        {/* --- Rental Wizard Section --- */}
+        <Card className={`transition-all duration-300 ${assignProperty ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+          <div className="flex items-center justify-between mb-4 cursor-pointer" onClick={() => setAssignProperty(!assignProperty)}>
+            <div className="flex items-center">
+              <Key className={`h-5 w-5 mr-2 ${assignProperty ? 'text-blue-600' : 'text-gray-500'}`} />
+              <h3 className={`text-lg font-medium ${assignProperty ? 'text-blue-900' : 'text-gray-600'}`}>
+                Attribution d'un bien (Optionnel)
+              </h3>
+            </div>
+            <div className={`w-12 h-6 flex items-center bg-gray-300 rounded-full p-1 duration-300 ease-in-out ${assignProperty ? 'bg-blue-600' : ''}`}>
+              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-300 ease-in-out ${assignProperty ? 'translate-x-6' : ''}`}></div>
+            </div>
+          </div>
+
+          {assignProperty && (
+            <div className="space-y-6 animate-fade-in-down">
+              <div className="bg-white p-4 rounded-lg shadow-sm border border-blue-100">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Sélectionner un bien disponible</label>
+                <AsyncSelect<Property>
+                  cacheOptions
+                  defaultOptions
+                  loadOptions={loadPropertyOptions}
+                  getOptionLabel={(p) => `${p.title} - ${p.location.commune} (${p.details?.type})`}
+                  getOptionValue={(p) => p.id}
+                  onChange={handlePropertySelect}
+                  value={selectedProperty}
+                  placeholder="Rechercher un bien..."
+                  className="mb-4"
+                  styles={{
+                    control: (base) => ({ ...base, borderColor: '#e2e8f0', borderRadius: '0.5rem' }),
+                    option: (base, state) => ({ ...base, backgroundColor: state.isSelected ? '#3b82f6' : state.isFocused ? '#eff6ff' : 'white', color: state.isSelected ? 'white' : '#1e293b' }),
+                  }}
+                />
+              </div>
+
+              {selectedProperty && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="Loyer Mensuel (FCFA)"
+                      type="number"
+                      value={rentalTerms.monthlyRent}
+                      onChange={(e) => {
+                        const rent = parseFloat(e.target.value) || 0;
+                        setRentalTerms(prev => ({
+                          ...prev,
+                          monthlyRent: rent,
+                          deposit: rent * 2, // Auto-update deposit based on 2 months rule
+                          agencyFee: rent * 1 // Auto-update agency fee based on 1 month rule
+                        }));
+                      }}
+                      min="0"
+                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Date d'entrée</label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <input
+                          type="date"
+                          value={rentalTerms.startDate}
+                          onChange={(e) => setRentalTerms({ ...rentalTerms, startDate: e.target.value })}
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Financial Breakdown (2+2+1 Rule) */}
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                      <DollarSign className="w-4 h-4 mr-2 text-green-600" />
+                      Détails à payer à la signature (Règle 2+2+1)
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Avance Loyer (2 mois) :</span>
+                        <span className="font-medium">{(rentalTerms.monthlyRent * 2).toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Caution (2 mois) :</span>
+                        <span className="font-medium">{rentalTerms.deposit.toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Frais d'agence (1 mois) :</span>
+                        <span className="font-medium">{(rentalTerms.monthlyRent * 1).toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="border-t border-gray-300 my-2 pt-2 flex justify-between text-base font-bold text-gray-900">
+                        <span>Total à payer :</span>
+                        <span>{(rentalTerms.monthlyRent * 5).toLocaleString()} FCFA</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
         <div className="flex items-center justify-end space-x-3 pt-6 border-t border-green-200">
           <Button type="button" variant="ghost" onClick={onClose}>
             Annuler
           </Button>
-          <Button type="submit" className="bg-green-600 hover:bg-green-700">
-            <Save className="h-4 w-4 mr-2" />
-            Enregistrer
+          <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Enregistrement...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Enregistrer
+              </>
+            )}
           </Button>
         </div>
       </form>

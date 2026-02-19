@@ -72,6 +72,7 @@ export interface PropertyImage {
 
 export interface Property extends AgencyEntity {
   id: string; // UUID
+  business_id?: string;
   owner_id: string; // UUID, FK vers owners(id)
   title: string;
   description?: string | null;
@@ -83,8 +84,10 @@ export interface Property extends AgencyEntity {
   is_available: boolean;
   for_sale: boolean;
   for_rent: boolean;
+  monthly_rent?: number;
+  sale_price?: number;
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
 }
 
-export interface PropertyFormData extends Omit<Property, 'id' | 'created_at' | 'updated_at'> {}
+export interface PropertyFormData extends Omit<Property, 'id' | 'created_at' | 'updated_at'> { }

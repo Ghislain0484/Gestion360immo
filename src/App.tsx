@@ -2,22 +2,28 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AdminProvider } from './contexts/AdminContext';
 import { LoginForm } from './components/auth/LoginForm';
 import { AdminLoginForm } from './components/auth/AdminLoginForm';
 import { Layout } from './components/layout/Layout';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { PropertiesList } from './components/properties/PropertiesList';
 import { OwnersList } from './components/owners/OwnersList';
+import { OwnerDetails } from './components/owners/OwnerDetails';
 import { TenantsList } from './components/tenants/TenantsList';
+import { TenantDetails } from './components/tenants/TenantDetails';
+import { PropertyDetails } from './components/properties/PropertyDetails';
 import { ContractsList } from './components/contracts/ContractsList';
 import { CollaborationHub } from './components/collaboration/CollaborationHub';
 import { ReportsHub } from './components/reports/ReportsHub';
 import { NotificationsCenter } from './components/notifications/NotificationsCenter';
 import { SettingsHub } from './components/settings/SettingsHub';
-import { ReceiptsList } from './components/receipts/ReceiptsList';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { PasswordResetRequest } from './components/auth/PasswordResetRequest';
 import { PasswordResetConfirm } from './components/auth/PasswordResetConfirm';
+import { CaissePage } from './components/caisse/CaissePage';
+import { TicketsPage } from './components/tickets/TicketsPage';
+import { InventoryList } from './components/inventory/InventoryList';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -54,7 +60,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   if (isLoading)
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   if (!user) return <Navigate to="/login" replace />;
@@ -77,6 +83,17 @@ const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children
 const AppContent: React.FC = () => {
   const { user, admin } = useAuth();
 
+  React.useEffect(() => {
+    if (user?.agency_id && user.id) {
+      // Check for payment reminders on app load
+      import('./services/paymentReminderService').then(({ paymentReminderService }) => {
+        if (user.id) {
+          paymentReminderService.checkAndSendReminders(user.agency_id as string, user.id);
+        }
+      });
+    }
+  }, [user]);
+
   return (
     <Router>
       <Routes>
@@ -87,23 +104,46 @@ const AppContent: React.FC = () => {
         <Route path="/reset-password" element={<PasswordResetConfirm />} />
 
         {/* User protected routes */}
-        <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-        <Route path="/properties" element={<ProtectedRoute><Layout><PropertiesList /></Layout></ProtectedRoute>} />
-        <Route path="/owners" element={<ProtectedRoute><Layout><OwnersList /></Layout></ProtectedRoute>} />
-        <Route path="/tenants" element={<ProtectedRoute><Layout><TenantsList /></Layout></ProtectedRoute>} />
-        <Route path="/contracts" element={<ProtectedRoute><Layout><ContractsList /></Layout></ProtectedRoute>} />
-        <Route path="/receipts" element={<ProtectedRoute><Layout><ReceiptsList /></Layout></ProtectedRoute>} />
-        <Route path="/collaboration" element={<ProtectedRoute><Layout><CollaborationHub /></Layout></ProtectedRoute>} />
-        <Route path="/reports" element={<ProtectedRoute><Layout><ReportsHub /></Layout></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsCenter /></Layout></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Layout><SettingsHub /></Layout></ProtectedRoute>} />
+        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Navigate to="/" replace />} />
+
+          {/* New French Routes */}
+          <Route path="/proprietaires" element={<OwnersList />} />
+          <Route path="/proprietaires/:id" element={<OwnerDetails />} />
+          <Route path="/proprietes" element={<PropertiesList />} />
+          <Route path="/proprietes/:id" element={<PropertyDetails />} />
+          <Route path="/locataires" element={<TenantsList />} />
+          <Route path="/locataires/:id" element={<TenantDetails />} />
+          <Route path="/locataires/:id" element={<TenantDetails />} />
+          <Route path="/etats-des-lieux" element={<InventoryList />} />
+          <Route path="/travaux" element={<TicketsPage />} />
+          <Route path="/caisse" element={<CaissePage />} />
+          <Route path="/caisse" element={<CaissePage />} />
+          <Route path="/contrats" element={<ContractsList />} />
+          <Route path="/collaboration" element={<CollaborationHub />} />
+          <Route path="/rapports" element={<ReportsHub />} />
+          <Route path="/notifications" element={<NotificationsCenter />} />
+          <Route path="/parametres" element={<SettingsHub />} />
+
+          {/* Legacy Routes Redirects or Aliases */}
+          <Route path="/owners" element={<Navigate to="/proprietaires" replace />} />
+          <Route path="/properties" element={<Navigate to="/proprietes" replace />} />
+          <Route path="/tenants" element={<Navigate to="/locataires" replace />} />
+          <Route path="/receipts" element={<Navigate to="/caisse" replace />} />
+          <Route path="/settings" element={<Navigate to="/parametres" replace />} />
+
+          {/* Legacy Routes Redirects */}
+          <Route path="/contracts" element={<Navigate to="/contrats" replace />} />
+          <Route path="/reports" element={<Navigate to="/rapports" replace />} />
+        </Route>
 
         {/* Admin protected route */}
         <Route path="/admin" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
 
         {/* Redirect default */}
-        <Route path="/" element={<Navigate to={user ? "/dashboard" : admin ? "/admin" : "/login"} replace />} />
-        <Route path="*" element={<Navigate to={user ? "/dashboard" : admin ? "/admin" : "/login"} replace />} />
+        {/* Redirect default - handled by specific routes now, fallback to login if no match */}
+        <Route path="*" element={<Navigate to={user ? "/" : admin ? "/admin" : "/login"} replace />} />
       </Routes>
     </Router>
   );
@@ -112,9 +152,11 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <AuthProvider>
-      <ErrorBoundary>
-        <AppContent />
-      </ErrorBoundary>
+      <AdminProvider>
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
+      </AdminProvider>
     </AuthProvider>
   );
 }

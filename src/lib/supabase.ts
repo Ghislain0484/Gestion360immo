@@ -1,4 +1,5 @@
 import { supabase } from './config';
+export { supabase };
 import { formatSbError } from './helpers';
 import { DashboardStats } from '../types/db';
 import { propertiesService } from './db/propertiesService';
@@ -27,6 +28,7 @@ import { auditLogsService } from './db/auditLogsService';
 import { systemAlertsService } from './db/systemAlertsService';
 import { notificationsService } from './db/notificationsService';
 import { notificationSettingsService } from './db/notificationSettingsService';
+import { inventoriesService } from './db/inventoriesService';
 import { MonthlyRevenueItem, RentReceiptSummary } from '../types/contracts';
 
 export const dbService = {
@@ -66,10 +68,10 @@ export const dbService = {
           .eq('agency_id', agencyId),
         // RPC sans cast restrictif - retourne { data: RentReceiptSummary[], error }
         supabase.rpc('get_rent_receipts_by_agency', {
-            p_agency_id: agencyId,
-            p_start_date: startDate.toISOString(),
-            p_end_date: endDate.toISOString(),
-          }),
+          p_agency_id: agencyId,
+          p_start_date: startDate.toISOString(),
+          p_end_date: endDate.toISOString(),
+        }),
         supabase
           .from('contracts')
           .select('*', { count: 'exact', head: true })
@@ -90,10 +92,10 @@ export const dbService = {
       if (activeContractsError) throw new Error(formatSbError('❌ contracts.count (active)', activeContractsError));
       if (occupiedPropertiesError) throw new Error(formatSbError('❌ properties.count (occupied)', occupiedPropertiesError));
 
-    // Reduce corrigé : utilise RentReceiptSummary et somme number
-    const monthlyRevenue = Array.isArray(rentReceipts)  // TS infère RentReceiptSummary[]
-      ? rentReceipts.reduce((sum: number, r: RentReceiptSummary) => sum + (r.total_amount || 0), 0)
-      : 0;  // Fix TS2769 et TS2322
+      // Reduce corrigé : utilise RentReceiptSummary et somme number
+      const monthlyRevenue = Array.isArray(rentReceipts)  // TS infère RentReceiptSummary[]
+        ? rentReceipts.reduce((sum: number, r: RentReceiptSummary) => sum + (r.total_amount || 0), 0)
+        : 0;  // Fix TS2769 et TS2322
 
       const safeTotalProperties = totalProperties ?? 0;
       const safeOccupiedProperties = occupiedProperties ?? 0;
@@ -118,12 +120,12 @@ export const dbService = {
     }
   },
 
-// Remplace getMonthlyRevenue
-async getMonthlyRevenue(agencyId: string, months: number = 6): Promise<MonthlyRevenueItem[]> {
-  try {
-    if (!agencyId) {
-      throw new Error('agencyId manquant');
-    }
+  // Remplace getMonthlyRevenue
+  async getMonthlyRevenue(agencyId: string, months: number = 6): Promise<MonthlyRevenueItem[]> {
+    try {
+      if (!agencyId) {
+        throw new Error('agencyId manquant');
+      }
 
       const now = new Date();
       const currentYear = now.getFullYear();
@@ -132,30 +134,30 @@ async getMonthlyRevenue(agencyId: string, months: number = 6): Promise<MonthlyRe
       const startYear = startMonth <= 0 ? currentYear - 1 : currentYear;
       const adjustedStartMonth = startMonth <= 0 ? startMonth + 12 : startMonth;
 
-    // RPC sans dates (filtre client)
-    const { data: receipts, error: rpcError } = await supabase.rpc('get_rent_receipts_by_agency', {
-      p_agency_id: agencyId,
-      p_start_date: null,
-      p_end_date: null,
-    });
-
-    if (rpcError) throw new Error(formatSbError('❌ rent_receipts.rpc', rpcError));  // Fix TS2339
-
-    const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-    const result: MonthlyRevenueItem[] = [];
-    for (let i = 0; i < months; i++) {
-      const month = ((adjustedStartMonth + i - 1) % 12) + 1;
-      const year = startYear + Math.floor(((adjustedStartMonth + i - 1) / 12));
-      const monthData = Array.isArray(receipts)
-        ? receipts.filter((r: RentReceiptSummary) => r.period_year === year && r.period_month === month)
-        : [];
-      const revenue = monthData.reduce((sum: number, r: RentReceiptSummary) => sum + (r.total_amount || 0), 0);
-      result.push({
-        month: monthNames[month - 1],
-        revenue,
-        commissions: revenue * 0.1, // 10% commission (ajuste si needed)
+      // RPC sans dates (filtre client)
+      const { data: receipts, error: rpcError } = await supabase.rpc('get_rent_receipts_by_agency', {
+        p_agency_id: agencyId,
+        p_start_date: null,
+        p_end_date: null,
       });
-    }
+
+      if (rpcError) throw new Error(formatSbError('❌ rent_receipts.rpc', rpcError));  // Fix TS2339
+
+      const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+      const result: MonthlyRevenueItem[] = [];
+      for (let i = 0; i < months; i++) {
+        const month = ((adjustedStartMonth + i - 1) % 12) + 1;
+        const year = startYear + Math.floor(((adjustedStartMonth + i - 1) / 12));
+        const monthData = Array.isArray(receipts)
+          ? receipts.filter((r: RentReceiptSummary) => r.period_year === year && r.period_month === month)
+          : [];
+        const revenue = monthData.reduce((sum: number, r: RentReceiptSummary) => sum + (r.total_amount || 0), 0);
+        result.push({
+          month: monthNames[month - 1],
+          revenue,
+          commissions: revenue * 0.1, // 10% commission (ajuste si needed)
+        });
+      }
 
       return result.reverse();
     } catch (err) {
@@ -190,4 +192,5 @@ async getMonthlyRevenue(agencyId: string, months: number = 6): Promise<MonthlyRe
   notifications: notificationsService,
   notificationSettings: notificationSettingsService,
   systemAlerts: systemAlertsService,
+  inventories: inventoriesService,
 };

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Download } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Download, Printer } from 'lucide-react';
 import { debounce } from 'lodash';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -9,6 +9,7 @@ import { useRealtimeData, useSupabaseCreate, useSupabaseUpdate, useSupabaseDelet
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Contract, Owner, Property, Tenant } from '../../types/db';
+import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import toast from 'react-hot-toast';
 
 export const ContractsList: React.FC = () => {
@@ -326,6 +327,56 @@ export const ContractsList: React.FC = () => {
                     Créé le {new Date(contract.created_at).toLocaleDateString('fr-FR')}
                   </div>
                   <div className="flex space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        // We need the full agency object. The current context might only have user. 
+                        // But let's try to find it or fetch it.
+                        // Actually, looking at the code, we don't have 'agencies' loaded in this list.
+                        // We can fetch it on click or use a better method.
+                        // For now, let's just trigger print with what we have or fetch quickly.
+
+                        const print = async () => {
+                          if (!user?.agency_id) {
+                            toast.error("Impossible d'identifier l'agence");
+                            return;
+                          }
+
+                          // Ouvrir la fenêtre immédiatement pour éviter le blocage des pop-ups
+                          const printWindow = window.open('', '_blank');
+                          if (!printWindow) {
+                            toast.error("Pop-up bloqué. Veuillez autoriser les pop-ups pour imprimer.");
+                            return;
+                          }
+
+                          printWindow.document.write('<div style="font-family: Arial; padding: 20px;">Chargement du contrat en cours...</div>');
+
+                          try {
+                            const fullAgency = await dbService.agencies.getById(user.agency_id);
+                            const fullTenant = tenants.find(t => t.id === contract.tenant_id);
+                            const fullProperty = properties.find(p => p.id === contract.property_id);
+
+                            if (fullAgency && fullTenant) {
+                              // Clear loading message
+                              printWindow.document.body.innerHTML = '';
+                              await OHADAContractGenerator.printContract(contract, fullAgency, fullTenant, fullProperty, printWindow);
+                            } else {
+                              printWindow.close();
+                              toast.error("Impossible de récupérer les informations de l'agence ou du locataire");
+                            }
+                          } catch (error) {
+                            printWindow.close();
+                            console.error("Print error", error);
+                            toast.error("Erreur lors de l'impression");
+                          }
+                        };
+                        print();
+                      }}
+                      title="Imprimer le contrat"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

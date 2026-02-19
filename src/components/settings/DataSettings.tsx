@@ -35,12 +35,14 @@ export const DataSettings: React.FC = () => {
       if (!user?.agency_id) return;
 
       try {
-        // Charger les données depuis Supabase
+        console.log('🔍 DataSettings: Chargement des données pour agency_id:', user.agency_id);
+
+        // Charger les données depuis Supabase avec getAll
         const [propertiesRes, ownersRes, tenantsRes, contractsRes] = await Promise.all([
-          dbService.properties.findOne(user.agency_id),
-          dbService.owners.findOne(user.agency_id),
-          dbService.tenants.findOne(user.agency_id),
-          dbService.contracts.findOne(user.agency_id),
+          dbService.properties.getAll({ agency_id: user.agency_id }),
+          dbService.owners.getAll({ agency_id: user.agency_id }),
+          dbService.tenants.getAll({ agency_id: user.agency_id }),
+          dbService.contracts.getAll({ agency_id: user.agency_id }),
         ]);
 
         // Toujours utiliser des tableaux pour éviter les erreurs TS
@@ -48,6 +50,13 @@ export const DataSettings: React.FC = () => {
         const owners = Array.isArray(ownersRes) ? ownersRes : [];
         const tenants = Array.isArray(tenantsRes) ? tenantsRes : [];
         const contracts = Array.isArray(contractsRes) ? contractsRes : [];
+
+        console.log('✅ DataSettings: Données chargées:', {
+          properties: properties.length,
+          owners: owners.length,
+          tenants: tenants.length,
+          contracts: contracts.length
+        });
 
         const dataSize = JSON.stringify({ properties, owners, tenants, contracts }).length;
         const sizeInMB = (dataSize / (1024 * 1024)).toFixed(2);
@@ -62,7 +71,7 @@ export const DataSettings: React.FC = () => {
           lastBackup: new Date(),
         });
       } catch (error) {
-        console.error('Erreur chargement données agence:', error);
+        console.error('❌ DataSettings: Erreur chargement données agence:', error);
       }
     };
 
@@ -108,37 +117,37 @@ export const DataSettings: React.FC = () => {
       <Card>
         <div className="p-6">
           <div className="flex items-center mb-4">
-            <Database className="h-5 w-5 text-blue-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Données de votre agence</h3>
+            <Database className="h-5 w-5 text-primary-600 dark:text-primary-400 mr-2" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Données de votre agence</h3>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600 mb-1">{agencyData.properties}</div>
-              <p className="text-sm text-blue-800">Propriétés</p>
+            <div className="text-center p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-800">
+              <div className="text-2xl font-bold text-primary-600 dark:text-primary-400 mb-1">{agencyData.properties}</div>
+              <p className="text-sm text-primary-800 dark:text-primary-300">Propriétés</p>
             </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600 mb-1">{agencyData.owners}</div>
-              <p className="text-sm text-green-800">Propriétaires</p>
+            <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400 mb-1">{agencyData.owners}</div>
+              <p className="text-sm text-green-800 dark:text-green-300">Propriétaires</p>
             </div>
-            <div className="text-center p-4 bg-yellow-50 rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600 mb-1">{agencyData.tenants}</div>
-              <p className="text-sm text-yellow-800">Locataires</p>
+            <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mb-1">{agencyData.tenants}</div>
+              <p className="text-sm text-yellow-800 dark:text-yellow-300">Locataires</p>
             </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600 mb-1">{agencyData.contracts}</div>
-              <p className="text-sm text-purple-800">Contrats</p>
+            <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mb-1">{agencyData.contracts}</div>
+              <p className="text-sm text-purple-800 dark:text-purple-300">Contrats</p>
             </div>
           </div>
 
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg flex justify-between">
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg flex justify-between border border-gray-200 dark:border-gray-700">
             <div>
-              <p className="font-medium text-gray-900">Taille totale des données</p>
-              <p className="text-sm text-gray-500">Basée sur les données Supabase</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">Taille totale des données</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Basée sur les données Supabase</p>
             </div>
             <div className="text-right">
-              <p className="text-lg font-semibold text-gray-900">{agencyData.totalSize}</p>
-              <p className="text-sm text-gray-500">Utilisé</p>
+              <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{agencyData.totalSize}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Utilisé</p>
             </div>
           </div>
         </div>
@@ -148,15 +157,15 @@ export const DataSettings: React.FC = () => {
       <Card>
         <div className="p-6">
           <div className="flex items-center mb-4">
-            <Shield className="h-5 w-5 text-red-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Gestion des données</h3>
+            <Shield className="h-5 w-5 text-red-600 dark:text-red-400 mr-2" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Gestion des données</h3>
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-red-50">
+            <div className="flex items-center justify-between p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20">
               <div>
-                <h4 className="font-medium text-red-900">Zone de danger</h4>
-                <p className="text-sm text-red-700">
+                <h4 className="font-medium text-red-900 dark:text-red-300">Zone de danger</h4>
+                <p className="text-sm text-red-700 dark:text-red-400">
                   Supprimer définitivement toutes les données de votre agence
                 </p>
               </div>

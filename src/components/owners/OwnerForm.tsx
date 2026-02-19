@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
+import { SuccessModal } from '../ui/SuccessModal';
 import { Owner } from '../../types/db';
 import { PropertyTitle, MaritalStatus } from '../../types/enums';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,6 +13,7 @@ import { dbService } from '../../lib/supabase';
 import { supabase } from '../../lib/config';
 import { isValidPhoneNumber } from 'libphonenumber-js';
 import { getPropertyTitleLabel } from '../../utils/ownerUtils';
+import { validatePhoneCI } from '../../utils/validationUtils';
 
 interface OwnerFormProps {
   isOpen: boolean;
@@ -44,6 +46,8 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
   });
   const [agencyId, setAgencyId] = useState<string | null>(null);
   const [isLoadingAgency, setIsLoadingAgency] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successInfo, setSuccessInfo] = useState({ title: '', message: '' });
 
   const propertyTitleOptions = [
     { value: 'attestation_villageoise' as PropertyTitle, label: 'Attestation villageoise' },
@@ -63,7 +67,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
   ];
 
   const validatePhone = (phone: string) => {
-    return isValidPhoneNumber(phone, 'CI');
+    return validatePhoneCI(phone);
   };
 
   const validateForm = (data: Partial<Owner>) => {
@@ -191,15 +195,12 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
         } as Owner); // Cast explicite pour assurer la compatibilité
       }
 
-      toast.success(
-        `✅ Propriétaire ${formData.id ? 'mis à jour' : 'créé'} avec succès !\n` +
-          `👤 ${result.first_name} ${result.last_name}\n` +
-          `📱 ${result.phone}\n` +
-          `🏠 ${result.city}\n` +
-          `📋 Titre: ${getPropertyTitleLabel(result.property_title!)}`
-      );
+      setSuccessInfo({
+        title: formData.id ? 'Propriétaire mis à jour' : 'Propriétaire créé',
+        message: `Le dossier de ${result.first_name} ${result.last_name} (${result.business_id}) a été enregistré avec succès.`
+      });
+      setShowSuccessModal(true);
       onSuccess?.();
-      onClose();
     } catch (error: any) {
       console.error('❌ Erreur soumission propriétaire:', error);
       toast.error(error.message.includes('row-level security')
@@ -208,7 +209,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     }
   };
 
-  const isMarried = formData.marital_status === 'marie';
+  const isMarried = formData.marital_status === 'marie' || formData.marital_status === 'divorce';
 
   if (isLoadingAgency) {
     return (
@@ -232,202 +233,210 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="lg"
-      title={formData.id ? 'Modifier le propriétaire' : 'Ajouter un propriétaire'}
-    >
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
-          <div className="flex items-center mb-4 p-4">
-            <User className="h-5 w-5 text-green-600 mr-2" aria-hidden="true" />
-            <h3 className="text-lg font-medium text-gray-900">Informations personnelles</h3>
-          </div>
-          <div className="p-4 pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Prénom"
-                value={formData.first_name || ''}
-                onChange={(e) => updateFormData({ first_name: e.target.value })}
-                required
-                placeholder="Prénom du propriétaire"
-                aria-required="true"
-              />
-              <Input
-                label="Nom de famille"
-                value={formData.last_name || ''}
-                onChange={(e) => updateFormData({ last_name: e.target.value })}
-                required
-                placeholder="Nom de famille"
-                aria-required="true"
-              />
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        size="lg"
+        title={formData.id ? 'Modifier le propriétaire' : 'Ajouter un propriétaire'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card className="bg-white/80 backdrop-blur-sm border-green-200">
+            <div className="flex items-center mb-4 p-4">
+              <User className="h-5 w-5 text-green-600 mr-2" aria-hidden="true" />
+              <h3 className="text-lg font-medium text-gray-900">Informations personnelles</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <Input
-                label="Téléphone"
-                type="tel"
-                value={formData.phone || ''}
-                onChange={(e) => updateFormData({ phone: e.target.value })}
-                required
-                placeholder="+225 XX XX XX XX XX"
-                aria-required="true"
-              />
-              <Input
-                label="Email (optionnel)"
-                type="email"
-                value={formData.email || ''}
-                onChange={(e) => updateFormData({ email: e.target.value })}
-                placeholder="email@exemple.com"
-              />
+            <div className="p-4 pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Prénom"
+                  value={formData.first_name || ''}
+                  onChange={(e) => updateFormData({ first_name: e.target.value })}
+                  required
+                  placeholder="Prénom du propriétaire"
+                  aria-required="true"
+                />
+                <Input
+                  label="Nom de famille"
+                  value={formData.last_name || ''}
+                  onChange={(e) => updateFormData({ last_name: e.target.value })}
+                  required
+                  placeholder="Nom de famille"
+                  aria-required="true"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <Input
+                  label="Téléphone"
+                  type="tel"
+                  value={formData.phone || ''}
+                  onChange={(e) => updateFormData({ phone: e.target.value })}
+                  required
+                  placeholder="+225 XX XX XX XX XX"
+                  aria-required="true"
+                />
+                <Input
+                  label="Email (optionnel)"
+                  type="email"
+                  value={formData.email || ''}
+                  onChange={(e) => updateFormData({ email: e.target.value })}
+                  placeholder="email@exemple.com"
+                />
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        <Card className="bg-white/80 backdrop-blur-sm border-blue-200">
-          <div className="flex items-center mb-4 p-4">
-            <MapPin className="h-5 w-5 text-blue-600 mr-2" aria-hidden="true" />
-            <h3 className="text-lg font-medium text-gray-900">Localisation</h3>
-          </div>
-          <div className="p-4 pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Adresse"
-                value={formData.address || ''}
-                onChange={(e) => updateFormData({ address: e.target.value })}
-                required
-                placeholder="Adresse complète"
-                aria-required="true"
-              />
-              <Input
-                label="Ville"
-                value={formData.city || ''}
-                onChange={(e) => updateFormData({ city: e.target.value })}
-                required
-                placeholder="Ville de résidence"
-                aria-required="true"
-              />
+          <Card className="bg-white/80 backdrop-blur-sm border-blue-200">
+            <div className="flex items-center mb-4 p-4">
+              <MapPin className="h-5 w-5 text-blue-600 mr-2" aria-hidden="true" />
+              <h3 className="text-lg font-medium text-gray-900">Localisation</h3>
             </div>
-          </div>
-        </Card>
+            <div className="p-4 pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Adresse"
+                  value={formData.address || ''}
+                  onChange={(e) => updateFormData({ address: e.target.value })}
+                  required
+                  placeholder="Adresse complète"
+                  aria-required="true"
+                />
+                <Input
+                  label="Ville"
+                  value={formData.city || ''}
+                  onChange={(e) => updateFormData({ city: e.target.value })}
+                  required
+                  placeholder="Ville de résidence"
+                  aria-required="true"
+                />
+              </div>
+            </div>
+          </Card>
 
-        <Card className="bg-white/80 backdrop-blur-sm border-orange-200">
-          <div className="flex items-center mb-4 p-4">
-            <FileText className="h-5 w-5 text-orange-600 mr-2" aria-hidden="true" />
-            <h3 className="text-lg font-medium text-gray-900">Titre de propriété</h3>
-          </div>
-          <div className="p-4 pt-0 space-y-4">
-            <div>
-              <label htmlFor="property-title" className="block text-sm font-medium text-gray-700 mb-2">
-                Type de titre de propriété
-              </label>
-              <select
-                id="property-title"
-                value={formData.property_title || 'attestation_villageoise'}
-                onChange={(e) => updateFormData({ property_title: e.target.value as PropertyTitle })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
-                required
-                aria-required="true"
-                aria-label="Type de titre de propriété"
-              >
-                {propertyTitleOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+          <Card className="bg-white/80 backdrop-blur-sm border-orange-200">
+            <div className="flex items-center mb-4 p-4">
+              <FileText className="h-5 w-5 text-orange-600 mr-2" aria-hidden="true" />
+              <h3 className="text-lg font-medium text-gray-900">Titre de propriété</h3>
             </div>
-            {formData.property_title === 'autres' && (
+            <div className="p-4 pt-0 space-y-4">
               <div>
-                <label htmlFor="property-title-details" className="block text-sm font-medium text-gray-700 mb-2">
-                  Précisez le type de titre
+                <label htmlFor="property-title" className="block text-sm font-medium text-gray-700 mb-2">
+                  Type de titre de propriété
                 </label>
-                <textarea
-                  id="property-title-details"
-                  value={formData.property_title_details || ''}
-                  onChange={(e) => updateFormData({ property_title_details: e.target.value })}
-                  rows={3}
+                <select
+                  id="property-title"
+                  value={formData.property_title || 'attestation_villageoise'}
+                  onChange={(e) => updateFormData({ property_title: e.target.value as PropertyTitle })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
-                  placeholder="Décrivez le type de titre de propriété..."
                   required
                   aria-required="true"
-                  aria-label="Détails du titre de propriété"
-                />
+                  aria-label="Type de titre de propriété"
+                >
+                  {propertyTitleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
-          </div>
-        </Card>
-
-        <Card className="bg-white/80 backdrop-blur-sm border-pink-200">
-          <div className="flex items-center mb-4 p-4">
-            <Heart className="h-5 w-5 text-pink-600 mr-2" aria-hidden="true" />
-            <h3 className="text-lg font-medium text-gray-900">Situation familiale</h3>
-          </div>
-          <div className="p-4 pt-0 space-y-4">
-            <div>
-              <label htmlFor="marital-status" className="block text-sm font-medium text-gray-700 mb-2">
-                Situation matrimoniale
-              </label>
-              <select
-                id="marital-status"
-                value={formData.marital_status || 'celibataire'}
-                onChange={(e) => updateFormData({ marital_status: e.target.value as MaritalStatus })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
-                required
-                aria-required="true"
-                aria-label="Situation matrimoniale"
-              >
-                {maritalStatusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              {formData.property_title === 'autres' && (
+                <div>
+                  <label htmlFor="property-title-details" className="block text-sm font-medium text-gray-700 mb-2">
+                    Précisez le type de titre (optionnel)
+                  </label>
+                  <textarea
+                    id="property-title-details"
+                    value={formData.property_title_details || ''}
+                    onChange={(e) => updateFormData({ property_title_details: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                    placeholder="Décrivez le type de titre de propriété..."
+                    aria-label="Détails du titre de propriété"
+                  />
+                </div>
+              )}
             </div>
-            {isMarried && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-pink-50/80 rounded-lg backdrop-blur-sm">
-                <Input
-                  label="Nom du conjoint"
-                  value={formData.spouse_name || ''}
-                  onChange={(e) => updateFormData({ spouse_name: e.target.value })}
-                  required={isMarried}
-                  placeholder="Nom complet du conjoint"
-                  aria-required={isMarried}
-                />
-                <Input
-                  label="Téléphone du conjoint"
-                  type="tel"
-                  value={formData.spouse_phone || ''}
-                  onChange={(e) => updateFormData({ spouse_phone: e.target.value })}
-                  required={isMarried}
-                  placeholder="+225 XX XX XX XX XX"
-                  aria-required={isMarried}
-                />
-              </div>
-            )}
-            <Input
-              label="Nombre d'enfants"
-              type="number"
-              value={formData.children_count ?? 0}
-              onChange={(e) => updateFormData({ children_count: parseInt(e.target.value) || 0 })}
-              min="0"
-              max="20"
-              placeholder="0"
-              aria-label="Nombre d'enfants"
-            />
-          </div>
-        </Card>
+          </Card>
 
-        <div className="flex items-center justify-end space-x-3 pt-6 border-t border-green-200">
-          <Button type="button" variant="ghost" onClick={onClose} aria-label="Annuler">
-            Annuler
-          </Button>
-          <Button type="submit" className="bg-green-600 hover:bg-green-700" aria-label="Enregistrer le propriétaire">
-            <Save className="h-4 w-4 mr-2" />
-            Enregistrer
-          </Button>
-        </div>
-      </form>
-    </Modal>
+          <Card className="bg-white/80 backdrop-blur-sm border-pink-200">
+            <div className="flex items-center mb-4 p-4">
+              <Heart className="h-5 w-5 text-pink-600 mr-2" aria-hidden="true" />
+              <h3 className="text-lg font-medium text-gray-900">Situation familiale</h3>
+            </div>
+            <div className="p-4 pt-0 space-y-4">
+              <div>
+                <label htmlFor="marital-status" className="block text-sm font-medium text-gray-700 mb-2">
+                  Situation matrimoniale
+                </label>
+                <select
+                  id="marital-status"
+                  value={formData.marital_status || 'celibataire'}
+                  onChange={(e) => updateFormData({ marital_status: e.target.value as MaritalStatus })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                  required
+                  aria-required="true"
+                  aria-label="Situation matrimoniale"
+                >
+                  {maritalStatusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {isMarried && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-pink-50/80 rounded-lg backdrop-blur-sm">
+                  <Input
+                    label="Nom du conjoint (optionnel)"
+                    value={formData.spouse_name || ''}
+                    onChange={(e) => updateFormData({ spouse_name: e.target.value })}
+                    placeholder="Nom complet du conjoint"
+                    aria-required="false"
+                  />
+                  <Input
+                    label="Téléphone du conjoint (optionnel)"
+                    type="tel"
+                    value={formData.spouse_phone || ''}
+                    onChange={(e) => updateFormData({ spouse_phone: e.target.value })}
+                    placeholder="+225 XX XX XX XX XX"
+                    aria-required="false"
+                  />
+                </div>
+              )}
+              <Input
+                label="Nombre d'enfants"
+                type="number"
+                value={formData.children_count ?? 0}
+                onChange={(e) => updateFormData({ children_count: parseInt(e.target.value) || 0 })}
+                min="0"
+                max="20"
+                placeholder="0"
+                aria-label="Nombre d'enfants"
+              />
+            </div>
+          </Card>
+
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-green-200">
+            <Button type="button" variant="ghost" onClick={onClose} aria-label="Annuler">
+              Annuler
+            </Button>
+            <Button type="submit" className="bg-green-600 hover:bg-green-700" aria-label="Enregistrer le propriétaire">
+              <Save className="h-4 w-4 mr-2" />
+              Enregistrer
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => {
+          setShowSuccessModal(false);
+          onClose();
+        }}
+        title={successInfo.title}
+        message={successInfo.message}
+      />
+    </>
   );
 };

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import clsx from 'clsx';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -7,9 +7,6 @@ import {
   UserCheck,
   FileText,
   TrendingUp,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
   Receipt,
   Eye,
   Edit,
@@ -24,7 +21,7 @@ import { BibleVerseCard } from '../ui/BibleVerse';
 import { useDashboardStats, useRealtimeData, mapSupabaseError } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Contract, Property, RentReceipt, User } from '../../types/db';
+import { Contract, RentReceipt, User } from '../../types/db';
 import { AuditLog } from '../../types/platform';
 import { AgencyUserRole } from '../../types/enums';
 
@@ -98,30 +95,19 @@ export const Dashboard: React.FC = () => {
 
   const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
 
+  const fetchContracts = useCallback((params?: GetAllParams) => dbService.contracts.getAll(params), []);
   const {
     data: recentContracts,
     initialLoading: contractsInitialLoading,
     fetching: contractsFetching,
     error: contractsError,
   } = useRealtimeData<Contract>(
-    (params?: GetAllParams) => dbService.contracts.getAll(params),
+    fetchContracts,
     'contracts',
     realtimeFilters,
   );
 
-  const {
-    data: recentProperties,
-    initialLoading: propertiesInitialLoading,
-    fetching: propertiesFetching,
-    error: propertiesError,
-  } = useRealtimeData<Property>(
-    (params?: GetAllParams) => dbService.properties.getAll(params),
-    'properties',
-    realtimeFilters,
-  );
-
   const contractsLoading = contractsInitialLoading || contractsFetching;
-  const propertiesLoading = propertiesInitialLoading || propertiesFetching;
 
   const [recentReceipts, setRecentReceipts] = useState<RentReceipt[]>([]);
   const [receiptsLoading, setReceiptsLoading] = useState(true);
@@ -195,12 +181,12 @@ export const Dashboard: React.FC = () => {
               ...log,
               actor: actor
                 ? {
-                    id: actor.id,
-                    full_name: `${actor.first_name} ${actor.last_name}`.trim() || actor.email,
-                    email: actor.email,
-                    role: actor.role,
-                    avatar: actor.avatar ?? null,
-                  }
+                  id: actor.id,
+                  full_name: `${actor.first_name} ${actor.last_name}`.trim() || actor.email,
+                  email: actor.email,
+                  role: actor.role,
+                  avatar: actor.avatar ?? null,
+                }
                 : undefined,
             };
           })
@@ -230,9 +216,9 @@ export const Dashboard: React.FC = () => {
   }, [agencyId]);
 
   useEffect(() => {
-    const errors = [statsError, contractsError, propertiesError, receiptsError].filter(Boolean);
+    const errors = [statsError, contractsError, receiptsError].filter(Boolean);
     setError(errors.length > 0 ? errors.join('; ') : null);
-  }, [statsError, contractsError, propertiesError, receiptsError]);
+  }, [statsError, contractsError, receiptsError]);
 
   const stats = useMemo(() => {
     if (!dashboardStats) return [];
@@ -278,6 +264,18 @@ export const Dashboard: React.FC = () => {
       minimumFractionDigits: 0,
     }).format(amount ?? 0);
 
+  interface Rental {
+    id: string;
+    property: string;
+    tenant: string;
+    dueDate: string;
+    amount: string;
+    status: 'upcoming' | 'warning' | 'overdue';
+    isFirstPayment?: boolean;
+  }
+
+  // ... (inside Dashboard component)
+
   const upcomingRentals = useMemo((): Rental[] => {
     if (!Array.isArray(recentContracts)) return [];
 
@@ -321,36 +319,63 @@ export const Dashboard: React.FC = () => {
         let baseYear = start.getFullYear();
         let baseMonth = start.getMonth();
         let offset = 0;
+        let isFirstPayment = false;
 
         const latestReceipt = receiptsByContract.get(contract.id);
         if (latestReceipt) {
           baseYear = latestReceipt.period_year ?? start.getFullYear();
-          baseMonth = (latestReceipt.period_month ?? start.getMonth() + 1) - 1;
+          baseMonth = Number(latestReceipt.period_month ?? (start.getMonth() + 1)) - 1;
           offset = 1; // next cycle after last receipt
+        } else {
+          // No receipt found -> First Payment
+          isFirstPayment = true;
+          // logic for new tenants: due date IS start date (or next occurrence)
+          // If start date is in future, that's the due date.
+          // If start date is past (and no receipt), they are overdue for first payment?
         }
 
         let nextDue = createDueDate(baseYear, baseMonth, dueDay, offset);
-        while (nextDue < startOfToday) {
-          offset += 1;
-          nextDue = createDueDate(baseYear, baseMonth, dueDay, offset);
+
+        // If first payment, we don't skip to today. We want the ACTUAL first due date (entry date).
+        // If it's in the past and they haven't paid, it's OVERDUE.
+        if (!isFirstPayment) {
+          while (nextDue < startOfToday) {
+            offset += 1;
+            nextDue = createDueDate(baseYear, baseMonth, dueDay, offset);
+          }
+        } else {
+          // For first payment, 'nextDue' is simply start_date (calculated above with offset 0).
+          // We don't fast-forward because "Date d'entrée" is the anchor.
         }
 
         const diffInDays = Math.ceil((nextDue.getTime() - startOfToday.getTime()) / msInDay);
-        if (diffInDays < 0 || diffInDays > 5) {
-          return null;
+
+        // Logic: 
+        // Overdue: diff < 0
+        // Warning (5 days before): 0 <= diff <= 5
+        // Upcoming: diff > 5 (we filter these out usually, user said "signaler 5 jours avant")
+
+        if (diffInDays > 5) {
+          return null; // Too far in future
         }
+
+        let status: Rental['status'] = 'upcoming';
+        if (diffInDays < 0) status = 'overdue';
+        else if (diffInDays <= 5) status = 'warning';
 
         return {
           id: contract.id,
-          property: `Propriete #${contract.property_id}`,
-          tenant: `Locataire #${contract.tenant_id}`,
+          property: contract.property_business_id || `Propriété #${contract.property_id?.slice(0, 8)}`,
+          tenant: contract.tenant_business_id || `Locataire #${contract.tenant_id?.slice(0, 8)}`,
           dueDate: nextDue.toISOString().split('T')[0],
           amount: formatCurrency(contract.monthly_rent ?? 0),
-          status: diffInDays <= 1 ? 'warning' : 'upcoming',
+          status,
+          isFirstPayment
         };
       })
       .filter((item): item is Rental => Boolean(item))
-      .slice(0, 5);
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+      .slice(0, 10); // Show top 10 alerts
   }, [recentContracts, recentReceipts, formatCurrency]);
 
   const recentPayments = useMemo((): Payment[] => {
@@ -364,9 +389,9 @@ export const Dashboard: React.FC = () => {
     recentReceipts.forEach((receipt) => {
       const contract = contractMap.get(receipt.contract_id);
       const baseDescriptor = {
-        tenant: `Locataire #${contract?.tenant_id ?? receipt.tenant_id ?? 'Inconnu'}`,
-        owner: `Proprietaire #${contract?.owner_id ?? receipt.owner_id ?? 'Inconnu'}`,
-        property: `Propriete #${contract?.property_id ?? receipt.property_id ?? 'Inconnu'}`,
+        tenant: contract?.tenant_business_id || receipt.tenant_business_id || `LOC-${(contract?.tenant_id || receipt.tenant_id || 'Inconnu').slice(0, 8)}`,
+        owner: contract?.owner_business_id || receipt.owner_business_id || `PROP-${(contract?.owner_id || receipt.owner_id || 'Inconnu').slice(0, 8)}`,
+        property: contract?.property_business_id || receipt.property_business_id || `BIEN-${(contract?.property_id || receipt.property_id || 'Inconnu').slice(0, 8)}`,
         receiptNumber: receipt.receipt_number,
       };
 
@@ -399,35 +424,26 @@ export const Dashboard: React.FC = () => {
       .slice(0, 6);
   }, [recentReceipts, recentContracts]);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isFirstPayment?: boolean) => {
+    if (isFirstPayment) {
+      return <Badge variant="info">1er Loyer</Badge>;
+    }
     switch (status) {
       case 'success':
-        return <Badge variant="success">Termine</Badge>;
+        return <Badge variant="success">Terminé</Badge>;
       case 'warning':
-        return <Badge variant="warning">En attente</Badge>;
+        return <Badge variant="warning">5 Jours</Badge>; // Alert explicit
       case 'info':
         return <Badge variant="info">Nouveau</Badge>;
       case 'overdue':
         return <Badge variant="danger">En retard</Badge>;
       case 'upcoming':
-        return <Badge variant="info">A venir</Badge>;
+        return <Badge variant="info">À venir</Badge>;
       default:
         return <Badge variant="secondary">Inconnu</Badge>;
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'success':
-        return <CheckCircle className="h-4 w-4 text-emerald-500" aria-hidden="true" />;
-      case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-amber-500" aria-hidden="true" />;
-      case 'info':
-        return <TrendingUp className="h-4 w-4 text-sky-500" aria-hidden="true" />;
-      default:
-        return <Clock className="h-4 w-4 text-slate-400" aria-hidden="true" />;
-    }
-  };
 
   const getTimeAgo = (dateString: string) => {
     try {
@@ -527,8 +543,7 @@ export const Dashboard: React.FC = () => {
       return fullName || user.email || 'cher partenaire';
     }
     if (admin) {
-      const fullName = [admin.firstName, admin.lastName].filter(Boolean).join(' ').trim();
-      return fullName || admin.email || 'cher partenaire';
+      return 'Administrateur';
     }
     return 'cher partenaire';
   }, [user, admin]);
@@ -635,24 +650,24 @@ export const Dashboard: React.FC = () => {
               <div className="grid gap-4 sm:grid-cols-3">
                 {showSpotlightSkeleton
                   ? Array.from({ length: 3 }).map((_, index) => (
-                      <div key={index} className="h-24 animate-pulse rounded-2xl bg-white/70 shadow-inner" />
-                    ))
+                    <div key={index} className="h-24 animate-pulse rounded-2xl bg-white/70 shadow-inner" />
+                  ))
                   : spotlightMetrics.map(({ label, value, accent, icon: Icon }) => (
-                      <div
-                        key={label}
-                        className="rounded-2xl border border-white/40 bg-white/80 px-4 py-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={clsx('flex h-11 w-11 items-center justify-center rounded-xl', accent)}>
-                            <Icon className="h-5 w-5" />
-                          </span>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-                            <p className="text-xl font-semibold text-slate-900">{value}</p>
-                          </div>
+                    <div
+                      key={label}
+                      className="rounded-2xl border border-white/60 bg-white/70 px-4 py-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-md transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:bg-white/90"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className={clsx('flex h-12 w-12 items-center justify-center rounded-2xl shadow-inner transition-transform duration-300 group-hover:scale-110', accent)}>
+                          <Icon className="h-6 w-6" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-500">{label}</p>
+                          <p className="text-2xl font-bold tracking-tight text-slate-900">{value}</p>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  ))}
               </div>
             </div>
           </Card>
@@ -668,15 +683,15 @@ export const Dashboard: React.FC = () => {
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {statsLoading && !stats.length
               ? Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="h-32 animate-pulse rounded-2xl bg-white/70 shadow-inner" />
-                ))
+                <div key={index} className="h-32 animate-pulse rounded-2xl bg-white/70 shadow-inner" />
+              ))
               : stats.length > 0
-              ? stats.map((stat) => <StatsCard key={stat.title} {...stat} />)
-              : (
-                <Card className="md:col-span-2 xl:col-span-4 border border-dashed border-slate-200 text-center text-slate-500">
-                  Aucune statistique disponible pour le moment.
-                </Card>
-              )}
+                ? stats.map((stat) => <StatsCard key={stat.title} {...stat} />)
+                : (
+                  <Card className="md:col-span-2 xl:col-span-4 border border-dashed border-slate-200 text-center text-slate-500">
+                    Aucune statistique disponible pour le moment.
+                  </Card>
+                )}
           </div>
 
           {dashboardStats && (
@@ -794,7 +809,7 @@ export const Dashboard: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-slate-900">{rental.amount}</span>
-                      {getStatusBadge(rental.status)}
+                      {getStatusBadge(rental.status, rental.isFirstPayment)}
                     </div>
                   </div>
                 ))

@@ -50,7 +50,10 @@ export type Entity =
   | PlatformSetting
   | AuditLog
   | AnnouncementInterest
-  | NotificationSettings;
+  | AuditLog
+  | AnnouncementInterest
+  | NotificationSettings
+  | Inventory;
 
 export type {
   // Users
@@ -113,3 +116,32 @@ export type {
   // Enums
   JsonB,
 };
+
+export interface Inventory {
+  id: string;
+  agency_id: string;
+  property_id: string;
+  tenant_id?: string;
+  contract_id?: string;
+  date: string; // ISO date
+  type: 'entry' | 'exit';
+  status: 'draft' | 'completed' | 'signed';
+  notes?: string;
+  rooms: {
+    name: string;
+    elements: {
+      name: string; // e.g. "Mur", "Sol", "Prises"
+      condition: 'neuf' | 'bon' | 'usage' | 'mauvais';
+      comment?: string;
+      photos?: string[];
+    }[];
+  }[];
+  meter_readings?: {
+    electricity?: { index: number; number?: string };
+    water?: { index: number; number?: string };
+  };
+  keys_count?: number;
+  signature_url?: string; // URL to signed PDF/Image
+  created_at: string;
+  updated_at: string;
+}

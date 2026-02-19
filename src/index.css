@@ -38,6 +38,12 @@ body {
   color: #374151;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
   min-height: 100vh;
+  transition: background 0.3s ease;
+}
+
+.dark body {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+  color: #f9fafb;
 }
 
 /* Interface reposante et harmonieuse */
@@ -76,10 +82,26 @@ body {
 
 /* Cards avec ombres douces et effet glassmorphism */
 .card-glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.dark .card-glass {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.card-glass:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.2);
+}
+
+.dark .card-glass:hover {
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
 }
 
 /* Ombres améliorées */
@@ -89,6 +111,10 @@ body {
 
 .shadow-elegant {
   box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+}
+
+.dark .shadow-elegant {
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
 }
 
 /* Transitions fluides */
@@ -111,16 +137,121 @@ button:focus {
   box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
 }
 
+/* Micro-interactions premium */
+.interactive-scale {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.interactive-scale:active {
+  transform: scale(0.95);
+}
+
+.ripple-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-effect::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.ripple-effect:active::after {
+  width: 300px;
+  height: 300px;
+}
+
 /* Amélioration des inputs avec focus doux */
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
   transform: scale(1.01);
+  transition: all 0.2s ease;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Inputs et formulaires - Meilleur contraste */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #334155 !important;
+  /* Plus clair */
+  border-color: #64748b !important;
+  /* Bordure visible */
+  color: #f1f5f9 !important;
+  /* Texte très clair */
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #94a3b8 !important;
+  /* Placeholder visible */
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  background-color: #475569 !important;
+  /* Encore plus clair au focus */
+  border-color: #60a5fa !important;
+  /* Bordure bleue vive */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Boutons - Meilleur contraste */
+.dark button {
+  color: #f1f5f9 !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #334155 !important;
+  /* Plus clair que slate-800 */
+}
+
+.dark .bg-gray-100 {
+  background-color: #475569 !important;
+  /* slate-600 */
+}
+
+.dark .text-gray-500 {
+  color: #cbd5e1 !important;
+  /* Plus clair - slate-300 */
+}
+
+.dark .text-gray-600 {
+  color: #94a3b8 !important;
+  /* slate-400 */
+}
+
+.dark .text-gray-700 {
+  color: #cbd5e1 !important;
+  /* slate-300 */
+}
+
+.dark .text-gray-900 {
+  color: #f1f5f9 !important;
+  /* slate-100 - très clair */
 }
 
 /* Scrollbar personnalisée et élégante */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -128,14 +259,47 @@ input:focus, select:focus, textarea:focus {
   border-radius: 4px;
 }
 
+/* Scrollbar - Mode nuit avec meilleur contraste */
+.dark ::-webkit-scrollbar-track {
+  background: linear-gradient(to bottom, #1e293b, #334155);
+}
+
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(to bottom, #cbd5e1, #94a3b8);
   border-radius: 4px;
   border: 1px solid #e2e8f0;
+  transition: background 0.2s ease;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #475569, #64748b);
+  border: 2px solid #1e293b;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(to bottom, #94a3b8, #64748b);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #64748b, #94a3b8);
+}
+
+/* Scrollbar personnalisée pour sidebar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
 }
 
 /* Animations subtiles pour les cartes */
@@ -144,6 +308,7 @@ input:focus, select:focus, textarea:focus {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -152,6 +317,57 @@ input:focus, select:focus, textarea:focus {
 
 .animate-fade-in-up {
   animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.4s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out;
+}
+
+/* Gradients animés */
+@keyframes gradient-shift {
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animated-gradient {
+  background: linear-gradient(270deg, #3b82f6, #8b5cf6, #ec4899);
+  background-size: 600% 600%;
+  animation: gradient-shift 15s ease infinite;
 }
 
 /* Effet de survol pour les cartes */
@@ -164,19 +380,76 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 20px 40px -4px rgba(0, 0, 0, 0.1);
 }
 
+.dark .card-hover:hover {
+  box-shadow: 0 20px 40px -4px rgba(0, 0, 0, 0.3);
+}
+
 /* Amélioration des badges */
 .badge-glow {
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
 }
 
-/* Thème sombre amélioré */
-.dark {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+.dark .badge-glow {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
 }
 
-.dark .card-glass {
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Backdrop blur pour modals */
+.backdrop-blur-premium {
+  backdrop-filter: blur(12px) saturate(150%);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.dark .backdrop-blur-premium {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* Animations de chargement sophistiquées */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+.dark .shimmer {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 1000px 100%;
+}
+
+/* Effet de pulsation douce */
+@keyframes pulse-soft {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Responsive amélioré */
@@ -184,8 +457,35 @@ input:focus, select:focus, textarea:focus {
   .card-hover:hover {
     transform: none;
   }
-  
-  input:focus, select:focus, textarea:focus {
+
+  input:focus,
+  select:focus,
+  textarea:focus {
     transform: none;
   }
+
+  .btn-hover-lift:hover {
+    transform: none;
+  }
+}
+
+/* Transitions de page */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.page-transition-exit {
+  opacity: 1;
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transition: opacity 300ms;
 }
