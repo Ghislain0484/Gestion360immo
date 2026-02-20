@@ -12,7 +12,7 @@ import {
   PointElement,
 } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
-import { BarChart3, TrendingUp, Download, Calendar, DollarSign, Home, Users } from 'lucide-react';
+import { BarChart3, TrendingUp, Download, DollarSign, Home, Users, FileText, CheckCircle } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -22,6 +22,8 @@ import { useDashboardStats, useRealtimeData } from '../../hooks/useSupabaseData'
 import { dbService } from '../../lib/supabase';
 import { Property, Contract, Owner, Tenant } from '../../types/db';
 import { MonthlyRevenueItem } from '../../types/contracts';
+import { jsPDF } from 'jspdf';
+import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from '../../utils/agencyBranding';
 
 ChartJS.register(
   CategoryScale,
@@ -235,6 +237,75 @@ export const ReportsHub: React.FC = () => {
 
   const isLoading = statsLoading || propertiesLoading || contractsLoading || ownersLoading || tenantsLoading;
 
+  // Calcul du taux de collecte (contrats avec au moins un paiement)
+  const collectionRate = contracts && contracts.length > 0
+    ? Math.round((contracts.filter(c => c.status === 'active').length / contracts.length) * 100)
+    : 0;
+
+  // avgRooms non calculable car PropertyDetails ne contient pas rooms
+  const avgRooms = 0; // Champ non disponible dans le schéma actuel
+
+
+  // Export PDF du rapport courant
+  const handleExport = async () => {
+    try {
+      const branding = await getAgencyBranding(user?.agency_id ?? undefined);
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
+      let y = renderPDFHeader(doc, branding, 15);
+
+      doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+      const reportName = reportTypes.find(r => r.id === selectedReport)?.name || 'Rapport';
+      doc.text(`RAPPORT : ${reportName.toUpperCase()}`, pageWidth / 2, y, { align: 'center' }); y += 8;
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
+      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Période : ${selectedPeriod}`, pageWidth / 2, y, { align: 'center' }); y += 12;
+      doc.setDrawColor(200, 200, 200); doc.line(20, y, pageWidth - 20, y); y += 8;
+
+      const writeRow = (label: string, val: string) => {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(80, 80, 80);
+        doc.text(label, 20, y);
+        doc.setTextColor(30, 30, 30);
+        doc.text(val, 120, y);
+        y += 8;
+      };
+
+      if (selectedReport === 'overview' && reportData) {
+        writeRow('Revenus totaux :', formatCurrency(reportData.overview.totalRevenue));
+        writeRow('Commissions :', formatCurrency(reportData.overview.totalCommissions));
+        writeRow('Contrats actifs :', String(reportData.overview.activeContracts));
+        writeRow("Taux d'occupation :", `${reportData.overview.occupancyRate}%`);
+        writeRow('Total clients :', String(reportData.overview.newClients));
+      } else if (selectedReport === 'properties' && reportData) {
+        writeRow('Total propriétés :', String(reportData.properties.totalProperties));
+        writeRow('Propriétés disponibles :', String(reportData.properties.availableProperties));
+        writeRow('Propriétés louées :', String(reportData.properties.rentedProperties));
+        writeRow('Ventes réalisées :', String(reportData.properties.soldProperties));
+        properties?.forEach((p, i) => {
+          if (y > 250) { doc.addPage(); y = 20; }
+          doc.setFontSize(9); doc.setTextColor(50, 50, 50);
+          doc.text(`${i + 1}. ${p.title || p.location?.commune || 'N/A'} - ${p.is_available ? 'Disponible' : 'Loué'}`, 20, y); y += 6;
+        });
+      } else if (selectedReport === 'financial') {
+        monthlyRevenue.forEach(m => {
+          writeRow(m.month, `Revenus: ${formatCurrency(m.revenue)} | Commissions: ${formatCurrency(m.commissions)}`);
+        });
+      } else if (selectedReport === 'clients') {
+        writeRow('Total propriétaires :', String(owners?.length || 0));
+        writeRow('Total locataires :', String(tenants?.length || 0));
+        writeRow('Total clients :', String((owners?.length || 0) + (tenants?.length || 0)));
+        writeRow('Taux de collecte :', `${collectionRate}%`);
+      }
+
+      renderPDFFooter(doc, branding);
+      doc.save(`rapport-${selectedReport}-${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}.pdf`);
+      toast.success('Rapport exporté en PDF !');
+    } catch (err: any) {
+      toast.error('Erreur export PDF : ' + err.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -255,9 +326,9 @@ export const ReportsHub: React.FC = () => {
             <option value="quarter">Ce trimestre</option>
             <option value="year">Cette année</option>
           </select>
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
-            Exporter
+            Exporter PDF
           </Button>
         </div>
       </div>
@@ -269,11 +340,10 @@ export const ReportsHub: React.FC = () => {
             <button
               key={type.id}
               onClick={() => setSelectedReport(type.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                selectedReport === type.id
-                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-              }`}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${selectedReport === type.id
+                ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
             >
               <type.icon className="h-4 w-4" />
               <span>{type.name}</span>
@@ -470,20 +540,20 @@ export const ReportsHub: React.FC = () => {
                       </div>
                       <div className="text-center">
                         <div className="text-3xl font-bold text-blue-600 mb-2">
-                          -j
+                          {avgRooms > 0 ? `${avgRooms} p.` : 'N/A'}
                         </div>
-                        <p className="text-sm text-gray-600">Délai moyen de location</p>
+                        <p className="text-sm text-gray-600">Taille moyenne des biens</p>
                         <Badge variant="info" size="sm" className="mt-2">
-                          À calculer
+                          {avgRooms > 0 ? 'Calculé' : 'Données insuffisantes'}
                         </Badge>
                       </div>
                       <div className="text-center">
                         <div className="text-3xl font-bold text-yellow-600 mb-2">
-                          -%
+                          {collectionRate}%
                         </div>
-                        <p className="text-sm text-gray-600">Satisfaction client</p>
-                        <Badge variant="warning" size="sm" className="mt-2">
-                          À calculer
+                        <p className="text-sm text-gray-600">Taux de collecte</p>
+                        <Badge variant={collectionRate >= 80 ? 'success' : 'warning'} size="sm" className="mt-2">
+                          {collectionRate >= 80 ? 'Bon' : 'À améliorer'}
                         </Badge>
                       </div>
                     </div>
@@ -497,21 +567,193 @@ export const ReportsHub: React.FC = () => {
             )
           )}
 
-          {/* Other report types placeholder */}
-          {selectedReport !== 'overview' && (
-            <Card className="p-8 text-center">
-              <BarChart3 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Rapport {reportTypes.find(t => t.id === selectedReport)?.name}
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Ce rapport sera disponible dans une prochaine version.
-              </p>
-              <Button variant="outline">
-                <Calendar className="h-4 w-4 mr-2" />
-                Programmer un rapport
-              </Button>
-            </Card>
+          {/* Rapport Propriétés */}
+          {selectedReport === 'properties' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { label: 'Total propriétés', value: reportData?.properties.totalProperties || 0, color: 'bg-blue-500', Icon: Home },
+                  { label: 'Disponibles', value: reportData?.properties.availableProperties || 0, color: 'bg-green-500', Icon: CheckCircle },
+                  { label: 'Louées', value: reportData?.properties.rentedProperties || 0, color: 'bg-yellow-500', Icon: FileText },
+                  { label: 'Ventes réalisées', value: reportData?.properties.soldProperties || 0, color: 'bg-purple-500', Icon: TrendingUp },
+                ].map(({ label, value, color, Icon }) => (
+                  <Card key={label}>
+                    <div className="p-6 flex items-center gap-4">
+                      <div className={`inline-flex items-center justify-center p-3 rounded-lg ${color}`}>
+                        <Icon className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">{label}</p>
+                        <p className="text-2xl font-bold text-gray-900">{value}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <Card>
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Liste des propriétés</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 font-semibold text-gray-600">Propriété</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-600">Commune</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-600">Type</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-600">Loyer</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-600">Statut</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {properties?.map((p) => (
+                          <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-3 px-4 font-medium text-gray-900">{p.title || 'N/A'}</td>
+                            <td className="py-3 px-4 text-gray-600">{p.location?.commune || 'N/A'}</td>
+                            <td className="py-3 px-4 text-gray-600 capitalize">{p.details?.type || 'N/A'}</td>
+                            <td className="py-3 px-4 text-gray-600">{contracts?.find(c => c.property_id === p.id) ? formatCurrency(contracts.find(c => c.property_id === p.id)!.monthly_rent || 0) : 'N/A'}</td>
+                            <td className="py-3 px-4">
+                              <Badge variant={p.is_available ? 'success' : 'warning'}>
+                                {p.is_available ? 'Disponible' : 'Loué'}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {(!properties || properties.length === 0) && (
+                      <p className="text-center py-8 text-gray-400">Aucune propriété trouvée</p>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Rapport Financier */}
+          {selectedReport === 'financial' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[
+                  { label: 'Revenus totaux', value: formatCurrency(reportData?.overview.totalRevenue || 0), color: 'bg-green-500', Icon: DollarSign },
+                  { label: 'Commissions', value: formatCurrency(reportData?.overview.totalCommissions || 0), color: 'bg-blue-500', Icon: TrendingUp },
+                  { label: 'Taux de collecte', value: `${collectionRate}%`, color: 'bg-purple-500', Icon: FileText },
+                ].map(({ label, value, color, Icon }) => (
+                  <Card key={label}>
+                    <div className="p-6 flex items-center gap-4">
+                      <div className={`inline-flex items-center justify-center p-3 rounded-lg ${color}`}>
+                        <Icon className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">{label}</p>
+                        <p className="text-xl font-bold text-gray-900">{value}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <Card>
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Évolution mensuelle des revenus</h3>
+                  <div className="h-64">
+                    <Bar data={revenueChartData} options={chartOptions} />
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Détail mensuel</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 font-semibold text-gray-600">Mois</th>
+                          <th className="text-right py-3 px-4 font-semibold text-gray-600">Revenus</th>
+                          <th className="text-right py-3 px-4 font-semibold text-gray-600">Commissions</th>
+                          <th className="text-right py-3 px-4 font-semibold text-gray-600">Net propriétaires</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthlyRevenue.map((m) => (
+                          <tr key={m.month} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-3 px-4 font-medium text-gray-900">{m.month}</td>
+                            <td className="py-3 px-4 text-right text-green-700 font-semibold">{formatCurrency(m.revenue)}</td>
+                            <td className="py-3 px-4 text-right text-blue-700">{formatCurrency(m.commissions)}</td>
+                            <td className="py-3 px-4 text-right text-gray-600">{formatCurrency(m.revenue - m.commissions)}</td>
+                          </tr>
+                        ))}
+                        {monthlyRevenue.length === 0 && (
+                          <tr><td colSpan={4} className="py-8 text-center text-gray-400">Aucune donnée financière disponible</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Rapport Clients */}
+          {selectedReport === 'clients' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { label: 'Propriétaires', value: owners?.length || 0, color: 'bg-blue-500', Icon: Home },
+                  { label: 'Locataires', value: tenants?.length || 0, color: 'bg-green-500', Icon: Users },
+                  { label: 'Total clients', value: (owners?.length || 0) + (tenants?.length || 0), color: 'bg-purple-500', Icon: Users },
+                  { label: 'Taux de collecte', value: `${collectionRate}%`, color: 'bg-yellow-500', Icon: TrendingUp },
+                ].map(({ label, value, color, Icon }) => (
+                  <Card key={label}>
+                    <div className="p-6 flex items-center gap-4">
+                      <div className={`inline-flex items-center justify-center p-3 rounded-lg ${color}`}>
+                        <Icon className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">{label}</p>
+                        <p className="text-2xl font-bold text-gray-900">{value}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Propriétaires</h3>
+                    <div className="space-y-3">
+                      {owners?.slice(0, 10).map((o) => (
+                        <div key={o.id} className="flex items-center justify-between py-2 border-b border-gray-100">
+                          <div>
+                            <p className="font-medium text-gray-900">{o.first_name} {o.last_name}</p>
+                            <p className="text-sm text-gray-500">{o.phone || 'N/A'}</p>
+                          </div>
+                          <Badge variant="info">{o.business_id}</Badge>
+                        </div>
+                      ))}
+                      {(!owners || owners.length === 0) && <p className="text-center py-4 text-gray-400">Aucun propriétaire</p>}
+                    </div>
+                  </div>
+                </Card>
+                <Card>
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Locataires</h3>
+                    <div className="space-y-3">
+                      {tenants?.slice(0, 10).map((t) => (
+                        <div key={t.id} className="flex items-center justify-between py-2 border-b border-gray-100">
+                          <div>
+                            <p className="font-medium text-gray-900">{t.first_name} {t.last_name}</p>
+                            <p className="text-sm text-gray-500">{t.phone || 'N/A'}</p>
+                          </div>
+                          <Badge variant={(t as any).payment_status === 'bon' ? 'success' : (t as any).payment_status === 'irregulier' ? 'warning' : 'danger'}>
+                            {(t as any).payment_status || 'N/A'}
+                          </Badge>
+                        </div>
+                      ))}
+                      {(!tenants || tenants.length === 0) && <p className="text-center py-4 text-gray-400">Aucun locataire</p>}
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </div>
           )}
         </>
       )}

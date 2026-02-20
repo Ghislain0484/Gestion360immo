@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, Filter, Calendar, DollarSign, TrendingUp, AlertCircle, Plus, Wallet, ArrowRightLeft } from 'lucide-react';
+import { Download, Filter, Calendar, TrendingUp, Wallet, ArrowRightLeft, Eye, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card } from '../ui/Card';
@@ -11,6 +11,8 @@ import { NewTransactionModal } from './NewTransactionModal';
 import { PayoutModal } from './PayoutModal';
 import { clsx } from 'clsx';
 import { toast } from 'react-hot-toast';
+import { jsPDF } from 'jspdf';
+import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from '../../utils/agencyBranding';
 
 interface Owner {
     id: string;
@@ -199,6 +201,112 @@ export const CaissePage: React.FC = () => {
         setIsPayoutModalOpen(true);
     };
 
+    // Modal de prévisualisation quittance
+    const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
+    const handleViewReceipt = (t: Transaction) => {
+        if (t.source === 'rent_receipt') setSelectedTransaction(t);
+    };
+
+    const handleDownloadReceiptFromTransaction = async (t: Transaction) => {
+        if (t.source !== 'rent_receipt') return;
+        try {
+            const branding = await getAgencyBranding(user?.agency_id ?? undefined);
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.width;
+            let y = renderPDFHeader(doc, branding, 15);
+
+            doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+            doc.text('QUITTANCE DE LOYER', pageWidth / 2, y, { align: 'center' }); y += 10;
+            doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+            doc.text(`Date : ${new Date(t.date).toLocaleDateString('fr-FR')}`, pageWidth / 2, y, { align: 'center' }); y += 12;
+            doc.setDrawColor(220, 220, 220); doc.line(20, y, pageWidth - 20, y); y += 8;
+
+            const writeRow = (label: string, value: string) => {
+                doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
+                doc.text(label, 22, y); doc.setTextColor(30, 30, 30); doc.text(value, pageWidth / 2, y); y += 8;
+            };
+            writeRow('Description :', t.description);
+            writeRow('Catégorie :', t.category === 'rent_payment' ? 'Loyer' : t.category);
+            writeRow('Mode de paiement :', t.payment_method);
+            y += 4;
+            doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(22, 163, 74);
+            doc.text(`MONTANT TOTAL : ${t.amount.toLocaleString('fr-FR')} FCFA`, pageWidth / 2, y, { align: 'center' }); y += 12;
+
+            renderPDFFooter(doc, branding);
+            doc.save(`quittance-${new Date(t.date).toLocaleDateString('fr-FR').replace(/\//g, '-')}.pdf`);
+            toast.success('Quittance téléchargée !');
+        } catch (err: any) {
+            toast.error('Erreur PDF : ' + err.message);
+        }
+    };
+
+    const handleExport = async () => {
+        try {
+            const branding = await getAgencyBranding(user?.agency_id ?? undefined);
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.width;
+            let y = renderPDFHeader(doc, branding, 15);
+
+            doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+            doc.text('RAPPORT DE CAISSE & TRÉSORERIE', pageWidth / 2, y, { align: 'center' }); y += 8;
+            doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
+            doc.text(`Période : ${selectedPeriod} | Généré le : ${new Date().toLocaleDateString('fr-FR')}`, pageWidth / 2, y, { align: 'center' }); y += 12;
+            doc.setDrawColor(200, 200, 200); doc.line(20, y, pageWidth - 20, y); y += 8;
+
+            // Résumé financier
+            doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+            doc.text('RÉSUMÉ FINANCIER', 20, y); y += 8;
+            const writeRow = (label: string, val: string, bold = false) => {
+                doc.setFontSize(10);
+                doc.setFont('helvetica', bold ? 'bold' : 'normal');
+                doc.setTextColor(80, 80, 80);
+                doc.text(label, 20, y);
+                doc.setTextColor(30, 30, 30);
+                doc.text(val, pageWidth - 20, y, { align: 'right' });
+                y += 7;
+            };
+            writeRow('Total Encaissé :', `${summary.totalCredit.toLocaleString('fr-FR')} FCFA`);
+            writeRow('Total Décaissé :', `${summary.totalDebit.toLocaleString('fr-FR')} FCFA`);
+            writeRow('Solde Période :', `${summary.balance.toLocaleString('fr-FR')} FCFA`, true);
+            writeRow('Nombre Total Opérations :', String(summary.count));
+            y += 4;
+            doc.setDrawColor(200, 200, 200); doc.line(20, y, pageWidth - 20, y); y += 8;
+
+            // Tableau des transactions
+            doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+            doc.text('DÉTAIL DES TRANSACTIONS', 20, y); y += 8;
+            // En-tête tableau
+            doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+            doc.setFillColor(59, 130, 246);
+            doc.rect(20, y - 4, pageWidth - 40, 7, 'F');
+            doc.text('Date', 22, y); doc.text('Description', 55, y); doc.text('Catégorie', 110, y); doc.text('Montant', pageWidth - 22, y, { align: 'right' }); y += 7;
+
+            // Lignes
+            doc.setFont('helvetica', 'normal');
+            transactions.forEach((t, i) => {
+                if (y > 265) { doc.addPage(); y = 20; }
+                if (i % 2 === 0) { doc.setFillColor(245, 247, 250); doc.rect(20, y - 4, pageWidth - 40, 6, 'F'); }
+                doc.setTextColor(t.type === 'credit' ? 22 : 220, t.type === 'credit' ? 163 : 38, t.type === 'credit' ? 74 : 38);
+                doc.text(new Date(t.date).toLocaleDateString('fr-FR'), 22, y);
+                doc.setTextColor(50, 50, 50);
+                doc.text(t.description.slice(0, 35), 55, y);
+                doc.text(t.category.slice(0, 20), 110, y);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(t.type === 'credit' ? 22 : 220, t.type === 'credit' ? 163 : 38, t.type === 'credit' ? 74 : 38);
+                doc.text(`${t.type === 'credit' ? '+' : '-'}${t.amount.toLocaleString('fr-FR')} FCFA`, pageWidth - 22, y, { align: 'right' });
+                doc.setFont('helvetica', 'normal');
+                y += 6;
+            });
+
+            renderPDFFooter(doc, branding);
+            doc.save(`caisse-${selectedPeriod}.pdf`);
+            toast.success('Rapport de caisse exporté !');
+        } catch (err: any) {
+            toast.error('Erreur export PDF : ' + err.message);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -215,9 +323,9 @@ export const CaissePage: React.FC = () => {
                         <ArrowRightLeft className="w-4 h-4" />
                         <span>Mouvement</span>
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg">
+                    <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg">
                         <Download className="w-4 h-4" />
-                        <span>Exporter</span>
+                        <span>Exporter PDF</span>
                     </button>
                 </div>
             </div>
@@ -314,6 +422,7 @@ export const CaissePage: React.FC = () => {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Moyen</th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
@@ -346,6 +455,18 @@ export const CaissePage: React.FC = () => {
                                                     t.type === 'credit' ? "text-green-600" : "text-red-600"
                                                 )}>
                                                     {t.type === 'credit' ? '+' : '-'}{t.amount.toLocaleString('fr-FR')}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    {t.source === 'rent_receipt' && (
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <button title="Voir la quittance" onClick={() => handleViewReceipt(t)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
+                                                                <Eye className="w-4 h-4" />
+                                                            </button>
+                                                            <button title="Télécharger PDF" onClick={() => handleDownloadReceiptFromTransaction(t)} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors">
+                                                                <Download className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
@@ -410,6 +531,38 @@ export const CaissePage: React.FC = () => {
                     ownerId={selectedOwnerForPayout.id}
                     ownerName={`${selectedOwnerForPayout.first_name} ${selectedOwnerForPayout.last_name}`}
                 />
+            )}
+
+            {/* Modal de prévisualisation quittance */}
+            {selectedTransaction && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedTransaction(null)}>
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                            <h2 className="text-lg font-bold text-gray-900">Détail de la transaction</h2>
+                            <button onClick={() => setSelectedTransaction(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
+                        </div>
+                        <div className="p-6 space-y-3">
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">Date</span><span className="font-medium">{new Date(selectedTransaction.date).toLocaleDateString('fr-FR')}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">Catégorie</span><span className="font-medium">{selectedTransaction.category === 'rent_payment' ? 'Loyer' : selectedTransaction.category}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">Description</span><span className="font-medium">{selectedTransaction.description}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">Mode de paiement</span><span className="font-medium">{selectedTransaction.payment_method}</span></div>
+                            </div>
+                            <div className="flex justify-between font-bold text-lg border-t border-gray-200 pt-3">
+                                <span>Montant</span>
+                                <span className={selectedTransaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}>
+                                    {selectedTransaction.type === 'credit' ? '+' : '-'}{selectedTransaction.amount.toLocaleString('fr-FR')} FCFA
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex gap-3 p-6 pt-0">
+                            <button onClick={() => setSelectedTransaction(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">Fermer</button>
+                            <button onClick={() => handleDownloadReceiptFromTransaction(selectedTransaction)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                <Download className="w-4 h-4" />Télécharger PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Calendar, Download, Eye, CreditCard } from 'lucide-react';
+import { Calendar, Download, Eye, CreditCard, X } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { RentReceipt } from '../../types/db';
@@ -7,6 +7,10 @@ import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
 import { Button } from '../ui/Button';
+import { jsPDF } from 'jspdf';
+import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from '../../utils/agencyBranding';
+import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
 interface PaymentsListProps {
     tenantId?: string;
@@ -21,6 +25,9 @@ interface PaymentWithDetails extends RentReceipt {
     property?: { title: string; business_id: string };
 }
 
+const MONTHS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+
 export const PaymentsList: React.FC<PaymentsListProps> = ({
     tenantId,
     propertyId,
@@ -28,6 +35,9 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
     limit = 20,
     showActions = true,
 }) => {
+    const { user } = useAuth();
+    const [selectedPayment, setSelectedPayment] = React.useState<PaymentWithDetails | null>(null);
+
     // Fetch payments with filters
     const fetchPayments = React.useCallback(async () => {
         const params: any = {};
@@ -73,8 +83,108 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
         return labels[method] || method;
     };
 
-    const getPaymentMethodIcon = () => {
-        return <CreditCard className="w-4 h-4" />;
+    // Télécharger la quittance en PDF
+    const handleDownloadPDF = async (payment: PaymentWithDetails) => {
+        try {
+            const branding = await getAgencyBranding(user?.agency_id ?? undefined);
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.width;
+            let y = renderPDFHeader(doc, branding, 15);
+
+            // Titre
+            doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+            doc.text('QUITTANCE DE LOYER', pageWidth / 2, y, { align: 'center' }); y += 7;
+            doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+            doc.text(`N° ${payment.receipt_number}`, pageWidth / 2, y, { align: 'center' }); y += 14;
+            doc.setDrawColor(220, 220, 220); doc.line(20, y, pageWidth - 20, y); y += 10;
+
+            const drawRow = (label: string, value: string, bold = false) => {
+                doc.setFontSize(10);
+                doc.setFont('helvetica', bold ? 'bold' : 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text(label, 22, y);
+                doc.setTextColor(30, 30, 30);
+                doc.text(value, pageWidth / 2, y);
+                y += 8;
+            };
+
+            // Période
+            const periodStr = `${MONTHS_FR[payment.period_month] || payment.period_month} ${payment.period_year}`;
+            const pmLabel = ({ especes: 'Espèces', cheque: 'Chèque', virement: 'Virement bancaire', mobile_money: 'Mobile Money', bank_transfer: 'Virement bancaire', cash: 'Espèces', check: 'Chèque' } as Record<string, string>)[payment.payment_method] || payment.payment_method;
+
+            doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(59, 130, 246);
+            doc.text('INFORMATIONS DU PAIEMENT', 22, y); y += 8;
+            doc.setDrawColor(59, 130, 246); doc.setLineWidth(0.5); doc.line(22, y, pageWidth - 22, y); doc.setLineWidth(0.2); y += 6;
+
+            drawRow('Période :', periodStr);
+            drawRow('Date de paiement :', new Date(payment.payment_date).toLocaleDateString('fr-FR'));
+            drawRow('Mode de paiement :', pmLabel);
+            if (payment.notes) drawRow('Notes :', payment.notes);
+
+            y += 4;
+            // Totaux
+            doc.setFillColor(246, 250, 255);
+            doc.rect(20, y - 3, pageWidth - 40, 30, 'F');
+            doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+            if (payment.rent_amount) { doc.text('Loyer :', 22, y); doc.setTextColor(30, 30, 30); doc.text(`${payment.rent_amount.toLocaleString('fr-FR')} FCFA`, pageWidth - 22, y, { align: 'right' }); y += 8; }
+            if (payment.charges) { doc.text('Charges :', 22, y); doc.setTextColor(30, 30, 30); doc.text(`${payment.charges.toLocaleString('fr-FR')} FCFA`, pageWidth - 22, y, { align: 'right' }); y += 8; }
+            doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+            doc.text('TOTAL PAYÉ :', 22, y);
+            doc.setTextColor(22, 163, 74);
+            doc.text(`${payment.total_amount.toLocaleString('fr-FR')} FCFA`, pageWidth - 22, y, { align: 'right' }); y += 14;
+
+            // Mention légale
+            doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(140, 140, 140);
+            doc.text('Ce document atteste du paiement du loyer pour la période mentionnée ci-dessus.', pageWidth / 2, y, { align: 'center' });
+
+            renderPDFFooter(doc, branding);
+            doc.save(`quittance-${payment.receipt_number}.pdf`);
+            toast.success('Quittance téléchargée !');
+        } catch (err: any) {
+            toast.error('Erreur PDF : ' + err.message);
+        }
+    };
+
+    // Imprimer la quittance
+    const handlePrint = async (payment: PaymentWithDetails) => {
+        try {
+            const branding = await getAgencyBranding(user?.agency_id ?? undefined);
+            const logoHtml = branding.logo ? `<img src="${branding.logo}" alt="Logo" style="max-height:60px;object-fit:contain;">` : '';
+            const periodStr = `${MONTHS_FR[payment.period_month] || payment.period_month} ${payment.period_year}`;
+            const pmLabel = ({ especes: 'Espèces', cheque: 'Chèque', virement: 'Virement bancaire', mobile_money: 'Mobile Money', bank_transfer: 'Virement bancaire', cash: 'Espèces', check: 'Chèque' } as Record<string, string>)[payment.payment_method] || payment.payment_method;
+            const win = window.open('', '_blank');
+            if (!win) { toast.error("Fenêtre bloquée"); return; }
+            win.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Quittance ${payment.receipt_number}</title>
+            <style>
+              body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111;font-size:13px}
+              .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #3B82F6;padding-bottom:14px;margin-bottom:16px}
+              .agency-name{font-size:18px;font-weight:bold;color:#3B82F6}
+              .agency-contact{font-size:10px;color:#666;margin-top:4px}
+              h1{text-align:center;font-size:20px;margin:10px 0 4px}
+              .receipt-num{text-align:center;color:#666;margin-bottom:16px;font-size:12px}
+              table{width:100%;border-collapse:collapse;margin:12px 0}
+              tr:nth-child(even){background:#f8faff}
+              td{padding:7px 10px}td:first-child{color:#555;width:45%}
+              .total{background:#f0f9ff;border-top:2px solid #3B82F6;font-weight:bold;font-size:15px}
+              .footer{text-align:center;margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-size:10px;color:#888;font-style:italic}
+            </style></head><body>
+            <div class="header"><div>${logoHtml}</div><div style="text-align:right"><div class="agency-name">${branding.name}</div><div class="agency-contact">${branding.address}<br>${branding.phone}<br>${branding.email}</div></div></div>
+            <h1>QUITTANCE DE LOYER</h1><div class="receipt-num">N° ${payment.receipt_number}</div>
+            <table>
+              <tr><td>Période</td><td>${periodStr}</td></tr>
+              <tr><td>Date de paiement</td><td>${new Date(payment.payment_date).toLocaleDateString('fr-FR')}</td></tr>
+              <tr><td>Mode de paiement</td><td>${pmLabel}</td></tr>
+              ${payment.rent_amount ? `<tr><td>Loyer</td><td>${payment.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
+              ${payment.charges ? `<tr><td>Charges</td><td>${payment.charges.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
+              <tr class="total"><td>TOTAL PAYÉ</td><td style="color:#16a34a">${payment.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+            </table>
+            ${payment.notes ? `<p><strong>Notes :</strong> ${payment.notes}</p>` : ''}
+            <div class="footer">Ce document atteste du paiement du loyer pour la période mentionnée ci-dessus.</div>
+            <script>window.onload=function(){window.print()}<\/script></body></html>`);
+            win.document.close();
+        } catch (err: any) {
+            toast.error('Erreur impression : ' + err.message);
+        }
     };
 
     if (initialLoading) {
@@ -123,32 +233,18 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                     <table className="w-full">
                         <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Date
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Quittance
-                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quittance</th>
                                 {!tenantId && (
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Locataire
-                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Locataire</th>
                                 )}
                                 {!propertyId && (
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Propriété
-                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Propriété</th>
                                 )}
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Montant
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Mode
-                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mode</th>
                                 {showActions && (
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Actions
-                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 )}
                             </tr>
                         </thead>
@@ -164,7 +260,7 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm font-medium text-gray-900">{payment.receipt_number}</div>
                                         <div className="text-xs text-gray-500">
-                                            Période: {payment.period_month}/{payment.period_year}
+                                            Période: {MONTHS_FR[payment.period_month] || payment.period_month} {payment.period_year}
                                         </div>
                                     </td>
                                     {!tenantId && payment.tenant && (
@@ -188,7 +284,7 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                                            {getPaymentMethodIcon()}
+                                            <CreditCard className="w-4 h-4" />
                                             {getPaymentMethodLabel(payment.payment_method)}
                                         </div>
                                     </td>
@@ -198,20 +294,16 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => {
-                                                        // TODO: Open payment details modal
-                                                        console.log('View payment:', payment.id);
-                                                    }}
+                                                    title="Voir la quittance"
+                                                    onClick={() => setSelectedPayment(payment)}
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => {
-                                                        // TODO: Download PDF
-                                                        console.log('Download PDF:', payment.id);
-                                                    }}
+                                                    title="Télécharger PDF"
+                                                    onClick={() => handleDownloadPDF(payment)}
                                                 >
                                                     <Download className="w-4 h-4" />
                                                 </Button>
@@ -228,6 +320,73 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
             {limit && payments.length > limit && (
                 <div className="text-center text-sm text-gray-500">
                     Affichage de {limit} paiements sur {payments.length} au total
+                </div>
+            )}
+
+            {/* Modal détail quittance */}
+            {selectedPayment && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedPayment(null)}>
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+                        {/* Header modal */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">Quittance de loyer</h2>
+                                <p className="text-sm text-gray-500 mt-1">N° {selectedPayment.receipt_number}</p>
+                            </div>
+                            <button onClick={() => setSelectedPayment(null)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                                <X className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+
+                        {/* Contenu */}
+                        <div className="p-6 space-y-4">
+                            <div className="bg-blue-50 rounded-xl p-4 space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Période</span>
+                                    <span className="font-medium text-gray-900">{MONTHS_FR[selectedPayment.period_month] || selectedPayment.period_month} {selectedPayment.period_year}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Date de paiement</span>
+                                    <span className="font-medium text-gray-900">{new Date(selectedPayment.payment_date).toLocaleDateString('fr-FR')}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Mode de paiement</span>
+                                    <span className="font-medium text-gray-900">{getPaymentMethodLabel(selectedPayment.payment_method)}</span>
+                                </div>
+                            </div>
+
+                            {/* Montants */}
+                            <div className="space-y-2">
+                                {selectedPayment.rent_amount ? (
+                                    <div className="flex justify-between text-sm"><span className="text-gray-500">Loyer</span><span>{selectedPayment.rent_amount.toLocaleString('fr-FR')} FCFA</span></div>
+                                ) : null}
+                                {selectedPayment.charges ? (
+                                    <div className="flex justify-between text-sm"><span className="text-gray-500">Charges</span><span>{selectedPayment.charges.toLocaleString('fr-FR')} FCFA</span></div>
+                                ) : null}
+                                <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2">
+                                    <span>TOTAL PAYÉ</span>
+                                    <span className="text-green-600">{selectedPayment.total_amount.toLocaleString('fr-FR')} FCFA</span>
+                                </div>
+                            </div>
+
+                            {selectedPayment.notes && (
+                                <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+                                    <strong>Notes :</strong> {selectedPayment.notes}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Boutons */}
+                        <div className="flex gap-3 p-6 pt-0">
+                            <Button variant="outline" className="flex-1" onClick={() => handlePrint(selectedPayment)}>
+                                Imprimer
+                            </Button>
+                            <Button className="flex-1" onClick={() => handleDownloadPDF(selectedPayment)}>
+                                <Download className="w-4 h-4 mr-2" />
+                                Télécharger PDF
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
