@@ -115,10 +115,8 @@ const AppContent: React.FC = () => {
           <Route path="/proprietes/:id" element={<PropertyDetails />} />
           <Route path="/locataires" element={<TenantsList />} />
           <Route path="/locataires/:id" element={<TenantDetails />} />
-          <Route path="/locataires/:id" element={<TenantDetails />} />
           <Route path="/etats-des-lieux" element={<InventoryList />} />
           <Route path="/travaux" element={<TicketsPage />} />
-          <Route path="/caisse" element={<CaissePage />} />
           <Route path="/caisse" element={<CaissePage />} />
           <Route path="/contrats" element={<ContractsList />} />
           <Route path="/collaboration" element={<CollaborationHub />} />

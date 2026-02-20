@@ -13,15 +13,14 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        //storage: localStorage,
+        storage: localStorage,
         storageKey: 'supabase.auth.token',
     },
     realtime: {
-    params: {
-      eventsPerSecond: 10,
+        params: {
+            eventsPerSecond: 10,
+        },
     },
-    logger: (event) => console.log('Realtime event:', event), // Pour debug
-  },
 });
 /*
 // Client anonyme pour uploads sans session
