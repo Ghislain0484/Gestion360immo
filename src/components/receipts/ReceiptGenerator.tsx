@@ -3,13 +3,13 @@ import { dbService } from "../../lib/supabase";
 import { Contract, Tenant, Owner, Property, RentReceipt } from "../../types/db";
 import { PayMethod } from "../../types/enums";
 import toast from "react-hot-toast";
-import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { jsPDF } from "jspdf";
-import { X, FileText, Calendar, DollarSign, CreditCard, Banknote, Receipt as ReceiptIcon } from "lucide-react";
+import { X, FileText, Calendar, DollarSign, CreditCard, Banknote, Receipt as ReceiptIcon, Printer } from "lucide-react";
 import { clsx } from "clsx";
 import { useAuth } from "../../contexts/AuthContext";
+import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from "../../utils/agencyBranding";
 
 export interface ReceiptGeneratorProps {
   isOpen: boolean;
@@ -22,6 +22,11 @@ export interface ReceiptGeneratorProps {
   preFilledData?: Partial<RentReceipt>;
 }
 
+const MONTHS_FR = [
+  '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+];
+
 const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   isOpen,
   onClose,
@@ -30,27 +35,24 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   propertyId,
   ownerId,
   onReceiptGenerated,
-  preFilledData,
 }) => {
   const { user } = useAuth();
 
-  // Infos récupérées
   const [contractInfo, setContractInfo] = useState<Contract | null>(null);
   const [tenantInfo, setTenantInfo] = useState<Tenant | null>(null);
   const [propertyInfo, setPropertyInfo] = useState<Property | null>(null);
   const [ownerInfo, setOwnerInfo] = useState<Owner | null>(null);
 
-  // Form state
   const [rentAmount, setRentAmount] = useState<number>(0);
   const [charges, setCharges] = useState<number>(0);
   const [paymentDate, setPaymentDate] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<PayMethod>("especes");
   const [notes, setNotes] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
 
   const [receipt, setReceipt] = useState<RentReceipt | null>(null);
 
-  // Charger les données liées
   useEffect(() => {
     if (isOpen) {
       const fetchData = async () => {
@@ -59,6 +61,7 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
             const contract = await dbService.contracts.findOne(contractId);
             setContractInfo(contract);
             if (contract?.monthly_rent) setRentAmount(contract.monthly_rent);
+            if (contract?.charges) setCharges(contract.charges);
           }
           if (tenantId) setTenantInfo(await dbService.tenants.findOne(tenantId));
           if (propertyId) setPropertyInfo(await dbService.properties.findOne(propertyId));
@@ -78,29 +81,21 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, contractId, tenantId, propertyId, ownerId]);
 
-  // Génération quittance
   const handleGenerateReceipt = async () => {
-    console.log('🔍 Starting receipt generation...');
-    console.log('📋 Props:', { contractId, tenantId, propertyId, ownerId, paymentDate });
-    console.log('👤 User:', { id: user?.id, agency_id: user?.agency_id });
-
     if (!user?.agency_id) {
-      toast.error('Impossible de déterminer l\'agence');
+      toast.error("Impossible de déterminer l'agence");
       return;
     }
-
     if (!contractInfo) {
-      toast.error('Contrat non trouvé');
+      toast.error("Contrat non trouvé");
       return;
     }
-
     if (!rentAmount || rentAmount <= 0) {
-      toast.error('Montant du loyer invalide');
+      toast.error("Montant du loyer invalide");
       return;
     }
-
     if (!paymentDate) {
-      toast.error('Veuillez sélectionner une date de paiement');
+      toast.error("Veuillez sélectionner une date de paiement");
       return;
     }
 
@@ -108,12 +103,9 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     const month = new Date(paymentDate).getMonth() + 1;
     const year = new Date(paymentDate).getFullYear();
 
-    console.log('🎯 Generating receipt...');
-    console.log('📅 Period:', { month, year });
-
     try {
       const totalAmount = rentAmount + (charges || 0);
-      const commissionRate = contractInfo.commission_rate || 10; // 10% par défaut
+      const commissionRate = contractInfo.commission_rate || 10;
       const commissionAmount = (totalAmount * commissionRate) / 100;
       const ownerPayment = totalAmount - commissionAmount;
       const receiptNumber = `REC-${year}${String(month).padStart(2, '0')}-${Date.now()}`;
@@ -139,11 +131,7 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
         owner_payment: ownerPayment,
       };
 
-      console.log('📝 Receipt to create:', newReceipt);
-
       const saved = await dbService.rentReceipts.create(newReceipt);
-
-      console.log('✅ Receipt created successfully:', saved);
       setReceipt(saved);
       toast.success("✅ Quittance générée avec succès");
 
@@ -151,52 +139,285 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
         await onReceiptGenerated(saved);
       }
     } catch (error: any) {
-      console.error('❌ Error creating receipt:', error);
       toast.error("Erreur lors de la génération: " + error.message);
     } finally {
       setIsProcessing(false);
     }
-
   };
 
-  // Export PDF
-  const exportPDF = () => {
+  // Export PDF professionnel avec logo de l'agence
+  const exportPDF = async () => {
     if (!receipt) return;
-    const doc = new jsPDF();
+    setIsPdfLoading(true);
+    try {
+      const branding = await getAgencyBranding(user?.agency_id ?? undefined);
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
 
-    // Logo placeholder
-    doc.setFontSize(20);
-    doc.setTextColor(59, 130, 246);
-    doc.text("GESTION 360 IMMO", 105, 20, { align: "center" });
+      // En-tête avec logo
+      let y = renderPDFHeader(doc, branding, 15);
 
-    doc.setFontSize(16);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Quittance de loyer`, 105, 35, { align: "center" });
+      // Titre
+      doc.setFontSize(16);
+      doc.setTextColor(30, 30, 30);
+      doc.setFont('helvetica', 'bold');
+      doc.text("QUITTANCE DE LOYER", pageWidth / 2, y, { align: 'center' });
+      y += 8;
 
-    doc.setFontSize(10);
-    doc.text(`N° ${receipt.receipt_number}`, 105, 42, { align: "center" });
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(`N° ${receipt.receipt_number}`, pageWidth / 2, y, { align: 'center' });
+      y += 12;
 
-    let y = 55;
-    doc.setFontSize(12);
-    doc.text(`Locataire: ${tenantInfo?.first_name} ${tenantInfo?.last_name}`, 20, y);
-    y += 10;
-    doc.text(`Propriété: ${propertyInfo?.title ?? propertyInfo?.location?.commune ?? 'N/A'}`, 20, y);
-    y += 10;
-    doc.text(`Période: ${receipt.period_month}/${receipt.period_year}`, 20, y);
-    y += 15;
-    doc.text(`Loyer: ${receipt.rent_amount.toLocaleString()} FCFA`, 20, y);
-    y += 10;
-    doc.text(`Charges: ${(receipt.charges || 0).toLocaleString()} FCFA`, 20, y);
-    y += 10;
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Total: ${receipt.total_amount.toLocaleString()} FCFA`, 20, y);
-    doc.setFont('helvetica', 'normal');
-    y += 15;
-    doc.text(`Payé le: ${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}`, 20, y);
-    y += 10;
-    doc.text(`Mode: ${receipt.payment_method}`, 20, y);
+      // Période et date
+      doc.setFontSize(11);
+      doc.setTextColor(30, 30, 30);
+      doc.setFont('helvetica', 'bold');
+      const periodStr = `Période : ${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}`;
+      doc.text(periodStr, 20, y);
+      doc.text(`Date d'émission : ${new Date().toLocaleDateString('fr-FR')}`, pageWidth - 20, y, { align: 'right' });
+      y += 12;
 
-    doc.save(`quittance-${receipt.receipt_number}.pdf`);
+      // Séparateur
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.3);
+      doc.line(20, y, pageWidth - 20, y);
+      y += 10;
+
+      // Parties
+      const drawSection = (title: string, lines: string[]) => {
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(59, 130, 246);
+        doc.text(title, 20, y);
+        y += 7;
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(10);
+        lines.forEach(line => {
+          doc.text(line, 25, y);
+          y += 6;
+        });
+        y += 4;
+      };
+
+      // Bailleur / Propriétaire
+      drawSection("BAILLEUR (Propriétaire)", [
+        ownerInfo ? `${ownerInfo.first_name} ${ownerInfo.last_name}` : "N/A",
+        branding.name + " (Agence Gestionnaire)",
+        branding.address || "",
+        `Tél : ${branding.phone || "N/A"}`,
+      ]);
+
+      // Locataire
+      drawSection("LOCATAIRE", [
+        tenantInfo ? `${tenantInfo.first_name} ${tenantInfo.last_name}` : "N/A",
+        tenantInfo?.phone ? `Tél : ${tenantInfo.phone}` : "",
+      ].filter(Boolean));
+
+      // Bien loué
+      drawSection("BIEN IMMOBILIER", [
+        propertyInfo ? (propertyInfo.title || `${propertyInfo.location?.quartier || ''}, ${propertyInfo.location?.commune || ''}`) : "N/A",
+        propertyInfo?.location?.commune ? `Commune : ${propertyInfo.location.commune}` : "",
+      ].filter(Boolean));
+
+      // Séparateur
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, y, pageWidth - 20, y);
+      y += 10;
+
+      // Détail du paiement
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 30, 30);
+      doc.text("DÉTAIL DU PAIEMENT", 20, y);
+      y += 10;
+
+      const col1 = 20;
+      const col2 = 130;
+
+      const drawRow = (label: string, value: string, bold = false) => {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.setTextColor(80, 80, 80);
+        doc.text(label, col1, y);
+        doc.setTextColor(30, 30, 30);
+        doc.text(value, col2, y);
+        y += 8;
+      };
+
+      drawRow("Loyer mensuel :", `${receipt.rent_amount.toLocaleString('fr-FR')} FCFA`);
+      drawRow("Charges :", `${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA`);
+
+      // Ligne de total
+      doc.setDrawColor(59, 130, 246);
+      doc.line(col1, y, pageWidth - 20, y);
+      y += 6;
+      drawRow("TOTAL PAYÉ :", `${receipt.total_amount.toLocaleString('fr-FR')} FCFA`, true);
+      y += 4;
+
+      drawRow("Date de paiement :", new Date(receipt.payment_date).toLocaleDateString('fr-FR'));
+      const pmLabelExport = ({
+        especes: 'Espèces',
+        cheque: 'Chèque',
+        virement: 'Virement bancaire',
+        mobile_money: 'Mobile Money',
+        bank_transfer: 'Virement bancaire',
+        cash: 'Espèces',
+        check: 'Chèque',
+      } as Record<string, string>)[receipt.payment_method] || receipt.payment_method;
+      drawRow("Mode de paiement :", pmLabelExport);
+
+      if (receipt.notes) {
+        drawRow("Notes :", receipt.notes);
+      }
+
+      y += 8;
+
+      // Mention légale
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(18, y, pageWidth - 36, 22, 2, 2, 'F');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text(
+        "Je soussigné(e), agence gestionnaire, certifie avoir reçu la somme ci-dessus indiquée",
+        pageWidth / 2, y + 8, { align: 'center' }
+      );
+      doc.text(
+        `à titre de loyer pour le mois de ${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}.`,
+        pageWidth / 2, y + 15, { align: 'center' }
+      );
+      y += 32;
+
+      // Signature
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(50, 50, 50);
+      doc.text("Signature et cachet de l'agence :", 20, y);
+      doc.text(`Fait à ______________________, le ${new Date().toLocaleDateString('fr-FR')}`, pageWidth - 20, y, { align: 'right' });
+
+      // Pied de page
+      renderPDFFooter(doc, branding);
+
+      doc.save(`quittance-${receipt.receipt_number}.pdf`);
+      toast.success("PDF téléchargé !");
+    } catch (err: any) {
+      toast.error("Erreur PDF : " + err.message);
+    } finally {
+      setIsPdfLoading(false);
+    }
+  };
+
+  // Impression (nouvelle fenêtre) avec logo
+  const printReceipt = async () => {
+    if (!receipt) return;
+    setIsPdfLoading(true);
+    try {
+      const branding = await getAgencyBranding(user?.agency_id ?? undefined);
+      const logoHtml = branding.logo ? `<img src="${branding.logo}" alt="Logo" style="max-height:70px; object-fit:contain;">` : '';
+
+      const periodStr = `${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}`;
+      const pmLabel = ({ especes: 'Espèces', cheque: 'Chèque', virement: 'Virement bancaire', mobile_money: 'Mobile Money', bank_transfer: 'Virement bancaire', cash: 'Espèces', check: 'Chèque' } as Record<string, string>)[receipt.payment_method] || receipt.payment_method;
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) { toast.error("Fenêtre d'impression bloquée"); return; }
+
+      printWindow.document.write(`
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Quittance ${receipt.receipt_number}</title>
+  <style>
+    body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; color: #1a1a1a; font-size: 12px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #3B82F6; padding-bottom: 15px; margin-bottom: 15px; }
+    .agency-info { text-align: right; }
+    .agency-name { font-size: 18px; font-weight: bold; color: #3B82F6; }
+    .agency-contact { font-size: 10px; color: #666; margin-top: 4px; }
+    h1 { text-align: center; font-size: 20px; color: #1a1a1a; margin: 10px 0 4px; }
+    .receipt-num { text-align: center; color: #666; margin-bottom: 15px; }
+    .period-row { display: flex; justify-content: space-between; background: #f1f5f9; padding: 8px 12px; border-radius: 6px; margin-bottom: 15px; font-weight: bold; }
+    .section-title { color: #3B82F6; font-weight: bold; font-size: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin: 12px 0 8px; }
+    .section-content { padding-left: 15px; color: #444; line-height: 1.7; }
+    .payment-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    .payment-table td { padding: 6px 10px; }
+    .payment-table tr:nth-child(even) { background: #f8fafc; }
+    .total-row td { border-top: 2px solid #3B82F6; font-weight: bold; font-size: 14px; padding-top: 8px; }
+    .mention { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; text-align: center; font-style: italic; color: #555; margin: 15px 0; }
+    .signature-row { display: flex; justify-content: space-between; margin-top: 25px; }
+    .signature-box { border-top: 1px solid #aaa; padding-top: 5px; width: 45%; text-align: center; color: #666; font-size: 11px; }
+    .footer { border-top: 1px solid #ddd; margin-top: 20px; padding-top: 8px; text-align: center; color: #999; font-size: 9px; }
+    @media print { body { padding: 10px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>${logoHtml}</div>
+    <div class="agency-info">
+      <div class="agency-name">${branding.name}</div>
+      <div class="agency-contact">${[branding.address, branding.phone ? 'Tél: ' + branding.phone : '', branding.email].filter(Boolean).join(' | ')}</div>
+    </div>
+  </div>
+
+  <h1>QUITTANCE DE LOYER</h1>
+  <div class="receipt-num">N° ${receipt.receipt_number}</div>
+
+  <div class="period-row">
+    <span>Période : ${periodStr}</span>
+    <span>Date d'émission : ${new Date().toLocaleDateString('fr-FR')}</span>
+  </div>
+
+  <div class="section-title">BAILLEUR / PROPRIÉTAIRE</div>
+  <div class="section-content">
+    ${ownerInfo ? `${ownerInfo.first_name} ${ownerInfo.last_name}` : 'N/A'}<br>
+    Agence gestionnaire : ${branding.name}
+  </div>
+
+  <div class="section-title">LOCATAIRE</div>
+  <div class="section-content">
+    ${tenantInfo ? `${tenantInfo.first_name} ${tenantInfo.last_name}` : 'N/A'}
+    ${tenantInfo?.phone ? `<br>Tél : ${tenantInfo.phone}` : ''}
+  </div>
+
+  <div class="section-title">BIEN IMMOBILIER</div>
+  <div class="section-content">
+    ${propertyInfo ? (propertyInfo.title || `${propertyInfo.location?.quartier || ''}, ${propertyInfo.location?.commune || ''}`) : 'N/A'}
+    ${propertyInfo?.location?.commune ? `<br>Commune : ${propertyInfo.location.commune}` : ''}
+  </div>
+
+  <div class="section-title">DÉTAIL DU PAIEMENT</div>
+  <table class="payment-table">
+    <tr><td>Loyer mensuel</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr class="total-row"><td>TOTAL PAYÉ</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>
+    <tr><td>Mode de paiement</td><td style="text-align:right">${pmLabel}</td></tr>
+    ${receipt.notes ? `<tr><td>Notes</td><td style="text-align:right">${receipt.notes}</td></tr>` : ''}
+  </table>
+
+  <div class="mention">
+    Je soussigné(e), agence gestionnaire, certifie avoir reçu la somme ci-dessus indiquée<br>
+    à titre de loyer pour le mois de ${periodStr}.
+  </div>
+
+  <div class="signature-row">
+    <div class="signature-box">Signature du locataire</div>
+    <div class="signature-box">Signature et cachet de l'agence</div>
+  </div>
+
+  <div class="footer">${branding.name} &bull; ${branding.email || ''} &bull; Document généré le ${new Date().toLocaleDateString('fr-FR')}</div>
+
+  <script>window.onload = function() { window.print(); }<\/script>
+</body>
+</html>`);
+      printWindow.document.close();
+    } catch (err: any) {
+      toast.error("Erreur impression : " + err.message);
+    } finally {
+      setIsPdfLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -219,9 +440,7 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Générer une quittance</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Enregistrer un paiement de loyer
-              </p>
+              <p className="text-sm text-gray-600 mt-1">Enregistrer un paiement de loyer</p>
             </div>
           </div>
           <button
@@ -399,7 +618,7 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
             </div>
           )}
 
-          {/* Aperçu quittance */}
+          {/* Aperçu quittance générée */}
           {receipt && (
             <div className="space-y-4">
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200">
@@ -419,22 +638,26 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                     <p className="font-medium text-gray-900">{receipt.total_amount.toLocaleString()} FCFA</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Payé le:</span>
-                    <p className="font-medium text-gray-900">{new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</p>
+                    <span className="text-gray-600">Période:</span>
+                    <p className="font-medium text-gray-900">{MONTHS_FR[receipt.period_month] || receipt.period_month} {receipt.period_year}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Mode:</span>
-                    <p className="font-medium text-gray-900 capitalize">{receipt.payment_method}</p>
+                    <span className="text-gray-600">Payé le:</span>
+                    <p className="font-medium text-gray-900">{new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex gap-3">
-                <Button onClick={exportPDF} className="flex-1">
+                <Button onClick={exportPDF} className="flex-1" isLoading={isPdfLoading}>
                   <FileText className="w-4 h-4 mr-2" />
                   Télécharger PDF
                 </Button>
-                <Button onClick={onClose} variant="outline" className="flex-1">
+                <Button onClick={printReceipt} variant="outline" className="flex-1" isLoading={isPdfLoading}>
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimer
+                </Button>
+                <Button onClick={onClose} variant="ghost" className="flex-1">
                   Fermer
                 </Button>
               </div>
