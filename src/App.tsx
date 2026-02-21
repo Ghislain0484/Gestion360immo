@@ -24,6 +24,7 @@ import { PasswordResetConfirm } from './components/auth/PasswordResetConfirm';
 import { CaissePage } from './components/caisse/CaissePage';
 import { TicketsPage } from './components/tickets/TicketsPage';
 import { InventoryList } from './components/inventory/InventoryList';
+import { AgencyPicker } from './components/layout/AgencyPicker';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -56,7 +57,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 // Route protégée pour utilisateurs
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, agencyId } = useAuth();
   if (isLoading)
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -64,6 +65,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
       </div>
     );
   if (!user) return <Navigate to="/login" replace />;
+  // Si l'utilisateur est connecté mais qu'aucune agence n'est résolue (choix requis ou erreur)
+  if (!agencyId && user) {
+    return <AgencyPicker />;
+  }
   return <>{children}</>;
 };
 

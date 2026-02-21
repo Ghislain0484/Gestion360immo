@@ -1,7 +1,8 @@
 ﻿import { supabase } from '../config';
-import { normalizeAgencyRegistrationRequest, normalizeAgency, normalizeAgencyUser, normalizeAgencySubscription } from '../normalizers';
+import { normalizeAgencyRegistrationRequest } from '../normalizers';
 import { formatSbError, logAuthContext } from '../helpers';
 import { AgencyRegistrationRequest } from "../../types/db";
+
 
 export const agencyRegistrationRequestsService = {
     async getAll({ status, limit }: { status?: string; limit?: number } = {}): Promise<AgencyRegistrationRequest[]> {
@@ -18,7 +19,7 @@ export const agencyRegistrationRequestsService = {
         }
 
         const { data, error } = await query;
-        if (error) throw new Error(formatSbError('�?O agency_registration_requests.select', error));
+        if (error) throw new Error(formatSbError('❌ agency_registration_requests.select', error));
         return data ?? [];
     },
     async getById(id: string): Promise<AgencyRegistrationRequest | null> {
@@ -29,7 +30,7 @@ export const agencyRegistrationRequestsService = {
             .maybeSingle();
         if (error) {
             if (error.code === 'PGRST116') return null;
-            throw new Error(formatSbError('âŒ agency_registration_requests.select (by id)', error));
+            throw new Error(formatSbError('❌ agency_registration_requests.select (by id)', error));
         }
         return data;
     },
@@ -40,156 +41,79 @@ export const agencyRegistrationRequestsService = {
             .insert(clean)
             .select('id')
             .single();
-        if (error) throw new Error(formatSbError('âŒ agency_registration_requests.insert', error));
+        if (error) throw new Error(formatSbError('❌ agency_registration_requests.insert', error));
         return { id: data.id };
     },
     async update(id: string, updates: Partial<AgencyRegistrationRequest>): Promise<AgencyRegistrationRequest> {
         const clean = normalizeAgencyRegistrationRequest(updates);
         const { data, error } = await supabase.from('agency_registration_requests').update(clean).eq('id', id).select('*').single();
-        if (error) throw new Error(formatSbError('âŒ agency_registration_requests.update', error));
+        if (error) throw new Error(formatSbError('❌ agency_registration_requests.update', error));
         return data;
     },
     async delete(id: string): Promise<boolean> {
         const { error } = await supabase.from('agency_registration_requests').delete().eq('id', id);
-        if (error) throw new Error(formatSbError('âŒ agency_registration_requests.delete', error));
+        if (error) throw new Error(formatSbError('❌ agency_registration_requests.delete', error));
         return true;
     },
     async approve(requestId: string): Promise<{ agencyId: string }> {
-        const { user } = await logAuthContext('approveAgencyRequest');
-        if (!user) throw new Error('Utilisateur non authentifiÃ©');
+        // 🚀 Appel RPC SECURITY DEFINER — bypass RLS, logique côté PostgreSQL
+        const { data, error } = await supabase.rpc('approve_agency_request', {
+            p_request_id: requestId,
+        });
 
-        // âš™ï¸ VÃ©rifier si l'utilisateur est admin
-        const { data: admin, error: adminError } = await supabase
-            .from('platform_admins').select('role')
-            .eq('user_id', user.id).single();
-        if (adminError || !admin || !['admin', 'super_admin'].includes(admin.role))
-            throw new Error('Permissions insuffisantes');
+        if (error) {
+            throw new Error(formatSbError('❌ RPC approve_agency_request', error));
+        }
 
-        const created: { table: string; id: string }[] = [];
-        let finalLogoUrl: string | null = null;
+        const result = data as { success?: boolean; agency_id?: string; error?: string; detail?: string };
 
+        if (result.error) {
+            throw new Error(`❌ Approbation échouée : ${result.error}${result.detail ? ` (${result.detail})` : ''}`);
+        }
+
+        if (!result.success || !result.agency_id) {
+            throw new Error('❌ Réponse inattendue de la RPC approve_agency_request');
+        }
+
+        // 📦 Déplacement du logo (nécessite le token Auth — fait côté client)
         try {
-            // ðŸ“¥ RÃ©cup demande
-            const { data: req, error: reqError } = await supabase
-                .from('agency_registration_requests').select('*')
-                .eq('id', requestId).single();
-            if (reqError || !req) throw new Error(formatSbError('âŒ agency_registration_requests.select', reqError));
-            if (req.status === 'approved') throw new Error('Demande dÃ©jÃ  approuvÃ©e');
+            const { data: req } = await supabase
+                .from('agency_registration_requests')
+                .select('logo_url')
+                .eq('id', requestId)
+                .single();
 
-            // âš ï¸ VÃ©rif agence existante
-            const { data: existingAgency } = await supabase
-                .from('agencies').select('id')
-                .eq('commercial_register', req.commercial_register).maybeSingle();
-            if (existingAgency) throw new Error(`Agence dÃ©jÃ  existante (${existingAgency.id})`);
-
-            // ðŸ¢ CrÃ©ation agence
-            const { data: agency, error: agencyError } = await supabase
-                .from('agencies').insert(normalizeAgency({
-                    name: req.agency_name,
-                    commercial_register: req.commercial_register,
-                    logo_url: req.logo_url,
-                    is_accredited: req.is_accredited,
-                    accreditation_number: req.accreditation_number,
-                    address: req.address,
-                    city: req.city,
-                    phone: req.phone,
-                    email: req.director_email,
-                    director_id: req.director_auth_user_id,
-                    status: 'approved'
-                })).select('id').single();
-            if (agencyError || !agency) throw new Error(formatSbError('âŒ agencies.insert', agencyError));
-            created.push({ table: 'agencies', id: agency.id });
-
-            // ðŸ“¦ DÃ©placement logo
-            
-            if (req.logo_url) {
+            if (req?.logo_url) {
                 const bucket = 'agency-logos';
                 const rawUrlPath = req.logo_url.split(`/storage/v1/object/public/${bucket}/`)[1];
-                const normalize = (name: string) => {
-                    let decoded = name;
-                    try { decoded = decodeURIComponent(decoded); } catch { /* ignore */ }
-                    decoded = decoded.replace(/%20/g, ' ');
-                    try { decoded = decodeURIComponent(decoded); } catch { /* ignore */ }
-                    return decoded.replace(/[^A-Za-z0-9._-]/g, '_');
-                };
-                const decodedOldPath = rawUrlPath ? decodeURIComponent(rawUrlPath) : null;
-                if (!decodedOldPath) throw new Error('Chemin logo invalide');
+                if (rawUrlPath) {
+                    const decodedOldPath = decodeURIComponent(rawUrlPath);
+                    const normalize = (name: string) =>
+                        name.replace(/%20/g, ' ').replace(/[^A-Za-z0-9._-]/g, '_');
+                    const originalFileName = decodedOldPath.split('/').pop() ?? `logo_${Date.now()}.png`;
+                    const safeFileName = normalize(originalFileName);
+                    const newPath = `logos/${result.agency_id}/${safeFileName}`;
 
-                const originalFileName = decodedOldPath.split('/').pop() ?? `logo_${Date.now()}.png`;
-                const safeFileName = normalize(originalFileName);
-                const newPath = `logos/${agency.id}/${safeFileName}`;
-
-                const { error: moveError } = await supabase.storage.from(bucket).move(decodedOldPath, newPath);
-                if (moveError) throw new Error(formatSbError('storage.move (logo)', moveError));
-
-                finalLogoUrl = supabase.storage.from(bucket).getPublicUrl(newPath).data.publicUrl;
-                const { error: updError } = await supabase.from('agencies').update({ logo_url: finalLogoUrl }).eq('id', agency.id);
-                if (updError) throw new Error(formatSbError('agencies.update.logo', updError));
+                    const { error: moveError } = await supabase.storage.from(bucket).move(decodedOldPath, newPath);
+                    if (!moveError) {
+                        const finalLogoUrl = supabase.storage.from(bucket).getPublicUrl(newPath).data.publicUrl;
+                        await supabase.from('agencies').update({ logo_url: finalLogoUrl }).eq('id', result.agency_id);
+                    }
+                }
             }
-            // ðŸ‘¤ Ajout agency_user (directeur)
-            if (!req.director_auth_user_id) throw new Error('directeur_auth_user_id manquant');
-            const { data: exists } = await supabase
-                .from('agency_users').select('user_id')
-                .eq('user_id', req.director_auth_user_id).maybeSingle();
-            if (!exists) {
-                const { error: auError } = await supabase.from('agency_users').insert(normalizeAgencyUser({
-                    user_id: req.director_auth_user_id,
-                    agency_id: agency.id,
-                    role: 'director',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                }));
-                if (auError) throw new Error(formatSbError('âŒ agency_users.insert', auError));
-                created.push({ table: 'agency_users', id: req.director_auth_user_id });
-            }
-
-            // ðŸ’³ Abonnement par dÃ©faut
-            const { error: subError } = await supabase.from('agency_subscriptions').insert(normalizeAgencySubscription({
-                agency_id: agency.id,
-                plan_type: 'basic',
-                status: 'trial',
-                monthly_fee: 25000,
-                start_date: new Date().toISOString().split('T')[0],
-                next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                trial_days_remaining: 30
-            }));
-            if (subError) throw new Error(formatSbError('âŒ agency_subscriptions.insert', subError));
-            created.push({ table: 'agency_subscriptions', id: agency.id });
-
-            // âœ… Mettre Ã  jour la demande
-            await supabase.from('agency_registration_requests').update({
-                status: 'approved', processed_by: user.id, processed_at: new Date().toISOString()
-            }).eq('id', requestId);
-
-            // ðŸ“ Audit log
-            await supabase.from('audit_logs').insert({
-                user_id: user.id,
-                action: 'agency_approved',
-                table_name: 'agency_registration_requests',
-                record_id: requestId,
-                new_values: { agency_id: agency.id, director_id: req.director_auth_user_id, logo_url: finalLogoUrl },
-                ip_address: '0.0.0.0',
-                user_agent: navigator.userAgent
-            });
-
-            return { agencyId: agency.id };
-
-        } catch (err) {
-            console.error('âŒ Erreur approve(), rollback...', err);
-
-            // ðŸ§¨ rollback (suppression des entitÃ©s crÃ©Ã©es)
-            for (const c of created.reverse()) {
-                await supabase.from(c.table).delete().eq('id', c.id);
-            }
-
-            throw err;
+        } catch (_logoErr) {
+            // Le déplacement du logo est non-bloquant
         }
+
+        return { agencyId: result.agency_id };
     },
+
     async reject(requestId: string, notes?: string): Promise<boolean> {
         const { user } = await logAuthContext('rejectAgencyRequest');
-        if (!user) throw new Error('Utilisateur non authentifiÃ©');
+        if (!user) throw new Error('Utilisateur non authentifié');
 
-        // VÃ©rifier si l'utilisateur est admin
+        // Vérifier si l'utilisateur est admin
+        // platform_admins.user_id référence public.users.id = auth.uid()
         const { data: admin, error: adminError } = await supabase
             .from('platform_admins')
             .select('role')
@@ -199,16 +123,15 @@ export const agencyRegistrationRequestsService = {
             throw new Error('Permissions insuffisantes');
         }
 
-        // RÃ©cupÃ©rer la demande pour obtenir logo_url
+        // Récupérer la demande pour obtenir logo_url
         const { data: req, error: reqError } = await supabase
             .from('agency_registration_requests')
             .select('logo_url')
             .eq('id', requestId)
             .single();
-        if (reqError || !req) throw new Error(formatSbError('âŒ agency_registration_requests.select', reqError));
+        if (reqError || !req) throw new Error(formatSbError('❌ agency_registration_requests.select', reqError));
 
-        // Supprimer le logo si prÃ©sent (de temp-registration/)
-        
+        // Supprimer le logo si présent (de temp-registration/)
         if (req.logo_url) {
             const bucket = 'agency-logos';
             const rawPath = req.logo_url.split(`/storage/v1/object/public/${bucket}/`)[1];
@@ -222,7 +145,6 @@ export const agencyRegistrationRequestsService = {
             }
         }
 
-
         const updates = {
             status: 'rejected',
             processed_by: user.id,
@@ -234,24 +156,26 @@ export const agencyRegistrationRequestsService = {
             .from('agency_registration_requests')
             .update(updates)
             .eq('id', requestId);
-        if (error) throw new Error(formatSbError('âŒ agency_registration_requests.reject', error));
+        if (error) throw new Error(formatSbError('❌ agency_registration_requests.reject', error));
 
-        // Enregistrer un log d'audit
-        const auditLogData = {
-            user_id: user.id,
-            action: 'agency_rejected',
-            table_name: 'agency_registration_requests',
-            record_id: requestId,
-            new_values: {
-                status: 'rejected',
-                admin_notes: notes,
-                timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
-            },
-            ip_address: '0.0.0.0',
-            user_agent: navigator.userAgent,
-        };
-        const { error: auditError } = await supabase.from('audit_logs').insert(auditLogData);
-        if (auditError) throw new Error(formatSbError('âŒ audit_logs.insert', auditError));
+        // 📝 Enregistrer un log d'audit (non-bloquant)
+        try {
+            await supabase.from('audit_logs').insert({
+                user_id: user.id,
+                action: 'agency_rejected',
+                table_name: 'agency_registration_requests',
+                record_id: requestId,
+                new_values: {
+                    status: 'rejected',
+                    admin_notes: notes,
+                    timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+                },
+                ip_address: '0.0.0.0',
+                user_agent: navigator.userAgent,
+            });
+        } catch (_auditErr) {
+            // Audit log optionnel — ne doit pas bloquer le rejet
+        }
 
         return true;
     },

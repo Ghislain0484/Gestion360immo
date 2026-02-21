@@ -10,11 +10,19 @@ const isSupabaseConfigured = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+export interface AgencyInfo {
+  agency_id: string;
+  role: AgencyUserRole;
+  name: string;
+  city: string;
+}
+
 export interface AuthUser extends User {
   agency_id?: string | undefined;
   role: AgencyUserRole | null;
   temp_password?: string;
   permissions: UserPermissions;
+  agencies: AgencyInfo[];
 }
 
 interface AuthContextType {
@@ -22,6 +30,8 @@ interface AuthContextType {
   admin: PlatformAdmin | null;
   isLoading: boolean;
   agencyId: string | null;
+  agencies: AgencyInfo[];
+  switchAgency: (agencyId: string | null) => void;
   login: (email: string, password: string) => Promise<void>;
   loginAdmin: (email: string, password: string) => Promise<PlatformAdmin>;
   logout: () => Promise<void>;
@@ -42,10 +52,14 @@ const omit = <T extends object, K extends keyof T>(obj: T, keys: K[]): Omit<T, K
   return result;
 };
 
-// 🔹 Fonction utilitaire pour charger un utilisateur + agence
+// 🔹 Clé localStorage pour l'agence active
+const ACTIVE_AGENCY_KEY = 'gestion360_active_agency';
+
+// 🔹 Fonction utilitaire pour charger un utilisateur + TOUTES ses agences
 const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => {
   console.log('🔍 AuthContext: fetchUserWithAgency pour userId:', userId);
   try {
+    // 1. Charger l'utilisateur de public.users
     const { data, error } = await supabase
       .from('users')
       .select(
@@ -59,7 +73,74 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
       return null;
     }
 
-    const agencyUser = Array.isArray(data.agency_users) ? data.agency_users[0] : data.agency_users;
+    // 2. Récupérer TOUTES les entrées agency_users
+    const rawAgencyUsers = Array.isArray(data.agency_users)
+      ? data.agency_users
+      : data.agency_users
+        ? [data.agency_users]
+        : [];
+
+    const agencyIds = rawAgencyUsers.map((au: any) => au.agency_id).filter(Boolean);
+
+    // 3. Charger les infos des agences (nom, ville) pour le sélecteur
+    let agenciesInfo: AgencyInfo[] = [];
+    if (agencyIds.length > 0) {
+      const { data: agenciesData, error: agenciesError } = await supabase
+        .from('agencies')
+        .select('id, name, city')
+        .in('id', agencyIds);
+
+      if (!agenciesError && agenciesData) {
+        agenciesInfo = rawAgencyUsers
+          .map((au: any) => {
+            const agencyDetails = agenciesData.find((a: any) => a.id === au.agency_id);
+            if (!agencyDetails) return null;
+            return {
+              agency_id: au.agency_id,
+              role: au.role as AgencyUserRole,
+              name: agencyDetails.name,
+              city: agencyDetails.city,
+            };
+          })
+          .filter(Boolean) as AgencyInfo[];
+      }
+    }
+
+    // 4. FALLBACK : Si agency_users est vide, chercher via agencies.director_id
+    //    (au cas où agency_users n'a pas encore été alimenté en base)
+    if (agenciesInfo.length === 0) {
+      console.warn('⚠️ AuthContext: agency_users vide, tentative via agencies.director_id...');
+      const { data: directorAgencies, error: directorError } = await supabase
+        .from('agencies')
+        .select('id, name, city')
+        .eq('director_id', userId)
+        .eq('status', 'approved');
+
+      if (!directorError && directorAgencies && directorAgencies.length > 0) {
+        agenciesInfo = directorAgencies.map((a: any) => ({
+          agency_id: a.id,
+          role: 'director' as AgencyUserRole,
+          name: a.name,
+          city: a.city,
+        }));
+        console.log('✅ AuthContext: Agences trouvées via director_id:', agenciesInfo.length);
+
+        // Auto-corriger agency_users en base pour les prochaines connexions
+        for (const ag of agenciesInfo) {
+          await supabase
+            .from('agency_users')
+            .upsert({ user_id: userId, agency_id: ag.agency_id, role: 'director' }, { onConflict: 'user_id,agency_id' });
+        }
+        console.log('✅ AuthContext: agency_users auto-corrigé en base');
+      } else {
+        console.error('❌ AuthContext: Aucune agence trouvée ni via agency_users ni via director_id');
+      }
+    }
+
+    // 5. Gestion de l'agence par défaut
+    // On ne définit agency_id/role ici que s'il y a EXACTEMENT une agence.
+    // Sinon, ils resteront null jusqu'à ce que checkSession ou login les définisse via localStorage.
+    const defaultAgency = agenciesInfo.length === 1 ? agenciesInfo[0] : null;
 
     const userData: AuthUser = {
       id: data.id,
@@ -72,10 +153,11 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
       permissions: data.permissions || {},
       created_at: data.created_at,
       updated_at: data.updated_at,
-      agency_id: agencyUser?.agency_id ?? undefined,
-      role: agencyUser?.role ?? null,
+      agency_id: defaultAgency?.agency_id,
+      role: defaultAgency?.role ?? null,
+      agencies: agenciesInfo,
     };
-    console.log('✅ AuthContext: Utilisateur chargé:', userData);
+    console.log('✅ AuthContext: fetchUserWithAgency terminé. Agences:', agenciesInfo.length);
     return userData;
   } catch (err) {
     console.error('❌ AuthContext: Erreur fetchUserWithAgency:', err);
@@ -87,6 +169,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [admin, setAdmin] = useState<PlatformAdmin | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeAgencyId, setActiveAgencyId] = useState<string | null>(
+    () => localStorage.getItem(ACTIVE_AGENCY_KEY)
+  );
   const isCheckingSessionRef = useRef(false);
 
   const checkSession = useCallback(
@@ -144,6 +229,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Si ce n'est pas un admin, essayer en tant qu'utilisateur normal
         const u = await fetchUserWithAgency(data.session.user.id);
         if (u) {
+          // 1. Déterminer l'agence active (localStorage ou auto-sélection si unique)
+          const savedAgencyId = localStorage.getItem(ACTIVE_AGENCY_KEY);
+          const agencyIds = u.agencies.map((a) => a.agency_id);
+
+          let activeId: string | null = null;
+          if (savedAgencyId && agencyIds.includes(savedAgencyId)) {
+            activeId = savedAgencyId;
+          } else if (agencyIds.length === 1) {
+            activeId = agencyIds[0];
+            localStorage.setItem(ACTIVE_AGENCY_KEY, activeId);
+          }
+
+          // 2. Peupler l'objet utilisateur avec le rôle/id de l'agence active
+          if (activeId) {
+            const activeEntry = u.agencies.find((a) => a.agency_id === activeId);
+            if (activeEntry) {
+              u.agency_id = activeId;
+              u.role = activeEntry.role;
+              console.log('✅ AuthContext: checkSession - Agence active:', activeEntry.name, 'Rôle:', u.role);
+            }
+            setActiveAgencyId(activeId);
+          } else {
+            console.log('⚠️ AuthContext: checkSession - Pas d\'agence active (multi-agences sans choix)');
+            setActiveAgencyId(null);
+          }
+
+          // 3. Mettre à jour l'état
           setUser((prev) => {
             const prevData = prev ? omit(prev, ['updated_at']) : null;
             const newData = u ? omit(u, ['updated_at']) : null;
@@ -199,6 +311,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [checkSession]);
 
+  const switchAgency = useCallback((newAgencyId: string | null) => {
+    if (!user) return;
+
+    if (newAgencyId === null) {
+      localStorage.removeItem(ACTIVE_AGENCY_KEY);
+      setActiveAgencyId(null);
+      // On garde le user mais sans agence_id active
+      setUser((prev) => prev ? { ...prev, agency_id: undefined, role: null } : prev);
+      console.log('🔄 AuthContext: Agence réinitialisée (retour au choix)');
+      return;
+    }
+
+    const agencyEntry = user.agencies.find((a) => a.agency_id === newAgencyId);
+    if (!agencyEntry) {
+      console.warn('⚠️ AuthContext: Agence non trouvée:', newAgencyId);
+      return;
+    }
+    localStorage.setItem(ACTIVE_AGENCY_KEY, newAgencyId);
+    setActiveAgencyId(newAgencyId);
+    // Mettre à jour le user avec la nouvelle agence active (agency_id et role)
+    setUser((prev) =>
+      prev
+        ? { ...prev, agency_id: newAgencyId, role: agencyEntry.role }
+        : prev
+    );
+    toast.success(`Agence changée : ${agencyEntry.name}`);
+    console.log('🔄 AuthContext: Agence active changée vers:', newAgencyId);
+  }, [user]);
+
   const login = useCallback(async (email: string, password: string) => {
     console.log('🔄 AuthContext: login', { email });
     setIsLoading(true);
@@ -216,6 +357,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!data.user) throw new Error('Utilisateur non trouvé');
       const u = await fetchUserWithAgency(data.user.id);
       if (!u) throw new Error('Utilisateur non associé à une agence');
+      // Définir l'agence active
+      const savedAgency = localStorage.getItem(ACTIVE_AGENCY_KEY);
+      const agencyIds = u.agencies.map((a) => a.agency_id);
+
+      let activeId: string | null = null;
+      if (savedAgency && agencyIds.includes(savedAgency)) {
+        activeId = savedAgency;
+      } else if (agencyIds.length === 1) {
+        activeId = agencyIds[0];
+      }
+
+      if (activeId) {
+        localStorage.setItem(ACTIVE_AGENCY_KEY, activeId);
+        setActiveAgencyId(activeId);
+        const activeEntry = u.agencies.find((a) => a.agency_id === activeId);
+        if (activeEntry) {
+          u.agency_id = activeId;
+          u.role = activeEntry.role;
+        }
+      }
       setUser(u);
       setAdmin(null);
     } catch (err: any) {
@@ -286,23 +447,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signOut();
       setUser(null);
       setAdmin(null);
+      setActiveAgencyId(null);
+      // NE PAS effacer localStorage pour mémoriser la préférence
     } finally {
       setIsLoading(false);
       console.log('✅ AuthContext: logout terminé, isLoading:', false);
     }
   }, []);
 
+  // L'agencyId du contexte est l'agence active mémorisée ou celle par défaut
+  // Si null et que l'utilisateur a plusieurs agences → l'App affichera le sélecteur
+  const resolvedAgencyId = useMemo(() => {
+    if (!user) return null;
+    // 1. Priorité à l'agence mémorisée dans cette session/localStorage
+    if (activeAgencyId && user.agencies.some((a) => a.agency_id === activeAgencyId)) {
+      return activeAgencyId;
+    }
+    // 2. Fallback sur l'agence par défaut (définie seulement si l'utilisateur en a une seule)
+    return user.agency_id ?? null;
+  }, [user, activeAgencyId]);
+
   const value = useMemo(
     () => ({
-      user,
+      user: user ? { ...user, agency_id: resolvedAgencyId ?? undefined } : null,
       admin,
       isLoading,
-      agencyId: user?.agency_id ?? null,
+      agencyId: resolvedAgencyId,
+      agencies: user?.agencies ?? [],
+      switchAgency,
       login,
       loginAdmin,
       logout,
     }),
-    [user, admin, isLoading, login, loginAdmin, logout]
+    [user, admin, isLoading, resolvedAgencyId, switchAgency, login, loginAdmin, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

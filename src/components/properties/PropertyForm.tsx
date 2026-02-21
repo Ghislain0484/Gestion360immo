@@ -251,11 +251,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
       return;
     }
 
-    // Au moins une pièce est obligatoire pour décrire le bien
-    if (formData.rooms.length === 0) {
-      setFormError('Veuillez ajouter au moins une pièce pour décrire le bien');
-      return;
-    }
+    // Les pièces sont optionnelles (terrain nu, etc.) — pas de blocage
 
     // Les détails spécifiques restent optionnels pour permettre une saisie rapide
 
@@ -616,6 +612,11 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
 
         {currentStep === 3 && (
           <div className="space-y-6">
+            {formData.details.type === 'terrain_nu' && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                💡 Pour un terrain nu, l'ajout de pièces est optionnel. Vous pouvez passer directement à l'étape Images.
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium text-gray-900">Description des pièces</h3>
               <Button
@@ -726,7 +727,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCurrentStep(currentStep - 1)}
+                onClick={() => { setFormError(undefined); setCurrentStep(currentStep - 1); }}
                 aria-label="Étape précédente"
               >
                 Précédent
@@ -745,7 +746,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
             {currentStep < 4 ? (
               <Button
                 type="button"
-                onClick={() => setCurrentStep(currentStep + 1)}
+                onClick={() => { setFormError(undefined); setCurrentStep(currentStep + 1); }}
                 aria-label="Étape suivante"
               >
                 Suivant

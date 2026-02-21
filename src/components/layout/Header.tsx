@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Menu, Bell, Search, Plus, Moon, Sun, User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, Bell, Search, Plus, Moon, Sun, User, Settings, LogOut, ChevronDown, Building2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { AgencySwitcher } from './AgencySwitcher';
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, switchAgency, agencies } = useAuth();
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem(`theme_${user?.agency_id}`);
@@ -83,6 +84,11 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Agency Switcher — visible uniquement pour les directeurs multi-agences */}
+        <div className="flex-1 flex justify-center px-2">
+          <AgencySwitcher />
         </div>
 
         <div className="flex items-center gap-3">
@@ -160,6 +166,19 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                   <User className="w-4 h-4" />
                   Mon profil
                 </button>
+
+                {agencies.length > 1 && (
+                  <button
+                    onClick={() => {
+                      switchAgency(null);
+                      setShowProfileMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    Changer d'agence
+                  </button>
+                )}
 
                 <button
                   onClick={() => {

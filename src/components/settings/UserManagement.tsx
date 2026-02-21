@@ -30,6 +30,8 @@ export const UserManagement: React.FC = () => {
   const [realUsers, setRealUsers] = useState<ExtendedUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExistingUser, setIsExistingUser] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
@@ -52,6 +54,38 @@ export const UserManagement: React.FC = () => {
     is_active: true,
     password: '',
   });
+
+  const checkEmail = async (email: string) => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || editingUser) {
+      setIsExistingUser(false);
+      return;
+    }
+
+    setCheckingEmail(true);
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('id, first_name, last_name')
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+
+      if (data) {
+        setIsExistingUser(true);
+        // Pré-remplir les noms si vides
+        setFormData(prev => ({
+          ...prev,
+          first_name: prev.first_name || data.first_name || '',
+          last_name: prev.last_name || data.last_name || '',
+        }));
+      } else {
+        setIsExistingUser(false);
+      }
+    } catch (err) {
+      console.error('Error checking email:', err);
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
 
   const roleLabels: Record<AgencyUserRole, string> = {
     director: 'Directeur',
@@ -89,8 +123,7 @@ export const UserManagement: React.FC = () => {
         console.log('Fetched users:', users);
         setRealUsers(users);
         console.log(
-          `✅ ${users.length} utilisateur(s) chargé(s) pour l'agence ${
-            user.agency_id
+          `✅ ${users.length} utilisateur(s) chargé(s) pour l'agence ${user.agency_id
           } à ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' })}`
         );
       } catch (error: any) {
@@ -129,23 +162,23 @@ export const UserManagement: React.FC = () => {
         throw new Error("Format d'email invalide");
       }
 
-      // Vérifier que l'email n'existe pas déjà
-      console.log('Checking for existing email:', formData.email.toLowerCase());
-      const { data: existingUsers, error: emailCheckError } = await supabase
-        .from('users')
-        .select('email')
-        .eq('email', formData.email.toLowerCase());
-      if (emailCheckError) {
-        console.error('Email check error:', emailCheckError);
-        throw new Error(`Erreur vérification email: ${emailCheckError.message}`);
-      }
-      if (existingUsers?.length && (!editingUser || existingUsers[0].email !== editingUser.email)) {
-        throw new Error('Cet email est déjà utilisé par un autre utilisateur');
-      }
-
       if (editingUser) {
         // Mise à jour utilisateur existant
         console.log('Updating user:', editingUser.id);
+
+        // Vérifier si l'email change et s'il est déjà pris par un AUTRE utilisateur
+        if (formData.email.toLowerCase() !== editingUser.email.toLowerCase()) {
+          const { data: emailOwner } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', formData.email.toLowerCase())
+            .maybeSingle();
+
+          if (emailOwner && emailOwner.id !== editingUser.id) {
+            throw new Error('Cet email est déjà utilisé par un autre utilisateur');
+          }
+        }
+
         const updatedUser = await dbService.users.update(editingUser.id, {
           email: formData.email.toLowerCase(),
           first_name: formData.first_name,
@@ -166,16 +199,16 @@ export const UserManagement: React.FC = () => {
           prev.map((u) =>
             u.id === editingUser.id
               ? {
-                  ...u,
-                  email: formData.email.toLowerCase(),
-                  first_name: formData.first_name,
-                  last_name: formData.last_name,
-                  is_active: formData.is_active,
-                  permissions: formData.permissions,
-                  role: formData.role,
-                  agency_id: user.agency_id,
-                  updated_at: new Date().toISOString(),
-                }
+                ...u,
+                email: formData.email.toLowerCase(),
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+                is_active: formData.is_active,
+                permissions: formData.permissions,
+                role: formData.role,
+                agency_id: user.agency_id,
+                updated_at: new Date().toISOString(),
+              }
               : u
           )
         );
@@ -202,103 +235,126 @@ export const UserManagement: React.FC = () => {
           })}!`
         );
       } else {
-        // Création nouvel utilisateur
-        console.log('Creating new user with email:', formData.email.toLowerCase());
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email.toLowerCase(),
-          password: formData.password!,
-          options: {
-            data: {
-              first_name: formData.first_name,
-              last_name: formData.last_name,
+        // Création nouvel utilisateur ou ajout d'un utilisateur existant
+        const emailLower = formData.email.toLowerCase();
+        console.log('Checking if user exists in global system:', emailLower);
+
+        // 1. Chercher si l'utilisateur existe déjà dans la table public.users
+        const { data: existingGlobalUser, error: globalCheckError } = await supabase
+          .from('users')
+          .select('id, email, first_name, last_name, is_active, permissions')
+          .eq('email', emailLower)
+          .maybeSingle();
+
+        if (globalCheckError) throw new Error(`Erreur recherche système: ${globalCheckError.message}`);
+
+        let targetUserId: string;
+        let isNewAccount = false;
+
+        if (existingGlobalUser) {
+          console.log('User found in global system:', existingGlobalUser.id);
+          targetUserId = existingGlobalUser.id;
+
+          // Vérifier s'il est déjà dans cette agence
+          const { data: existingAgencyLink } = await supabase
+            .from('agency_users')
+            .select('user_id')
+            .eq('user_id', targetUserId)
+            .eq('agency_id', user.agency_id)
+            .maybeSingle();
+
+          if (existingAgencyLink) {
+            throw new Error('Cet utilisateur fait déjà partie de cette agence');
+          }
+        } else {
+          // 2. Création du compte Auth (seulement s'il n'existe nulle part)
+          console.log('Creating new Auth account for:', emailLower);
+          isNewAccount = true;
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: emailLower,
+            password: formData.password!,
+            options: {
+              data: {
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+              },
+              emailRedirectTo: `${window.location.origin}/login`,
             },
-            emailRedirectTo: `${window.location.origin}/login`,
-          },
+          });
+
+          if (authError || !authData.user) {
+            throw new Error(authError?.message || "Erreur création compte Auth");
+          }
+          targetUserId = authData.user.id;
+
+          // Créer dans la table users
+          await dbService.users.create({
+            id: targetUserId,
+            email: emailLower,
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            is_active: formData.is_active,
+            permissions: formData.permissions,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+
+        // 3. Créer l'association dans agency_users (pour les deux cas)
+        console.log('Linking user to agency:', { targetUserId, agencyId: user.agency_id, role: formData.role });
+        await dbService.agencyUsers.create({
+          user_id: targetUserId,
+          agency_id: user.agency_id,
+          role: formData.role,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
 
-        if (authError || !authData.user) {
-          console.error('Auth signUp error:', authError);
-          throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur dans auth.users");
-        }
-        console.log('Auth user created:', authData.user);
-
-        // ⚠️ SUPPRIMER cette vérification : auth.users n'est pas accessible via REST
-        // const { data: authUserCheck, error: authCheckError } = await supabase
-        //   .from('auth.users')
-        //   .select('id, email, confirmed_at')
-        //   .eq('id', authData.user.id)
-        //   .single();
-        // if (authCheckError || !authUserCheck) {
-        //   console.error('Auth user check error:', authCheckError);
-        //   throw new Error('Utilisateur non trouvé dans auth.users après inscription');
-        // }
-        // console.log('Auth user verified:', authUserCheck);
-
-        // Créer l'utilisateur dans la table users
-        console.log('Creating user in users table:', authData.user.id);
-        const newUser = await dbService.users.create({
-          id: authData.user.id,
-          email: formData.email.toLowerCase(),
+        // Mise à jour locale de la liste
+        const finalUserObj = existingGlobalUser || {
+          id: targetUserId,
+          email: emailLower,
           first_name: formData.first_name,
           last_name: formData.last_name,
           is_active: formData.is_active,
           permissions: formData.permissions,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        console.log('User created in users table:', newUser);
-
-        // Créer l'association dans agency_users
-        console.log('Creating agency_users entry:', {
-          user_id: newUser.id,
-          agency_id: user.agency_id,
-          role: formData.role,
-        });
-        const agencyUser = await dbService.agencyUsers.create({
-          user_id: newUser.id,
-          agency_id: user.agency_id,
-          role: formData.role,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        console.log('Agency user created:', agencyUser);
+          created_at: new Date().toISOString()
+        };
 
         setRealUsers((prev) => [
           {
-            ...newUser,
+            ...finalUserObj,
             role: formData.role,
             agency_id: user.agency_id!,
-          },
+          } as ExtendedUser,
           ...prev,
         ]);
 
-        await dbService.auditLogs.insert({
-          user_id: user?.id || null,
-          action: 'user_created',
-          table_name: 'users',
-          record_id: newUser.id,
-          new_values: {
-            email: newUser.email,
-            first_name: newUser.first_name,
-            last_name: newUser.last_name,
-            role: formData.role,
-            agency_id: user.agency_id,
-            timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
-          },
-          ip_address: '0.0.0.0',
-          user_agent: navigator.userAgent,
-        });
+        // Audit Log (Optionnel, ne doit pas faire échouer l'action principale)
+        try {
+          await dbService.auditLogs.insert({
+            user_id: user?.id || null,
+            action: isNewAccount ? 'user_created' : 'user_added_to_agency',
+            table_name: 'users',
+            record_id: targetUserId,
+            new_values: {
+              email: emailLower,
+              role: formData.role,
+              agency_id: user.agency_id,
+              is_new_account: isNewAccount,
+              timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+            },
+            ip_address: '0.0.0.0',
+            user_agent: navigator.userAgent,
+          });
+        } catch (e) {
+          console.warn('⚠️ Audit log failed (RLS?):', e);
+        }
 
         toast.success(
-          `✅ Utilisateur créé avec succès à ${new Date().toLocaleString('fr-FR', {
-            timeZone: 'Africa/Abidjan',
-          })}!\n\n` +
-            `👤 Nom : ${formData.first_name} ${formData.last_name}\n` +
-            `📧 Email : ${formData.email}\n` +
-            `👔 Rôle : ${roleLabels[formData.role]}\n\n` +
-            `✅ Le compte a été créé et sauvegardé\n` +
-            `✅ L'utilisateur peut maintenant se connecter\n` +
-            `📧 Identifiants envoyés par email`
+          isNewAccount
+            ? `✅ Nouveau compte créé et lié à l'agence !`
+            : `✅ Utilisateur existant ajouté à votre agence !`
         );
       }
 
@@ -596,8 +652,8 @@ export const UserManagement: React.FC = () => {
                         userData.role === 'director'
                           ? 'success'
                           : userData.role === 'manager'
-                          ? 'warning'
-                          : 'info'
+                            ? 'warning'
+                            : 'info'
                       }
                       size="sm"
                     >
@@ -712,24 +768,54 @@ export const UserManagement: React.FC = () => {
             label="Email"
             type="email"
             value={formData.email}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setFormData((prev) => ({ ...prev, email: e.target.value }))
-            }
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const newEmail = e.target.value;
+              setFormData((prev) => ({ ...prev, email: newEmail }));
+              // On peut débouncer ou vérifier onBlur, ici on vérifie quand l'email semble complet
+              if (newEmail.includes('.') && newEmail.includes('@')) {
+                checkEmail(newEmail);
+              } else {
+                setIsExistingUser(false);
+              }
+            }}
+            onBlur={(e) => checkEmail(e.target.value)}
             required
             autoComplete="email"
+            className={checkingEmail ? 'animate-pulse' : ''}
           />
-          {!editingUser && (
-            <Input
-              label="Mot de passe temporaire"
-              type="password"
-              value={formData.password}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setFormData((prev) => ({ ...prev, password: e.target.value }))
-              }
-              required
-              helperText="L'utilisateur devra changer ce mot de passe à sa première connexion"
-              autoComplete="new-password"
-            />
+
+          {isExistingUser && !editingUser && (
+            <div className="bg-blue-50 border border-blue-200 p-3 rounded-md">
+              <p className="text-sm text-blue-800 flex items-start">
+                <Shield className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                <span>
+                  <strong>Utilisateur existant détecté</strong> : Cet email possède déjà un compte Gestion360.
+                  Il sera ajouté à votre agence avec ses accès actuels.
+                  <br />
+                  <em className="text-xs mt-1 block italic opacity-75">
+                    Note : Son mot de passe ne sera pas modifié.
+                  </em>
+                </span>
+              </p>
+            </div>
+          )}
+
+          {!editingUser && !isExistingUser && (
+            <div className="space-y-1">
+              <Input
+                label="Mot de passe temporaire"
+                type="password"
+                value={formData.password}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setFormData((prev) => ({ ...prev, password: e.target.value }))
+                }
+                required
+                autoComplete="new-password"
+              />
+              <p className="text-[10px] text-gray-500 italic">
+                L'utilisateur devra changer ce mot de passe à sa première connexion
+              </p>
+            </div>
           )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Rôle</label>
