@@ -10,9 +10,6 @@ import { PropertyTitle, MaritalStatus } from '../../types/enums';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { dbService } from '../../lib/supabase';
-import { supabase } from '../../lib/config';
-import { isValidPhoneNumber } from 'libphonenumber-js';
-import { getPropertyTitleLabel } from '../../utils/ownerUtils';
 import { validatePhoneCI } from '../../utils/validationUtils';
 
 interface OwnerFormProps {
@@ -28,7 +25,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
   initialData,
   onSuccess,
 }) => {
-  const { user } = useAuth();
+  const { agencyId: authAgencyId } = useAuth();
   const [formData, setFormData] = useState<Partial<Owner>>({
     first_name: '',
     last_name: '',
@@ -44,8 +41,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     children_count: 0,
     agency_id: '',
   });
-  const [agencyId, setAgencyId] = useState<string | null>(null);
-  const [isLoadingAgency, setIsLoadingAgency] = useState(false);
+
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successInfo, setSuccessInfo] = useState({ title: '', message: '' });
 
@@ -115,10 +111,10 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       spouse_name: null,
       spouse_phone: null,
       children_count: 0,
-      agency_id: agencyId || '',
+      agency_id: authAgencyId || '',
       ...(initialData || {}),
     }),
-    [initialData, agencyId]
+    [initialData, authAgencyId]
   );
 
   useEffect(() => {
@@ -127,37 +123,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     }
   }, [isOpen, initialFormData]);
 
-  useEffect(() => {
-    const fetchAgencyId = async () => {
-      if (!user?.id) {
-        setAgencyId(null);
-        return;
-      }
 
-      setIsLoadingAgency(true);
-      try {
-        const { data, error } = await supabase
-          .from('agency_users')
-          .select('agency_id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error) {
-          throw new Error('Erreur lors de la récupération de l’agence: ' + error.message);
-        }
-
-        setAgencyId(data?.agency_id || null);
-      } catch (err: any) {
-        console.error('Erreur récupération agency_id:', err);
-        toast.error('Impossible de récupérer les informations de l’agence.');
-        setAgencyId(null);
-      } finally {
-        setIsLoadingAgency(false);
-      }
-    };
-
-    fetchAgencyId();
-  }, [user?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,24 +141,24 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       if (formData.id) {
         result = await dbService.owners.update(formData.id, {
           ...formData,
-          agency_id: formData.agency_id || agencyId || '',
+          agency_id: formData.agency_id || authAgencyId || '',
           email: formData.email || null,
           property_title_details: formData.property_title_details || null,
           spouse_name: formData.spouse_name || null,
           spouse_phone: formData.spouse_phone || null,
         });
       } else {
-        if (!agencyId) {
+        if (!authAgencyId) {
           throw new Error('Aucune agence associée à l’utilisateur');
         }
         result = await dbService.owners.create({
           ...formData,
-          agency_id: agencyId,
+          agency_id: authAgencyId,
           email: formData.email || null,
           property_title_details: formData.property_title_details || null,
           spouse_name: formData.spouse_name || null,
           spouse_phone: formData.spouse_phone || null,
-        } as Owner); // Cast explicite pour assurer la compatibilité
+        } as Owner);
       }
 
       setSuccessInfo({
@@ -211,21 +177,11 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
 
   const isMarried = formData.marital_status === 'marie' || formData.marital_status === 'divorce';
 
-  if (isLoadingAgency) {
-    return (
-      <Modal isOpen={isOpen} onClose={onClose} size="lg" title="Chargement...">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      </Modal>
-    );
-  }
-
-  if (!agencyId && !initialData?.agency_id) {
+  if (!authAgencyId && !initialData?.agency_id) {
     return (
       <Modal isOpen={isOpen} onClose={onClose} size="lg" title="Erreur">
         <div className="p-6 text-center">
-          <p className="text-red-600 mb-4">Vous n’êtes associé à aucune agence. Veuillez contacter un administrateur.</p>
+          <p className="text-red-600 mb-4">Vous n’êtes associé à aucune agence. Veuillez contacter un administrateur ou choisir une agence.</p>
           <Button onClick={onClose}>Fermer</Button>
         </div>
       </Modal>

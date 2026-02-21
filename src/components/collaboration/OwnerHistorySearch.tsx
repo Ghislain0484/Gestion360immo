@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Search, Users, Phone, MapPin, FileText, Building2, AlertTriangle, MessageSquare } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -17,39 +17,18 @@ interface OwnerHistory extends Owner {
 }
 
 export const OwnerHistorySearch: React.FC = () => {
-  const { user } = useAuth();
+  const { user, agencyId: authAgencyId } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [owners, setOwners] = useState<OwnerHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedOwner, setSelectedOwner] = useState<OwnerHistory | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [agencyId, setAgencyId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchAgency = async () => {
-      if (!user?.id) {
-        setError('Utilisateur non authentifié');
-        return;
-      }
-      try {
-        const { data, error } = await supabase
-          .from('agency_users')
-          .select('agency_id')
-          .eq('user_id', user.id)
-          .single();
-        if (error) throw new Error(`❌ agency_users.select | ${error.message}`);
-        setAgencyId(data?.agency_id ?? null);
-      } catch (err: any) {
-        setError(err.message || 'Erreur lors de la récupération de l\'agence');
-        toast.error(err.message || 'Erreur lors de la récupération de l\'agence');
-      }
-    };
-    fetchAgency();
-  }, [user?.id]);
+
 
   const searchOwners = async () => {
-    if (!searchTerm.trim() || !agencyId) {
+    if (!searchTerm.trim() || !authAgencyId) {
       toast.error('Veuillez entrer un terme de recherche et être associé à une agence');
       return;
     }
@@ -66,7 +45,7 @@ export const OwnerHistorySearch: React.FC = () => {
         `)
         .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
         .eq('agencies.is_active', true)
-        .neq('agency_id', agencyId)
+        .neq('agency_id', authAgencyId)
         .order('last_name', { ascending: true });
 
       if (error) throw new Error(`❌ owners.select | ${error.message}`);
@@ -88,7 +67,7 @@ export const OwnerHistorySearch: React.FC = () => {
   };
 
   const handleContact = async (owner: OwnerHistory) => {
-    if (!user?.id || !agencyId) {
+    if (!user?.id || !authAgencyId) {
       toast.error('Utilisateur non authentifié ou agence non trouvée');
       return;
     }
@@ -122,7 +101,7 @@ export const OwnerHistorySearch: React.FC = () => {
         user_id: agencyDirector.user_id,
         type: 'new_message' as 'new_message',
         title: 'Nouveau message concernant un propriétaire',
-        message: `L'agence ${agencyId} vous a envoyé un message à propos de ${owner.first_name} ${owner.last_name}.`,
+        message: `L'agence ${authAgencyId} a manifesté un intérêt pour votre annonce.`,
         priority: 'medium' as 'medium',
         data: { owner_id: owner.id },
         is_read: false,
@@ -226,7 +205,7 @@ export const OwnerHistorySearch: React.FC = () => {
               </div>
             </div>
 
-            <Button onClick={searchOwners} disabled={loading || !searchTerm.trim() || !agencyId}>
+            <Button onClick={searchOwners} disabled={loading || !searchTerm.trim() || !authAgencyId}>
               {loading ? 'Recherche...' : 'Rechercher'}
             </Button>
           </div>

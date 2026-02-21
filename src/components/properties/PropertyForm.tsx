@@ -13,7 +13,6 @@ import { ImageUploader } from './ImageUploader';
 import { StandingCalculator } from '../../utils/standingCalculator';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
-import { supabase } from '../../lib/config';
 import { toast } from 'react-hot-toast';
 
 interface PropertyFormProps {
@@ -29,9 +28,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   onSubmit,
   initialData,
 }) => {
-  const { user, isLoading: authLoading } = useAuth();
-  const [agencyId, setAgencyId] = useState<string | null>(null);
-  const [isLoadingAgency, setIsLoadingAgency] = useState(false);
+  const { user, agencyId, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState<PropertyFormData>({
     owner_id: initialData?.owner_id || '',
     agency_id: initialData?.agency_id || (user?.agency_id ?? ''),
@@ -73,38 +70,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successInfo, setSuccessInfo] = useState({ title: '', message: '' });
 
-  // Fetch agency_id for the authenticated user
-  useEffect(() => {
-    const fetchAgencyId = async () => {
-      if (!user?.id) {
-        setAgencyId(null);
-        return;
-      }
 
-      setIsLoadingAgency(true);
-      try {
-        const { data, error } = await supabase
-          .from('agency_users')
-          .select('agency_id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error) {
-          throw new Error('Erreur lors de la récupération de l’agence: ' + error.message);
-        }
-
-        setAgencyId(data?.agency_id || null);
-      } catch (err: any) {
-        console.error('Erreur récupération agency_id:', err);
-        toast.error('Impossible de récupérer les informations de l’agence.');
-        setAgencyId(null);
-      } finally {
-        setIsLoadingAgency(false);
-      }
-    };
-
-    fetchAgencyId();
-  }, [user?.id]);
 
   // Update formData.agency_id when agencyId changes
   useEffect(() => {
@@ -302,7 +268,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     { id: 4, title: 'Images', icon: Save },
   ];
 
-  if (authLoading || isLoadingAgency) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
