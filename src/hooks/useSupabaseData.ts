@@ -115,26 +115,26 @@ export function useRealtimeData<T extends AgencyEntity>(
       setInitialLoading(false);
       setFetching(false);
       setData([]);
-      toast.error(msg);
-      log(`­ƒÜ½ Ignorer fetch ${tableName}: agency_id manquant`);
+      // Pas de toast : l'alerte rouge dans le Dashboard est suffisante
+      log(`⚠️ Ignorer fetch ${tableName}: agency_id manquant`);
       return;
     }
 
     if (isFetchingRef.current) {
-      log(`­ƒÜ½ Ignorer fetch ${tableName}: dej  en cours`);
+      log(`⚠️ Ignorer fetch ${tableName}: deja en cours`);
       return;
     }
 
     isFetchingRef.current = true;
     setFetching(true);
     setError(null);
-    log(`­ƒöì Fetch ${tableName} avec params:`, params);
+    log(`🔍 Fetch ${tableName} avec params:`, params);
 
     try {
       const result = await fetchFunction(params);
       if (!isMountedRef.current) return;
       setData(result);
-      log(`[info] ${tableName} mis   jour: ${result.length} items`);
+      log(`[info] ${tableName} mis à jour: ${result.length} items`);
     } catch (err) {
       if (!isMountedRef.current) return;
       const msg = mapSupabaseError(err, `Erreur chargement ${tableName}`);
@@ -158,7 +158,7 @@ export function useRealtimeData<T extends AgencyEntity>(
   const debouncedRefetch = useCallback(
     debounce((params: GetAllParams) => {
       if (!isMountedRef.current) return;
-      log(`­ƒöä Refetch ${tableName} declenche`);
+      log(`🔄 Refetch ${tableName} declenche`);
       fetchData(params);
     }, 500),
     [fetchData, tableName]
@@ -180,14 +180,14 @@ export function useRealtimeData<T extends AgencyEntity>(
       setError(msg);
       setInitialLoading(false);
       setData([]);
-      toast.error(msg);
+      // Pas de toast : l'alerte rouge dans le Dashboard est suffisante
       return;
     }
 
     fetchData(fetchParams);
 
     if (!channelRef.current) {
-      log(`­ƒôí Subscription ${tableName}, agency: ${agencyId}`);
+      log(`📡 Subscription ${tableName}, agency: ${agencyId}`);
       const channel = supabase
         .channel(`public:${tableName}:${agencyId}`)
         .on(
@@ -196,7 +196,7 @@ export function useRealtimeData<T extends AgencyEntity>(
           (payload: RealtimePostgresChangesPayload<T>) => {
             const row = (payload.new ?? payload.old) as T;
             if (!agencyId || row?.agency_id === agencyId) {
-              log(`­ƒôí Event recu pour ${tableName} valide (agence ${agencyId})`);
+              log(`📡 Event recu pour ${tableName} valide (agence ${agencyId})`);
               debouncedRefetch(fetchParams);
             }
           }
@@ -211,7 +211,7 @@ export function useRealtimeData<T extends AgencyEntity>(
     return () => {
       isMountedRef.current = false;
       if (channelRef.current) {
-        log(`­ƒøæ Cleanup subscription ${tableName}`);
+        log(`🔌 Cleanup subscription ${tableName}`);
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }

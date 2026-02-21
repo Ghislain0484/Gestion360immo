@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 
 export const ContractsList: React.FC = () => {
   const { user } = useAuth();
-  const [showForm, setShowForm] = useState<{ open: boolean; contract?: Contract }>({ open: false });
+  const [showForm, setShowForm] = useState<{ open: boolean; contract?: Contract; readOnly?: boolean }>({ open: false });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | Contract['type']>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | Contract['status']>('all');
@@ -128,6 +128,7 @@ export const ContractsList: React.FC = () => {
       } else {
         await createContract(contractPayload);
       }
+      setShowForm({ open: false });
     } catch (err: any) {
       console.error('Erreur lors de la gestion du contrat:', err);
       toast.error(err.message || 'Erreur lors de la gestion du contrat');
@@ -180,7 +181,8 @@ export const ContractsList: React.FC = () => {
     });
   }, [contracts, owners, properties, tenants, searchTerm, filterType]);
 
-  const openForm = (contract?: Contract) => setShowForm({ open: true, contract });
+  const openForm = (contract?: Contract, readOnly: boolean = false) =>
+    setShowForm({ open: true, contract, readOnly });
 
   return (
     <div className="space-y-6">
@@ -270,7 +272,11 @@ export const ContractsList: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredContracts.map((contract) => (
-            <Card key={contract.id} className="hover:shadow-lg transition-shadow">
+            <Card
+              key={contract.id}
+              className="hover:shadow-lg transition-all cursor-pointer border-transparent hover:border-blue-200 group"
+              onClick={() => openForm(contract, true)}
+            >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
@@ -330,13 +336,8 @@ export const ContractsList: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        // We need the full agency object. The current context might only have user. 
-                        // But let's try to find it or fetch it.
-                        // Actually, looking at the code, we don't have 'agencies' loaded in this list.
-                        // We can fetch it on click or use a better method.
-                        // For now, let's just trigger print with what we have or fetch quickly.
-
+                      onClick={(e) => {
+                        e.stopPropagation();
                         const print = async () => {
                           if (!user?.agency_id) {
                             toast.error("Impossible d'identifier l'agence");
@@ -380,7 +381,11 @@ export const ContractsList: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => openForm(contract)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openForm(contract, false); // Edit mode
+                      }}
+                      title="Modifier le contrat"
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -388,7 +393,8 @@ export const ContractsList: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       disabled={!contract.documents?.length}
-                      onClick={async () => {
+                      onClick={async (e) => {
+                        e.stopPropagation();
                         for (const url of contract.documents || []) {
                           const link = document.createElement('a');
                           link.href = url;
@@ -403,7 +409,10 @@ export const ContractsList: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       className="text-red-600 hover:text-red-700"
-                      onClick={() => handleDeleteContract(contract.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteContract(contract.id);
+                      }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -421,6 +430,7 @@ export const ContractsList: React.FC = () => {
         onClose={() => setShowForm({ open: false })}
         onSubmit={handleAddOrUpdateContract}
         initialData={showForm.contract}
+        readOnly={showForm.readOnly}
       />
     </div>
   );

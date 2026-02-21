@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Card } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
@@ -18,10 +19,11 @@ interface ContractFormProps {
   onClose: () => void;
   onSubmit: (contract: Partial<Contract>, isUpdate?: boolean) => void;
   initialData?: Partial<Contract>;
+  readOnly?: boolean;
 }
 
 export const ContractForm = React.memo<ContractFormProps>(
-  ({ isOpen, onClose, onSubmit, initialData }) => {
+  ({ isOpen, onClose, onSubmit, initialData, readOnly = false }) => {
     const { user } = useAuth();
 
     const [formData, setFormData] = useState<Partial<Contract>>({
@@ -161,6 +163,7 @@ export const ContractForm = React.memo<ContractFormProps>(
     // --- Submit ---
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (readOnly) return;
       setSubmitting(true);
       setError(null);
 
@@ -260,7 +263,14 @@ export const ContractForm = React.memo<ContractFormProps>(
         isOpen={isOpen}
         onClose={() => { resetForm(); onClose(); }}
         size="lg"
-        title={initialData?.id ? 'Modifier le contrat' : 'Nouveau contrat'}
+        title={
+          <div className="flex items-center gap-3">
+            <span>{initialData?.id ? (readOnly ? 'Détails du contrat' : 'Modifier le contrat') : 'Nouveau contrat'}</span>
+            {readOnly && (
+              <Badge variant="info" size="sm">Mode Lecture Seule</Badge>
+            )}
+          </div>
+        }
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && <div className="p-4 bg-red-50 text-red-800 rounded-lg">{error}</div>}
@@ -298,7 +308,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                   getOptionValue={(o) => o.id}
                   value={currentOwner}
                   onChange={(opt) => { setCurrentOwner(opt); updateFormData({ owner_id: opt?.id }); setCurrentProperty(null); }}
-                  isDisabled={!formData.agency_id}
+                  isDisabled={!formData.agency_id || readOnly}
                   placeholder="Rechercher un propriétaire..."
                   styles={selectStyles}
                   isClearable
@@ -318,7 +328,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                   getOptionValue={(p) => p.id}
                   value={currentProperty}
                   onChange={(opt) => { setCurrentProperty(opt); updateFormData({ property_id: opt?.id }); }}
-                  isDisabled={!formData.owner_id}
+                  isDisabled={!formData.owner_id || readOnly}
                   placeholder="Rechercher une propriété..."
                   styles={selectStyles}
                   isClearable
@@ -337,7 +347,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                   getOptionValue={(t) => t.id}
                   value={currentTenant}
                   onChange={(opt) => { setCurrentTenant(opt); updateFormData({ tenant_id: opt?.id }); }}
-                  isDisabled={!formData.agency_id}
+                  isDisabled={!formData.agency_id || readOnly}
                   placeholder="Rechercher un locataire..."
                   styles={selectStyles}
                   isClearable
@@ -368,8 +378,9 @@ export const ContractForm = React.memo<ContractFormProps>(
                   id="status"
                   value={formData.status}
                   onChange={(e) => updateFormData({ status: e.target.value as Contract['status'] })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                   required
+                  disabled={readOnly}
                 >
                   <option value="draft">Brouillon</option>
                   <option value="active">Actif</option>
@@ -402,6 +413,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                 type="date"
                 value={formData.end_date ?? ''}
                 onChange={(e) => updateFormData({ end_date: e.target.value || undefined })}
+                disabled={readOnly}
               />
             </div>
           </Card>
@@ -475,6 +487,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                 max={100}
                 step={0.1}
                 placeholder="10"
+                disabled={readOnly}
               />
             </div>
 
@@ -505,9 +518,10 @@ export const ContractForm = React.memo<ContractFormProps>(
                 value={formData.terms}
                 onChange={(e) => updateFormData({ terms: e.target.value })}
                 rows={5}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                 placeholder="Décrivez les termes et conditions du contrat (vous pourrez les compléter plus tard si brouillon)..."
                 required={formData.status === 'active'}
+                disabled={readOnly}
               />
             </div>
           </Card>
@@ -571,15 +585,17 @@ export const ContractForm = React.memo<ContractFormProps>(
 
           <div className="flex items-center justify-end space-x-3 pt-6 border-t">
             <Button type="button" variant="ghost" onClick={() => { resetForm(); onClose(); }} disabled={submitting}>
-              Annuler
+              {readOnly ? 'Fermer' : 'Annuler'}
             </Button>
-            <Button
-              type="submit"
-              disabled={submitting}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {submitting ? 'Enregistrement...' : initialData?.id ? 'Mettre à jour' : 'Enregistrer le contrat'}
-            </Button>
+            {!readOnly && (
+              <Button
+                type="submit"
+                disabled={submitting}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {submitting ? 'Enregistrement...' : initialData?.id ? 'Mettre à jour' : 'Enregistrer le contrat'}
+              </Button>
+            )}
           </div>
         </form>
       </Modal>

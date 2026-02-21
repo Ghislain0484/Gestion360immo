@@ -25,7 +25,10 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { pathname } = useLocation();
-  const { logout, user } = useAuth();
+  const { logout, user, agencyId, agencies, switchAgency } = useAuth();
+
+  const currentAgency = agencies.find(a => a.agency_id === agencyId);
+  console.log('🐞 Sidebar: user role:', user?.role, 'agencies count:', agencies.length, 'agencyId:', agencyId);
 
   // Updated navigation structure matching redesign
   const navigation = [
@@ -76,11 +79,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <Building2 className="h-6 w-6 text-primary-600 dark:text-primary-400" />
             </div>
           </div>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent dark:from-primary-400 dark:to-primary-300">
-              Gestion360
-            </h1>
-            <p className="text-xs text-gray-600 dark:text-slate-300 font-medium">IMMO PRO</p>
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            {agencies.length > 1 ? (
+              <button
+                onClick={() => switchAgency(null)}
+                className="group flex flex-col items-start w-full text-left hover:bg-white/10 p-1 -m-1 rounded-lg transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-700 shadow-none hover:shadow-sm"
+                title="Changer d'agence active"
+              >
+                <h1 className="text-lg font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent dark:from-primary-400 dark:to-primary-300 leading-tight flex items-center gap-2">
+                  Gestion360 {currentAgency && `- ${currentAgency.name}`}
+                  <span className="text-[10px] items-center gap-1 text-primary-500 bg-primary-50 px-1.5 py-0.5 rounded-full hidden group-hover:flex">
+                    Changer
+                  </span>
+                </h1>
+                <p className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                  {currentAgency ? currentAgency.city : 'CHOISIR UNE AGENCE'}
+                </p>
+              </button>
+            ) : (
+              <>
+                <h1 className="text-lg font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent dark:from-primary-400 dark:to-primary-300 leading-tight">
+                  Gestion360 {currentAgency && `- ${currentAgency.name}`}
+                </h1>
+                <p className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                  {currentAgency ? currentAgency.city : 'IMMO PRO'}
+                </p>
+              </>
+            )}
           </div>
           <button
             onClick={onClose}
