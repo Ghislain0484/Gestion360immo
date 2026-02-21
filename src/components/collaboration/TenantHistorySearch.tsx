@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Search, UserCheck, Phone, MapPin, Briefcase, Flag, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -17,7 +17,7 @@ interface TenantHistory extends Tenant {
 }
 
 export const TenantHistorySearch: React.FC = () => {
-  const { user } = useAuth();
+  const { user, agencyId: authAgencyId } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'bon' | 'irregulier' | 'mauvais'>('all');
   const [tenants, setTenants] = useState<TenantHistory[]>([]);
@@ -25,32 +25,11 @@ export const TenantHistorySearch: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<TenantHistory | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [agencyId, setAgencyId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchAgency = async () => {
-      if (!user?.id) {
-        setError('Utilisateur non authentifié');
-        return;
-      }
-      try {
-        const { data, error } = await supabase
-          .from('agency_users')
-          .select('agency_id')
-          .eq('user_id', user.id)
-          .single();
-        if (error) throw new Error(`❌ agency_users.select | ${error.message}`);
-        setAgencyId(data?.agency_id ?? null);
-      } catch (err: any) {
-        setError(err.message || 'Erreur lors de la récupération de l\'agence');
-        toast.error(err.message || 'Erreur lors de la récupération de l\'agence');
-      }
-    };
-    fetchAgency();
-  }, [user?.id]);
+
 
   const searchTenants = async () => {
-    if (!searchTerm.trim() || !agencyId) {
+    if (!searchTerm.trim() || !authAgencyId) {
       toast.error('Veuillez entrer un terme de recherche et être associé à une agence');
       return;
     }
@@ -70,7 +49,7 @@ export const TenantHistorySearch: React.FC = () => {
         `)
         .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
         .eq('agencies.is_active', true)
-        .neq('agency_id', agencyId);
+        .neq('agency_id', authAgencyId);
 
       if (paymentFilter !== 'all') {
         query = query.eq('payment_status', paymentFilter);
@@ -100,7 +79,7 @@ export const TenantHistorySearch: React.FC = () => {
   };
 
   const handleContact = async (tenant: TenantHistory) => {
-    if (!user?.id || !agencyId) {
+    if (!user?.id || !authAgencyId) {
       toast.error('Utilisateur non authentifié ou agence non trouvée');
       return;
     }
@@ -134,7 +113,7 @@ export const TenantHistorySearch: React.FC = () => {
         user_id: agencyDirector.user_id,
         type: 'new_message' as 'new_message',
         title: 'Nouveau message concernant un locataire',
-        message: `L'agence ${agencyId} vous a envoyé un message à propos de ${tenant.first_name} ${tenant.last_name}.`,
+        message: `L'agence ${authAgencyId} vous a envoyé un message à propos de ${tenant.first_name} ${tenant.last_name}.`,
         priority: 'medium' as 'medium',
         data: { tenant_id: tenant.id },
         is_read: false,
@@ -233,7 +212,7 @@ export const TenantHistorySearch: React.FC = () => {
               <option value="mauvais">Mauvais payeurs</option>
             </select>
 
-            <Button onClick={searchTenants} disabled={loading || !searchTerm.trim() || !agencyId}>
+            <Button onClick={searchTenants} disabled={loading || !searchTerm.trim() || !authAgencyId}>
               {loading ? 'Recherche...' : 'Rechercher'}
             </Button>
           </div>

@@ -21,7 +21,7 @@ interface FormData {
 }
 
 export const CollaborationHub: React.FC = () => {
-  const { user } = useAuth();
+  const { user, agencyId: authAgencyId, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'announcements' | 'messages' | 'tenant_history' | 'owner_history'>('announcements');
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,12 +30,13 @@ export const CollaborationHub: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [agencyId, setAgencyId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
-      if (!user?.id) {
-        setError('Utilisateur non authentifié');
+      if (!user?.id || !authAgencyId) {
+        if (!authLoading && !authAgencyId) {
+          setError('Veuillez sélectionner une agence active');
+        }
         setLoading(false);
         return;
       }
@@ -44,21 +45,6 @@ export const CollaborationHub: React.FC = () => {
       setError(null);
 
       try {
-        // Fetch user's agency
-        const { data: agencyUser } = await supabase
-          .from('agency_users')
-          .select('agency_id')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (!agencyUser) {
-          setError('Utilisateur non associé à une agence');
-          setLoading(false);
-          return;
-        }
-
-        setAgencyId(agencyUser.agency_id);
-
         // Fetch announcements (all public or agency-specific)
         const { data: announcementsData, error: announcementsError } = await supabase
           .from('announcements')
@@ -76,7 +62,7 @@ export const CollaborationHub: React.FC = () => {
           .from('messages')
           .select('*')
           .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-          .eq('agency_id', agencyUser.agency_id)
+          .eq('agency_id', authAgencyId)
           .order('created_at', { ascending: false });
 
         if (messagesError) {
@@ -93,11 +79,11 @@ export const CollaborationHub: React.FC = () => {
     };
 
     loadData();
-  }, [user?.id]);
+  }, [user?.id, authAgencyId, authLoading]);
 
   const publishAnnouncement = async (data: FormData) => {
-    if (!user?.id || !agencyId) {
-      toast.error('Utilisateur non authentifié ou agence non trouvée');
+    if (!user?.id || !authAgencyId) {
+      toast.error('Utilisateur non authentifié ou agence non sélectionnée');
       return;
     }
 
@@ -107,7 +93,7 @@ export const CollaborationHub: React.FC = () => {
         .from('properties')
         .select('id')
         .eq('id', data.propertyId)
-        .eq('agency_id', agencyId)
+        .eq('agency_id', authAgencyId)
         .single();
 
       if (propertyError || !property) {
@@ -115,7 +101,7 @@ export const CollaborationHub: React.FC = () => {
       }
 
       const newAnnouncement: Partial<Announcement> = {
-        agency_id: agencyId,
+        agency_id: authAgencyId,
         property_id: data.propertyId,
         title: data.title,
         description: data.description,
@@ -137,15 +123,15 @@ export const CollaborationHub: React.FC = () => {
   };
 
   const handleInterest = async (announcementId: string) => {
-    if (!user?.id || !agencyId) {
-      toast.error('Utilisateur non authentifié ou agence non trouvée');
+    if (!user?.id || !authAgencyId) {
+      toast.error('Utilisateur non authentifié ou agence non sélectionnée');
       return;
     }
 
     try {
       const interest: Partial<AnnouncementInterest> = {
         announcement_id: announcementId,
-        agency_id: agencyId,
+        agency_id: authAgencyId,
         user_id: user.id,
         status: 'pending',
         message: 'Intérêt manifesté via le hub de collaboration',
@@ -181,7 +167,7 @@ export const CollaborationHub: React.FC = () => {
         user_id: agencyDirector.user_id,
         type: 'new_interest' as 'new_interest',
         title: 'Nouvel intérêt pour votre annonce',
-        message: `L'agence ${agencyId} a manifesté un intérêt pour votre annonce.`,
+        message: `L'agence ${authAgencyId} a manifesté un intérêt pour votre annonce.`,
         priority: 'medium' as 'medium',
         data: { announcement_id: announcementId },
         is_read: false,
@@ -241,44 +227,40 @@ export const CollaborationHub: React.FC = () => {
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('announcements')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-              activeTab === 'announcements'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'announcements'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <Megaphone className="h-4 w-4" />
             <span>Annonces ({announcements.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('tenant_history')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-              activeTab === 'tenant_history'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'tenant_history'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <UserCheck className="h-4 w-4" />
             <span>Historique Locataires</span>
           </button>
           <button
             onClick={() => setActiveTab('owner_history')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-              activeTab === 'owner_history'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'owner_history'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <Users className="h-4 w-4" />
             <span>Historique Propriétaires</span>
           </button>
           <button
             onClick={() => setActiveTab('messages')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-              activeTab === 'messages'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'messages'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <MessageSquare className="h-4 w-4" />
             <span>Messages ({messages.length})</span>
@@ -357,7 +339,7 @@ export const CollaborationHub: React.FC = () => {
                         variant="secondary"
                         size="sm"
                         onClick={() => handleInterest(announcement.id)}
-                        disabled={announcement.agency_id === agencyId}
+                        disabled={announcement.agency_id === authAgencyId}
                       >
                         <Heart className="h-4 w-4 mr-1" />
                         Intéressé
