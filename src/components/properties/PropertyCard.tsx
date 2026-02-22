@@ -12,10 +12,12 @@ interface PropertyCardProps {
     tenantName?: string;
     rentAmount?: number;
     onClick?: () => void;
+    isOccupied?: boolean;
 }
 
-export const PropertyCard: React.FC<PropertyCardProps> = ({ property, tenantName, rentAmount, onClick }) => {
-    const isOccupied = !property.is_available; // Simplified logic, real logic might check tenants
+export const PropertyCard: React.FC<PropertyCardProps> = ({ property, tenantName, rentAmount, onClick, isOccupied: isOccupiedProp }) => {
+    const isOccupied = isOccupiedProp !== undefined ? isOccupiedProp : (!!tenantName && !property.is_available);
+    const isAvailable = property.is_available && !isOccupied;
 
     return (
         <Card className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group" onClick={onClick}>
@@ -29,8 +31,8 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, tenantName
                     height="h-48"
                 />
                 <div className="absolute top-3 right-3">
-                    <Badge variant={isOccupied ? 'success' : 'warning'}>
-                        {isOccupied ? 'Occupé' : 'Vacant'}
+                    <Badge variant={isOccupied ? 'warning' : (isAvailable ? 'success' : 'secondary')}>
+                        {isOccupied ? 'Occupé' : (isAvailable ? 'Vacant' : 'Indisponible')}
                     </Badge>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">

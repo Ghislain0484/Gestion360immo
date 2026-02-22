@@ -15,6 +15,7 @@ export interface AgencyInfo {
   role: AgencyUserRole;
   name: string;
   city: string;
+  logo_url?: string | null;
 }
 
 export interface AuthUser extends User {
@@ -87,7 +88,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
     if (agencyIds.length > 0) {
       const { data: agenciesData, error: agenciesError } = await supabase
         .from('agencies')
-        .select('id, name, city')
+        .select('id, name, city, logo_url')
         .in('id', agencyIds);
 
       if (!agenciesError && agenciesData) {
@@ -100,6 +101,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
               role: au.role as AgencyUserRole,
               name: agencyDetails.name,
               city: agencyDetails.city,
+              logo_url: agencyDetails.logo_url,
             };
           })
           .filter(Boolean) as AgencyInfo[];
@@ -112,7 +114,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
       console.warn('⚠️ AuthContext: agency_users vide, tentative via agencies.director_id...');
       const { data: directorAgencies, error: directorError } = await supabase
         .from('agencies')
-        .select('id, name, city')
+        .select('id, name, city, logo_url')
         .eq('director_id', userId)
         .eq('status', 'approved');
 
@@ -122,6 +124,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
           role: 'director' as AgencyUserRole,
           name: a.name,
           city: a.city,
+          logo_url: a.logo_url,
         }));
         console.log('✅ AuthContext: Agences trouvées via director_id:', agenciesInfo.length);
 

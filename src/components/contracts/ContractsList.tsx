@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Download, Printer } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Download, Printer, Edit, RotateCw, XCircle } from 'lucide-react';
 import { debounce } from 'lodash';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 
 export const ContractsList: React.FC = () => {
   const { user } = useAuth();
-  const [showForm, setShowForm] = useState<{ open: boolean; contract?: Contract; readOnly?: boolean }>({ open: false });
+  const [showForm, setShowForm] = useState<{ open: boolean; contract?: Partial<Contract>; readOnly?: boolean }>({ open: false });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | Contract['type']>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | Contract['status']>('all');
@@ -128,6 +128,18 @@ export const ContractsList: React.FC = () => {
       } else {
         await createContract(contractPayload);
       }
+
+      // Synchronisation du statut du bien (Uniquement pour les contrats de location)
+      if (contractPayload.type === 'location') {
+        if (contractPayload.status === 'active' && contractPayload.property_id) {
+          console.log('🏘️ Bien marqué comme occupé (Location):', contractPayload.property_id);
+          await dbService.properties.update(contractPayload.property_id, { is_available: false });
+        } else if (['expired', 'terminated'].includes(contractPayload.status || '') && contractPayload.property_id) {
+          console.log('🏘️ Bien marqué comme libre (Location terminée):', contractPayload.property_id);
+          await dbService.properties.update(contractPayload.property_id!, { is_available: true });
+        }
+      }
+
       setShowForm({ open: false });
     } catch (err: any) {
       console.error('Erreur lors de la gestion du contrat:', err);
@@ -136,9 +148,48 @@ export const ContractsList: React.FC = () => {
   };
 
   const handleDeleteContract = async (contractId: string) => {
-    if (confirm('Supprimer ce contrat ?')) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce contrat ? Cette action est irréversible.')) {
+      const contractToDelete = contracts.find(c => c.id === contractId);
       await deleteContract(contractId);
+
+      if (contractToDelete && contractToDelete.status === 'active' && contractToDelete.type === 'location') {
+        console.log('🏘️ Restauration de la disponibilité du bien:', contractToDelete.property_id);
+        await dbService.properties.update(contractToDelete.property_id, { is_available: true });
+      }
     }
+  };
+
+  const handleTerminateContract = async (contract: Contract) => {
+    if (confirm('Voulez-vous résilier ce contrat ? Le bien sera marqué comme disponible.')) {
+      try {
+        await updateContract(contract.id, {
+          status: 'terminated',
+          end_date: new Date().toISOString().split('T')[0]
+        });
+
+        if (contract.type === 'location') {
+          await dbService.properties.update(contract.property_id, { is_available: true });
+          toast.success('Contrat résilié et bien libéré');
+        } else {
+          toast.success('Contrat résilié');
+        }
+      } catch (err) {
+        toast.error('Erreur lors de la résiliation');
+      }
+    }
+  };
+
+  const handleRenewContract = (contract: Contract) => {
+    // Open form in edit mode but with updated dates and 'renewed' status logic if needed
+    // For now, just open the form to let user adjust dates
+    openForm({
+      ...contract,
+      id: undefined,
+      status: 'draft',
+      start_date: contract.end_date || new Date().toISOString().split('T')[0],
+      end_date: undefined
+    });
+    toast.success('Préparation du renouvellement (Brouillon)...');
   };
 
   const getStatusColor = (status: Contract['status']) => {
@@ -181,16 +232,29 @@ export const ContractsList: React.FC = () => {
     });
   }, [contracts, owners, properties, tenants, searchTerm, filterType]);
 
-  const openForm = (contract?: Contract, readOnly: boolean = false) =>
+  const openForm = (contract?: Partial<Contract>, readOnly: boolean = false) =>
     setShowForm({ open: true, contract, readOnly });
 
   return (
     <div className="space-y-6">
       {/* En-tête */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Contrats</h1>
-          <p className="text-gray-600 mt-1">Gestion des contrats ({contracts.length})</p>
+        <div className="flex items-center space-x-4">
+          <div className="w-16 h-16 bg-white rounded-lg shadow-sm border border-gray-100 p-2 flex items-center justify-center overflow-hidden">
+            {user?.agencies?.find(a => a.agency_id === user.agency_id)?.logo_url ? (
+              <img
+                src={user.agencies.find(a => a.agency_id === user.agency_id)?.logo_url || ''}
+                alt="Logo Agence"
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <FileText className="h-8 w-8 text-blue-600" />
+            )}
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Contrats</h1>
+            <p className="text-gray-600 mt-1">Gestion des contrats {user?.agencies?.find(a => a.agency_id === user.agency_id)?.name && `de ${user.agencies.find(a => a.agency_id === user.agency_id)?.name}`} ({contracts.length})</p>
+          </div>
         </div>
         <Button onClick={() => openForm()}>
           <Plus className="h-4 w-4 mr-2" />
@@ -332,7 +396,59 @@ export const ContractsList: React.FC = () => {
                   <div className="text-xs text-gray-500">
                     Créé le {new Date(contract.created_at).toLocaleDateString('fr-FR')}
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openForm(contract, true);
+                      }}
+                      title="Voir les détails"
+                      className="p-1 h-8 w-8 text-blue-600 hover:bg-blue-50"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openForm(contract, false); // Edit mode
+                      }}
+                      title="Modifier le contrat"
+                      className="p-1 h-8 w-8 text-orange-600 hover:bg-orange-50"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    {contract.status === 'active' && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRenewContract(contract);
+                          }}
+                          title="Renouveler"
+                          className="p-1 h-8 w-8 text-indigo-600 hover:bg-indigo-50"
+                        >
+                          <RotateCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTerminateContract(contract);
+                          }}
+                          title="Résilier"
+                          className="p-1 h-8 w-8 text-red-600 hover:bg-red-50"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -344,7 +460,6 @@ export const ContractsList: React.FC = () => {
                             return;
                           }
 
-                          // Ouvrir la fenêtre immédiatement pour éviter le blocage des pop-ups
                           const printWindow = window.open('', '_blank');
                           if (!printWindow) {
                             toast.error("Pop-up bloqué. Veuillez autoriser les pop-ups pour imprimer.");
@@ -356,15 +471,18 @@ export const ContractsList: React.FC = () => {
                           try {
                             const fullAgency = await dbService.agencies.getById(user.agency_id);
                             const fullTenant = tenants.find(t => t.id === contract.tenant_id);
+                            const fullOwner = owners.find(o => o.id === contract.owner_id);
                             const fullProperty = properties.find(p => p.id === contract.property_id);
 
-                            if (fullAgency && fullTenant) {
-                              // Clear loading message
+                            // Pour un contrat de gestion, le "client" est le propriétaire
+                            const clientData = contract.type === 'gestion' ? fullOwner : fullTenant;
+
+                            if (fullAgency && clientData) {
                               printWindow.document.body.innerHTML = '';
-                              await OHADAContractGenerator.printContract(contract, fullAgency, fullTenant, fullProperty, printWindow);
+                              await OHADAContractGenerator.printContract(contract, fullAgency, clientData, fullProperty, printWindow);
                             } else {
                               printWindow.close();
-                              toast.error("Impossible de récupérer les informations de l'agence ou du locataire");
+                              toast.error("Impossible de récupérer les informations nécessaires");
                             }
                           } catch (error) {
                             printWindow.close();
@@ -374,20 +492,10 @@ export const ContractsList: React.FC = () => {
                         };
                         print();
                       }}
-                      title="Imprimer le contrat"
+                      title="Imprimer"
+                      className="p-1 h-8 w-8 text-gray-600 hover:bg-gray-50"
                     >
                       <Printer className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openForm(contract, false); // Edit mode
-                      }}
-                      title="Modifier le contrat"
-                    >
-                      <Eye className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -402,17 +510,20 @@ export const ContractsList: React.FC = () => {
                           link.click();
                         }
                       }}
+                      title="Télécharger les documents"
+                      className="p-1 h-8 w-8 text-gray-600 hover:bg-gray-50 disabled:opacity-30"
                     >
                       <Download className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-red-600 hover:text-red-700"
+                      className="p-1 h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteContract(contract.id);
                       }}
+                      title="Supprimer définitivement"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

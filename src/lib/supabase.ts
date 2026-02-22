@@ -76,7 +76,8 @@ export const dbService = {
           .from('contracts')
           .select('*', { count: 'exact', head: true })
           .eq('agency_id', agencyId)
-          .in('status', ['active', 'renewed', 'draft']),
+          .in('status', ['active', 'renewed', 'draft'])
+          .eq('type', 'location'),
         supabase
           .from('properties')
           .select('*', { count: 'exact', head: true })

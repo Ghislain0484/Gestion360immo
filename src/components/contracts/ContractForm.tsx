@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Save, FileText, Calendar, DollarSign, Upload } from 'lucide-react';
+import { Save, FileText, Calendar, DollarSign, Upload, Printer } from 'lucide-react';
 import Select, { SingleValue } from 'react-select';
 import AsyncSelect from 'react-select/async';
 import { Button } from '../ui/Button';
@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { Contract, Owner, Property, Tenant, Agency } from '../../types/db';
+import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/config';
 
@@ -172,7 +173,12 @@ export const ContractForm = React.memo<ContractFormProps>(
         if (!formData.agency_id?.trim()) throw new Error("L'ID de l'agence est requis");
         if (!formData.owner_id?.trim()) throw new Error('Veuillez sélectionner un propriétaire');
         if (!formData.property_id?.trim()) throw new Error('Veuillez sélectionner une propriété');
-        if (!formData.tenant_id?.trim()) throw new Error('Veuillez sélectionner un locataire');
+
+        // Le locataire est requis pour Location et Vente, mais optionnel pour Gestion
+        if (formData.type !== 'gestion' && !formData.tenant_id?.trim()) {
+          throw new Error('Veuillez sélectionner un locataire pour ce type de contrat');
+        }
+
         if (!formData.type) throw new Error('Veuillez sélectionner un type de contrat');
         if (!formData.start_date) throw new Error('Veuillez spécifier une date de début');
 
@@ -275,6 +281,19 @@ export const ContractForm = React.memo<ContractFormProps>(
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && <div className="p-4 bg-red-50 text-red-800 rounded-lg">{error}</div>}
 
+          {/* Agency Logo for Preview/Branding */}
+          {user?.agencies?.find(a => a.agency_id === formData.agency_id)?.logo_url && (
+            <div className="flex justify-center mb-6">
+              <div className="w-24 h-24 bg-white rounded-xl shadow-sm border border-gray-100 p-3 flex items-center justify-center overflow-hidden">
+                <img
+                  src={user.agencies.find(a => a.agency_id === formData.agency_id)?.logo_url || ''}
+                  alt="Logo"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </div>
+          )}
+
           {/* --- Informations générales --- */}
           <Card>
             <div className="flex items-center mb-4">
@@ -337,7 +356,9 @@ export const ContractForm = React.memo<ContractFormProps>(
               </div>
 
               <div>
-                <label htmlFor="tenant_id" className="block text-sm font-medium text-gray-700 mb-2">Locataire</label>
+                <label htmlFor="tenant_id" className="block text-sm font-medium text-gray-700 mb-2">
+                  Locataire {formData.type === 'gestion' && <span className="text-gray-400 font-normal">(Optionnel pour Gestion)</span>}
+                </label>
                 <AsyncSelect<Tenant, false>
                   id="tenant_id"
                   cacheOptions
@@ -351,7 +372,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                   placeholder="Rechercher un locataire..."
                   styles={selectStyles}
                   isClearable
-                  required
+                  required={formData.type !== 'gestion'}
                 />
               </div>
 
@@ -425,7 +446,7 @@ export const ContractForm = React.memo<ContractFormProps>(
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {formData.type === 'location' ? (
+              {formData.type === 'location' && (
                 <>
                   <Input
                     id="monthly_rent"
@@ -461,7 +482,9 @@ export const ContractForm = React.memo<ContractFormProps>(
                     placeholder="25000"
                   />
                 </>
-              ) : (
+              )}
+
+              {formData.type === 'vente' && (
                 <Input
                   id="sale_price"
                   label="Prix de vente (FCFA)"
@@ -583,10 +606,51 @@ export const ContractForm = React.memo<ContractFormProps>(
             </div>
           </Card>
 
-          <div className="flex items-center justify-end space-x-3 pt-6 border-t">
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t font-sans">
             <Button type="button" variant="ghost" onClick={() => { resetForm(); onClose(); }} disabled={submitting}>
               {readOnly ? 'Fermer' : 'Annuler'}
             </Button>
+
+            {readOnly && currentTenant && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  if (!formData.agency_id) {
+                    toast.error("Impossible d'identifier l'agence");
+                    return;
+                  }
+
+                  // Ouvrir la fenêtre immédiatement pour éviter le blocage des pop-ups
+                  const printWindow = window.open('', '_blank');
+                  if (!printWindow) {
+                    toast.error("Pop-up bloqué. Veuillez autoriser les pop-ups pour imprimer.");
+                    return;
+                  }
+
+                  printWindow.document.write('<div style="font-family: Arial; padding: 20px;">Chargement du contrat en cours...</div>');
+
+                  try {
+                    const fullAgency = await dbService.agencies.getById(formData.agency_id);
+                    if (fullAgency && currentTenant) {
+                      printWindow.document.body.innerHTML = '';
+                      await OHADAContractGenerator.printContract(formData, fullAgency, currentTenant, currentProperty, printWindow);
+                    } else {
+                      printWindow.close();
+                      toast.error("Impossible de récupérer les informations de l'agence ou du locataire");
+                    }
+                  } catch (error) {
+                    printWindow.close();
+                    console.error("Print error", error);
+                    toast.error("Erreur lors de l'impression");
+                  }
+                }}
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Imprimer le contrat
+              </Button>
+            )}
+
             {!readOnly && (
               <Button
                 type="submit"
@@ -600,4 +664,5 @@ export const ContractForm = React.memo<ContractFormProps>(
         </form>
       </Modal>
     );
-  });
+  }
+);

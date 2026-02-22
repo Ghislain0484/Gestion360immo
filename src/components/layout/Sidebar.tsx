@@ -75,8 +75,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <div className="flex items-center space-x-3 mb-8 px-6 pt-6">
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary-600 to-primary-400 rounded-full blur opacity-25 group-hover:opacity-75 transition duration-300"></div>
-            <div className="relative w-12 h-12 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center shadow-lg ring-2 ring-white dark:ring-slate-600 group-hover:scale-110 transition-transform duration-300">
-              <Building2 className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+            <div className="relative w-12 h-12 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center shadow-lg ring-2 ring-white dark:ring-slate-600 group-hover:scale-110 transition-transform duration-300 overflow-hidden">
+              {currentAgency?.logo_url ? (
+                <img
+                  src={currentAgency.logo_url}
+                  alt={currentAgency.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Building2 className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+              )}
             </div>
           </div>
           <div className="flex-1 min-w-0 flex flex-col justify-center">
