@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, MapPin, Phone, MoreHorizontal, Eye, MessageCircle, FileText, Filter } from 'lucide-react';
+import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -9,12 +9,10 @@ import { Owner } from '../../types/db';
 import { OwnerForm } from './OwnerForm';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
-import { generateSlug, formatBusinessId } from '../../utils/idSystem';
+import { generateSlug } from '../../utils/idSystem';
 import debounce from 'lodash/debounce';
 
 export const OwnersList: React.FC = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,8 +44,13 @@ export const OwnersList: React.FC = () => {
   const getTenantCount = (ownerId: string) => {
     if (!contracts) return 0;
 
-    // Filter active contracts for this owner
-    const ownerContracts = contracts.filter(c => c.owner_id === ownerId && c.status === 'active');
+    // Filter active contracts for this owner (only rental contracts with a tenant)
+    const ownerContracts = contracts.filter(c =>
+      c.owner_id === ownerId &&
+      c.status === 'active' &&
+      c.type === 'location' &&
+      !!c.tenant_id
+    );
 
     // Cross-reference with properties to ensure data integrity
     // If we have properties loaded, we should only count tenants in properties that actually exist

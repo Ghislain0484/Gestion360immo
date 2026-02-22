@@ -73,9 +73,21 @@ export const PropertyDetails: React.FC = () => {
     const { data: tenants } = useRealtimeData(dbService.tenants.getAll, 'tenants');
 
     // Derived Data
-    const activeContract = contracts?.find(c => c.property_id === propertyId && c.status === 'active');
-    const currentTenant = activeContract ? tenants?.find(t => t.id === activeContract.tenant_id) : null;
-    const rentalHistory = contracts?.filter(c => c.property_id === propertyId) || [];
+    // Correction : Un bien est "loué" uniquement s'il y a un contrat de type 'location' actif
+    const activeContract: any = contracts?.find(c =>
+        c.property_id === propertyId &&
+        c.status === 'active' &&
+        c.type === 'location'
+    );
+
+    // Source robuste pour le locataire : prioriser celui inclus dans le contrat (jointure)
+    const currentTenant = activeContract?.tenant || (activeContract ? tenants?.find(t => t.id === activeContract.tenant_id) : null);
+
+    // Historique : Uniquement les contrats de location pour cet onglet
+    const rentalHistory = contracts?.filter(c =>
+        c.property_id === propertyId &&
+        c.type === 'location'
+    ) || [];
 
     if (!property) {
         // Show loading only if properties list is empty (loading)
@@ -88,6 +100,22 @@ export const PropertyDetails: React.FC = () => {
         }
         return <div className="p-8 text-center text-red-500">Bien introuvable (ID: {propertyId})</div>;
     }
+
+    // Coexistence Robuste : Un bien est "Occupé" uniquement s'il y a un contrat de location actif
+    const isOccupied = !!activeContract && !!currentTenant;
+
+    // Un bien est "Disponible" s'il n'est pas occupé ET qu'il est marqué comme disponible
+    const isAvailable = property.is_available && !isOccupied;
+
+    console.log('🏘️ Property Sync Check:', {
+        propertyId,
+        property_is_available: property.is_available,
+        hasActiveRentalContract: !!activeContract,
+        isOccupied,
+        isAvailable,
+        tenantFound: !!currentTenant,
+        allContractsForProperty: contracts?.filter(c => c.property_id === propertyId).map(c => ({ id: c.id, status: c.status, type: c.type }))
+    });
 
     const bedrooms = property.rooms?.filter(r => ['chambre_principale', 'chambre_2', 'chambre_3'].includes(r.type)).length || 0;
     const bathrooms = property.rooms?.filter(r => r.type === 'salle_bain').length || 0;
@@ -133,8 +161,8 @@ export const PropertyDetails: React.FC = () => {
                                     <span className="text-lg">{property.location.commune}, {property.location.quartier}</span>
                                 </div>
                                 <div className="flex gap-2">
-                                    <Badge variant={property.is_available ? "success" : "warning"} className="text-sm px-3 py-1">
-                                        {property.is_available ? "Disponible" : "Occupé"}
+                                    <Badge variant={isOccupied ? "warning" : (isAvailable ? "success" : "secondary")} className="text-sm px-3 py-1">
+                                        {isOccupied ? "Occupé" : (isAvailable ? "Disponible" : "Indisponible")}
                                     </Badge>
                                     <Badge variant="secondary" className="text-sm px-3 py-1 bg-white/20 text-white border-none backdrop-blur-md">
                                         {property.details.type}
@@ -231,7 +259,7 @@ export const PropertyDetails: React.FC = () => {
 
                         {activeTab === 'tenants' && (
                             <div className="space-y-6">
-                                {activeContract && currentTenant ? (
+                                {isOccupied && currentTenant ? (
                                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-6">
                                         <div className="flex items-center justify-between mb-6">
                                             <div className="flex items-center gap-4">
@@ -251,22 +279,24 @@ export const PropertyDetails: React.FC = () => {
                                             </Button>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-blue-200 pt-6">
-                                            <div>
-                                                <span className="text-sm text-gray-500 block mb-1">Contrat</span>
-                                                <span className="font-medium">Bail #{activeContract.id.slice(0, 8)}</span>
+                                        {activeContract && (
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-blue-200 pt-6">
+                                                <div>
+                                                    <span className="text-sm text-gray-500 block mb-1">Contrat</span>
+                                                    <span className="font-medium">Bail #{activeContract.id.slice(0, 8)}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-sm text-gray-500 block mb-1">Loyer Mensuel</span>
+                                                    <span className="font-medium text-lg">{activeContract.monthly_rent?.toLocaleString('fr-FR')} FCFA</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-sm text-gray-500 block mb-1">Date d'entrée</span>
+                                                    <span className="font-medium">
+                                                        {new Date(activeContract.start_date).toLocaleDateString('fr-FR')}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <span className="text-sm text-gray-500 block mb-1">Loyer Mensuel</span>
-                                                <span className="font-medium text-lg">{activeContract.monthly_rent?.toLocaleString('fr-FR')} FCFA</span>
-                                            </div>
-                                            <div>
-                                                <span className="text-sm text-gray-500 block mb-1">Date d'entrée</span>
-                                                <span className="font-medium">
-                                                    {new Date(activeContract.start_date).toLocaleDateString('fr-FR')}
-                                                </span>
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="text-center py-12">

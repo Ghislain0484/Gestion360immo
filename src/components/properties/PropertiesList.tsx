@@ -46,11 +46,13 @@ export const PropertiesList: React.FC = () => {
   );
 
   const getRentalInfo = (propertyId: string) => {
-    const activeContract = contracts?.find(c => c.property_id === propertyId && c.status === 'active');
-    if (!activeContract) return null;
+    const activeContract = contracts?.find(c => c.property_id === propertyId && c.status === 'active' && c.type === 'location');
+
+    if (!activeContract) return { isOccupied: false };
 
     const tenant = tenants?.find(t => t.id === activeContract.tenant_id);
     return {
+      isOccupied: !!tenant,
       tenantName: tenant ? `${tenant.first_name} ${tenant.last_name}` : 'Inconnu',
       rentAmount: activeContract.monthly_rent
     };
@@ -188,9 +190,18 @@ export const PropertiesList: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${property.is_available ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {property.is_available ? 'Disponible' : 'Occupé'}
-                  </span>
+                  {(() => {
+                    const info = getRentalInfo(property.id);
+                    const isOccupied = info.isOccupied;
+                    const isAvailable = property.is_available && !isOccupied;
+                    return (
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${isOccupied ? 'bg-yellow-100 text-yellow-700' :
+                          (isAvailable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700')
+                        }`}>
+                        {isOccupied ? 'Occupé' : (isAvailable ? 'Disponible' : 'Indisponible')}
+                      </span>
+                    );
+                  })()}
                 </div>
               </Card>
             )

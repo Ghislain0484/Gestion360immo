@@ -71,11 +71,12 @@ export const UserManagement: React.FC = () => {
 
       if (data) {
         setIsExistingUser(true);
-        // Pré-remplir les noms si vides
+        // Pré-remplir les noms si vides pour ne pas écraser les données existantes
         setFormData(prev => ({
           ...prev,
           first_name: prev.first_name || data.first_name || '',
           last_name: prev.last_name || data.last_name || '',
+          password: '', // On vide le mot de passe car inutile pour un utilisateur existant
         }));
       } else {
         setIsExistingUser(false);
@@ -140,38 +141,40 @@ export const UserManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('🚀 UserManagement: handleSubmit triggered', {
+      isExistingUser,
+      editingUser: !!editingUser,
+      email: formData.email
+    });
     setLoading(true);
 
     if (!user?.agency_id) {
+      console.warn('⚠️ UserManagement: No agency_id found in context');
       toast.error('Aucune agence associée. Veuillez attendre l’approbation de votre demande.');
       setLoading(false);
       return;
     }
 
     try {
-      // Validation des données
+      // 0. Validation basique
       if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.email.trim()) {
         throw new Error('Tous les champs obligatoires doivent être remplis');
-      }
-
-      if (!editingUser && (!formData.password || formData.password.length < 8)) {
-        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
       }
 
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
         throw new Error("Format d'email invalide");
       }
 
-      if (editingUser) {
-        // Mise à jour utilisateur existant
-        console.log('Updating user:', editingUser.id);
+      const emailLower = formData.email.toLowerCase();
 
-        // Vérifier si l'email change et s'il est déjà pris par un AUTRE utilisateur
-        if (formData.email.toLowerCase() !== editingUser.email.toLowerCase()) {
+      if (editingUser) {
+        console.log('📝 Updating existing agency user:', editingUser.id);
+
+        if (emailLower !== editingUser.email.toLowerCase()) {
           const { data: emailOwner } = await supabase
             .from('users')
             .select('id')
-            .eq('email', formData.email.toLowerCase())
+            .eq('email', emailLower)
             .maybeSingle();
 
           if (emailOwner && emailOwner.id !== editingUser.id) {
@@ -180,27 +183,25 @@ export const UserManagement: React.FC = () => {
         }
 
         const updatedUser = await dbService.users.update(editingUser.id, {
-          email: formData.email.toLowerCase(),
+          email: emailLower,
           first_name: formData.first_name,
           last_name: formData.last_name,
           is_active: formData.is_active,
           permissions: formData.permissions,
           updated_at: new Date().toISOString(),
         });
-        console.log('User updated:', updatedUser);
 
-        const updatedAgencyUser = await dbService.agencyUsers.update(editingUser.id, {
+        await dbService.agencyUsers.update(editingUser.id, {
           role: formData.role,
           updated_at: new Date().toISOString(),
         });
-        console.log('Agency user updated:', updatedAgencyUser);
 
         setRealUsers((prev) =>
           prev.map((u) =>
             u.id === editingUser.id
               ? {
                 ...u,
-                email: formData.email.toLowerCase(),
+                email: emailLower,
                 first_name: formData.first_name,
                 last_name: formData.last_name,
                 is_active: formData.is_active,
@@ -214,12 +215,12 @@ export const UserManagement: React.FC = () => {
         );
 
         await dbService.auditLogs.insert({
-          user_id: user?.id || null,
+          user_id: user.id || null,
           action: 'user_updated',
           table_name: 'users',
           record_id: editingUser.id,
           new_values: {
-            email: formData.email.toLowerCase(),
+            email: emailLower,
             first_name: formData.first_name,
             last_name: formData.last_name,
             role: formData.role,
@@ -229,55 +230,56 @@ export const UserManagement: React.FC = () => {
           user_agent: navigator.userAgent,
         });
 
-        toast.success(
-          `✅ Utilisateur mis à jour avec succès à ${new Date().toLocaleString('fr-FR', {
-            timeZone: 'Africa/Abidjan',
-          })}!`
-        );
+        toast.success(`✅ Utilisateur mis à jour avec succès !`);
       } else {
-        // Création nouvel utilisateur ou ajout d'un utilisateur existant
-        const emailLower = formData.email.toLowerCase();
-        console.log('Checking if user exists in global system:', emailLower);
+        // CRÉATION OU AJOUT
+        console.log('🔍 Checking global existence for:', emailLower);
 
-        // 1. Chercher si l'utilisateur existe déjà dans la table public.users
-        const { data: existingGlobalUser, error: globalCheckError } = await supabase
+        // 1. Chercher si l'utilisateur existe déjà dans le système
+        const { data: globalUser, error: globalError } = await supabase
           .from('users')
-          .select('id, email, first_name, last_name, is_active, permissions')
+          .select('id, email, first_name, last_name, is_active, permissions, created_at')
           .eq('email', emailLower)
           .maybeSingle();
 
-        if (globalCheckError) throw new Error(`Erreur recherche système: ${globalCheckError.message}`);
+        if (globalError) throw new Error(`Erreur recherche système: ${globalError.message}`);
+
+        const userExistsGlobally = !!globalUser;
+        console.log('📊 Result:', { userExistsGlobally, globalId: globalUser?.id });
+
+        // 2. Validation du mot de passe (UNIQUEMENT si nouveau compte requis)
+        if (!userExistsGlobally && (!formData.password || formData.password.length < 8)) {
+          console.error('❌ Validation failed: Password required for new account');
+          throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+        }
 
         let targetUserId: string;
         let isNewAccount = false;
+        let finalUserObj: any;
 
-        if (existingGlobalUser) {
-          console.log('User found in global system:', existingGlobalUser.id);
-          targetUserId = existingGlobalUser.id;
+        if (userExistsGlobally && globalUser) {
+          targetUserId = globalUser.id;
+          finalUserObj = globalUser;
+          console.log('🔗 Reusing global user ID:', targetUserId);
 
-          // Vérifier s'il est déjà dans cette agence
-          const { data: existingAgencyLink } = await supabase
+          // Vérifier doublon agence
+          const { data: checkLink } = await supabase
             .from('agency_users')
             .select('user_id')
             .eq('user_id', targetUserId)
             .eq('agency_id', user.agency_id)
             .maybeSingle();
 
-          if (existingAgencyLink) {
-            throw new Error('Cet utilisateur fait déjà partie de cette agence');
-          }
+          if (checkLink) throw new Error('Cet utilisateur fait déjà partie de cette agence');
         } else {
-          // 2. Création du compte Auth (seulement s'il n'existe nulle part)
-          console.log('Creating new Auth account for:', emailLower);
+          // Nouveau compte Auth
           isNewAccount = true;
+          console.log('🆕 Creating new Auth account...');
           const { data: authData, error: authError } = await supabase.auth.signUp({
             email: emailLower,
             password: formData.password!,
             options: {
-              data: {
-                first_name: formData.first_name,
-                last_name: formData.last_name,
-              },
+              data: { first_name: formData.first_name, last_name: formData.last_name },
               emailRedirectTo: `${window.location.origin}/login`,
             },
           });
@@ -286,9 +288,10 @@ export const UserManagement: React.FC = () => {
             throw new Error(authError?.message || "Erreur création compte Auth");
           }
           targetUserId = authData.user.id;
+          console.log('✅ Auth account created:', targetUserId);
 
-          // Créer dans la table users
-          await dbService.users.create({
+          // Créer dans public.users
+          const newUser = await dbService.users.create({
             id: targetUserId,
             email: emailLower,
             first_name: formData.first_name,
@@ -298,10 +301,10 @@ export const UserManagement: React.FC = () => {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           });
+          finalUserObj = newUser;
         }
 
-        // 3. Créer l'association dans agency_users (pour les deux cas)
-        console.log('Linking user to agency:', { targetUserId, agencyId: user.agency_id, role: formData.role });
+        // 3. Liaison agence
         await dbService.agencyUsers.create({
           user_id: targetUserId,
           agency_id: user.agency_id,
@@ -311,21 +314,11 @@ export const UserManagement: React.FC = () => {
         });
 
         // Mise à jour locale de la liste
-        const finalUserObj = existingGlobalUser || {
-          id: targetUserId,
-          email: emailLower,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          is_active: formData.is_active,
-          permissions: formData.permissions,
-          created_at: new Date().toISOString()
-        };
-
         setRealUsers((prev) => [
           {
             ...finalUserObj,
             role: formData.role,
-            agency_id: user.agency_id!,
+            agency_id: user.agency_id as string,
           } as ExtendedUser,
           ...prev,
         ]);
@@ -781,8 +774,13 @@ export const UserManagement: React.FC = () => {
             onBlur={(e) => checkEmail(e.target.value)}
             required
             autoComplete="email"
+            placeholder="email@exemple.com"
             className={checkingEmail ? 'animate-pulse' : ''}
           />
+
+          {checkingEmail && (
+            <p className="text-xs text-blue-500 italic ml-1">Vérification de l'existence de l'utilisateur...</p>
+          )}
 
           {isExistingUser && !editingUser && (
             <div className="bg-blue-50 border border-blue-200 p-3 rounded-md">
