@@ -37,6 +37,7 @@ export const normalizeUser = (u: Partial<User>) => ({
         settings: false,
         userManagement: false,
     },
+    agency_id: nilIfEmpty(u.agency_id),
     created_at: u.created_at ?? new Date().toISOString(),
     updated_at: u.updated_at ?? new Date().toISOString(),
 });
@@ -94,7 +95,7 @@ export const normalizePartialUser = (u: Partial<User>): Partial<User> => {
     if (u.permissions !== undefined) partial.permissions = u.permissions;  // Pas de default pour partial
     if (u.created_at !== undefined) partial.created_at = new Date(u.created_at).toISOString();
     if (u.updated_at !== undefined) partial.updated_at = new Date(u.updated_at).toISOString();
-    // Supprimé le bloc agency_id pour fixer TS2339 (absent de User). Ajoutez agency_id à User type si needed.
+    if (u.agency_id !== undefined) partial.agency_id = nilIfEmpty(u.agency_id) ?? undefined;
 
     return partial;
 };
