@@ -8,9 +8,9 @@ export const usersService = {
     async getCurrent(): Promise<User | null> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return null;
-        const { data, error } = await supabase.from('users').select('*').eq('id', user.id).single();
+        const { data, error } = await supabase.from('users').select('*').eq('id', user.id).limit(1);
         if (error) throw new Error(formatSbError('❌ users.select (current)', error));
-        return data;
+        return data?.[0] || null;
     },
     async countByAgency(agency_id: string): Promise<number> {
         const { count, error } = await supabase
@@ -35,23 +35,24 @@ export const usersService = {
         last_name: string;
         is_active: boolean;
         permissions: UserPermissions;
+        agency_id?: string | undefined;
         created_at: string;
         updated_at: string;
     }) {
         try {
-            console.log('Inserting user into users table:', user);
+            console.log('Upserting user into users table:', user);
             const normalizedUser = normalizeUser(user);
             const { data, error } = await supabase
                 .from('users')
-                .insert([normalizedUser])
+                .upsert([normalizedUser], { onConflict: 'id' })
                 .select('*')
-                .single();
+                .limit(1);
             if (error) {
-                console.error('users.insert error:', error);
-                throw new Error(`users.insert | code=${error.code} | msg=${error.message}`);
+                console.error('users.upsert error:', error);
+                throw new Error(`users.upsert | code=${error.code} | msg=${error.message}`);
             }
-            console.log('User inserted successfully:', data);
-            return data;
+            console.log('User upserted successfully:', data?.[0]);
+            return data?.[0];
         } catch (err) {
             console.error('Error in usersService.create:', err);
             throw err;
@@ -76,10 +77,10 @@ export const usersService = {
             .update(normalizedUpdates)
             .eq('id', id)
             .select('*')
-            .single();
+            .limit(1);
 
         if (error) throw new Error(formatSbError('❌ users.update', error));
-        return data;
+        return data?.[0];
     },
     async delete(id: string): Promise<boolean> {
         const { error } = await supabase.from('users').delete().eq('id', id);

@@ -11,15 +11,15 @@ export const platformAdminsService = {
     },
     async create(admin: Partial<PlatformAdmin>): Promise<PlatformAdmin> {
         const clean = normalizePlatformAdmin(admin);
-        const { data, error } = await supabase.from('platform_admins').insert(clean).select('*').single();
+        const { data, error } = await supabase.from('platform_admins').insert(clean).select('*').limit(1);
         if (error) throw new Error(formatSbError('❌ platform_admins.insert', error));
-        return data;
+        return data?.[0];
     },
     async update(id: string, updates: Partial<PlatformAdmin>): Promise<PlatformAdmin> {
         const clean = normalizePlatformAdmin(updates);
-        const { data, error } = await supabase.from('platform_admins').update(clean).eq('id', id).select('*').single();
+        const { data, error } = await supabase.from('platform_admins').update(clean).eq('id', id).select('*').limit(1);
         if (error) throw new Error(formatSbError('❌ platform_admins.update', error));
-        return data;
+        return data?.[0];
     },
     async delete(id: string): Promise<boolean> {
         const { error } = await supabase.from('platform_admins').delete().eq('id', id);

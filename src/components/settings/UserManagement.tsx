@@ -298,6 +298,7 @@ export const UserManagement: React.FC = () => {
             last_name: formData.last_name,
             is_active: formData.is_active,
             permissions: formData.permissions,
+            agency_id: user.agency_id as string,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           });

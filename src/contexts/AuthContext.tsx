@@ -61,16 +61,17 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
   console.log('🔍 AuthContext: fetchUserWithAgency pour userId:', userId);
   try {
     // 1. Charger l'utilisateur de public.users
-    const { data, error } = await supabase
+    const { data: usersData, error: usersError } = await supabase
       .from('users')
       .select(
         'id, email, first_name, last_name, phone, avatar, is_active, permissions, created_at, updated_at, agency_users:agency_users!left(agency_id, role)'
       )
       .eq('id', userId)
-      .single();
+      .limit(1);
 
-    if (error || !data) {
-      console.error('❌ AuthContext: Erreur fetchUserWithAgency:', error);
+    const data = usersData?.[0];
+    if (usersError || !data) {
+      console.error('❌ AuthContext: Erreur fetchUserWithAgency:', usersError);
       return null;
     }
 
@@ -137,6 +138,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
         console.log('✅ AuthContext: agency_users auto-corrigé en base');
       } else {
         console.error('❌ AuthContext: Aucune agence trouvée ni via agency_users ni via director_id');
+        // Ne pas bloquer ici, retourner l'utilisateur sans agence pour éviter les boucles infinies de rechargement
       }
     }
 
@@ -194,20 +196,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        const { data, error } = await supabase.auth.getSession();
-        if (error || !data.session?.user) {
-          console.error('❌ AuthContext: Pas de session utilisateur', error);
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !sessionData.session?.user) {
+          console.error('❌ AuthContext: Pas de session utilisateur', sessionError);
           setUser(null);
           setAdmin(null);
           return;
         }
 
+        const currentUserId = sessionData.session.user.id;
+
         // Vérifier d'abord si c'est un admin
-        const { data: adminData, error: adminError } = await supabase
+        const { data: adminArray, error: adminError } = await supabase
           .from('platform_admins')
           .select('*')
-          .eq('user_id', data.session.user.id)
-          .single();
+          .eq('user_id', currentUserId)
+          .limit(1);
+
+        const adminData = adminArray?.[0];
 
         if (!adminError && adminData) {
           const newAdmin: PlatformAdmin = {
@@ -230,7 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Si ce n'est pas un admin, essayer en tant qu'utilisateur normal
-        const u = await fetchUserWithAgency(data.session.user.id);
+        const u = await fetchUserWithAgency(currentUserId);
         if (u) {
           // 1. Déterminer l'agence active (localStorage ou auto-sélection si unique)
           const savedAgencyId = localStorage.getItem(ACTIVE_AGENCY_KEY);
@@ -408,11 +414,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (!data.user) throw new Error('Utilisateur non trouvé');
 
-      const { data: adminData, error: adminError } = await supabase
+      const { data: adminArray, error: adminError } = await supabase
         .from('platform_admins')
         .select('*')
         .eq('user_id', data.user.id)
-        .single();
+        .limit(1);
+
+      const adminData = adminArray?.[0];
 
       if (adminError || !adminData) {
         console.error('❌ AuthContext: Erreur loginAdmin, compte admin non trouvé:', adminError);
