@@ -20,14 +20,29 @@ export const PasswordResetConfirm: React.FC = () => {
   const location = useLocation();
 
   useEffect(() => {
-    const params = new URLSearchParams(location.hash.substring(1));
-    const accessToken = params.get('access_token');
-    if (!accessToken) {
-      setError('Lien de réinitialisation invalide');
-      console.error('No access_token in URL');
-    } else {
-      console.log('Access token received:', accessToken);
-    }
+    const validateToken = async () => {
+      // 1. Essayer de récupérer le token du hash
+      const params = new URLSearchParams(location.hash.substring(1));
+      const accessToken = params.get('access_token');
+
+      if (accessToken) {
+        console.log('✅ AuthReset: Token trouvé dans le hash');
+        return;
+      }
+
+      // 2. Si pas de token, vérifier si Supabase a déjà créé une session (detectSessionInUrl: true)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('✅ AuthReset: Session active détectée (déjà traitée par Supabase)');
+        return;
+      }
+
+      // 3. Si rien, alors le lien est vraiment invalide ou expiré
+      setError('Lien de réinitialisation invalide ou expiré');
+      console.error('❌ AuthReset: Pas de token et pas de session');
+    };
+
+    validateToken();
   }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,23 +58,27 @@ export const PasswordResetConfirm: React.FC = () => {
         throw new Error('Les mots de passe ne correspondent pas');
       }
 
+      // Vérifier si on a soit un token dans l'URL, soit une session active
       const params = new URLSearchParams(location.hash.substring(1));
       const accessToken = params.get('access_token');
-      if (!accessToken) {
-        throw new Error('Lien de réinitialisation invalide');
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!accessToken && !session) {
+        throw new Error('Session de réinitialisation expirée. Veuillez redemander un lien.');
       }
 
-      console.log('Updating password for user');
+      console.log('🔄 AuthReset: Mise à jour du mot de passe...');
       const { error } = await supabase.auth.updateUser({ password });
 
       if (error) {
-        console.error('Password update error:', error);
-        throw new Error(`Erreur updateUser: ${error.message}`);
+        console.error('❌ AuthReset update error:', error);
+        throw new Error(`Erreur mise à jour: ${error.message}`);
       }
 
+      // Log d'audit
       const { data: { user } } = await supabase.auth.getUser();
       const ip_address = await getClientIP();
-      console.log('Logging audit for password reset');
+
       await dbService.auditLogs.insert({
         user_id: user?.id || null,
         action: 'password_reset_completed',
@@ -67,18 +86,18 @@ export const PasswordResetConfirm: React.FC = () => {
         record_id: user?.id || null,
         new_values: {
           timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+          method: accessToken ? 'hash_token' : 'active_session'
         },
         ip_address,
         user_agent: navigator.userAgent,
-      });
+      }).catch(err => console.warn('Non-blocking audit log error:', err));
 
-      toast.success('Mot de passe réinitialisé avec succès ! Connectez-vous avec votre nouveau mot de passe.');
-      setTimeout(() => navigate('/login'), 3000);
+      toast.success('Mot de passe réinitialisé avec succès !');
+      setTimeout(() => navigate('/login'), 2000);
     } catch (err: any) {
-      console.error('Password reset confirm error:', err.message, err.stack);
-      const errorMessage = err.message || 'Erreur lors de la réinitialisation du mot de passe';
-      setError(errorMessage);
-      toast.error(errorMessage);
+      console.error('❌ AuthReset Error:', err.message);
+      setError(err.message);
+      toast.error(err.message);
     } finally {
       setIsLoading(false);
     }

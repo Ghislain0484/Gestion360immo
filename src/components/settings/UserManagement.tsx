@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Shield, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Users, Shield, Edit, Trash2, Eye, EyeOff, Key } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -32,6 +32,10 @@ export const UserManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
+  const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
+  const [userToResetPassword, setUserToResetPassword] = useState<ExtendedUser | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
@@ -63,20 +67,38 @@ export const UserManagement: React.FC = () => {
 
     setCheckingEmail(true);
     try {
-      const { data } = await supabase
-        .from('users')
-        .select('id, first_name, last_name')
-        .eq('email', email.toLowerCase())
-        .maybeSingle();
+      // Utiliser le RPC global v20 pour voir au-delà des restrictions RLS (auth + public)
+      const { data, error } = await supabase.rpc('get_user_by_email_v20', {
+        p_email: email.toLowerCase()
+      });
 
-      if (data) {
+      if (error) {
+        console.warn('RPC checkEmail error:', error);
+        // Fallback sur le select classique si le RPC n'est pas encore là
+        const { data: fallbackData } = await supabase
+          .from('users')
+          .select('id, first_name, last_name')
+          .eq('email', email.toLowerCase())
+          .maybeSingle();
+
+        if (fallbackData) {
+          setIsExistingUser(true);
+          setFormData(prev => ({
+            ...prev,
+            first_name: prev.first_name || fallbackData.first_name || '',
+            last_name: prev.last_name || fallbackData.last_name || '',
+          }));
+        }
+        return;
+      }
+
+      const existingRecord = data?.[0];
+      if (existingRecord) {
         setIsExistingUser(true);
-        // Pré-remplir les noms si vides pour ne pas écraser les données existantes
         setFormData(prev => ({
           ...prev,
-          first_name: prev.first_name || data.first_name || '',
-          last_name: prev.last_name || data.last_name || '',
-          password: '', // On vide le mot de passe car inutile pour un utilisateur existant
+          first_name: prev.first_name || existingRecord.first_name || '',
+          last_name: prev.last_name || existingRecord.last_name || '',
         }));
       } else {
         setIsExistingUser(false);
@@ -141,6 +163,11 @@ export const UserManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (loading) {
+      console.log('⏳ UserManagement: handleSubmit already in progress, ignoring...');
+      return;
+    }
+
     console.log('🚀 UserManagement: handleSubmit triggered', {
       isExistingUser,
       editingUser: !!editingUser,
@@ -235,17 +262,23 @@ export const UserManagement: React.FC = () => {
         // CRÉATION OU AJOUT
         console.log('🔍 Checking global existence for:', emailLower);
 
-        // 1. Chercher si l'utilisateur existe déjà dans le système
-        const { data: globalUser, error: globalError } = await supabase
-          .from('users')
-          .select('id, email, first_name, last_name, is_active, permissions, created_at')
-          .eq('email', emailLower)
-          .maybeSingle();
+        // 1. Chercher si l'utilisateur existe déjà dans le système (via RPC global v20)
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_user_by_email_v20', {
+          p_email: emailLower
+        });
 
-        if (globalError) throw new Error(`Erreur recherche système: ${globalError.message}`);
+        let globalUser = rpcData?.[0];
+
+        // Fallback si RPC v20 manquant
+        if (rpcError) {
+          console.warn('⚠️ RPC get_user_by_email_v20 failed:', rpcError);
+          const { data: v19Data } = await supabase.rpc('get_user_by_email_v19', { p_email: emailLower });
+          globalUser = v19Data?.[0];
+        }
 
         const userExistsGlobally = !!globalUser;
-        console.log('📊 Result:', { userExistsGlobally, globalId: globalUser?.id });
+        const existsInAuthOnly = globalUser?.source === 'auth';
+        console.log('📊 Global Check Result:', { userExistsGlobally, existsInAuthOnly, globalId: globalUser?.id });
 
         // 2. Validation du mot de passe (UNIQUEMENT si nouveau compte requis)
         if (!userExistsGlobally && (!formData.password || formData.password.length < 8)) {
@@ -257,7 +290,7 @@ export const UserManagement: React.FC = () => {
         let isNewAccount = false;
         let finalUserObj: any;
 
-        if (userExistsGlobally && globalUser) {
+        if (userExistsGlobally && globalUser && globalUser.source !== 'auth') {
           targetUserId = globalUser.id;
           finalUserObj = globalUser;
           console.log('🔗 Reusing global user ID:', targetUserId);
@@ -272,25 +305,43 @@ export const UserManagement: React.FC = () => {
 
           if (checkLink) throw new Error('Cet utilisateur fait déjà partie de cette agence');
         } else {
-          // Nouveau compte Auth
-          isNewAccount = true;
-          console.log('🆕 Creating new Auth account...');
-          const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: emailLower,
-            password: formData.password!,
-            options: {
-              data: { first_name: formData.first_name, last_name: formData.last_name },
-              emailRedirectTo: `${window.location.origin}/login`,
-            },
-          });
+          // Nouveau compte Auth Requis OU pontage Auth -> Public requis
+          if (existsInAuthOnly && globalUser) {
+            console.log('🔗 Pontage Auth -> Public requis pour:', globalUser.id);
+            targetUserId = globalUser.id;
+          } else {
+            isNewAccount = true;
+            console.log('🆕 Creating new Auth account...');
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+              email: emailLower,
+              password: formData.password!,
+              options: {
+                data: { first_name: formData.first_name, last_name: formData.last_name },
+                emailRedirectTo: `${window.location.origin}/login`,
+              },
+            });
 
-          if (authError || !authData.user) {
-            throw new Error(authError?.message || "Erreur création compte Auth");
+            if (authError || !authData.user) {
+              // Cas particulier : l'utilisateur existe déjà dans Auth mais pas dans public.users
+              if (authError?.message?.includes('already registered')) {
+                console.log('⚠️ Auth: User already registered, attempting recovery via RPC v20...');
+                const { data: recoveryData } = await supabase.rpc('get_user_by_email_v20', { p_email: emailLower });
+                if (recoveryData?.[0]) {
+                  targetUserId = recoveryData[0].id;
+                } else {
+                  throw new Error("L'utilisateur existe dans Auth mais n'a pas pu être localisé.");
+                }
+              } else {
+                throw new Error(authError?.message || "Erreur création compte Auth");
+              }
+            } else {
+              targetUserId = authData.user.id;
+            }
           }
-          targetUserId = authData.user.id;
-          console.log('✅ Auth account created:', targetUserId);
 
-          // Créer dans public.users
+          console.log('✅ Final Target User ID:', targetUserId);
+
+          // Créer ou Verifier dans public.users
           const newUser = await dbService.users.create({
             id: targetUserId,
             email: emailLower,
@@ -494,6 +545,48 @@ export const UserManagement: React.FC = () => {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToResetPassword || !newPassword || newPassword.length < 6) {
+      toast.error('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    setResettingPassword(true);
+    try {
+      console.log('Resetting password for user:', userToResetPassword.id);
+      const { data, error } = await supabase.rpc('admin_reset_user_password', {
+        p_user_id: userToResetPassword.id,
+        p_new_password: newPassword
+      });
+
+      if (error) throw error;
+
+      await dbService.auditLogs.insert({
+        user_id: user?.id || null,
+        action: 'admin_reset_password',
+        table_name: 'users',
+        record_id: userToResetPassword.id,
+        new_values: {
+          target_user: userToResetPassword.email,
+          timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
+        },
+        ip_address: '0.0.0.0',
+        user_agent: navigator.userAgent,
+      });
+
+      toast.success(`✅ Mot de passe réinitialisé pour ${userToResetPassword.first_name}`);
+      setShowPasswordResetModal(false);
+      setUserToResetPassword(null);
+      setNewPassword('');
+    } catch (error: any) {
+      console.error('❌ Erreur réinitialisation mot de passe:', error.message);
+      toast.error(`Erreur: ${error.message}`);
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   const updatePermission = (key: keyof UserPermissions, value: boolean) => {
     setFormData((prev) => ({
       ...prev,
@@ -694,6 +787,17 @@ export const UserManagement: React.FC = () => {
                             <Eye className="h-4 w-4" />
                           )}
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setUserToResetPassword(userData);
+                            setShowPasswordResetModal(true);
+                          }}
+                          title="Réinitialiser le mot de passe"
+                        >
+                          <Key className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => handleEdit(userData)}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -873,6 +977,53 @@ export const UserManagement: React.FC = () => {
             </Button>
             <Button type="submit" isLoading={loading}>
               {editingUser ? 'Mettre à jour' : "Créer l'utilisateur"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={showPasswordResetModal}
+        onClose={() => {
+          setShowPasswordResetModal(false);
+          setUserToResetPassword(null);
+          setNewPassword('');
+        }}
+        title={`Réinitialiser le mot de passe - ${userToResetPassword?.first_name} ${userToResetPassword?.last_name}`}
+        size="md"
+      >
+        <form onSubmit={handleResetPassword} className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-md">
+            <p className="text-sm text-amber-800">
+              <strong>Attention</strong> : Vous allez modifier manuellement le mot de passe de cet utilisateur.
+              Veuillez lui communiquer le nouveau mot de passe une fois validé.
+            </p>
+          </div>
+
+          <Input
+            label="Nouveau mot de passe"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            placeholder="Min. 6 caractères"
+            autoFocus
+          />
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setShowPasswordResetModal(false);
+                setUserToResetPassword(null);
+                setNewPassword('');
+              }}
+            >
+              Annuler
+            </Button>
+            <Button type="submit" isLoading={resettingPassword} className="bg-amber-600 hover:bg-amber-700">
+              Valider le nouveau mot de passe
             </Button>
           </div>
         </form>
