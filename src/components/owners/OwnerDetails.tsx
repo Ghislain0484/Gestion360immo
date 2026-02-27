@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, Plus, ArrowLeft } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, Plus, ArrowLeft, Users, Trash2 } from 'lucide-react';
 import { useRealtimeData, useSupabaseCreate } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
@@ -13,47 +13,48 @@ import { Card } from '../ui/Card';
 import { Tabs } from '../ui/Tabs';
 import { Badge } from '../ui/Badge';
 import { PropertyCard } from '../properties/PropertyCard';
-import { PropertyForm } from '../properties/PropertyForm'; // Assumed exists
+import { PropertyForm } from '../properties/PropertyForm';
 import { OwnerForm } from './OwnerForm';
 import OwnerReversalModal from './OwnerReversalModal';
 import { PaymentsList } from '../payments/PaymentsList';
 import { OwnerReversalCalculator, ReversalDetails } from './OwnerReversalCalculator';
 
-// --- OWNER DETAILS COMPONENT ---
-
 export const OwnerDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, agencyId: authAgencyId } = useAuth();
     const ownerId = extractIdFromSlug(slug || '');
 
-    // Fetch Owner Data
-    // We use a custom fetcher that returns an array for useRealtimeData compatibility
+    // 1. Fetchers
     const fetchOwner = React.useCallback(async () => {
-        const data = await dbService.owners.getBySlugId(ownerId);
+        if (!authAgencyId) return [];
+        const data = await dbService.owners.getBySlugId(ownerId, authAgencyId);
         return data ? [data] : [];
-    }, [ownerId]);
+    }, [ownerId, authAgencyId]);
 
+    // 2. Realtime Data Hooks
     const { data: owners, initialLoading: loadingOwner } = useRealtimeData<Owner>(
         fetchOwner,
         'owners',
-        { id: ownerId } // Dependency for refetch
+        { id: ownerId }
     );
     const owner = owners?.[0];
 
-    // Fetch Owner's Properties
-    // We fetch ONLY this owner's properties, enabling correct filtering
     const fetchProperties = React.useCallback(async () => {
-        if (!owner?.id) return [];
-        return dbService.properties.getAll({ owner_id: owner.id, limit: 100 });
-    }, [owner?.id]);
+        if (!owner?.id || !authAgencyId) return [];
+        return dbService.properties.getAll({ owner_id: owner.id, agency_id: authAgencyId, limit: 100 });
+    }, [owner?.id, authAgencyId]);
 
-    const { data: ownerProperties } = useRealtimeData<Property>(
+    const { data: ownerProperties = [] } = useRealtimeData<Property>(
         fetchProperties,
         'properties',
         { owner_id: owner?.id }
     );
 
+    const { data: contracts = [] } = useRealtimeData(dbService.contracts.getAll, 'contracts', { agency_id: authAgencyId || undefined });
+    const { data: tenants = [] } = useRealtimeData(dbService.tenants.getAll, 'tenants', { agency_id: authAgencyId || undefined });
+
+    // 3. State Hooks
     const [activeTab, setActiveTab] = useState('properties');
     const [showPropertyForm, setShowPropertyForm] = useState(false);
     const [showEditOwnerForm, setShowEditOwnerForm] = useState(false);
@@ -61,10 +62,7 @@ export const OwnerDetails: React.FC = () => {
     const [reversalAmount, setReversalAmount] = useState<number>(0);
     const [reversalDetails, setReversalDetails] = useState<ReversalDetails | null>(null);
 
-    useEffect(() => {
-        console.log(`🏠 OwnerDetails: showPropertyForm = ${showPropertyForm}`);
-    }, [showPropertyForm]);
-
+    // 4. Mutation Hooks
     const { create: createProperty } = useSupabaseCreate(
         dbService.properties.create,
         {
@@ -72,20 +70,52 @@ export const OwnerDetails: React.FC = () => {
         }
     );
 
+    // 5. Effect Hooks
+    useEffect(() => {
+        if (showPropertyForm) {
+            console.log(`🏠 OwnerDetails: showPropertyForm = ${showPropertyForm}`);
+        }
+    }, [showPropertyForm]);
+
+    // 6. Memoized Data
+    const ownerTenants = React.useMemo(() => {
+        const tenantMap = new Map();
+        contracts?.forEach(c => {
+            const prop = ownerProperties?.find(p => p.id === c.property_id);
+            if (prop && c.status === 'active' && c.type === 'location') {
+                const tenant = tenants?.find(t => t.id === c.tenant_id);
+                if (tenant) {
+                    tenantMap.set(tenant.id, {
+                        ...tenant,
+                        propertyTitle: prop.title
+                    });
+                }
+            }
+        });
+        return Array.from(tenantMap.values());
+    }, [contracts, ownerProperties, tenants]);
+
+    const tabs = [
+        { id: 'properties', label: `Biens (${ownerProperties?.length || 0})`, icon: Building2 },
+        { id: 'tenants', label: `Locataires (${ownerTenants.length})`, icon: Users },
+        { id: 'financials', label: 'Caisse & Paiements', icon: Wallet },
+        { id: 'info', label: 'Informations', icon: User },
+    ];
+
+    // 7. Early Returns
     if (loadingOwner) {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
     }
 
     if (!owner) {
-        return <div className="p-8 text-center text-red-500">Propriétaire introuvable (ID: {ownerId})</div>;
+        return <div className="p-8 text-center text-red-500">
+            <h3 className="text-lg font-bold">Accès refusé ou propriétaire introuvable</h3>
+            <p>Vous n'avez pas les permissions pour consulter ce propriétaire ou il n'existe pas.</p>
+            <Button onClick={() => navigate('/proprietaires')} className="mt-4" variant="outline">Retour à la liste</Button>
+        </div>;
     }
 
-    const tabs = [
-        { id: 'properties', label: `Biens (${ownerProperties?.length || 0})`, icon: Building2 },
-        { id: 'financials', label: 'Caisse & Paiements', icon: Wallet },
-        { id: 'info', label: 'Informations', icon: User },
-    ];
-
+    // 8. Render
     return (
         <div className="space-y-6 animate-fade-in-up">
             {/* Back Button */}
@@ -113,6 +143,27 @@ export const OwnerDetails: React.FC = () => {
                         <Button variant="outline" size="sm" onClick={() => setShowEditOwnerForm(true)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Modifier
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={async () => {
+                                if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
+                                    const toastId = toast.loading('Suppression en cours...');
+                                    try {
+                                        await dbService.owners.safeDelete(owner.id, authAgencyId || undefined);
+                                        toast.success('Propriétaire supprimé avec succès', { id: toastId });
+                                        navigate('/proprietaires');
+                                    } catch (err: any) {
+                                        console.error(err);
+                                        toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+                                    }
+                                }
+                            }}
+                        >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Supprimer
                         </Button>
                         <Button size="sm" onClick={() => setShowPropertyForm(true)}>
                             <Plus className="w-4 h-4 mr-2" />
@@ -151,6 +202,42 @@ export const OwnerDetails: React.FC = () => {
                                                     navigate(`/proprietes/${slug}`);
                                                 }}
                                             />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'tenants' && (
+                            <div className="space-y-4">
+                                {ownerTenants.length === 0 ? (
+                                    <div className="text-center py-12 text-gray-500">
+                                        <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                                        <p>Aucun locataire actif pour ce propriétaire.</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {ownerTenants.map(tenant => (
+                                            <Card key={tenant.id} className="p-4 hover:shadow-md transition-shadow">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                                                        {tenant.first_name[0]}{tenant.last_name[0]}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h4 className="font-semibold text-gray-900">{tenant.first_name} {tenant.last_name}</h4>
+                                                        <p className="text-sm text-gray-500">{tenant.propertyTitle}</p>
+                                                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-600">
+                                                            <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {tenant.phone}</span>
+                                                        </div>
+                                                    </div>
+                                                    <Button variant="ghost" size="sm" onClick={() => {
+                                                        const slug = generateSlug(tenant.id, `${tenant.first_name} ${tenant.last_name}`);
+                                                        navigate(`/locataires/${slug}`);
+                                                    }}>
+                                                        Dossier
+                                                    </Button>
+                                                </div>
+                                            </Card>
                                         ))}
                                     </div>
                                 )}
@@ -214,16 +301,14 @@ export const OwnerDetails: React.FC = () => {
             </div>
 
             {/* Modals */}
-
             <PropertyForm
                 isOpen={showPropertyForm}
                 onClose={() => setShowPropertyForm(false)}
-                initialData={{ owner_id: owner.id }} // Pre-fill owner
+                initialData={{ owner_id: owner.id }}
                 onSubmit={async (data) => {
                     const newProperty = await createProperty(data);
                     if (newProperty && user?.agency_id) {
                         try {
-                            // Fetch agency data needed for contract
                             const agency = await dbService.agencies.getById(user.agency_id);
                             if (agency) {
                                 const contractPayload = await OHADAContractGenerator.generateManagementContractForOwner(
@@ -239,7 +324,6 @@ export const OwnerDetails: React.FC = () => {
                             toast.error("Erreur lors de la génération du contrat de gestion");
                         }
                     }
-                    // We don't close the form here to allow PropertyForm to show its success modal
                 }}
             />
 
@@ -247,12 +331,9 @@ export const OwnerDetails: React.FC = () => {
                 isOpen={showEditOwnerForm}
                 onClose={() => setShowEditOwnerForm(false)}
                 initialData={owner}
-                onSuccess={() => {
-                    // Refetch handled by realtime subscription
-                }}
+                onSuccess={() => { }}
             />
 
-            {/* Owner Reversal Modal */}
             {showOwnerReversal && (
                 <OwnerReversalModal
                     isOpen={showOwnerReversal}

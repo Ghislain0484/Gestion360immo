@@ -42,6 +42,12 @@ export const ContractForm = React.memo<ContractFormProps>(
       status: 'draft',
       terms: '',
       documents: [],
+      extra_data: {
+        is_existing_tenant: false,
+        deposit_held_by: 'agency',
+        billing_start_date: new Date().toISOString().split('T')[0],
+        ...initialData?.extra_data
+      },
       ...initialData,
     });
 
@@ -154,6 +160,11 @@ export const ContractForm = React.memo<ContractFormProps>(
         status: 'draft',
         terms: '',
         documents: [],
+        extra_data: {
+          is_existing_tenant: false,
+          deposit_held_by: 'agency',
+          billing_start_date: new Date().toISOString().split('T')[0]
+        }
       });
       setCurrentOwner(null);
       setCurrentProperty(null);
@@ -164,7 +175,7 @@ export const ContractForm = React.memo<ContractFormProps>(
     // --- Submit ---
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (readOnly) return;
+      if (readOnly || submitting) return;
       setSubmitting(true);
       setError(null);
 
@@ -410,6 +421,68 @@ export const ContractForm = React.memo<ContractFormProps>(
                   <option value="renewed">Renouvelé</option>
                 </select>
               </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <div className="flex items-center gap-2 mb-4">
+                <input
+                  type="checkbox"
+                  id="is_existing_tenant"
+                  checked={formData.extra_data?.is_existing_tenant || false}
+                  onChange={(e) => updateFormData({
+                    extra_data: {
+                      ...formData.extra_data,
+                      is_existing_tenant: e.target.checked
+                    }
+                  })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="is_existing_tenant" className="text-sm font-medium text-gray-900">
+                  Reprise de bail (Locataire déjà en place)
+                </label>
+              </div>
+
+              {formData.extra_data?.is_existing_tenant && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div>
+                    <label htmlFor="deposit_held_by" className="block text-sm font-medium text-gray-700 mb-2">
+                      Détenteur de la caution
+                    </label>
+                    <select
+                      id="deposit_held_by"
+                      value={formData.extra_data?.deposit_held_by || 'agency'}
+                      onChange={(e) => updateFormData({
+                        extra_data: {
+                          ...formData.extra_data,
+                          deposit_held_by: e.target.value
+                        }
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="agency">Notre agence</option>
+                      <option value="previous_owner">Ancien propriétaire / agence</option>
+                      <option value="other">Autre</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="billing_start_date" className="block text-sm font-medium text-gray-700 mb-2">
+                      Date de début de quittance (Harmonisation)
+                    </label>
+                    <input
+                      id="billing_start_date"
+                      type="date"
+                      value={formData.extra_data?.billing_start_date || ''}
+                      onChange={(e) => updateFormData({
+                        extra_data: {
+                          ...formData.extra_data,
+                          billing_start_date: e.target.value
+                        }
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 

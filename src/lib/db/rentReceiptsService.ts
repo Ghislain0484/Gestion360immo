@@ -107,4 +107,8 @@ export const rentReceiptsService = {
     if (error) throw new Error(formatSbError('❌ rent_receipts.delete', error));
     return true;
   },
+  async deleteAllByAgency(agencyId: string): Promise<void> {
+    const { error } = await supabase.from('rent_receipts').delete().eq('agency_id', agencyId);
+    if (error) throw new Error(formatSbError('❌ rent_receipts.deleteAllByAgency', error));
+  },
 };

@@ -205,4 +205,22 @@ export const financialStatementsService = {
         if (error) throw new Error(formatSbError("❌ financial_statements.delete", error));
         return true;
     },
+
+    // Specific methods for property and transaction cleanup
+    async getTransactionsByProperty(propertyId: string): Promise<{ data: any[] | null; error: any }> {
+        const { data, error } = await supabase
+            .from("financial_transactions")
+            .select("*")
+            .eq("property_id", propertyId);
+        return { data, error };
+    },
+
+    async deleteTransaction(id: string): Promise<boolean> {
+        const { error } = await supabase
+            .from("financial_transactions")
+            .delete()
+            .eq("id", id);
+        if (error) throw new Error(formatSbError("❌ financial_transactions.delete", error));
+        return true;
+    }
 };

@@ -121,6 +121,7 @@ export const ContractsList: React.FC = () => {
         status: contractData.status ?? 'draft',
         terms: contractData.terms,
         documents: contractData.documents || [],
+        extra_data: contractData.extra_data || {},
       };
 
       if (isUpdate && contractPayload.id) {
@@ -391,6 +392,33 @@ export const ContractsList: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Transition Info */}
+                {contract.extra_data?.is_existing_tenant && (
+                  <div className="mb-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                    <div className="flex items-center gap-2 mb-2 text-blue-800 font-medium text-sm">
+                      <RotateCw className="w-4 h-4" />
+                      Reprise de bail
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <p className="text-gray-500">Caution détenue par</p>
+                        <p className="font-medium text-gray-700">
+                          {contract.extra_data.deposit_held_by === 'agency' ? 'Notre agence' :
+                            contract.extra_data.deposit_held_by === 'previous_owner' ? 'Ancien propriétaire' : 'Autre'}
+                        </p>
+                      </div>
+                      {contract.extra_data.billing_start_date && (
+                        <div>
+                          <p className="text-gray-500">Début facturation</p>
+                          <p className="font-medium text-gray-700">
+                            {new Date(contract.extra_data.billing_start_date).toLocaleDateString('fr-FR')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-gray-500">

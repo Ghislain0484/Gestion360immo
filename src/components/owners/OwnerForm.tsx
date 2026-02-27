@@ -70,7 +70,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     if (!data.first_name?.trim()) return 'Le prénom est obligatoire';
     if (!data.last_name?.trim()) return 'Le nom est obligatoire';
     if (!data.phone?.trim()) return 'Le téléphone est obligatoire';
-    if (!validatePhone(data.phone)) return 'Format de téléphone invalide. Exemple: +225 01 02 03 04 05';
+    if (!validatePhone(data.phone)) return 'Format de téléphone invalide. Ex: 0708090102 ou +225XXXXXXXX';
     if (!data.address?.trim()) return "L'adresse est obligatoire";
     if (!data.city?.trim()) return 'La ville est obligatoire';
     if (!data.agency_id) return "L'ID de l'agence est requis";
@@ -125,8 +125,11 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
 
 
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     console.log('🔄 Début soumission formulaire propriétaire');
 
@@ -137,6 +140,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     }
 
     try {
+      setIsSubmitting(true);
       let result: Owner;
       if (formData.id) {
         result = await dbService.owners.update(formData.id, {
@@ -172,6 +176,8 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       toast.error(error.message.includes('row-level security')
         ? 'Vous n’avez pas les permissions nécessaires pour effectuer cette action.'
         : error.message || `Erreur lors de la ${formData.id ? 'mise à jour' : 'création'} du propriétaire`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -376,9 +382,18 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
             <Button type="button" variant="ghost" onClick={onClose} aria-label="Annuler">
               Annuler
             </Button>
-            <Button type="submit" className="bg-green-600 hover:bg-green-700" aria-label="Enregistrer le propriétaire">
-              <Save className="h-4 w-4 mr-2" />
-              Enregistrer
+            <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={isSubmitting} aria-label="Enregistrer le propriétaire">
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  Enregistrement...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Enregistrer
+                </>
+              )}
             </Button>
           </div>
         </form>

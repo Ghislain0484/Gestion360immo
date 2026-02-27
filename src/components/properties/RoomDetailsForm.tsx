@@ -93,6 +93,8 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
       setFormError('Veuillez spécifier le type de pièce');
       return;
     }
+    // Lock details are now optional for faster entry
+    /* 
     if (!formData.serrure.typePoignee) {
       setFormError('Veuillez spécifier le type de poignée');
       return;
@@ -101,6 +103,7 @@ export const RoomDetailsForm: React.FC<RoomDetailsFormProps> = ({
       setFormError('Veuillez spécifier le type de clé');
       return;
     }
+    */
 
     try {
       onSubmit(formData);

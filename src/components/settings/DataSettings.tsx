@@ -85,10 +85,11 @@ export const DataSettings: React.FC = () => {
     try {
       // Supprimer toutes les données de l'agence dans Supabase
       await Promise.all([
-        dbService.properties.delete(user.agency_id),
-        dbService.owners.delete(user.agency_id),
-        dbService.tenants.delete(user.agency_id),
-        dbService.contracts.delete(user.agency_id),
+        dbService.properties.deleteAllByAgency(user.agency_id),
+        dbService.owners.deleteAllByAgency(user.agency_id),
+        dbService.tenants.deleteAllByAgency(user.agency_id),
+        dbService.contracts.deleteAllByAgency(user.agency_id),
+        dbService.rentReceipts.deleteAllByAgency(user.agency_id),
       ]);
 
       setAgencyData({

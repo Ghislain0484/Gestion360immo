@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Filter } from 'lucide-react';
+import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Filter, Trash2, Edit } from 'lucide-react';
+import { useCallback } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -11,14 +13,21 @@ import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { generateSlug } from '../../utils/idSystem';
 import debounce from 'lodash/debounce';
+import toast from 'react-hot-toast';
 
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
+  const { agencyId: authAgencyId, user } = useAuth();
   const [showForm, setShowForm] = useState(false);
+  const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const fetchOwners = useCallback(() => dbService.owners.getAll({
+    agency_id: authAgencyId || undefined
+  }), [authAgencyId]);
+
   const { data: owners, initialLoading, error, refetch } = useRealtimeData<Owner>(
-    dbService.owners.getAll,
+    fetchOwners,
     'owners'
   );
 
@@ -26,14 +35,14 @@ export const OwnersList: React.FC = () => {
   const { data: properties } = useRealtimeData(
     dbService.properties.getAll,
     'properties',
-    { limit: 1000 }
+    { agency_id: authAgencyId || undefined, limit: 1000 }
   );
 
   // Fetch contracts for tenant count
   const { data: contracts } = useRealtimeData(
     dbService.contracts.getAll,
     'contracts',
-    { limit: 1000 }
+    { agency_id: authAgencyId || undefined, limit: 1000 }
   );
 
   const getPropertyCount = (ownerId: string) => {
@@ -227,17 +236,18 @@ export const OwnersList: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                        className="p-2 text-gray-400 hover:text-green-600 transition-colors"
                         title="WhatsApp"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Add WhatsApp logic here if needed
+                          const phone = owner.phone.replace(/\s+/g, '');
+                          window.open(`https://wa.me/${phone.startsWith('+') ? phone.slice(1) : (phone.startsWith('00') ? phone.slice(2) : `225${phone}`)}`, '_blank');
                         }}
                       >
                         <MessageCircle className="w-4 h-4" />
                       </button>
                       <button
-                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                        className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
                         title="Voir détails"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -246,6 +256,39 @@ export const OwnersList: React.FC = () => {
                       >
                         <Eye className="w-4 h-4" />
                       </button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedOwner(owner);
+                          setShowForm(true);
+                        }}
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
+                            const toastId = toast.loading('Suppression en cours...');
+                            try {
+                              await dbService.owners.safeDelete(owner.id, user?.agency_id || undefined);
+                              refetch();
+                              toast.success('Propriétaire supprimé avec succès', { id: toastId });
+                            } catch (err: any) {
+                              console.error(err);
+                              toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+                            }
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -258,8 +301,16 @@ export const OwnersList: React.FC = () => {
       {/* Modal d'ajout */}
       <OwnerForm
         isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        onSuccess={refetch}
+        onClose={() => {
+          setShowForm(false);
+          setSelectedOwner(null);
+        }}
+        initialData={selectedOwner || undefined}
+        onSuccess={() => {
+          setShowForm(false);
+          setSelectedOwner(null);
+          refetch();
+        }}
       />
     </div>
   );

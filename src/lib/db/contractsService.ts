@@ -61,7 +61,8 @@ export const contractsService = {
     return data;
   },
   async update(id: string, updates: Partial<Contract>): Promise<Contract> {
-    const clean = normalizeContract(updates);
+    const { normalizePartialContract } = await import('../normalizers');
+    const clean = normalizePartialContract(updates);
     const { data, error } = await supabase
       .from('contracts')
       .update(clean)
@@ -76,6 +77,10 @@ export const contractsService = {
     const { error } = await supabase.from('contracts').delete().eq('id', id);
     if (error) throw new Error(formatSbError('❌ contracts.delete', error));
     return true;
+  },
+  async deleteAllByAgency(agencyId: string): Promise<void> {
+    const { error } = await supabase.from('contracts').delete().eq('agency_id', agencyId);
+    if (error) throw new Error(formatSbError('❌ contracts.deleteAllByAgency', error));
   },
   async findOne(id: string): Promise<Contract | null> {
     const { data, error } = await supabase

@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, ArrowLeft, FileText, Plus } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
+import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
-import { Tenant, Contract, Property } from '../../types/db';
+import { Tenant, Property } from '../../types/db';
+import { Contract } from '../../types/contracts';
 import { extractIdFromSlug } from '../../utils/idSystem';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -16,13 +18,15 @@ import { PaymentsList } from '../payments/PaymentsList';
 export const TenantDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { agencyId: authAgencyId } = useAuth();
     const tenantId = extractIdFromSlug(slug || '');
 
     // Fetch Tenant Data
     const fetchTenant = React.useCallback(async () => {
-        const data = await dbService.tenants.getBySlugId(tenantId);
+        if (!authAgencyId) return [];
+        const data = await dbService.tenants.getBySlugId(tenantId, authAgencyId);
         return data ? [data] : [];
-    }, [tenantId]);
+    }, [tenantId, authAgencyId]);
 
     const { data: tenants, initialLoading: loadingTenant } = useRealtimeData<Tenant>(
         fetchTenant,
@@ -62,7 +66,11 @@ export const TenantDetails: React.FC = () => {
     }
 
     if (!tenant) {
-        return <div className="p-8 text-center text-red-500">Locataire introuvable (ID: {tenantId})</div>;
+        return <div className="p-8 text-center text-red-500">
+            <h3 className="text-lg font-bold">Accès refusé ou locataire introuvable</h3>
+            <p>Vous n'avez pas les permissions pour consulter ce locataire ou il n'existe pas.</p>
+            <Button onClick={() => navigate('/locataires')} className="mt-4" variant="outline">Retour à la liste</Button>
+        </div>;
     }
 
     const tabs = [
@@ -166,7 +174,6 @@ export const TenantDetails: React.FC = () => {
                                                         <div className="flex justify-between items-center">
                                                             <div>
                                                                 <p className="font-medium text-gray-900">
-                                                                    {/* Type assertion needed if owner isn't fully expanded, but usually it is from getAll */}
                                                                     {(activeContract.owner as any).first_name} {(activeContract.owner as any).last_name}
                                                                 </p>
                                                                 <p className="text-xs text-gray-500">{(activeContract.owner as any).business_id}</p>
@@ -190,16 +197,15 @@ export const TenantDetails: React.FC = () => {
                                             <div className="space-y-4">
                                                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                                                     <span className="text-gray-600 text-sm">Référence</span>
-                                                    <span className="font-medium text-gray-900">{activeContract.contract_number || 'N/A'}</span>
+                                                    <span className="font-medium text-gray-900">{activeContract.id.split('-')[0].toUpperCase()}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                                    <span className="text-gray-600 text-sm">Durée</span>
-                                                    <span className="font-medium text-gray-900">{activeContract.duration_months} mois</span>
+                                                    <span className="text-gray-600 text-sm">Type</span>
+                                                    <span className="font-medium text-gray-900 capitalize">{activeContract.type}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                                                     <span className="text-gray-600 text-sm">Prochaine échéance</span>
                                                     <span className="font-medium text-gray-900">
-                                                        {/* Simple calculation for next due date based on logic or static display */}
                                                         {new Date().getDate() <= 5 ? "5 du mois courant" : "5 du mois prochain"}
                                                     </span>
                                                 </div>
@@ -254,12 +260,8 @@ export const TenantDetails: React.FC = () => {
                                             )}
                                         </div>
 
-                                        {activeContract ? (
+                                        {tenant && (
                                             <PaymentsList tenantId={tenant.id} limit={10} showActions={true} />
-                                        ) : (
-                                            <div className="text-center py-8 text-gray-500">
-                                                <p>Aucun contrat actif. Créez un contrat pour enregistrer des paiements.</p>
-                                            </div>
                                         )}
                                     </div>
                                 </Card>

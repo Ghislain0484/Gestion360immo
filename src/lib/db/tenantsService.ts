@@ -57,25 +57,34 @@ export const tenantsService = {
         if (error) throw new Error(formatSbError('❌ tenants.delete', error));
         return true;
     },
-    async findOne(id: string): Promise<Tenant | null> {
-        const { data, error } = await supabase
+    async findOne(id: string, agencyId?: string): Promise<Tenant | null> {
+        let query = supabase
             .from('tenants')
             .select('*')
-            .eq('id', id)
-            .maybeSingle();
+            .eq('id', id);
+
+        if (agencyId) {
+            query = query.eq('agency_id', agencyId);
+        }
+
+        const { data, error } = await query.maybeSingle();
         if (error) {
             if (error.code === 'PGRST116') return null;
             throw new Error(formatSbError('❌ tenants.findOne', error));
         }
         return data;
     },
-    async getBySlugId(id: string): Promise<Tenant | null> {
+    async getBySlugId(id: string, agencyId?: string): Promise<Tenant | null> {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
         let query = supabase.from('tenants').select('*');
         if (isUuid) {
             query = query.eq('id', id);
         } else {
             query = query.eq('business_id', id);
+        }
+
+        if (agencyId) {
+            query = query.eq('agency_id', agencyId);
         }
         const { data, error } = await query.maybeSingle();
         if (error) {

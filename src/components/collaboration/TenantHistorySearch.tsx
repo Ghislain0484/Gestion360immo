@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, UserCheck, Phone, MapPin, Briefcase, Flag, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare } from 'lucide-react';
+import { Search, UserCheck, Phone, MapPin, Briefcase, Flag, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare, Shield } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -23,109 +23,86 @@ export const TenantHistorySearch: React.FC = () => {
   const [tenants, setTenants] = useState<TenantHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTenant, setSelectedTenant] = useState<TenantHistory | null>(null);
+  const [selectedTenant, setSelectedTenant] = useState<any | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestingAccess, setRequestingAccess] = useState(false);
 
 
 
   const searchTenants = async () => {
     if (!searchTerm.trim() || !authAgencyId) {
-      toast.error('Veuillez entrer un terme de recherche et être associé à une agence');
+      toast.error('Veuillez entrer un email ou un numéro de téléphone');
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
-      let query = supabase
-        .from('tenants')
-        .select(`
-          *,
-          agencies!inner(name),
-          contracts (
-            *,
-            properties!inner(title)
-          )
-        `)
-        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
-        .eq('agencies.is_active', true)
-        .neq('agency_id', authAgencyId);
+      // Utiliser le nouveau RPC V22 pour une recherche anonymisée et respectueuse de la vie privée
+      const { data, error } = await supabase.rpc('check_tier_reputation_v22', {
+        p_search: searchTerm.trim(),
+        p_type: 'tenant'
+      });
 
-      if (paymentFilter !== 'all') {
-        query = query.eq('payment_status', paymentFilter);
-      }
-
-      const { data, error } = await query.order('last_name', { ascending: true });
-
-      if (error) throw new Error(`❌ tenants.select | ${error.message}`);
-
-      const formattedData: TenantHistory[] = data?.map((tenant) => ({
-        ...tenant,
-        agency_name: tenant.agencies.name,
-        contracts: tenant.contracts.map((contract: Contract & { properties: { title: string } }) => ({
-          ...contract,
-          property_title: contract.properties.title,
-        })),
-      })) ?? [];
-
-      setTenants(formattedData);
+      if (error) throw error;
+      setTenants(data || []);
     } catch (err: any) {
       console.error('Erreur lors de la recherche:', err);
-      setError(err.message || 'Erreur lors de la recherche des locataires');
-      toast.error(err.message || 'Erreur lors de la recherche des locataires');
+      setError(err.message || 'Erreur lors de la recherche');
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleContact = async (tenant: TenantHistory) => {
+  const handleRequestAccess = async (result: any) => {
     if (!user?.id || !authAgencyId) {
-      toast.error('Utilisateur non authentifié ou agence non trouvée');
+      toast.error('Session expirée');
       return;
     }
 
+    setRequestingAccess(true);
     try {
-      const { data: agencyDirector, error: directorError } = await supabase
+      // 1. Créer la demande formelle
+      const { error: reqError } = await supabase
+        .from('collaboration_requests')
+        .insert({
+          requester_agency_id: authAgencyId,
+          target_agency_id: result.agency_id,
+          tier_id: result.id,
+          tier_type: 'tenant',
+          status: 'pending'
+        });
+
+      if (reqError) throw reqError;
+
+      // 2. Notifier l'agence via la messagerie
+      const { data: director } = await supabase
         .from('agency_users')
         .select('user_id')
-        .eq('agency_id', tenant.agency_id)
+        .eq('agency_id', result.agency_id)
         .eq('role', 'director')
         .single();
 
-      if (directorError || !agencyDirector) {
-        throw new Error('Directeur de l\'agence introuvable');
+      if (director) {
+        await dbService.messages.create({
+          sender_id: user.id,
+          receiver_id: director.user_id,
+          agency_id: result.agency_id,
+          subject: `Demande d'informations : Locataire trouvé`,
+          content: `Bonjour, nous avons trouvé un candidat (ID: ${result.id.slice(0, 8)}) ayant un historique dans votre agence. Pourriez-vous nous autoriser l'accès à son dossier complet ?`,
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
       }
 
-      const message: Partial<Message> = {
-        sender_id: user.id,
-        receiver_id: agencyDirector.user_id,
-        agency_id: tenant.agency_id,
-        subject: `Demande de collaboration pour ${tenant.first_name} ${tenant.last_name}`,
-        content: `Bonjour, je suis intéressé par une collaboration concernant le locataire ${tenant.first_name} ${tenant.last_name}. Merci de me contacter pour discuter.`,
-        is_read: false,
-        created_at: new Date().toISOString(),
-        attachments: [],
-      };
-
-      await dbService.messages.create(message);
-
-      const notification: Partial<Notification> = {
-        user_id: agencyDirector.user_id,
-        type: 'new_message' as 'new_message',
-        title: 'Nouveau message concernant un locataire',
-        message: `L'agence ${authAgencyId} vous a envoyé un message à propos de ${tenant.first_name} ${tenant.last_name}.`,
-        priority: 'medium' as 'medium',
-        data: { tenant_id: tenant.id },
-        is_read: false,
-        created_at: new Date().toISOString(),
-      };
-
-      await dbService.notifications.create(notification);
-
-      toast.success('Message envoyé à l\'agence !');
+      toast.success('Demande d\'accès envoyée avec succès !');
+      setShowRequestModal(false);
     } catch (err: any) {
-      console.error('Erreur lors de l\'envoi du message:', err);
-      toast.error(err.message || 'Erreur lors de l\'envoi du message');
+      toast.error(err.message);
+    } finally {
+      setRequestingAccess(false);
     }
   };
 
@@ -253,85 +230,48 @@ export const TenantHistorySearch: React.FC = () => {
               <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
                 <div className="p-4">
                   <div className="flex items-center space-x-3 mb-3">
-                    {tenant.photo_url ? (
-                      <img
-                        src={tenant.photo_url}
-                        alt={`${tenant.first_name} ${tenant.last_name}`}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <UserCheck className="h-5 w-5 text-blue-600" />
-                      </div>
-                    )}
+                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                      <Shield className="h-5 w-5 text-amber-600" />
+                    </div>
                     <div className="flex-1">
                       <h5 className="font-medium text-gray-900">
-                        {tenant.first_name} {tenant.last_name}
+                        {tenant.redacted_name}
                       </h5>
                       <div className="flex items-center text-xs text-gray-500">
                         <Building2 className="h-3 w-3 mr-1" />
-                        <span>{tenant.agency_name}</span>
+                        <span>Agence : {tenant.agency_name}</span>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center text-gray-600">
-                      <Phone className="h-3 w-3 mr-2" />
-                      <span>{tenant.phone}</span>
-                    </div>
-                    <div className="flex items-center text-gray-600">
-                      <MapPin className="h-3 w-3 mr-2" />
-                      <span>{tenant.city}</span>
-                    </div>
-                    <div className="flex items-center text-gray-600">
-                      <Briefcase className="h-3 w-3 mr-2" />
-                      <span>{tenant.profession}</span>
-                    </div>
-                    <div className="flex items-center text-gray-600">
-                      <Flag className="h-3 w-3 mr-2" />
-                      <span>{tenant.nationality}</span>
                     </div>
                   </div>
 
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Statut de paiement:</span>
+                      <span className="text-sm text-gray-600">Réputation :</span>
                       <Badge variant={getPaymentStatusColor(tenant.payment_status)} size="sm">
                         <div className="flex items-center space-x-1">
                           {getPaymentStatusIcon(tenant.payment_status)}
-                          <span>{getPaymentStatusLabel(tenant.payment_status)}</span>
+                          <span>{tenant.reputation_score}</span>
                         </div>
                       </Badge>
                     </div>
 
-                    {tenant.contracts && tenant.contracts.length > 0 && (
-                      <div className="text-xs text-gray-500">
-                        <p>{tenant.contracts.length} contrat(s) dans l'historique</p>
-                        <p>Dernier: {tenant.contracts[0]?.property_title}</p>
-                      </div>
-                    )}
+                    <div className="text-xs text-gray-500">
+                      <p>{tenant.contract_count} contrat(s) passés/actifs</p>
+                    </div>
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-gray-200 flex space-x-2">
+                  <div className="mt-3 pt-3 border-t border-gray-200">
                     <Button
-                      variant="outline"
+                      variant="primary"
                       size="sm"
                       className="w-full"
                       onClick={() => {
                         setSelectedTenant(tenant);
-                        setShowDetails(true);
+                        setShowRequestModal(true);
                       }}
                     >
-                      Voir l'historique complet
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleContact(tenant)}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      Contacter
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Demander l'accès au dossier
                     </Button>
                   </div>
                 </div>
@@ -443,6 +383,45 @@ export const TenantHistorySearch: React.FC = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={showRequestModal}
+        onClose={() => {
+          setShowRequestModal(false);
+          setSelectedTenant(null);
+        }}
+        title="Demande d'accès aux informations"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
+            <p className="text-sm text-blue-800">
+              Vous allez envoyer une demande de consultation de dossier à l'agence <strong>{selectedTenant?.agency_name}</strong> pour le candidat <strong>{selectedTenant?.redacted_name}</strong>.
+            </p>
+          </div>
+
+          <p className="text-sm text-gray-600">
+            Une fois validée, vous pourrez voir l'historique de paiement complet, les contrats passés et les notes de gestion.
+          </p>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowRequestModal(false)}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={() => handleRequestAccess(selectedTenant)}
+              isLoading={requestingAccess}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Envoyer la demande
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
