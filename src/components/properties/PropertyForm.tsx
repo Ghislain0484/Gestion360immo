@@ -20,6 +20,7 @@ interface PropertyFormProps {
   onClose: () => void;
   onSubmit: (property: PropertyFormData) => Promise<void> | void;
   initialData?: Partial<PropertyFormData>;
+  isLoading?: boolean;
 }
 
 export const PropertyForm: React.FC<PropertyFormProps> = ({
@@ -27,6 +28,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   onClose,
   onSubmit,
   initialData,
+  isLoading = false,
 }) => {
   const { user, agencyId, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState<PropertyFormData>({
@@ -188,6 +190,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
 
   const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setFormError(undefined);
 
     // Validation des champs essentiels uniquement
@@ -333,6 +336,15 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-gray-700">À vendre</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer ml-auto bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                <input
+                  type="checkbox"
+                  checked={formData.is_available}
+                  onChange={(e) => setFormData(prev => ({ ...prev, is_available: e.target.checked }))}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-bold text-blue-700">Bien disponible</span>
               </label>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -718,7 +730,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                 Suivant
               </Button>
             ) : (
-              <Button type="submit" disabled={isSubmitting} aria-label="Enregistrer la propriété">
+              <Button type="submit" disabled={isSubmitting || isLoading || showSuccessModal} aria-label="Enregistrer la propriété">
                 {isSubmitting ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

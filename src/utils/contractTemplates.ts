@@ -368,6 +368,7 @@ En foi de quoi, le présent contrat est établi pour servir et valoir ce que de 
     `.trim();
 
     return {
+      agency_id: agency.id,
       property_id: property.id,
       owner_id: property.owner_id,
       tenant_id: tenant.id,

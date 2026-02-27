@@ -18,6 +18,7 @@ export interface Contract extends AgencyEntity {
   status: ContractStatus;
   terms: string;
   documents: string[]; // Updated to string[] for document URLs
+  extra_data?: Record<string, any>; // For transition info and metadata
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
 

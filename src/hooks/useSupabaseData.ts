@@ -315,6 +315,7 @@ export function useSupabaseCreate<T extends Entity>(
   const [success, setSuccess] = useState(false);
 
   const create = async (data: Partial<T>) => {
+    if (loading) return;
     setLoading(true);
     setError(null);
     setSuccess(false);
@@ -362,6 +363,7 @@ export function useSupabaseUpdate<T extends Entity>(
   const [success, setSuccess] = useState(false);
 
   const update = async (id: string, data: Partial<T>) => {
+    if (loading) return;
     setLoading(true);
     setError(null);
     setSuccess(false);

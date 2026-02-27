@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Search, LayoutGrid, List as ListIcon } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Plus, Search, LayoutGrid, List as ListIcon, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -12,25 +12,43 @@ import { dbService } from '../../lib/supabase';
 import { generateSlug } from '../../utils/idSystem';
 import debounce from 'lodash/debounce';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const PropertiesList: React.FC = () => {
   const navigate = useNavigate();
+  const { user, agencyId: authAgencyId } = useAuth();
+  const isDirector = user?.role === 'director';
+  const isManager = user?.role === 'manager';
+  const isDirectorOrManager = isDirector || isManager;
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterStanding, setFilterStanding] = useState<string>('all');
 
+  const fetchProperties = useCallback(() => dbService.properties.getAll({
+    agency_id: authAgencyId || undefined,
+    limit: 1000,
+    includeOwner: true
+  }), [authAgencyId]);
+
   const { data: properties, initialLoading, error, refetch } = useRealtimeData<Property>(
-    dbService.properties.getAll,
-    'properties',
-    { limit: 1000 }
+    fetchProperties,
+    'properties'
   );
 
   // Fetch contracts and tenants for display
-  const { data: contracts } = useRealtimeData(dbService.contracts.getAll, 'contracts');
-  const { data: tenants } = useRealtimeData(dbService.tenants.getAll, 'tenants');
+  const { data: contracts } = useRealtimeData(
+    dbService.contracts.getAll,
+    'contracts',
+    { agency_id: authAgencyId || undefined }
+  );
+  const { data: tenants } = useRealtimeData(
+    dbService.tenants.getAll,
+    'tenants',
+    { agency_id: authAgencyId || undefined }
+  );
 
-  const { create: createProperty } = useSupabaseCreate(
+  const { create: createProperty, loading: creatingLoading } = useSupabaseCreate(
     dbService.properties.create,
     {
       onSuccess: () => {
@@ -76,6 +94,62 @@ export const PropertiesList: React.FC = () => {
   const handlePropertyClick = (property: Property) => {
     const slug = generateSlug(property.id, property.title);
     navigate(`/proprietes/${slug}`); // Using generic slug route
+  };
+
+  const handleDeleteProperty = async (property: Property) => {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer définitivement le bien "${property.title}" ? Cette action est irréversible et supprimera également tous les contrats, quittances et images associés.`)) {
+      return;
+    }
+
+    const toastId = toast.loading('Suppression en cours...');
+    try {
+      // 1. Fetch associated contracts first
+      const propertyContracts = await dbService.contracts.getAll({ property_id: property.id, agency_id: authAgencyId || undefined });
+
+      if (propertyContracts.length > 0) {
+        console.log(`🧹 Nettoyage de ${propertyContracts.length} contrats pour le bien ${property.id}`);
+        for (const contract of propertyContracts) {
+          // 1.1 First delete receipts for this contract to avoid FK constraint error on contracts
+          const receipts = await dbService.rentReceipts.getAll({ contract_id: contract.id, agency_id: authAgencyId || undefined });
+          if (receipts.length > 0) {
+            console.log(`🧾 Suppression de ${receipts.length} quittances pour le contrat ${contract.id}`);
+            for (const receipt of receipts) {
+              await dbService.rentReceipts.delete(receipt.id);
+            }
+          }
+          // 1.2 Now delete the contract
+          await dbService.contracts.delete(contract.id);
+        }
+      }
+
+      // 2. Cleanup financial transactions linked to this property
+      const { data: transactions } = await dbService.financials.getTransactionsByProperty(property.id);
+      if (transactions && transactions.length > 0) {
+        console.log(`💰 Nettoyage de ${transactions.length} transactions financières pour le bien ${property.id}`);
+        for (const tx of transactions) {
+          await dbService.financials.deleteTransaction(tx.id);
+        }
+      }
+
+      // 3. Cleanup images from storage
+      if (property.images && property.images.length > 0) {
+        console.log(`🖼️ Nettoyage de ${property.images.length} images de la plateforme`);
+        for (const img of property.images) {
+          if (img.url) {
+            await dbService.properties.deleteImage(img.url);
+          }
+        }
+      }
+
+      // 3. Finally delete the property
+      await dbService.properties.delete(property.id);
+
+      toast.success('Bien et toutes les données associées supprimés avec succès', { id: toastId });
+      refetch();
+    } catch (err: any) {
+      console.error('Error deleting property:', err);
+      toast.error('Erreur lors de la suppression: ' + (err.message || 'Le bien est probablement lié à des données protégées.'), { id: toastId });
+    }
   };
 
   if (initialLoading) {
@@ -173,6 +247,7 @@ export const PropertiesList: React.FC = () => {
                 property={property}
                 {...getRentalInfo(property.id)}
                 onClick={() => handlePropertyClick(property)}
+                onDelete={isDirectorOrManager ? () => handleDeleteProperty(property) : undefined}
               />
             ) : (
               <Card
@@ -196,12 +271,26 @@ export const PropertiesList: React.FC = () => {
                     const isAvailable = property.is_available && !isOccupied;
                     return (
                       <span className={`px-2 py-1 rounded text-xs font-medium ${isOccupied ? 'bg-yellow-100 text-yellow-700' :
-                          (isAvailable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700')
+                        (isAvailable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700')
                         }`}>
                         {isOccupied ? 'Occupé' : (isAvailable ? 'Disponible' : 'Indisponible')}
                       </span>
                     );
                   })()}
+                  {isDirectorOrManager && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 h-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteProperty(property);
+                      }}
+                      title="Supprimer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </Card>
             )
@@ -216,6 +305,7 @@ export const PropertiesList: React.FC = () => {
         onSubmit={async (data) => {
           await createProperty(data);
         }}
+        isLoading={creatingLoading}
       />
     </div>
   );

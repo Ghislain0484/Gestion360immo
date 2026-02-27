@@ -25,9 +25,10 @@ interface TenantFormProps {
   onSubmit: (tenant: TenantFormData, rentalParams?: RentalParams | null, property?: Property | null) => Promise<void>;
   initialData?: Partial<TenantFormData>;
   preSelectedPropertyId?: string;
+  isLoading?: boolean;
 }
 
-export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmit, initialData, preSelectedPropertyId }) => {
+export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmit, initialData, preSelectedPropertyId, isLoading = false }) => {
   const { user, isLoading: authLoading } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -187,6 +188,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setFormError(null);
 
@@ -203,7 +205,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
 
     // Validation téléphone permissive
     if (!validatePhoneCI(formData.phone)) {
-      setFormError('Format de téléphone invalide. Exemples acceptés: 0708090102, +225 07 08 09 01 02');
+      setFormError('Format de téléphone invalide. Ex: 0708090102 ou +225XXXXXXXX');
       return;
     }
 
@@ -654,7 +656,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
           <Button type="button" variant="ghost" onClick={onClose}>
             Annuler
           </Button>
-          <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={isSubmitting}>
+          <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={isSubmitting || isLoading}>
             {isSubmitting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

@@ -10,8 +10,8 @@
 export const validatePhoneCI = (phone: string): boolean => {
   if (!phone) return false;
   const cleaned = phone.replace(/[\s\-().]/g, '');
-  // Accepte différents formats ivoiriens
-  return /^(\+?225)?[0-9]{8,10}$/.test(cleaned);
+  // Accepte différents formats : ivoiriens (8-10 chiffres) et internationaux (plus de 8 chiffres avec + possible)
+  return /^(\+?[0-9]{8,15})$/.test(cleaned);
 };
 
 /**
@@ -34,10 +34,10 @@ export const validateFormField = (
 ): boolean => {
   // Si non requis et vide, c'est valide
   if (!required && (!value || value === '')) return true;
-  
+
   // Si requis et vide, c'est invalide
   if (required && (!value || value === '')) return false;
-  
+
   // Si un validateur est fourni, l'utiliser
   return validator ? validator(value) : true;
 };
@@ -48,25 +48,25 @@ export const validateFormField = (
  */
 export const formatPhoneCI = (phone: string): string => {
   const cleaned = phone.replace(/[\s\-().]/g, '');
-  
+
   // Si commence par +225
   if (cleaned.startsWith('+225')) {
     const number = cleaned.substring(4);
     return `+225 ${number.substring(0, 2)} ${number.substring(2, 4)} ${number.substring(4, 6)} ${number.substring(6, 8)} ${number.substring(8)}`;
   }
-  
+
   // Si commence par 225
   if (cleaned.startsWith('225')) {
     const number = cleaned.substring(3);
     return `+225 ${number.substring(0, 2)} ${number.substring(2, 4)} ${number.substring(4, 6)} ${number.substring(6, 8)} ${number.substring(8)}`;
   }
-  
+
   // Si commence par 0
   if (cleaned.startsWith('0')) {
     const number = cleaned.substring(1);
     return `+225 ${number.substring(0, 2)} ${number.substring(2, 4)} ${number.substring(4, 6)} ${number.substring(6, 8)} ${number.substring(8)}`;
   }
-  
+
   // Format par défaut
   return `+225 ${cleaned.substring(0, 2)} ${cleaned.substring(2, 4)} ${cleaned.substring(4, 6)} ${cleaned.substring(6, 8)} ${cleaned.substring(8)}`;
 };
@@ -85,5 +85,6 @@ export const isEmpty = (value: any): boolean => {
 export const validateAmount = (amount: number | undefined | null, required: boolean = false): boolean => {
   if (!required && (amount === undefined || amount === null || amount === 0)) return true;
   if (required && (amount === undefined || amount === null || amount <= 0)) return false;
+  if (amount === undefined || amount === null) return !required;
   return amount >= 0;
 };

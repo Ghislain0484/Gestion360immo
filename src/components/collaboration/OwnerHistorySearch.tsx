@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Users, Phone, MapPin, FileText, Building2, AlertTriangle, MessageSquare } from 'lucide-react';
+import { Search, UserCheck, Phone, MapPin, Briefcase, Flag, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare, Shield, Users } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -22,98 +22,83 @@ export const OwnerHistorySearch: React.FC = () => {
   const [owners, setOwners] = useState<OwnerHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedOwner, setSelectedOwner] = useState<OwnerHistory | null>(null);
+  const [selectedOwner, setSelectedOwner] = useState<any | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestingAccess, setRequestingAccess] = useState(false);
 
 
 
   const searchOwners = async () => {
     if (!searchTerm.trim() || !authAgencyId) {
-      toast.error('Veuillez entrer un terme de recherche et être associé à une agence');
+      toast.error('Veuillez entrer un email ou un numéro de téléphone');
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('owners')
-        .select(`
-          *,
-          agencies!inner(name),
-          properties_count:properties(count)
-        `)
-        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
-        .eq('agencies.is_active', true)
-        .neq('agency_id', authAgencyId)
-        .order('last_name', { ascending: true });
+      const { data, error } = await supabase.rpc('check_tier_reputation_v22', {
+        p_search: searchTerm.trim(),
+        p_type: 'owner'
+      });
 
-      if (error) throw new Error(`❌ owners.select | ${error.message}`);
-
-      const formattedData: OwnerHistory[] = data?.map((owner) => ({
-        ...owner,
-        agency_name: owner.agencies.name,
-        properties_count: owner.properties_count[0]?.count ?? 0,
-      })) ?? [];
-
-      setOwners(formattedData);
+      if (error) throw error;
+      setOwners(data || []);
     } catch (err: any) {
       console.error('Erreur lors de la recherche:', err);
-      setError(err.message || 'Erreur lors de la recherche des propriétaires');
-      toast.error(err.message || 'Erreur lors de la recherche des propriétaires');
+      setError(err.message || 'Erreur lors de la recherche');
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleContact = async (owner: OwnerHistory) => {
+  const handleRequestAccess = async (result: any) => {
     if (!user?.id || !authAgencyId) {
-      toast.error('Utilisateur non authentifié ou agence non trouvée');
+      toast.error('Session expirée');
       return;
     }
 
+    setRequestingAccess(true);
     try {
-      const { data: agencyDirector, error: directorError } = await supabase
+      const { error: reqError } = await supabase
+        .from('collaboration_requests')
+        .insert({
+          requester_agency_id: authAgencyId,
+          target_agency_id: result.agency_id,
+          tier_id: result.id,
+          tier_type: 'owner',
+          status: 'pending'
+        });
+
+      if (reqError) throw reqError;
+
+      const { data: director } = await supabase
         .from('agency_users')
         .select('user_id')
-        .eq('agency_id', owner.agency_id)
+        .eq('agency_id', result.agency_id)
         .eq('role', 'director')
         .single();
 
-      if (directorError || !agencyDirector) {
-        throw new Error('Directeur de l\'agence introuvable');
+      if (director) {
+        await dbService.messages.create({
+          sender_id: user.id,
+          receiver_id: director.user_id,
+          agency_id: result.agency_id,
+          subject: `Demande d'informations : Propriétaire trouvé`,
+          content: `Bonjour, nous avons trouvé un propriétaire (ID: ${result.id.slice(0, 8)}) ayant un historique dans votre agence. Pourriez-vous nous autoriser l'accès à son dossier ?`,
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
       }
 
-      const message: Partial<Message> = {
-        sender_id: user.id,
-        receiver_id: agencyDirector.user_id,
-        agency_id: owner.agency_id,
-        subject: `Demande de collaboration pour ${owner.first_name} ${owner.last_name}`,
-        content: `Bonjour, je suis intéressé par une collaboration concernant le propriétaire ${owner.first_name} ${owner.last_name}. Merci de me contacter pour discuter.`,
-        is_read: false,
-        created_at: new Date().toISOString(),
-        attachments: [],
-      };
-
-      await dbService.messages.create(message);
-
-      const notification: Partial<Notification> = {
-        user_id: agencyDirector.user_id,
-        type: 'new_message' as 'new_message',
-        title: 'Nouveau message concernant un propriétaire',
-        message: `L'agence ${authAgencyId} a manifesté un intérêt pour votre annonce.`,
-        priority: 'medium' as 'medium',
-        data: { owner_id: owner.id },
-        is_read: false,
-        created_at: new Date().toISOString(),
-      };
-
-      await dbService.notifications.create(notification);
-
-      toast.success('Message envoyé à l\'agence !');
+      toast.success('Demande d\'accès envoyée !');
+      setShowRequestModal(false);
     } catch (err: any) {
-      console.error('Erreur lors de l\'envoi du message:', err);
-      toast.error(err.message || 'Erreur lors de l\'envoi du message');
+      toast.error(err.message);
+    } finally {
+      setRequestingAccess(false);
     }
   };
 
@@ -246,72 +231,48 @@ export const OwnerHistorySearch: React.FC = () => {
               <Card key={owner.id} className="hover:shadow-lg transition-shadow">
                 <div className="p-4">
                   <div className="flex items-center space-x-3 mb-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <span className="text-green-600 font-semibold text-sm">
-                        {owner.first_name[0]}{owner.last_name[0]}
-                      </span>
+                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                      <Shield className="h-5 w-5 text-amber-600" />
                     </div>
                     <div className="flex-1">
                       <h5 className="font-medium text-gray-900">
-                        {owner.first_name} {owner.last_name}
+                        {owner.redacted_name}
                       </h5>
                       <div className="flex items-center text-xs text-gray-500">
                         <Building2 className="h-3 w-3 mr-1" />
-                        <span>{owner.agency_name}</span>
+                        <span>Agence : {owner.agency_name}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center text-gray-600">
-                      <Phone className="h-3 w-3 mr-2" />
-                      <span>{owner.phone}</span>
-                    </div>
-                    <div className="flex items-center text-gray-600">
-                      <MapPin className="h-3 w-3 mr-2" />
-                      <span>{owner.address}, {owner.city}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Titre de propriété:</span>
-                      <Badge variant={getPropertyTitleColor(owner.property_title)} size="sm">
-                        {getPropertyTitleLabel(owner.property_title)}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Situation:</span>
-                      <Badge variant={getMaritalStatusColor(owner.marital_status)} size="sm">
-                        {getMaritalStatusLabel(owner.marital_status)}
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Confiance :</span>
+                      <Badge variant="info" size="sm">
+                        <div className="flex items-center space-x-1">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Vérifié par la plateforme</span>
+                        </div>
                       </Badge>
                     </div>
 
                     <div className="text-xs text-gray-500">
-                      <p>{owner.properties_count} bien(s) dans l'historique</p>
+                      <p>{owner.contract_count} propriété(s) gérée(s)</p>
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-gray-200 flex space-x-2">
+                  <div className="mt-3 pt-3 border-t border-gray-200">
                     <Button
-                      variant="outline"
+                      variant="primary"
                       size="sm"
                       className="w-full"
                       onClick={() => {
                         setSelectedOwner(owner);
-                        setShowDetails(true);
+                        setShowRequestModal(true);
                       }}
                     >
-                      Voir les détails
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleContact(owner)}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      Contacter
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Demander l'accès au dossier
                     </Button>
                   </div>
                 </div>

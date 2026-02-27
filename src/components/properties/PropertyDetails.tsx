@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Building, Users, Wallet, Edit, ArrowLeft, BedDouble, Bath, Square, CheckCircle, AlertCircle } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
+import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
+import { toast } from 'react-hot-toast';
 import { Property, RoomDetails } from '../../types/db';
 import { extractIdFromSlug } from '../../utils/idSystem';
 import { Button } from '../ui/Button';
@@ -15,15 +17,17 @@ import { ImageGallery } from '../ui/ImageGallery';
 import { generateSlug } from '../../utils/idSystem';
 import { Owner } from '../../types/db';
 
-const OwnerInfoDisplay: React.FC<{ ownerId: string }> = ({ ownerId }) => {
+const OwnerInfoDisplay: React.FC<{ ownerId: string; agencyId?: string }> = ({ ownerId, agencyId }) => {
     const navigate = useNavigate();
     const [owner, setOwner] = useState<Owner | null>(null);
 
     React.useEffect(() => {
         if (ownerId) {
-            dbService.owners.getById(ownerId).then(setOwner);
+            dbService.owners.getById(ownerId, agencyId).then(setOwner).catch(err => {
+                console.error("❌ Error fetching owner in PropertyDetails:", err);
+            });
         }
-    }, [ownerId]);
+    }, [ownerId, agencyId]);
 
     if (!owner) return <div className="animate-pulse h-12 bg-gray-100 rounded"></div>;
 
@@ -55,22 +59,37 @@ const OwnerInfoDisplay: React.FC<{ ownerId: string }> = ({ ownerId }) => {
 export const PropertyDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { agencyId: authAgencyId, user } = useAuth();
     const propertyId = extractIdFromSlug(slug || '');
 
     const [activeTab, setActiveTab] = useState('details');
     const [showEditForm, setShowEditForm] = useState(false);
 
     // Fetch Specific Property Data
-    const { data: properties } = useRealtimeData<Property>(
-        dbService.properties.getAll,
-        'properties'
+    const fetchProperty = React.useCallback(async () => {
+        if (!authAgencyId) return [];
+        const data = await dbService.properties.getById(propertyId, authAgencyId);
+        return data ? [data] : [];
+    }, [propertyId, authAgencyId]);
+
+    const { data: properties, initialLoading: loadingProperty } = useRealtimeData<Property>(
+        fetchProperty,
+        'properties',
+        { id: propertyId }
     );
-    // Fallback: If properties are loaded, find match. If not found yet, it will be undefined.
-    const property = properties.find(p => p.id === propertyId);
+    const property = properties?.[0];
 
     // Fetch Related Data (Contracts & Tenants)
-    const { data: contracts } = useRealtimeData(dbService.contracts.getAll, 'contracts');
-    const { data: tenants } = useRealtimeData(dbService.tenants.getAll, 'tenants');
+    const { data: contracts = [] } = useRealtimeData(
+        dbService.contracts.getAll,
+        'contracts',
+        { agency_id: authAgencyId || undefined }
+    );
+    const { data: tenants = [] } = useRealtimeData(
+        dbService.tenants.getAll,
+        'tenants',
+        { agency_id: authAgencyId || undefined }
+    );
 
     // Derived Data
     // Correction : Un bien est "loué" uniquement s'il y a un contrat de type 'location' actif
@@ -89,16 +108,19 @@ export const PropertyDetails: React.FC = () => {
         c.type === 'location'
     ) || [];
 
+    if (loadingProperty) {
+        return <div className="p-12 text-center text-gray-500 flex flex-col items-center">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            Chargement des détails du bien...
+        </div>;
+    }
+
     if (!property) {
-        // Show loading only if properties list is empty (loading)
-        // If list is populated but not found, show "Not Found"
-        if (properties.length === 0) {
-            return <div className="p-12 text-center text-gray-500 flex flex-col items-center">
-                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                Chargement des détails du bien...
-            </div>;
-        }
-        return <div className="p-8 text-center text-red-500">Bien introuvable (ID: {propertyId})</div>;
+        return <div className="p-8 text-center text-red-500">
+            <h3 className="text-lg font-bold">Accès refusé ou bien introuvable</h3>
+            <p>Vous n'avez pas les permissions pour consulter ce bien ou il n'existe pas.</p>
+            <Button onClick={() => navigate('/proprietes')} className="mt-4" variant="outline">Retour au catalogue</Button>
+        </div>;
     }
 
     // Coexistence Robuste : Un bien est "Occupé" uniquement s'il y a un contrat de location actif
@@ -119,6 +141,45 @@ export const PropertyDetails: React.FC = () => {
 
     const bedrooms = property.rooms?.filter(r => ['chambre_principale', 'chambre_2', 'chambre_3'].includes(r.type)).length || 0;
     const bathrooms = property.rooms?.filter(r => r.type === 'salle_bain').length || 0;
+
+    const handleDeleteProperty = async () => {
+        if (!window.confirm(`Supprimer définitivement "${property.title}" ? Cette action est irréversible et supprimera tout l'historique associé.`)) {
+            return;
+        }
+
+        const toastId = toast.loading('Suppression en cours...');
+        try {
+            // Cleanup logic (same as PropertiesList)
+            const propertyContracts = await dbService.contracts.getAll({ property_id: property.id, agency_id: authAgencyId || undefined });
+            for (const contract of propertyContracts) {
+                const receipts = await dbService.rentReceipts.getAll({ contract_id: contract.id, agency_id: authAgencyId || undefined });
+                for (const receipt of receipts) {
+                    await dbService.rentReceipts.delete(receipt.id);
+                }
+                await dbService.contracts.delete(contract.id);
+            }
+
+            const { data: transactions } = await dbService.financials.getTransactionsByProperty(property.id);
+            if (transactions) {
+                for (const tx of transactions) {
+                    await dbService.financials.deleteTransaction(tx.tx_id || tx.id);
+                }
+            }
+
+            if (property.images) {
+                for (const img of property.images) {
+                    if (img.url) await dbService.properties.deleteImage(img.url);
+                }
+            }
+
+            await dbService.properties.delete(property.id);
+            toast.success('Bien supprimé avec succès', { id: toastId });
+            navigate('/proprietes');
+        } catch (err: any) {
+            console.error('Error deleting property:', err);
+            toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+        }
+    };
 
     const tabs = [
         { id: 'details', label: 'Détails & Pièces', icon: Building },
@@ -169,10 +230,21 @@ export const PropertyDetails: React.FC = () => {
                                     </Badge>
                                 </div>
                             </div>
-                            <Button onClick={() => setShowEditForm(true)} variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
-                                <Edit className="w-4 h-4 mr-2" />
-                                Modifier
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button onClick={() => setShowEditForm(true)} variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Modifier
+                                </Button>
+                                {(user?.role === 'director' || user?.role === 'manager') && (
+                                    <Button
+                                        onClick={() => handleDeleteProperty()}
+                                        variant="outline"
+                                        className="bg-red-600/20 text-red-100 border-red-500/30 hover:bg-red-600/40"
+                                    >
+                                        Supprimer
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -367,7 +439,7 @@ export const PropertyDetails: React.FC = () => {
                             // Fallback if no active contract but property exists (fetch owner if needed, but for now show basic or fetch separately)
                             // Since we didn't fetch owner separately in the original code, we might need to rely on what we have.
                             // The easiest way is to fetch the owner here if not present in contract.
-                            <OwnerInfoDisplay ownerId={property.owner_id} />
+                            <OwnerInfoDisplay ownerId={property.owner_id} agencyId={authAgencyId ?? undefined} />
                         ) : (
                             <p className="text-gray-500">Information non disponible</p>
                         )}
@@ -390,9 +462,16 @@ export const PropertyDetails: React.FC = () => {
                 isOpen={showEditForm}
                 onClose={() => setShowEditForm(false)}
                 initialData={property}
-                onSubmit={() => {
-                    setShowEditForm(false);
-                    // Refresh handled by realtime or parent
+                onSubmit={async (data) => {
+                    const toastId = toast.loading('Mise à jour du bien...');
+                    try {
+                        await dbService.properties.update(property.id, data);
+                        toast.success('Bien mis à jour avec succès', { id: toastId });
+                        setShowEditForm(false);
+                    } catch (err: any) {
+                        console.error('Update Property Error:', err);
+                        toast.error('Erreur lors de la mise à jour : ' + (err.message || ''), { id: toastId });
+                    }
                 }}
             />
         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Megaphone, Search, Eye, Heart, Send, Users, UserCheck } from 'lucide-react';
+import { MessageSquare, Megaphone, Search, Eye, Heart, Send, Users, UserCheck, Shield } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -22,7 +22,8 @@ interface FormData {
 
 export const CollaborationHub: React.FC = () => {
   const { user, agencyId: authAgencyId, isLoading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'announcements' | 'messages' | 'tenant_history' | 'owner_history'>('announcements');
+  const [activeTab, setActiveTab] = useState<'announcements' | 'messages' | 'tenant_history' | 'owner_history' | 'requests'>('announcements');
+  const [collaborationRequests, setCollaborationRequests] = useState<any[]>([]);
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'location' | 'vente'>('all');
@@ -69,6 +70,18 @@ export const CollaborationHub: React.FC = () => {
           throw new Error(`❌ messages.select | ${messagesError.message}`);
         }
         setMessages(messagesData ?? []);
+
+        // Fetch collaboration requests
+        const { data: requestsData, error: requestsError } = await supabase
+          .from('collaboration_requests')
+          .select('*, requester_agency:requester_agency_id(name)')
+          .eq('target_agency_id', authAgencyId)
+          .order('created_at', { ascending: false });
+
+        if (requestsError) {
+          throw new Error(`❌ requests.select | ${requestsError.message}`);
+        }
+        setCollaborationRequests(requestsData ?? []);
       } catch (err: any) {
         console.error('Erreur chargement données:', err);
         setError(err.message || 'Erreur lors du chargement des données');
@@ -228,8 +241,8 @@ export const CollaborationHub: React.FC = () => {
           <button
             onClick={() => setActiveTab('announcements')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'announcements'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <Megaphone className="h-4 w-4" />
@@ -238,8 +251,8 @@ export const CollaborationHub: React.FC = () => {
           <button
             onClick={() => setActiveTab('tenant_history')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'tenant_history'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <UserCheck className="h-4 w-4" />
@@ -248,8 +261,8 @@ export const CollaborationHub: React.FC = () => {
           <button
             onClick={() => setActiveTab('owner_history')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'owner_history'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <Users className="h-4 w-4" />
@@ -258,12 +271,22 @@ export const CollaborationHub: React.FC = () => {
           <button
             onClick={() => setActiveTab('messages')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'messages'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <MessageSquare className="h-4 w-4" />
             <span>Messages ({messages.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'requests'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            <Shield className="h-4 w-4" />
+            <span>Demandes ({collaborationRequests.length})</span>
           </button>
         </nav>
       </div>
@@ -374,6 +397,96 @@ export const CollaborationHub: React.FC = () => {
       {activeTab === 'tenant_history' && <TenantHistorySearch />}
 
       {activeTab === 'owner_history' && <OwnerHistorySearch />}
+
+      {activeTab === 'requests' && (
+        <div className="space-y-6">
+          {collaborationRequests.length > 0 ? (
+            collaborationRequests.map((request) => (
+              <Card key={request.id} className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={request.status === 'pending' ? 'warning' : request.status === 'approved' ? 'success' : 'danger'}>
+                        {request.status === 'pending' ? 'En attente' : request.status === 'approved' ? 'Approuvé' : 'Refusé'}
+                      </Badge>
+                      <span className="text-sm font-medium text-gray-900">
+                        Demande de : {request.requester_agency?.name || 'Agence inconnue'}
+                      </span>
+                    </div>
+                    <p className="text-gray-600">
+                      Souhaite accéder au dossier {request.tier_type === 'tenant' ? 'du locataire' : 'du propriétaire'} (ID: {request.tier_id.slice(0, 8)})
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Reçue le {new Date(request.created_at).toLocaleDateString('fr-FR')}
+                    </p>
+                  </div>
+                  {request.status === 'pending' && (
+                    <div className="flex space-x-2">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('collaboration_requests')
+                              .update({ status: 'approved', updated_at: new Date().toISOString() })
+                              .eq('id', request.id);
+
+                            if (error) throw error;
+
+                            toast.success('Demande approuvée');
+                            setCollaborationRequests(prev =>
+                              prev.map(r => r.id === request.id ? { ...r, status: 'approved' } : r)
+                            );
+                          } catch (err: any) {
+                            toast.error(err.message);
+                          }
+                        }}
+                      >
+                        Approuver
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('collaboration_requests')
+                              .update({ status: 'rejected', updated_at: new Date().toISOString() })
+                              .eq('id', request.id);
+
+                            if (error) throw error;
+
+                            toast.success('Demande refusée');
+                            setCollaborationRequests(prev =>
+                              prev.map(r => r.id === request.id ? { ...r, status: 'rejected' } : r)
+                            );
+                          } catch (err: any) {
+                            toast.error(err.message);
+                          }
+                        }}
+                      >
+                        Refuser
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))
+          ) : (
+            <Card className="p-8 text-center border-dashed border-2">
+              <Shield className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Aucune demande reçue
+              </h3>
+              <p className="text-gray-600">
+                Les demandes d'accès aux dossiers de vos tiers apparaîtront ici.
+              </p>
+            </Card>
+          )}
+        </div>
+      )}
 
       {activeTab === 'messages' && (
         <div className="space-y-6">

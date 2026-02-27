@@ -22,6 +22,9 @@ const PAGE_SIZE = 10;
 
 export const TenantsList: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
+  const isDirector = user?.role === 'director';
+  const isManager = user?.role === 'manager';
+  const isDirectorOrManager = isDirector || isManager;
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
@@ -91,7 +94,7 @@ export const TenantsList: React.FC = () => {
     }
   );
 
-  const { create: createTenant } = useSupabaseCreate(
+  const { create: createTenant, loading: creatingTenant } = useSupabaseCreate(
     dbService.tenants.create,
     {
       onSuccess: () => {
@@ -249,14 +252,44 @@ export const TenantsList: React.FC = () => {
   }, [isEditing, selectedTenant, updateTenant, handleAddTenant, user?.agency_id]);
 
   const handleDeleteTenant = useCallback(async (tenantId: string) => {
-    if (!confirm('Supprimer ce locataire ?')) return;
+    if (!confirm('Supprimer ce locataire ? Cette action supprimera également tous les contrats et quittances associés.')) return;
+
+    const toastId = toast.loading('Suppression en cours...');
     try {
+      // 1. Fetch associated contracts first
+      const tenantContracts = await dbService.contracts.getAll({ tenant_id: tenantId, agency_id: user?.agency_id ?? undefined });
+
+      if (tenantContracts.length > 0) {
+        console.log(`🧹 Nettoyage de ${tenantContracts.length} contrats pour le locataire ${tenantId}`);
+        for (const contract of tenantContracts) {
+          // 1.1 First delete receipts for this contract
+          const receipts = await dbService.rentReceipts.getAll({ contract_id: contract.id, agency_id: user?.agency_id ?? undefined });
+          if (receipts.length > 0) {
+            console.log(`🧾 Suppression de ${receipts.length} quittances pour le contrat ${contract.id}`);
+            for (const receipt of receipts) {
+              await dbService.rentReceipts.delete(receipt.id);
+            }
+          }
+          // 1.2 Now delete the contract
+          await dbService.contracts.delete(contract.id);
+
+          // 1.3 If it was a rental, free up the property
+          if (contract.type === 'location' && contract.property_id) {
+            console.log(`🏘️ Libération du bien ${contract.property_id} suite à suppression locataire`);
+            await dbService.properties.update(contract.property_id, { is_available: true });
+          }
+        }
+      }
+
+      // 2. Finally delete the tenant
       await deleteTenant(tenantId);
-    } catch (err) {
+
+      toast.success('Locataire et toutes les données associées supprimés avec succès', { id: toastId });
+    } catch (err: any) {
       console.error(err);
-      toast.error('Erreur lors de la suppression du locataire');
+      toast.error('Erreur lors de la suppression du locataire: ' + (err.message || ''), { id: toastId });
     }
-  }, [deleteTenant]);
+  }, [deleteTenant, user?.agency_id]);
 
   const getPaymentStatusColor = (status: Tenant['payment_status']) => {
     switch (status) {
@@ -431,16 +464,18 @@ export const TenantsList: React.FC = () => {
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedTenant(tenant); setShowFinancialStatements(true); }} aria-label={`Voir l'état financier de ${tenant.first_name} ${tenant.last_name}`}>
                       <DollarSign className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() => handleDeleteTenant(tenant.id)}
-                      disabled={deleting}
-                      aria-label={`Supprimer ${tenant.first_name} ${tenant.last_name}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {isDirectorOrManager && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() => handleDeleteTenant(tenant.id)}
+                        disabled={deleting}
+                        aria-label={`Supprimer ${tenant.first_name} ${tenant.last_name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -491,6 +526,7 @@ export const TenantsList: React.FC = () => {
         onSubmit={handleFormSubmit}
         initialData={isEditing && selectedTenant ? selectedTenant : undefined}
         preSelectedPropertyId={queryPropertyId || undefined}
+        isLoading={creatingTenant}
       />
       <ReceiptGenerator
         isOpen={showReceiptGenerator}

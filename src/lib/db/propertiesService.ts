@@ -10,6 +10,7 @@ interface GetAllParams {
   standing?: string;
   limit?: number;
   offset?: number;
+  includeOwner?: boolean;
 }
 
 export const propertiesService = {
@@ -20,10 +21,11 @@ export const propertiesService = {
     standing,
     limit = 10,
     offset = 0,
+    includeOwner = false,
   }: GetAllParams = {}): Promise<Property[]> {
     let query = supabase
       .from('properties')
-      .select('*')
+      .select(includeOwner ? '*, owner:owners(first_name, last_name)' : '*')
       .order('created_at', { ascending: false });
 
     if (agency_id) {
@@ -44,7 +46,7 @@ export const propertiesService = {
 
     const { data, error } = await query;
     if (error) throw new Error(formatSbError('❌ properties.select', error));
-    return data ?? [];
+    return (data as any) as Property[];
   },
   async create(property: Partial<Property>): Promise<Property> {
     const clean = normalizeProperty(property);
@@ -63,12 +65,17 @@ export const propertiesService = {
     if (error) throw new Error(formatSbError('❌ properties.delete', error));
     return true;
   },
-  async findOne(id: string): Promise<Property | null> {
-    const { data, error } = await supabase
+  async findOne(id: string, agencyId?: string): Promise<Property | null> {
+    let query = supabase
       .from('properties')
       .select('*')
-      .eq('id', id)
-      .maybeSingle();
+      .eq('id', id);
+
+    if (agencyId) {
+      query = query.eq('agency_id', agencyId);
+    }
+
+    const { data, error } = await query.maybeSingle();
     if (error) {
       if (error.code === 'PGRST116') return null;
       throw new Error(formatSbError('❌ properties.findOne', error));
@@ -90,14 +97,19 @@ export const propertiesService = {
     if (error) throw new Error(formatSbError('❌ properties.select', error));
     return { data: data ?? [], error: null };
   },
-  async getById(id: string): Promise<Property> {
-    const { data, error } = await supabase
+  async getById(id: string, agencyId?: string): Promise<Property> {
+    let query = supabase
       .from('properties')
       .select('*, owner_id, agency_id')
-      .eq('id', id)
-      .single();
+      .eq('id', id);
+
+    if (agencyId) {
+      query = query.eq('agency_id', agencyId);
+    }
+
+    const { data, error } = await query.single();
     if (error) throw new Error(formatSbError('❌ properties.select', error));
-    return data;
+    return (data as any) as Property;
   },
 
   /**
@@ -113,7 +125,7 @@ export const propertiesService = {
 
       console.log('🔄 Upload image vers Supabase Storage:', fileName);
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('property-images')
         .upload(fileName, file, {
           cacheControl: '3600',

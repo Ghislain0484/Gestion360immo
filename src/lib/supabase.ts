@@ -187,7 +187,7 @@ export const dbService = {
   announcementInterests: announcementInterestsService,
   contracts: contractsService,
   rentReceipts: rentReceiptsService,
-  financialStatements: financialStatementsService,
+  financials: financialStatementsService,
   messages: messagesService,
   auditLogs: auditLogsService,
   notifications: notificationsService,

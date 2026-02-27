@@ -254,8 +254,31 @@ export const normalizeContract = (c: Partial<Contract>): Partial<Contract> => ({
     status: undefinedIfEmpty(c.status),
     terms: undefinedIfEmpty(c.terms),
     documents: Array.isArray(c.documents) ? c.documents : [],
+    extra_data: c.extra_data ?? {},
     created_at: undefinedIfEmpty(c.created_at),
 });
+
+export const normalizePartialContract = (c: Partial<Contract>): Partial<Contract> => {
+    const partial: any = {};
+    if (c.agency_id !== undefined) partial.agency_id = nilIfEmpty(c.agency_id);
+    if (c.property_id !== undefined) partial.property_id = nilIfEmpty(c.property_id);
+    if (c.owner_id !== undefined) partial.owner_id = nilIfEmpty(c.owner_id);
+    if (c.tenant_id !== undefined) partial.tenant_id = nilIfEmpty(c.tenant_id);
+    if (c.type !== undefined) partial.type = c.type;
+    if (c.start_date !== undefined) partial.start_date = c.start_date;
+    if (c.end_date !== undefined) partial.end_date = nilIfEmpty(c.end_date);
+    if (c.monthly_rent !== undefined) partial.monthly_rent = c.monthly_rent;
+    if (c.sale_price !== undefined) partial.sale_price = c.sale_price;
+    if (c.deposit !== undefined) partial.deposit = c.deposit;
+    if (c.charges !== undefined) partial.charges = c.charges;
+    if (c.commission_rate !== undefined) partial.commission_rate = c.commission_rate;
+    if (c.commission_amount !== undefined) partial.commission_amount = c.commission_amount;
+    if (c.status !== undefined) partial.status = c.status;
+    if (c.terms !== undefined) partial.terms = nilIfEmpty(c.terms);
+    if (c.documents !== undefined) partial.documents = c.documents;
+    if (c.extra_data !== undefined) partial.extra_data = c.extra_data;
+    return partial;
+};
 
 export const normalizeRentReceipt = (rr: Partial<RentReceipt>) => {
     // Convert period_month to integer if it's a string
