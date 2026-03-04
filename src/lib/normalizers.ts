@@ -237,26 +237,32 @@ export const normalizeAnnouncementInterest = (ai: Partial<AnnouncementInterest>)
     status: nilIfEmpty(ai.status) ?? 'pending',
 });
 
-export const normalizeContract = (c: Partial<Contract>): Partial<Contract> => ({
-    agency_id: undefinedIfEmpty(c.agency_id),
-    property_id: undefinedIfEmpty(c.property_id),
-    owner_id: undefinedIfEmpty(c.owner_id),
-    tenant_id: undefinedIfEmpty(c.tenant_id),
-    type: undefinedIfEmpty(c.type),
-    start_date: undefinedIfEmpty(c.start_date),
-    end_date: undefinedIfEmpty(c.end_date),
-    monthly_rent: undefinedIfEmpty(c.monthly_rent),
-    sale_price: undefinedIfEmpty(c.sale_price),
-    deposit: undefinedIfEmpty(c.deposit),
-    charges: undefinedIfEmpty(c.charges),
-    commission_rate: c.commission_rate ?? 10.0,
-    commission_amount: c.commission_amount ?? 0,
-    status: undefinedIfEmpty(c.status),
-    terms: undefinedIfEmpty(c.terms),
-    documents: Array.isArray(c.documents) ? c.documents : [],
-    extra_data: c.extra_data ?? {},
-    created_at: undefinedIfEmpty(c.created_at),
-});
+export const normalizeContract = (c: Partial<Contract>): Partial<Contract> => {
+    const payload: any = {
+        agency_id: undefinedIfEmpty(c.agency_id),
+        property_id: undefinedIfEmpty(c.property_id),
+        owner_id: undefinedIfEmpty(c.owner_id),
+        tenant_id: undefinedIfEmpty(c.tenant_id),
+        type: undefinedIfEmpty(c.type),
+        start_date: undefinedIfEmpty(c.start_date),
+        end_date: undefinedIfEmpty(c.end_date),
+        monthly_rent: undefinedIfEmpty(c.monthly_rent),
+        sale_price: undefinedIfEmpty(c.sale_price),
+        deposit: undefinedIfEmpty(c.deposit),
+        charges: undefinedIfEmpty(c.charges),
+        commission_rate: c.commission_rate ?? 10.0,
+        commission_amount: c.commission_amount ?? 0,
+        status: undefinedIfEmpty(c.status),
+        terms: undefinedIfEmpty(c.terms),
+        documents: Array.isArray(c.documents) ? c.documents : [],
+        created_at: undefinedIfEmpty(c.created_at),
+    };
+    // Only include extra_data if the column exists (not all deployments have it)
+    if (c.extra_data !== undefined) {
+        payload.extra_data = c.extra_data;
+    }
+    return payload;
+};
 
 export const normalizePartialContract = (c: Partial<Contract>): Partial<Contract> => {
     const partial: any = {};
