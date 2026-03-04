@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Search, User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2, Edit, Link } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { TenantForm } from './TenantForm';
+import { LinkTenantToPropertyModal } from './LinkTenantToPropertyModal';
 import ReceiptGenerator from '../receipts/ReceiptGenerator';
 import { FinancialStatements } from '../financial/FinancialStatements';
 import { Tenant, TenantFormData, TenantWithRental } from '../../types/db';
@@ -31,6 +32,7 @@ export const TenantsList: React.FC = () => {
   const [showFinancialStatements, setShowFinancialStatements] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<TenantWithRental | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [tenantToLink, setTenantToLink] = useState<TenantWithRental | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'bon' | 'irregulier' | 'mauvais'>('all');
   const [filterMaritalStatus, setFilterMaritalStatus] = useState<'all' | 'celibataire' | 'marie' | 'divorce' | 'veuf'>('all');
@@ -38,6 +40,15 @@ export const TenantsList: React.FC = () => {
   const [searchParams] = useSearchParams();
   const action = searchParams.get('action');
   const queryPropertyId = searchParams.get('propertyId');
+
+  // Auto-open the creation form when navigated from a property page with ?action=new&propertyId=...
+  useEffect(() => {
+    if (action === 'new') {
+      setIsEditing(false);
+      setSelectedTenant(null);
+      setShowForm(true);
+    }
+  }, [action]);
 
   const fetchTenants = useCallback(
     () => dbService.tenants.getAll({
@@ -461,6 +472,7 @@ export const TenantsList: React.FC = () => {
                     <Button variant="ghost" size="sm" onClick={() => handleEditClick(tenant)} aria-label={`Modifier ${tenant.first_name} ${tenant.last_name}`}>
                       <Edit className="h-4 w-4" />
                     </Button>
+                      <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700" onClick={(e) => { e.stopPropagation(); setTenantToLink(tenant); }} title="Lier a un bien"><Link className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedTenant(tenant); setShowFinancialStatements(true); }} aria-label={`Voir l'état financier de ${tenant.first_name} ${tenant.last_name}`}>
                       <DollarSign className="h-4 w-4" />
                     </Button>
@@ -558,6 +570,19 @@ export const TenantsList: React.FC = () => {
         title={successMessage.title}
         message={successMessage.message}
       />
+
+      {/* Link tenant to property modal */}
+      {tenantToLink && (
+        <LinkTenantToPropertyModal
+          isOpen={!!tenantToLink}
+          onClose={() => setTenantToLink(null)}
+          tenant={tenantToLink}
+          onLinked={() => {
+            setTenantToLink(null);
+            refetch();
+          }}
+        />
+      )}
     </div >
   );
 };

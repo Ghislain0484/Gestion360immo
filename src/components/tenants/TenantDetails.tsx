@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, ArrowLeft, FileText, Plus } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, ArrowLeft, FileText, Plus, Link } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
@@ -14,6 +14,7 @@ import { Badge } from '../ui/Badge';
 import { TenantForm } from './TenantForm';
 import ReceiptGenerator from '../receipts/ReceiptGenerator';
 import { PaymentsList } from '../payments/PaymentsList';
+import { LinkTenantToPropertyModal } from './LinkTenantToPropertyModal';
 
 export const TenantDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
@@ -60,6 +61,7 @@ export const TenantDetails: React.FC = () => {
     const [activeTab, setActiveTab] = useState('contract');
     const [showEditForm, setShowEditForm] = useState(false);
     const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
+    const [showLinkModal, setShowLinkModal] = useState(false);
 
     if (loadingTenant) {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
@@ -103,6 +105,18 @@ export const TenantDetails: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex gap-2">
+                        {/* Show "Lier à un bien" button if no active contract */}
+                        {!activeContract && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                                onClick={() => setShowLinkModal(true)}
+                            >
+                                <Link className="w-4 h-4 mr-2" />
+                                Lier à un bien
+                            </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => setShowEditForm(true)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Modifier
@@ -306,6 +320,19 @@ export const TenantDetails: React.FC = () => {
                     setShowEditForm(false);
                 }}
             />
+
+            {/* Link tenant to a property (retroactive contract) */}
+            {showLinkModal && (
+                <LinkTenantToPropertyModal
+                    isOpen={showLinkModal}
+                    onClose={() => setShowLinkModal(false)}
+                    tenant={tenant}
+                    onLinked={() => {
+                        setShowLinkModal(false);
+                        // Realtime subscription will refresh contracts automatically
+                    }}
+                />
+            )}
 
             {/* Receipt Generator Modal */}
             {showReceiptGenerator && activeContract && (

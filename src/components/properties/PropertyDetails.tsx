@@ -16,6 +16,7 @@ import { PaymentsList } from '../payments/PaymentsList';
 import { ImageGallery } from '../ui/ImageGallery';
 import { generateSlug } from '../../utils/idSystem';
 import { Owner } from '../../types/db';
+import { AssignTenantModal } from '../tenants/AssignTenantModal';
 
 const OwnerInfoDisplay: React.FC<{ ownerId: string; agencyId?: string }> = ({ ownerId, agencyId }) => {
     const navigate = useNavigate();
@@ -64,6 +65,7 @@ export const PropertyDetails: React.FC = () => {
 
     const [activeTab, setActiveTab] = useState('details');
     const [showEditForm, setShowEditForm] = useState(false);
+    const [showAssignModal, setShowAssignModal] = useState(false);
 
     // Fetch Specific Property Data
     const fetchProperty = React.useCallback(async () => {
@@ -375,7 +377,7 @@ export const PropertyDetails: React.FC = () => {
                                         <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
                                         <h3 className="text-lg font-medium">Ce bien est actuellement libre</h3>
                                         <p className="text-gray-500 mb-6">Prêt à accueillir un nouveau locataire.</p>
-                                        <Button onClick={() => navigate(`/locataires?action=new&propertyId=${property.id}`)}>Ajouter un locataire</Button>
+                                        <Button onClick={() => setShowAssignModal(true)}>Attribuer un locataire</Button>
                                     </div>
                                 )}
 
@@ -474,6 +476,16 @@ export const PropertyDetails: React.FC = () => {
                     }
                 }}
             />
+
+            {/* Assign Tenant Modal */}
+            {showAssignModal && property && (
+                <AssignTenantModal
+                    isOpen={showAssignModal}
+                    onClose={() => setShowAssignModal(false)}
+                    preSelectedProperty={property}
+                    onSuccess={() => setShowAssignModal(false)}
+                />
+            )}
         </div>
     );
 };

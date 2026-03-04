@@ -18,6 +18,7 @@ import { OwnerForm } from './OwnerForm';
 import OwnerReversalModal from './OwnerReversalModal';
 import { PaymentsList } from '../payments/PaymentsList';
 import { OwnerReversalCalculator, ReversalDetails } from './OwnerReversalCalculator';
+import { AssignTenantModal } from '../tenants/AssignTenantModal';
 
 export const OwnerDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
@@ -61,6 +62,7 @@ export const OwnerDetails: React.FC = () => {
     const [showOwnerReversal, setShowOwnerReversal] = useState(false);
     const [reversalAmount, setReversalAmount] = useState<number>(0);
     const [reversalDetails, setReversalDetails] = useState<ReversalDetails | null>(null);
+    const [propertyToAssign, setPropertyToAssign] = useState<Property | null>(null);
 
     // 4. Mutation Hooks
     const { create: createProperty } = useSupabaseCreate(
@@ -193,16 +195,34 @@ export const OwnerDetails: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {ownerProperties.map(property => (
-                                            <PropertyCard
-                                                key={property.id}
-                                                property={property}
-                                                onClick={() => {
-                                                    const slug = generateSlug(property.id, property.title);
-                                                    navigate(`/proprietes/${slug}`);
-                                                }}
-                                            />
-                                        ))}
+                                        {ownerProperties.map(property => {
+                                            const activeContract = contracts?.find(c =>
+                                                c.property_id === property.id && c.status === 'active' && c.type === 'location'
+                                            );
+                                            return (
+                                                <div key={property.id} className="space-y-2">
+                                                    <PropertyCard
+                                                        property={property}
+                                                        isOccupied={!!activeContract}
+                                                        onClick={() => {
+                                                            const slug = generateSlug(property.id, property.title);
+                                                            navigate(`/proprietes/${slug}`);
+                                                        }}
+                                                    />
+                                                    {!activeContract && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
+                                                            onClick={(e) => { e.stopPropagation(); setPropertyToAssign(property); }}
+                                                        >
+                                                            <Users className="w-4 h-4 mr-2" />
+                                                            Attribuer un locataire
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -351,6 +371,16 @@ export const OwnerDetails: React.FC = () => {
                         setReversalAmount(0);
                         setReversalDetails(null);
                     }}
+                />
+            )}
+
+            {/* Assign Tenant Modal — for vacant properties */}
+            {propertyToAssign && (
+                <AssignTenantModal
+                    isOpen={!!propertyToAssign}
+                    onClose={() => setPropertyToAssign(null)}
+                    preSelectedProperty={propertyToAssign}
+                    onSuccess={() => setPropertyToAssign(null)}
                 />
             )}
         </div>
