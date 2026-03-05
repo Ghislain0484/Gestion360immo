@@ -100,6 +100,7 @@ export const AssignTenantModal: React.FC<AssignTenantModalProps> = ({
                 const existingContracts = await dbService.contracts.getAll({
                     property_id: prop.id,
                     status: 'active',
+                    type: 'location',
                 });
                 if (existingContracts.length > 0) {
                     setPropertyOccupied(true);
@@ -163,6 +164,7 @@ export const AssignTenantModal: React.FC<AssignTenantModalProps> = ({
             const existingContracts = await dbService.contracts.getAll({
                 property_id: property.id,
                 status: 'active',
+                type: 'location',
             });
             if (existingContracts.length > 0) {
                 throw new Error('Ce bien a déjà un locataire actif. Veuillez d\'abord résilier le contrat en cours.');
@@ -218,7 +220,7 @@ export const AssignTenantModal: React.FC<AssignTenantModalProps> = ({
             // If a property is pre-selected, check if it's already occupied
             if (preSelectedProperty && user?.agency_id) {
                 setCheckingProperty(true);
-                dbService.contracts.getAll({ property_id: preSelectedProperty.id, status: 'active' })
+                dbService.contracts.getAll({ property_id: preSelectedProperty.id, status: 'active', type: 'location' })
                     .then(contracts => { if (contracts.length > 0) setPropertyOccupied(true); })
                     .catch(() => { })
                     .finally(() => setCheckingProperty(false));

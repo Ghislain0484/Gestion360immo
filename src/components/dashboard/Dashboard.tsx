@@ -21,17 +21,19 @@ import { BibleVerseCard } from '../ui/BibleVerse';
 import { useDashboardStats, useRealtimeData, mapSupabaseError } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Contract, RentReceipt, User } from '../../types/db';
+import { Contract, RentReceipt, User, Property } from '../../types/db';
+import { PropertyMapCard } from './PropertyMapCard';
 import { AuditLog } from '../../types/platform';
 import { AgencyUserRole } from '../../types/enums';
 
-interface Rental {
+interface DashboardRental {
   id: string;
   property: string;
   tenant: string;
   dueDate: string;
   amount: string;
   status: 'upcoming' | 'warning' | 'overdue';
+  isFirstPayment?: boolean;
 }
 
 interface Payment {
@@ -108,6 +110,17 @@ export const Dashboard: React.FC = () => {
   );
 
   const contractsLoading = contractsInitialLoading || contractsFetching;
+
+  // Fetch properties for the map
+  const fetchProperties = useCallback(() =>
+    dbService.properties.getAll({ agency_id: realtimeFilters.agency_id, limit: 1000 }),
+    [realtimeFilters.agency_id]
+  );
+  const { data: dashboardProperties } = useRealtimeData<Property>(
+    fetchProperties,
+    'properties',
+    realtimeFilters,
+  );
 
   const [recentReceipts, setRecentReceipts] = useState<RentReceipt[]>([]);
   const [receiptsLoading, setReceiptsLoading] = useState(true);
@@ -264,19 +277,11 @@ export const Dashboard: React.FC = () => {
       minimumFractionDigits: 0,
     }).format(amount ?? 0);
 
-  interface Rental {
-    id: string;
-    property: string;
-    tenant: string;
-    dueDate: string;
-    amount: string;
-    status: 'upcoming' | 'warning' | 'overdue';
-    isFirstPayment?: boolean;
-  }
+
 
   // ... (inside Dashboard component)
 
-  const upcomingRentals = useMemo((): Rental[] => {
+  const upcomingRentals = useMemo((): DashboardRental[] => {
     if (!Array.isArray(recentContracts)) return [];
 
     const msInDay = 1000 * 60 * 60 * 24;
@@ -359,23 +364,23 @@ export const Dashboard: React.FC = () => {
           return null; // Too far in future
         }
 
-        let status: Rental['status'] = 'upcoming';
+        let status: DashboardRental['status'] = 'upcoming';
         if (diffInDays < 0) status = 'overdue';
         else if (diffInDays <= 5) status = 'warning';
 
         return {
           id: contract.id,
-          property: contract.property_business_id || `Propriété #${contract.property_id?.slice(0, 8)}`,
-          tenant: contract.tenant_business_id || `Locataire #${contract.tenant_id?.slice(0, 8)}`,
+          property: (contract as any).property?.title || (contract as any).property_business_id || `Propriété #${contract.property_id?.slice(0, 8)}`,
+          tenant: (contract as any).tenant ? `${(contract as any).tenant.first_name} ${(contract as any).tenant.last_name}`.trim() : (contract as any).tenant_business_id || `Locataire #${contract.tenant_id?.slice(0, 8)}`,
           dueDate: nextDue.toISOString().split('T')[0],
           amount: formatCurrency(contract.monthly_rent ?? 0),
           status,
-          isFirstPayment
-        };
+          isFirstPayment: isFirstPayment
+        } as DashboardRental;
       })
-      .filter((item): item is Rental => Boolean(item))
+      .filter((item): item is DashboardRental => item !== null)
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-      .slice(0, 10); // Show top 10 alerts
+      .slice(0, 10);
   }, [recentContracts, recentReceipts, formatCurrency]);
 
   const recentPayments = useMemo((): Payment[] => {
@@ -389,9 +394,9 @@ export const Dashboard: React.FC = () => {
     recentReceipts.forEach((receipt) => {
       const contract = contractMap.get(receipt.contract_id);
       const baseDescriptor = {
-        tenant: contract?.tenant_business_id || receipt.tenant_business_id || `LOC-${(contract?.tenant_id || receipt.tenant_id || 'Inconnu').slice(0, 8)}`,
-        owner: contract?.owner_business_id || receipt.owner_business_id || `PROP-${(contract?.owner_id || receipt.owner_id || 'Inconnu').slice(0, 8)}`,
-        property: contract?.property_business_id || receipt.property_business_id || `BIEN-${(contract?.property_id || receipt.property_id || 'Inconnu').slice(0, 8)}`,
+        tenant: (contract as any)?.tenant ? `${(contract as any).tenant.first_name} ${(contract as any).tenant.last_name}`.trim() : (receipt as any).tenant_business_id || `LOC-${(contract?.tenant_id || receipt.tenant_id || 'Inconnu').slice(0, 8)}`,
+        owner: (contract as any)?.owner ? `${(contract as any).owner.first_name} ${(contract as any).owner.last_name}`.trim() : (receipt as any).owner_business_id || `PROP-${(contract?.owner_id || receipt.owner_id || 'Inconnu').slice(0, 8)}`,
+        property: (contract as any)?.property?.title || (receipt as any).property_business_id || `BIEN-${(contract?.property_id || receipt.property_id || 'Inconnu').slice(0, 8)}`,
         receiptNumber: receipt.receipt_number,
       };
 
@@ -731,6 +736,12 @@ export const Dashboard: React.FC = () => {
             </Card>
           )}
         </section>
+
+        {/* Map Card */}
+        <PropertyMapCard
+          properties={dashboardProperties ?? []}
+          contracts={recentContracts ?? []}
+        />
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="border-none shadow-xl">
