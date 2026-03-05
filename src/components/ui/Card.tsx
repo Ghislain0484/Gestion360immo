@@ -23,15 +23,15 @@ export const Card: React.FC<CardProps> = ({
   };
 
   const variantClasses = {
-    default: 'bg-white dark:bg-slate-800 shadow-soft border border-gray-200 dark:border-slate-600',
+    default: 'bg-white dark:bg-slate-800 shadow-elegant border border-gray-100 dark:border-slate-600',
     glass: 'card-glass',
-    hover: 'bg-white dark:bg-slate-800 shadow-soft border border-gray-200 dark:border-slate-600 card-hover',
+    hover: 'bg-white dark:bg-slate-800 shadow-elegant border border-gray-100 dark:border-slate-600 card-hover',
   };
 
   return (
     <div
       className={cn(
-        'rounded-xl transition-all duration-300 animate-fade-in-up',
+        'rounded-2xl transition-all duration-300 animate-fade-in-up',
         variantClasses[variant],
         props.onClick && 'cursor-pointer interactive-scale',
         paddingClasses[padding],
