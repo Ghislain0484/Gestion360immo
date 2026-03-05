@@ -17,8 +17,11 @@ interface PropertyCardProps {
 }
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({ property, tenantName, rentAmount, onClick, isOccupied: isOccupiedProp, onDelete }) => {
-    const isOccupied = isOccupiedProp !== undefined ? isOccupiedProp : (!!tenantName && !property.is_available);
-    const isAvailable = property.is_available && !isOccupied;
+    // Source de vérité : isOccupied passé par le parent (basé sur les contrats actifs réels)
+    // Si non fourni, on se fie à tenantName (backward compat)
+    const isOccupied = isOccupiedProp !== undefined ? isOccupiedProp : !!tenantName;
+    // is_available n'est PAS la source primaire — il peut être désynchronisé avec les contrats
+    const isAvailable = !isOccupied;
 
     return (
         <Card className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group" onClick={onClick}>

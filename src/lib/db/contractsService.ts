@@ -10,6 +10,7 @@ export const contractsService = {
     offset,
     search,
     status,
+    type,
     tenant_id,
     property_id,
   }: {
@@ -18,6 +19,7 @@ export const contractsService = {
     offset?: number;
     search?: string;
     status?: string;
+    type?: string;
     tenant_id?: string;
     property_id?: string;
   } = {}): Promise<Contract[]> {
@@ -39,6 +41,9 @@ export const contractsService = {
     }
     if (status) {
       query = query.eq('status', status);
+    }
+    if (type) {
+      query = query.eq('type', type);
     }
     if (tenant_id) {
       query = query.eq('tenant_id', tenant_id);

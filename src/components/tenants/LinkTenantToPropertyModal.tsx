@@ -60,6 +60,7 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
                 const existingContracts = await dbService.contracts.getAll({
                     property_id: prop.id,
                     status: 'active',
+                    type: 'location',
                 });
                 if (existingContracts.length > 0) setPropertyOccupied(true);
             } catch {
@@ -87,7 +88,7 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
             }
 
             // Guard: double-check no concurrent assignment
-            const existingContracts = await dbService.contracts.getAll({ property_id: selectedProperty.id, status: 'active' });
+            const existingContracts = await dbService.contracts.getAll({ property_id: selectedProperty.id, status: 'active', type: 'location' });
             if (existingContracts.length > 0) {
                 throw new Error('Ce bien a déjà un locataire actif. Veuillez d\'abord résilier le contrat en cours.');
             }
