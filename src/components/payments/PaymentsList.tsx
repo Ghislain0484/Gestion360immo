@@ -242,6 +242,7 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Propriété</th>
                                 )}
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mode</th>
                                 {showActions && (
                                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -279,8 +280,29 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                     )}
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm font-semibold text-gray-900">
-                                            {formatCurrency(payment.total_amount)}
+                                            {formatCurrency(payment.amount_paid ?? payment.total_amount)}
                                         </div>
+                                        {(payment.amount_paid ?? payment.total_amount) < payment.total_amount && (
+                                            <div className="text-xs text-gray-400 line-through">
+                                                {formatCurrency(payment.total_amount)}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        {payment.payment_status === 'partial' || ((payment.amount_paid ?? payment.total_amount) < payment.total_amount) ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                                                ⚠ Partiel
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                                ✓ Soldé
+                                            </span>
+                                        )}
+                                        {payment.balance_due != null && payment.balance_due > 0 && (
+                                            <div className="text-xs text-red-500 mt-1">
+                                                Reste : {formatCurrency(payment.balance_due)}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -358,15 +380,25 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                             {/* Montants */}
                             <div className="space-y-2">
                                 {selectedPayment.rent_amount ? (
-                                    <div className="flex justify-between text-sm"><span className="text-gray-500">Loyer</span><span>{selectedPayment.rent_amount.toLocaleString('fr-FR')} FCFA</span></div>
+                                    <div className="flex justify-between text-sm"><span className="text-gray-500">Loyer mensuel</span><span>{selectedPayment.rent_amount.toLocaleString('fr-FR')} FCFA</span></div>
                                 ) : null}
                                 {selectedPayment.charges ? (
                                     <div className="flex justify-between text-sm"><span className="text-gray-500">Charges</span><span>{selectedPayment.charges.toLocaleString('fr-FR')} FCFA</span></div>
                                 ) : null}
-                                <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2">
-                                    <span>TOTAL PAYÉ</span>
-                                    <span className="text-green-600">{selectedPayment.total_amount.toLocaleString('fr-FR')} FCFA</span>
+                                <div className="flex justify-between text-sm border-t border-gray-100 pt-2">
+                                    <span className="text-gray-500">Loyer total dû</span>
+                                    <span className="font-medium">{selectedPayment.total_amount.toLocaleString('fr-FR')} FCFA</span>
                                 </div>
+                                <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2">
+                                    <span>MONTANT VERSÉ</span>
+                                    <span className="text-green-600">{(selectedPayment.amount_paid ?? selectedPayment.total_amount).toLocaleString('fr-FR')} FCFA</span>
+                                </div>
+                                {(selectedPayment.balance_due ?? 0) > 0 && (
+                                    <div className="flex justify-between font-bold text-base bg-red-50 rounded-lg px-3 py-2">
+                                        <span className="text-red-600">SOLDE RESTANT</span>
+                                        <span className="text-red-600">{(selectedPayment.balance_due ?? 0).toLocaleString('fr-FR')} FCFA</span>
+                                    </div>
+                                )}
                             </div>
 
                             {selectedPayment.notes && (
