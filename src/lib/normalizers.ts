@@ -316,6 +316,10 @@ export const normalizeRentReceipt = (rr: Partial<RentReceipt>) => {
         payment_method: nilIfEmpty(rr.payment_method) ?? "especes",
         notes: nilIfEmpty(rr.notes) ?? undefined,
         issued_by: nilIfEmpty(rr.issued_by) ?? undefined,
+        // Paiements partiels — passés seulement si fournis (colonnes optionnelles en base)
+        ...(rr.amount_paid !== undefined && { amount_paid: rr.amount_paid }),
+        ...(rr.balance_due !== undefined && { balance_due: rr.balance_due }),
+        ...(rr.payment_status !== undefined && { payment_status: rr.payment_status }),
     };
 };
 

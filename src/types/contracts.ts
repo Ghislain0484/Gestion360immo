@@ -51,6 +51,11 @@ export interface RentReceipt extends AgencyEntity {
   owner_id: string;
   //agency_id?: string;           // Agence émettrice (optionnel si multi-agence)
   owner_payment?: number;       // Montant reversé au propriétaire
+
+  // Paiements partiels / échelonnés
+  amount_paid?: number;         // Montant réellement versé ce jour (peut être < total_amount)
+  balance_due?: number;         // Solde restant pour solder le mois (total_amount - amount_paid)
+  payment_status?: 'full' | 'partial'; // 'full' = soldé, 'partial' = paiement partiel
 }
 
 export interface RentReceiptWithContract extends RentReceipt {

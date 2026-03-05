@@ -45,7 +45,8 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
 
   const [rentAmount, setRentAmount] = useState<number>(0);
   const [charges, setCharges] = useState<number>(0);
-  const [paymentDate, setPaymentDate] = useState<string>("");
+  const [amountPaid, setAmountPaid] = useState<number>(0);
+  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState<PayMethod>("especes");
   const [notes, setNotes] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -60,7 +61,10 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
           if (contractId) {
             const contract = await dbService.contracts.findOne(contractId);
             setContractInfo(contract);
-            if (contract?.monthly_rent) setRentAmount(contract.monthly_rent);
+            if (contract?.monthly_rent) {
+              setRentAmount(contract.monthly_rent);
+              setAmountPaid(contract.monthly_rent + (contract.charges || 0));
+            }
             if (contract?.charges) setCharges(contract.charges);
           }
           if (tenantId) setTenantInfo(await dbService.tenants.findOne(tenantId));
@@ -77,6 +81,7 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
       setPropertyInfo(null);
       setOwnerInfo(null);
       setReceipt(null);
+      setAmountPaid(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, contractId, tenantId, propertyId, ownerId]);
@@ -105,9 +110,13 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
 
     try {
       const totalAmount = rentAmount + (charges || 0);
+      const paidAmount = amountPaid > 0 ? amountPaid : totalAmount;
+      const balanceDue = Math.max(0, totalAmount - paidAmount);
+      const isPartial = paidAmount < totalAmount;
       const commissionRate = contractInfo.commission_rate || 10;
-      const commissionAmount = (totalAmount * commissionRate) / 100;
-      const ownerPayment = totalAmount - commissionAmount;
+      // Commission calculée uniquement sur le montant réellement payé
+      const commissionAmount = (paidAmount * commissionRate) / 100;
+      const ownerPayment = paidAmount - commissionAmount;
       const receiptNumber = `REC-${year}${String(month).padStart(2, '0')}-${Date.now()}`;
 
       const newReceipt: Partial<RentReceipt> = {
@@ -122,6 +131,9 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
         rent_amount: rentAmount,
         charges: charges || 0,
         total_amount: totalAmount,
+        amount_paid: paidAmount,
+        balance_due: balanceDue,
+        payment_status: isPartial ? 'partial' : 'full',
         payment_date: paymentDate,
         payment_method: paymentMethod,
         notes: notes || null,
@@ -249,12 +261,21 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
 
       drawRow("Loyer mensuel :", `${receipt.rent_amount.toLocaleString('fr-FR')} FCFA`);
       drawRow("Charges :", `${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA`);
+      drawRow("Loyer total dû :", `${receipt.total_amount.toLocaleString('fr-FR')} FCFA`);
 
       // Ligne de total
       doc.setDrawColor(59, 130, 246);
       doc.line(col1, y, pageWidth - 20, y);
       y += 6;
-      drawRow("TOTAL PAYÉ :", `${receipt.total_amount.toLocaleString('fr-FR')} FCFA`, true);
+      // Montant versé
+      const amountPaidPDF = receipt.amount_paid ?? receipt.total_amount;
+      const balanceDuePDF = receipt.balance_due ?? 0;
+      drawRow("MONTANT VERSÉ :", `${amountPaidPDF.toLocaleString('fr-FR')} FCFA`, true);
+      if (balanceDuePDF > 0) {
+        doc.setTextColor(220, 50, 50);
+        drawRow("SOLDE RESTANT :", `${balanceDuePDF.toLocaleString('fr-FR')} FCFA`, true);
+        doc.setTextColor(30, 30, 30);
+      }
       y += 4;
 
       drawRow("Date de paiement :", new Date(receipt.payment_date).toLocaleDateString('fr-FR'));
@@ -391,7 +412,9 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   <table class="payment-table">
     <tr><td>Loyer mensuel</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
-    <tr class="total-row"><td>TOTAL PAYÉ</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr><td>Loyer total dû</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr class="total-row"><td>MONTANT VERSÉ</td><td style="text-align:right;color:#16a34a">${(receipt.amount_paid ?? receipt.total_amount).toLocaleString('fr-FR')} FCFA</td></tr>
+    ${(receipt.balance_due ?? 0) > 0 ? `<tr><td style="color:#dc2626;font-weight:bold">SOLDE RESTANT</td><td style="text-align:right;color:#dc2626;font-weight:bold">${(receipt.balance_due ?? 0).toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
     <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>
     <tr><td>Mode de paiement</td><td style="text-align:right">${pmLabel}</td></tr>
     ${receipt.notes ? `<tr><td>Notes</td><td style="text-align:right">${receipt.notes}</td></tr>` : ''}
@@ -489,10 +512,54 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
           {/* Formulaire */}
           {!receipt && (
             <div className="space-y-5">
-              {/* Amount */}
+              {/* Loyer */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Loyer (FCFA) *
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <DollarSign className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      type="number"
+                      className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-semibold"
+                      value={rentAmount}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setRentAmount(val);
+                        setAmountPaid(val + charges);
+                      }}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Charges (FCFA)
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={charges}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setCharges(val);
+                      setAmountPaid(rentAmount + val);
+                    }}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* Montant versé (paiement partiel) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Montant du loyer (FCFA) *
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Montant versé (FCFA) *
+                  <span className="ml-2 text-xs text-gray-400 font-normal">
+                    — Loyer total dû : {(rentAmount + charges).toLocaleString('fr-FR')} FCFA
+                  </span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -500,29 +567,37 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                   </div>
                   <input
                     type="number"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold"
-                    value={rentAmount}
-                    onChange={(e) => setRentAmount(Number(e.target.value))}
+                    className={clsx(
+                      'w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 text-lg font-semibold transition-colors',
+                      amountPaid < (rentAmount + charges) && amountPaid > 0
+                        ? 'border-orange-400 bg-orange-50 focus:ring-orange-400 focus:border-orange-400'
+                        : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    )}
+                    value={amountPaid}
+                    max={rentAmount + charges}
+                    onChange={(e) => setAmountPaid(Number(e.target.value))}
                     placeholder="0"
                   />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <span className="text-gray-500 font-medium">FCFA</span>
                   </div>
                 </div>
-              </div>
-
-              {/* Charges */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Charges (FCFA)
-                </label>
-                <input
-                  type="number"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={charges}
-                  onChange={(e) => setCharges(Number(e.target.value))}
-                  placeholder="0"
-                />
+                {/* Badge paiement partiel */}
+                {amountPaid > 0 && amountPaid < (rentAmount + charges) && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                    <span className="text-orange-500">⚠️</span>
+                    <span>
+                      <strong>Paiement partiel</strong> — Solde restant :
+                      <strong className="ml-1">{(rentAmount + charges - amountPaid).toLocaleString('fr-FR')} FCFA</strong>
+                    </span>
+                  </div>
+                )}
+                {amountPaid >= (rentAmount + charges) && amountPaid > 0 && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <span>✅</span>
+                    <span><strong>Loyer soldé intégralement</strong></span>
+                  </div>
+                )}
               </div>
 
               {/* Date */}
@@ -583,17 +658,27 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
+                  rows={2}
                   placeholder="Informations complémentaires..."
                 />
               </div>
 
               {/* Summary */}
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <div className="flex items-center justify-between text-lg font-semibold">
-                  <span className="text-gray-700">Montant total:</span>
-                  <span className="text-blue-600">{(rentAmount + charges).toLocaleString('fr-FR')} FCFA</span>
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-2">
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <span>Loyer total dû :</span>
+                  <span className="font-medium">{(rentAmount + charges).toLocaleString('fr-FR')} FCFA</span>
                 </div>
+                <div className="flex items-center justify-between text-lg font-semibold border-t border-gray-200 pt-2">
+                  <span className="text-gray-700">Montant encaissé :</span>
+                  <span className="text-blue-600">{amountPaid.toLocaleString('fr-FR')} FCFA</span>
+                </div>
+                {amountPaid < (rentAmount + charges) && amountPaid > 0 && (
+                  <div className="flex items-center justify-between text-base font-semibold text-red-600">
+                    <span>Solde restant :</span>
+                    <span>{(rentAmount + charges - amountPaid).toLocaleString('fr-FR')} FCFA</span>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
