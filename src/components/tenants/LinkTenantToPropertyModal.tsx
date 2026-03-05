@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import AsyncSelect from 'react-select/async';
-import { Building2, Link, DollarSign, Calendar } from 'lucide-react';
+import { Building2, Link, DollarSign, Calendar, AlertTriangle } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -30,39 +30,50 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [propertyOccupied, setPropertyOccupied] = useState(false);
+    const [checkingProperty, setCheckingProperty] = useState(false);
 
     const loadPropertyOptions = useCallback(async (inputValue: string) => {
         if (!user?.agency_id) return [];
         try {
-            const properties = await dbService.properties.getAll({
+            return await dbService.properties.getAll({
                 agency_id: user.agency_id,
                 search: inputValue,
                 limit: 20,
             });
-            // Show all properties (available or not – user might want to correct existing data)
-            return properties;
         } catch {
             return [];
         }
     }, [user?.agency_id]);
 
-    const handlePropertySelect = (prop: Property | null) => {
+    const handlePropertySelect = async (prop: Property | null) => {
         setSelectedProperty(prop);
+        setPropertyOccupied(false);
+        setError(null);
         if (prop?.monthly_rent) {
             setMonthlyRent(String(prop.monthly_rent));
             setDeposit(String(prop.monthly_rent * 2));
         }
+        if (prop && user?.agency_id) {
+            setCheckingProperty(true);
+            try {
+                const existingContracts = await dbService.contracts.getAll({
+                    property_id: prop.id,
+                    status: 'active',
+                });
+                if (existingContracts.length > 0) setPropertyOccupied(true);
+            } catch {
+                // ignore
+            } finally {
+                setCheckingProperty(false);
+            }
+        }
     };
 
     const handleSubmit = async () => {
-        if (!selectedProperty) {
-            setError('Veuillez sélectionner un bien.');
-            return;
-        }
-        if (!monthlyRent || parseFloat(monthlyRent) <= 0) {
-            setError('Veuillez saisir un loyer mensuel valide.');
-            return;
-        }
+        if (!selectedProperty) { setError('Veuillez sélectionner un bien.'); return; }
+        if (propertyOccupied) { setError('Ce bien a déjà un locataire actif.'); return; }
+        if (!monthlyRent || parseFloat(monthlyRent) <= 0) { setError('Veuillez saisir un loyer mensuel valide.'); return; }
         if (!user?.agency_id) return;
 
         setSubmitting(true);
@@ -70,13 +81,17 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
         const toastId = toast.loading('Rattachement en cours…');
 
         try {
-            // 1. Check if property has an owner
             const property = await dbService.properties.getById(selectedProperty.id, user.agency_id);
             if (!property.owner_id) {
                 throw new Error('Ce bien n\'a pas de propriétaire associé. Veuillez en assigner un d\'abord.');
             }
 
-            // 2. Create an active rental contract
+            // Guard: double-check no concurrent assignment
+            const existingContracts = await dbService.contracts.getAll({ property_id: selectedProperty.id, status: 'active' });
+            if (existingContracts.length > 0) {
+                throw new Error('Ce bien a déjà un locataire actif. Veuillez d\'abord résilier le contrat en cours.');
+            }
+
             const contractPayload = {
                 agency_id: user.agency_id,
                 property_id: selectedProperty.id,
@@ -91,11 +106,8 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
                 commission_amount: (parseFloat(monthlyRent) * 10) / 100,
                 terms: `Contrat de bail - ${tenant.first_name} ${tenant.last_name} - ${selectedProperty.title}`,
                 documents: [],
-                
             };
             await dbService.contracts.create(contractPayload);
-
-            // 3. Mark property as unavailable
             await dbService.properties.update(selectedProperty.id, { is_available: false });
 
             toast.success(`${tenant.first_name} ${tenant.last_name} rattaché(e) à "${selectedProperty.title}" avec succès !`, { id: toastId });
@@ -111,8 +123,11 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
     };
 
     const selectStyles = {
-        control: (base: any) => ({ ...base, borderColor: '#d1d5db', borderRadius: '0.375rem', padding: '2px', '&:hover': { borderColor: '#3b82f6' } }),
-        menu: (base: any) => ({ ...base, borderRadius: '0.375rem', zIndex: 9999 }),
+        control: (base: any) => ({
+            ...base, borderColor: '#e5e7eb', borderRadius: '0.75rem', padding: '2px',
+            '&:hover': { borderColor: '#3b82f6' }, boxShadow: 'none',
+        }),
+        menu: (base: any) => ({ ...base, borderRadius: '0.75rem', zIndex: 9999, boxShadow: '0 10px 25px -3px rgba(0,0,0,0.1)' }),
         option: (base: any, state: any) => ({
             ...base,
             backgroundColor: state.isSelected ? '#3b82f6' : state.isFocused ? '#eff6ff' : 'white',
@@ -127,7 +142,7 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
             title={
                 <div className="flex items-center gap-2">
                     <Link className="w-5 h-5 text-blue-600" />
-                    <span>Rattacher à un bien</span>
+                    <span>Attribuer un bien</span>
                 </div>
             }
             size="md"
@@ -143,8 +158,19 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
                     </p>
                 </Card>
 
-                {error && (
-                    <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
+                {/* Occupied warning */}
+                {propertyOccupied && (
+                    <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-semibold text-sm">Bien déjà occupé</p>
+                            <p className="text-sm mt-0.5">Ce bien a déjà un locataire actif. Veuillez d'abord résilier le contrat en cours.</p>
+                        </div>
+                    </div>
+                )}
+
+                {error && !propertyOccupied && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">{error}</div>
                 )}
 
                 {/* Property selector */}
@@ -152,6 +178,7 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         <Building2 className="inline w-4 h-4 mr-1 text-gray-500" />
                         Sélectionner le bien
+                        {checkingProperty && <span className="ml-2 text-xs text-blue-500 animate-pulse">Vérification…</span>}
                     </label>
                     <AsyncSelect<Property, false>
                         cacheOptions
@@ -167,53 +194,41 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
                     />
                 </div>
 
-                {/* Rental terms */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            <DollarSign className="inline w-4 h-4 mr-1 text-gray-500" />
-                            Loyer mensuel (FCFA)
-                        </label>
-                        <Input
-                            type="number"
-                            value={monthlyRent}
-                            onChange={(e) => setMonthlyRent(e.target.value)}
-                            placeholder="Ex: 150000"
-                            min={0}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Caution (FCFA)
-                        </label>
-                        <Input
-                            type="number"
-                            value={deposit}
-                            onChange={(e) => setDeposit(e.target.value)}
-                            placeholder="Ex: 300000"
-                            min={0}
-                        />
-                    </div>
-                </div>
+                {/* Rental terms — hidden if occupied */}
+                {!propertyOccupied && (
+                    <>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <DollarSign className="inline w-4 h-4 mr-1 text-gray-500" />
+                                    Loyer mensuel (FCFA)
+                                </label>
+                                <Input type="number" value={monthlyRent} onChange={e => setMonthlyRent(e.target.value)} placeholder="Ex: 150000" min={0} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Caution (FCFA)</label>
+                                <Input type="number" value={deposit} onChange={e => setDeposit(e.target.value)} placeholder="Ex: 300000" min={0} />
+                            </div>
+                        </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <Calendar className="inline w-4 h-4 mr-1 text-gray-500" />
-                        Date d'entrée
-                    </label>
-                    <input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <Calendar className="inline w-4 h-4 mr-1 text-gray-500" />
+                                Date d'entrée
+                            </label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={e => setStartDate(e.target.value)}
+                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                        </div>
+                    </>
+                )}
 
                 <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-                    <Button variant="ghost" onClick={onClose} disabled={submitting}>
-                        Annuler
-                    </Button>
-                    <Button onClick={handleSubmit} disabled={submitting || !selectedProperty}>
+                    <Button variant="ghost" onClick={onClose} disabled={submitting}>Annuler</Button>
+                    <Button onClick={handleSubmit} disabled={submitting || !selectedProperty || propertyOccupied || checkingProperty}>
                         <Link className="w-4 h-4 mr-2" />
                         {submitting ? 'Rattachement…' : 'Rattacher au bien'}
                     </Button>

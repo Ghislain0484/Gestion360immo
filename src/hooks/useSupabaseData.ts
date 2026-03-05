@@ -19,6 +19,9 @@ const log = (...args: any[]) => {
 export function mapSupabaseError(err: unknown, context: string): string {
   if (!(err instanceof Error)) return 'Erreur inconnue';
   if (isRlsDenied(err)) return 'Acces refuse : permissions insuffisantes (RLS).';
+  if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('fetch')) {
+    return 'Impossible de joindre le serveur. Vérifiez votre connexion Internet ou si le projet Supabase est actif (non mis en pause).';
+  }
   if (err.message.includes('Supabase non configure') || err.message.includes('401')) {
     return 'Configuration Supabase manquante. Verifiez les variables d\'environnement.';
   }

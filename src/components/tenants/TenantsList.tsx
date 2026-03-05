@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Search, User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2, Edit, Link } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Plus, Search, User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2, Edit, MoreVertical, Home, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { TenantForm } from './TenantForm';
 import { LinkTenantToPropertyModal } from './LinkTenantToPropertyModal';
@@ -21,11 +20,197 @@ import { toast } from 'react-hot-toast';
 
 const PAGE_SIZE = 10;
 
+// ─── Action Menu Dropdown ────────────────────────────────────────────────────
+interface ActionMenuProps {
+  tenant: TenantWithRental;
+  deleting: boolean;
+  onReceipt: () => void;
+  onEdit: () => void;
+  onLink: () => void;
+  onFinancials: () => void;
+  onDelete: () => void;
+}
+
+const ActionMenu: React.FC<ActionMenuProps> = ({
+  deleting,
+  onReceipt, onEdit, onLink, onFinancials, onDelete
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+        aria-label="Actions"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-8 z-50 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 animate-scaleIn">
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+            onClick={() => { onReceipt(); setOpen(false); }}
+          >
+            <FileText className="h-4 w-4 text-blue-500" />
+            Générer une quittance
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+            onClick={() => { onEdit(); setOpen(false); }}
+          >
+            <Edit className="h-4 w-4 text-indigo-500" />
+            Modifier
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
+            onClick={() => { onLink(); setOpen(false); }}
+          >
+            <Home className="h-4 w-4 text-green-500" />
+            Attribuer un bien
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
+            onClick={() => { onFinancials(); setOpen(false); }}
+          >
+            <DollarSign className="h-4 w-4 text-orange-500" />
+            État financier
+          </button>
+          <div className="my-1 border-t border-gray-100" />
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+            onClick={() => { onDelete(); setOpen(false); }}
+            disabled={deleting}
+          >
+            <Trash2 className="h-4 w-4" />
+            Supprimer
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Payment status helpers ──────────────────────────────────────────────────
+const paymentConfig = {
+  bon: { label: 'Bon payeur', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+  irregulier: { label: 'Irrégulier', icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-500' },
+  mauvais: { label: 'Mauvais payeur', icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-500' },
+};
+
+// ─── Avatar with initials ────────────────────────────────────────────────────
+const avatarColors = [
+  'from-blue-500 to-indigo-600', 'from-purple-500 to-pink-600',
+  'from-teal-500 to-cyan-600', 'from-orange-500 to-amber-600',
+  'from-green-500 to-emerald-600', 'from-rose-500 to-red-600',
+];
+const getAvatarColor = (name: string) => avatarColors[name.charCodeAt(0) % avatarColors.length];
+
+// ─── TenantCard ──────────────────────────────────────────────────────────────
+interface TenantCardProps {
+  tenant: TenantWithRental;
+  deleting: boolean;
+  onNavigate: () => void;
+  onReceipt: () => void;
+  onEdit: () => void;
+  onLink: () => void;
+  onFinancials: () => void;
+  onDelete: () => void;
+}
+
+const TenantCard: React.FC<TenantCardProps> = ({
+  tenant, deleting,
+  onNavigate, onReceipt, onEdit, onLink, onFinancials, onDelete
+}) => {
+  const pCfg = paymentConfig[tenant.payment_status] ?? paymentConfig.bon;
+  const StatusIcon = pCfg.icon;
+  const fullName = `${tenant.first_name} ${tenant.last_name}`;
+  const initials = `${tenant.first_name[0] ?? ''}${tenant.last_name[0] ?? ''}`.toUpperCase();
+
+  return (
+    <div
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
+      onClick={onNavigate}
+    >
+      {/* Card header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Avatar */}
+          {tenant.photo_url ? (
+            <img
+              src={tenant.photo_url}
+              alt={fullName}
+              className="w-11 h-11 rounded-xl object-cover ring-2 ring-white shadow-sm flex-shrink-0"
+            />
+          ) : (
+            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${getAvatarColor(fullName)} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+              <span className="text-white font-bold text-sm">{initials}</span>
+            </div>
+          )}
+          <div className="min-w-0">
+            <h3 className="font-semibold text-gray-900 text-sm leading-tight group-hover:text-blue-600 transition-colors truncate">
+              {fullName}
+            </h3>
+            {tenant.business_id && (
+              <span className="text-[10px] text-gray-400 font-mono">{tenant.business_id}</span>
+            )}
+            <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+              <Phone className="h-3 w-3" />
+              <span>{tenant.phone}</span>
+            </div>
+          </div>
+        </div>
+        {/* Action menu — always right-aligned, never wraps */}
+        <div className="flex-shrink-0 ml-2">
+          <ActionMenu
+            tenant={tenant}
+            deleting={deleting}
+            onReceipt={onReceipt}
+            onEdit={onEdit}
+            onLink={onLink}
+            onFinancials={onFinancials}
+            onDelete={onDelete}
+          />
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="mx-4 border-t border-gray-50" />
+
+      {/* Card body */}
+      <div className="px-4 py-3 space-y-2">
+        <div className="flex items-center gap-2 text-xs text-gray-600">
+          <MapPin className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+          <span className="truncate">{tenant.city || '—'}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-gray-600">
+          <Briefcase className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />
+          <span className="truncate">{tenant.profession || '—'}</span>
+        </div>
+      </div>
+
+      {/* Footer badge */}
+      <div className={`mx-4 mb-4 flex items-center gap-2 px-3 py-1.5 rounded-lg ${pCfg.bg} border ${pCfg.border}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${pCfg.dot} flex-shrink-0`} />
+        <StatusIcon className={`h-3.5 w-3.5 ${pCfg.color} flex-shrink-0`} />
+        <span className={`text-xs font-medium ${pCfg.color}`}>{pCfg.label}</span>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main TenantsList ────────────────────────────────────────────────────────
 export const TenantsList: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
-  const isDirector = user?.role === 'director';
-  const isManager = user?.role === 'manager';
-  const isDirectorOrManager = isDirector || isManager;
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
@@ -41,7 +226,6 @@ export const TenantsList: React.FC = () => {
   const action = searchParams.get('action');
   const queryPropertyId = searchParams.get('propertyId');
 
-  // Auto-open the creation form when navigated from a property page with ?action=new&propertyId=...
   useEffect(() => {
     if (action === 'new') {
       setIsEditing(false);
@@ -67,15 +251,10 @@ export const TenantsList: React.FC = () => {
     'tenants'
   );
 
-
-
   const { deleteItem: deleteTenant, loading: deleting } = useSupabaseDelete(
     dbService.tenants.delete,
     {
-      onSuccess: () => {
-        refetch();
-        toast.success('Locataire supprimé avec succès');
-      },
+      onSuccess: () => { refetch(); toast.success('Locataire supprimé avec succès'); },
       onError: (err) => toast.error(err)
     }
   );
@@ -87,9 +266,8 @@ export const TenantsList: React.FC = () => {
     dbService.tenants.update,
     {
       onSuccess: (updatedTenant) => {
-        // Optimistic update
         setData(prev => prev.map(t => t.id === updatedTenant.id ? updatedTenant : t));
-        refetch(); // Force sync with server
+        refetch();
         setShowForm(false);
         setIsEditing(false);
         setSuccessMessage({
@@ -98,90 +276,48 @@ export const TenantsList: React.FC = () => {
         });
         setShowSuccessModal(true);
       },
-      onError: (err) => {
-        console.error("Update Error:", err);
-        toast.error("Erreur lors de la mise à jour : " + err);
-      }
+      onError: (err) => { console.error('Update Error:', err); toast.error('Erreur lors de la mise à jour : ' + err); }
     }
   );
 
   const { create: createTenant, loading: creatingTenant } = useSupabaseCreate(
     dbService.tenants.create,
-    {
-      onSuccess: () => {
-        refetch(); // Force sync
-      },
-      onError: (err) => toast.error(err)
-    }
+    { onSuccess: () => refetch(), onError: (err) => toast.error(err) }
   );
 
   const handleAddTenant = useCallback(async (tenantData: TenantFormData, rentalParams?: any, property?: any) => {
-    if (!user?.agency_id) {
-      toast.error('Aucune agence associée');
-      return;
-    }
-
+    if (!user?.agency_id) { toast.error('Aucune agence associée'); return; }
     try {
-      const tenantPayload = { ...tenantData, agency_id: user.agency_id };
-      // Note: createTenant is triggered, but we need to handle contract in onSuccess ideally,
-      // but useSupabaseCreate structure is simple.
-      // We will rely on the direct calls inside the form submit wrapper for complex Logic like contracts.
-
-      // ACTUALLY: The hook useSupabaseCreate wraps the DB call.
-      // To chain logic (Contract), we might need to do it slightly differently or inside the component logic.
-      // Current implementation: handleFormSubmit calls handleAddTenant, which calls createTenant hook.
-
-      // Let's execute create manually to await it, IF the hook exposes the promise.
-      // useSupabaseCreate usually exposes { create }.
-
-      const newTenant = await createTenant(tenantPayload);
-
+      const newTenant = await createTenant({ ...tenantData, agency_id: user.agency_id });
       if (newTenant && rentalParams && property) {
         toast.loading('Génération du contrat en cours...', { id: 'contract-gen' });
-
         const agency = await dbService.agencies.getById(user.agency_id);
         const owner = await dbService.owners.getById(property.owner_id);
-
         if (!agency || !owner) {
           toast.error('Erreur: Agence ou Propriétaire introuvable pour le contrat', { id: 'contract-gen' });
           return;
         }
-
         const contractPayload = {
-          ...OHADAContractGenerator.generateRentalContractForTenant(
-            newTenant,
-            agency,
-            property,
-            {
-              monthlyRent: rentalParams.monthlyRent,
-              deposit: rentalParams.deposit, // 2 months
-              agencyFee: rentalParams.agencyFee, // 1 month
-              advance: rentalParams.monthlyRent * 2, // 2 months advance
-              duration: 12,
-              startDate: new Date(rentalParams.startDate)
-            }
-          ),
+          ...OHADAContractGenerator.generateRentalContractForTenant(newTenant, agency, property, {
+            monthlyRent: rentalParams.monthlyRent,
+            deposit: rentalParams.deposit,
+            agencyFee: rentalParams.agencyFee,
+            advance: rentalParams.monthlyRent * 2,
+            duration: 12,
+            startDate: new Date(rentalParams.startDate)
+          }),
           status: 'active' as const
         };
-
         await dbService.contracts.create(contractPayload);
         await dbService.properties.update(property.id, { is_available: false });
-
-        // Force refetch to sync all data
         refetch();
-
-        if (confirm("Voulez-vous imprimer le contrat de bail maintenant ?")) {
+        if (confirm('Voulez-vous imprimer le contrat de bail maintenant ?')) {
           await OHADAContractGenerator.printContract(contractPayload, agency, newTenant, property);
         }
-
         toast.dismiss('contract-gen');
       } else {
-        setSuccessMessage({
-          title: 'Locataire créé !',
-          message: `Le locataire a été ajouté à la base de données.`
-        });
+        setSuccessMessage({ title: 'Locataire créé !', message: 'Le locataire a été ajouté à la base de données.' });
       }
-
       setShowForm(false);
       setShowSuccessModal(true);
     } catch (err) {
@@ -206,199 +342,125 @@ export const TenantsList: React.FC = () => {
     try {
       if (isEditing && selectedTenant) {
         await updateTenant(selectedTenant.id, tenantData);
-
-        // 2. If property assigned during edit, generate Contract
         if (rentalParams && property) {
           toast.loading('Génération du nouveau contrat...', { id: 'contract-update' });
-
           const agency = await dbService.agencies.getById(user?.agency_id!);
           const owner = await dbService.owners.getById(property.owner_id);
-
-          if (!agency || !owner) {
-            toast.error('Erreur: Introuvables pour le contrat', { id: 'contract-update' });
-            return;
-          }
-
+          if (!agency || !owner) { toast.error('Erreur: Introuvables pour le contrat', { id: 'contract-update' }); return; }
           const tenantForContract: Tenant = { ...selectedTenant, ...tenantData };
-
           const contractPayload = {
-            ...OHADAContractGenerator.generateRentalContractForTenant(
-              tenantForContract,
-              agency,
-              property,
-              {
-                monthlyRent: rentalParams.monthlyRent,
-                deposit: rentalParams.deposit,
-                agencyFee: rentalParams.agencyFee,
-                advance: rentalParams.monthlyRent * 2,
-                duration: 12,
-                startDate: new Date(rentalParams.startDate)
-              }
-            ),
+            ...OHADAContractGenerator.generateRentalContractForTenant(tenantForContract, agency, property, {
+              monthlyRent: rentalParams.monthlyRent, deposit: rentalParams.deposit,
+              agencyFee: rentalParams.agencyFee, advance: rentalParams.monthlyRent * 2,
+              duration: 12, startDate: new Date(rentalParams.startDate)
+            }),
             status: 'active' as const
           };
-
           await dbService.contracts.create(contractPayload);
           await dbService.properties.update(property.id, { is_available: false });
           refetch();
-
-          // Append info to success message
-          setSuccessMessage({
-            title: 'Mise à jour complétée',
-            message: `Locataire mis à jour et nouveau contrat généré pour ${property.title}.`
-          });
-
-          if (confirm("Voulez-vous imprimer le nouveau contrat ?")) {
+          setSuccessMessage({ title: 'Mise à jour complétée', message: `Locataire mis à jour et nouveau contrat généré pour ${property.title}.` });
+          if (confirm('Voulez-vous imprimer le nouveau contrat ?')) {
             await OHADAContractGenerator.printContract(contractPayload, agency, tenantForContract, property);
           }
         }
-
       } else {
         await handleAddTenant(tenantData, rentalParams, property);
       }
     } catch (error) {
-      console.error("Form Submit Error:", error);
+      console.error('Form Submit Error:', error);
       toast.error("Une erreur s'est produite lors de l'enregistrement.");
     }
   }, [isEditing, selectedTenant, updateTenant, handleAddTenant, user?.agency_id]);
 
   const handleDeleteTenant = useCallback(async (tenantId: string) => {
     if (!confirm('Supprimer ce locataire ? Cette action supprimera également tous les contrats et quittances associés.')) return;
-
     const toastId = toast.loading('Suppression en cours...');
     try {
-      // 1. Fetch associated contracts first
       const tenantContracts = await dbService.contracts.getAll({ tenant_id: tenantId, agency_id: user?.agency_id ?? undefined });
-
-      if (tenantContracts.length > 0) {
-        console.log(`🧹 Nettoyage de ${tenantContracts.length} contrats pour le locataire ${tenantId}`);
-        for (const contract of tenantContracts) {
-          // 1.1 First delete receipts for this contract
-          const receipts = await dbService.rentReceipts.getAll({ contract_id: contract.id, agency_id: user?.agency_id ?? undefined });
-          if (receipts.length > 0) {
-            console.log(`🧾 Suppression de ${receipts.length} quittances pour le contrat ${contract.id}`);
-            for (const receipt of receipts) {
-              await dbService.rentReceipts.delete(receipt.id);
-            }
-          }
-          // 1.2 Now delete the contract
-          await dbService.contracts.delete(contract.id);
-
-          // 1.3 If it was a rental, free up the property
-          if (contract.type === 'location' && contract.property_id) {
-            console.log(`🏘️ Libération du bien ${contract.property_id} suite à suppression locataire`);
-            await dbService.properties.update(contract.property_id, { is_available: true });
-          }
+      for (const contract of tenantContracts) {
+        const receipts = await dbService.rentReceipts.getAll({ contract_id: contract.id, agency_id: user?.agency_id ?? undefined });
+        for (const receipt of receipts) await dbService.rentReceipts.delete(receipt.id);
+        await dbService.contracts.delete(contract.id);
+        if (contract.type === 'location' && contract.property_id) {
+          await dbService.properties.update(contract.property_id, { is_available: true });
         }
       }
-
-      // 2. Finally delete the tenant
       await deleteTenant(tenantId);
-
       toast.success('Locataire et toutes les données associées supprimés avec succès', { id: toastId });
     } catch (err: any) {
       console.error(err);
-      toast.error('Erreur lors de la suppression du locataire: ' + (err.message || ''), { id: toastId });
+      toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
     }
   }, [deleteTenant, user?.agency_id]);
-
-  const getPaymentStatusColor = (status: Tenant['payment_status']) => {
-    switch (status) {
-      case 'bon': return 'success';
-      case 'irregulier': return 'warning';
-      case 'mauvais': return 'danger';
-      default: return 'secondary';
-    }
-  };
-
-  const getPaymentStatusLabel = (status: Tenant['payment_status']) => {
-    switch (status) {
-      case 'bon': return 'Bon payeur';
-      case 'irregulier': return 'Payeur irrégulier';
-      case 'mauvais': return 'Mauvais payeur';
-      default: return status;
-    }
-  };
 
   const filteredTenants = useMemo(() => {
     if (!tenants) return [];
     return tenants.filter(t => {
-      const matchesSearch =
-        t.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.phone.includes(searchTerm) ||
-        t.profession.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.city.toLowerCase().includes(searchTerm.toLowerCase());
-
+      const s = searchTerm.toLowerCase();
+      const matchesSearch = !s ||
+        t.first_name.toLowerCase().includes(s) ||
+        t.last_name.toLowerCase().includes(s) ||
+        t.phone.includes(s) ||
+        t.profession.toLowerCase().includes(s) ||
+        t.city.toLowerCase().includes(s);
       const matchesMarital = filterMaritalStatus === 'all' || t.marital_status === filterMaritalStatus;
       const matchesPayment = filterPaymentStatus === 'all' || t.payment_status === filterPaymentStatus;
-
       return matchesSearch && matchesMarital && matchesPayment;
     });
   }, [tenants, searchTerm, filterMaritalStatus, filterPaymentStatus]);
 
-  const debouncedRefetch = useCallback(
-    debounce(() => refetch(), 500),
-    [refetch]
-  );
-
-  useEffect(() => {
-    debouncedRefetch();
-    return () => debouncedRefetch.cancel();
-  }, [searchTerm, filterPaymentStatus, filterMaritalStatus, currentPage, debouncedRefetch]);
-
-  useEffect(() => {
-    if (action === 'new') {
-      handleCreateClick();
-    }
-  }, [action, handleCreateClick]);
-
-  if (authLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-red-600 mb-4">{error}</p>
-        <Button onClick={refetch}>Réessayer</Button>
-      </div>
-    );
-  }
+  const debouncedRefetch = useCallback(debounce(() => refetch(), 500), [refetch]);
+  useEffect(() => { debouncedRefetch(); return () => debouncedRefetch.cancel(); }, [searchTerm, filterPaymentStatus, filterMaritalStatus, currentPage, debouncedRefetch]);
+  useEffect(() => { if (action === 'new') handleCreateClick(); }, [action, handleCreateClick]);
 
   const totalPages = Math.ceil((tenants?.length || 0) / PAGE_SIZE);
 
+  if (authLoading) return (
+    <div className="flex justify-center py-16">
+      <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="text-center py-12">
+      <p className="text-red-600 mb-4">{error}</p>
+      <Button onClick={refetch}>Réessayer</Button>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Locataires ({filteredTenants.length})</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Locataires</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{filteredTenants.length} locataire{filteredTenants.length !== 1 ? 's' : ''} trouvé{filteredTenants.length !== 1 ? 's' : ''}</p>
+        </div>
         <Button onClick={handleCreateClick} aria-label="Ajouter un locataire">
           <Plus className="h-4 w-4 mr-2" />
           Ajouter un locataire
         </Button>
       </div>
 
+      {/* Filters */}
       <Card>
-        <div className="flex gap-4 flex-col md:flex-row">
+        <div className="flex gap-3 flex-col md:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Rechercher..."
-              className="pl-10 pr-4 py-2 w-full border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Rechercher par nom, téléphone, ville…"
+              className="pl-10 pr-4 py-2.5 w-full border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               aria-label="Rechercher un locataire"
             />
           </div>
           <select
             value={filterPaymentStatus}
             onChange={e => setFilterPaymentStatus(e.target.value as Tenant['payment_status'] | 'all')}
-            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
             aria-label="Filtrer par statut de paiement"
           >
             <option value="all">Tous les statuts</option>
@@ -409,7 +471,7 @@ export const TenantsList: React.FC = () => {
           <select
             value={filterMaritalStatus}
             onChange={e => setFilterMaritalStatus(e.target.value as Tenant['marital_status'] | 'all')}
-            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
             aria-label="Filtrer par statut matrimonial"
           >
             <option value="all">Tous les statuts</option>
@@ -421,117 +483,75 @@ export const TenantsList: React.FC = () => {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {initialLoading ? (
-          <div className="col-span-full flex justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
+          // Skeleton loaders
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-gray-100" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 bg-gray-100 rounded w-3/4" />
+                  <div className="h-3 bg-gray-100 rounded w-1/2" />
+                </div>
+              </div>
+              <div className="h-px bg-gray-50" />
+              <div className="space-y-2">
+                <div className="h-3 bg-gray-100 rounded w-2/3" />
+                <div className="h-3 bg-gray-100 rounded w-1/2" />
+              </div>
+              <div className="h-7 bg-gray-100 rounded-lg" />
+            </div>
+          ))
         ) : filteredTenants.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <User className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-medium mb-2">Aucun locataire</h3>
-            <p className="text-gray-600 mb-4">Commencez par ajouter votre premier locataire.</p>
-            <Button onClick={() => setShowForm(true)} aria-label="Ajouter un locataire">
+          <div className="col-span-full flex flex-col items-center py-16 text-center">
+            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
+              <User className="h-8 w-8 text-blue-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">Aucun locataire</h3>
+            <p className="text-gray-500 text-sm mb-5">Commencez par ajouter votre premier locataire.</p>
+            <Button onClick={() => setShowForm(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Ajouter un locataire
             </Button>
           </div>
         ) : (
           filteredTenants.map(tenant => (
-            <Card
+            <TenantCard
               key={tenant.id}
-              className="hover:shadow-lg transition-shadow cursor-pointer relative group"
-              onClick={() => {
+              tenant={tenant}
+              deleting={deleting}
+              onNavigate={() => {
                 const slug = generateSlug(tenant.id, `${tenant.first_name} ${tenant.last_name}`);
                 navigate(`/locataires/${slug}`);
               }}
-            >
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center space-x-3">
-                    {tenant.photo_url
-                      ? <img src={tenant.photo_url} alt={`${tenant.first_name} ${tenant.last_name}`} className="w-12 h-12 rounded-full object-cover" />
-                      : <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center"><User className="h-6 w-6 text-blue-600" /></div>
-                    }
-                    <div>
-                      <h3 className="font-semibold group-hover:text-blue-600 transition-colors">
-                        {tenant.first_name} {tenant.last_name}
-                        {tenant.business_id && (
-                          <span className="ml-2 text-xs text-gray-500 font-mono bg-gray-100 px-1 rounded">
-                            {tenant.business_id}
-                          </span>
-                        )}
-                      </h3>
-                      <div className="flex items-center text-sm text-gray-600"><Phone className="h-3 w-3 mr-1" />{tenant.phone}</div>
-                    </div>
-                  </div>
-                  <div className="flex space-x-1" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="sm" onClick={() => { setSelectedTenant(tenant); setShowReceiptGenerator(true); }} aria-label={`Générer une quittance pour ${tenant.first_name} ${tenant.last_name}`}>
-                      <FileText className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleEditClick(tenant)} aria-label={`Modifier ${tenant.first_name} ${tenant.last_name}`}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                      <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700" onClick={(e) => { e.stopPropagation(); setTenantToLink(tenant); }} title="Lier a un bien"><Link className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setSelectedTenant(tenant); setShowFinancialStatements(true); }} aria-label={`Voir l'état financier de ${tenant.first_name} ${tenant.last_name}`}>
-                      <DollarSign className="h-4 w-4" />
-                    </Button>
-                    {isDirectorOrManager && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
-                        onClick={() => handleDeleteTenant(tenant.id)}
-                        disabled={deleting}
-                        aria-label={`Supprimer ${tenant.first_name} ${tenant.last_name}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center text-sm text-gray-600"><MapPin className="h-4 w-4 mr-2 text-green-600" />{tenant.city}</div>
-                  <div className="flex items-center text-sm text-gray-600"><Briefcase className="h-4 w-4 mr-2 text-orange-600" />{tenant.profession}</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Paiement:</span>
-                    <Badge variant={getPaymentStatusColor(tenant.payment_status)} size="sm">
-                      {getPaymentStatusLabel(tenant.payment_status)}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </Card>
+              onReceipt={() => { setSelectedTenant(tenant); setShowReceiptGenerator(true); }}
+              onEdit={() => handleEditClick(tenant)}
+              onLink={() => setTenantToLink(tenant)}
+              onFinancials={() => { setSelectedTenant(tenant); setShowFinancialStatements(true); }}
+              onDelete={() => handleDeleteTenant(tenant.id)}
+            />
           ))
         )}
       </div>
 
+      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center space-x-2 mt-6">
-          <Button
-            variant="outline"
-            disabled={currentPage === 0}
-            onClick={() => setCurrentPage(prev => prev - 1)}
-            aria-label="Page précédente"
-          >
+        <div className="flex justify-center items-center gap-3 mt-6">
+          <Button variant="outline" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)} aria-label="Page précédente">
             Précédent
           </Button>
-          <span className="text-sm text-gray-600">
-            Page {currentPage + 1} sur {totalPages}
+          <span className="text-sm text-gray-600 px-3 py-1.5 bg-white border border-gray-200 rounded-lg">
+            {currentPage + 1} / {totalPages}
           </span>
-          <Button
-            variant="outline"
-            disabled={currentPage >= totalPages - 1}
-            onClick={() => setCurrentPage(prev => prev + 1)}
-            aria-label="Page suivante"
-          >
+          <Button variant="outline" disabled={currentPage >= totalPages - 1} onClick={() => setCurrentPage(p => p + 1)} aria-label="Page suivante">
             Suivant
           </Button>
         </div>
       )}
 
-
-
+      {/* Modals */}
       <TenantForm
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -548,41 +568,34 @@ export const TenantsList: React.FC = () => {
         propertyId={selectedTenant?.propertyId}
         ownerId={selectedTenant?.ownerId}
       />
-      {
-        selectedTenant && (
-          <Modal
-            isOpen={showFinancialStatements}
-            onClose={() => { setShowFinancialStatements(false); setSelectedTenant(null); }}
-            title="État financier"
-            size="xl"
-          >
-            <FinancialStatements
-              entityId={selectedTenant.id}
-              entityType="tenant"
-              entityName={`${selectedTenant.first_name} ${selectedTenant.last_name}`}
-            />
-          </Modal>
-        )
-      }
+      {selectedTenant && (
+        <Modal
+          isOpen={showFinancialStatements}
+          onClose={() => { setShowFinancialStatements(false); setSelectedTenant(null); }}
+          title="État financier"
+          size="xl"
+        >
+          <FinancialStatements
+            entityId={selectedTenant.id}
+            entityType="tenant"
+            entityName={`${selectedTenant.first_name} ${selectedTenant.last_name}`}
+          />
+        </Modal>
+      )}
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
         title={successMessage.title}
         message={successMessage.message}
       />
-
-      {/* Link tenant to property modal */}
       {tenantToLink && (
         <LinkTenantToPropertyModal
           isOpen={!!tenantToLink}
           onClose={() => setTenantToLink(null)}
           tenant={tenantToLink}
-          onLinked={() => {
-            setTenantToLink(null);
-            refetch();
-          }}
+          onLinked={() => { setTenantToLink(null); refetch(); }}
         />
       )}
-    </div >
+    </div>
   );
 };
