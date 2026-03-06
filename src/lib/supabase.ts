@@ -47,7 +47,7 @@ export const dbService = {
         { count: totalTenants, error: tenantsError },
         { count: totalContracts, error: contractsError },
         { data: rentReceipts, error: receiptsError },
-        { count: activeContracts, error: activeContractsError },
+        { data: activeContractsData, count: activeContractsCount, error: activeContractsError },
         { count: occupiedProperties, error: occupiedPropertiesError },
       ] = await Promise.all([
         supabase
@@ -74,9 +74,9 @@ export const dbService = {
         }),
         supabase
           .from('contracts')
-          .select('*', { count: 'exact', head: true })
+          .select('monthly_rent', { count: 'exact' })
           .eq('agency_id', agencyId)
-          .in('status', ['active', 'renewed', 'draft'])
+          .in('status', ['active', 'renewed'])
           .eq('type', 'location'),
         supabase
           .from('properties')
@@ -90,13 +90,20 @@ export const dbService = {
       if (tenantsError) throw new Error(formatSbError('❌ tenants.count', tenantsError));
       if (contractsError) throw new Error(formatSbError('❌ contracts.count', contractsError));
       if (receiptsError) throw new Error(formatSbError('❌ rent_receipts.rpc', receiptsError));
-      if (activeContractsError) throw new Error(formatSbError('❌ contracts.count (active)', activeContractsError));
+      if (activeContractsError) throw new Error(formatSbError('❌ contracts.select (active)', activeContractsError));
       if (occupiedPropertiesError) throw new Error(formatSbError('❌ properties.count (occupied)', occupiedPropertiesError));
 
-      // Reduce corrigé : utilise RentReceiptSummary et somme number
-      const monthlyRevenue = Array.isArray(rentReceipts)  // TS infère RentReceiptSummary[]
+      // Calculate monthly collected revenue
+      const monthlyRevenue = Array.isArray(rentReceipts)
         ? rentReceipts.reduce((sum: number, r: RentReceiptSummary) => sum + (r.total_amount || 0), 0)
-        : 0;  // Fix TS2769 et TS2322
+        : 0;
+
+      // Calculate expected revenue from active contracts
+      const expectedRevenue = Array.isArray(activeContractsData)
+        ? activeContractsData.reduce((sum: number, c: any) => sum + (c.monthly_rent || 0), 0)
+        : 0;
+
+      const remainingRevenue = Math.max(0, expectedRevenue - monthlyRevenue);
 
       const safeTotalProperties = totalProperties ?? 0;
       const safeOccupiedProperties = occupiedProperties ?? 0;
@@ -112,7 +119,9 @@ export const dbService = {
         totalTenants: totalTenants || 0,
         totalContracts: totalContracts || 0,
         monthlyRevenue,
-        activeContracts: activeContracts || 0,
+        expectedRevenue,
+        remainingRevenue,
+        activeContracts: activeContractsCount || 0,
         occupancyRate: Number(occupancyRate.toFixed(2)),
       };
     } catch (err) {

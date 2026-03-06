@@ -23,7 +23,8 @@ export const OwnersList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const fetchOwners = useCallback(() => dbService.owners.getAll({
-    agency_id: authAgencyId || undefined
+    agency_id: authAgencyId || undefined,
+    limit: 100
   }), [authAgencyId]);
 
   const { data: owners, initialLoading, error, refetch } = useRealtimeData<Owner>(

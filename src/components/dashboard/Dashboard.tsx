@@ -715,21 +715,31 @@ export const Dashboard: React.FC = () => {
                     Donnees en direct
                   </Badge>
                 </header>
-                <div className="grid gap-6 sm:grid-cols-3">
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                   <div>
-                    <p className="text-sm uppercase tracking-wide text-slate-400">Revenus mensuels</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{formatCurrency(dashboardStats.monthlyRevenue)}</p>
-                    <p className="mt-1 text-sm text-slate-400">Quittances validees ce mois-ci</p>
+                    <p className="text-sm uppercase tracking-wide text-slate-400">Loyers attendus</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(dashboardStats.expectedRevenue)}</p>
+                    <p className="mt-1 text-xs text-slate-400">Total des loyers actifs</p>
+                  </div>
+                  <div>
+                    <p className="text-sm uppercase tracking-wide text-slate-400">Loyers encaisses</p>
+                    <p className="mt-2 text-2xl font-semibold text-emerald-400">{formatCurrency(dashboardStats.monthlyRevenue)}</p>
+                    <p className="mt-1 text-xs text-slate-400">Quittances validees</p>
+                  </div>
+                  <div>
+                    <p className="text-sm uppercase tracking-wide text-slate-400">Reste a encaisser</p>
+                    <p className="mt-2 text-2xl font-semibold text-amber-400">{formatCurrency(dashboardStats.remainingRevenue)}</p>
+                    <p className="mt-1 text-xs text-slate-400">Montant non encore percu</p>
                   </div>
                   <div>
                     <p className="text-sm uppercase tracking-wide text-slate-400">Taux d'occupation</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{dashboardStats.occupancyRate}%</p>
-                    <p className="mt-1 text-sm text-slate-400">Part des biens occupes sur votre parc</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.occupancyRate}%</p>
+                    <p className="mt-1 text-xs text-slate-400">Biens occupes / Total</p>
                   </div>
                   <div>
-                    <p className="text-sm uppercase tracking-wide text-slate-400">Commissions estimees</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{formatCurrency(dashboardStats.monthlyRevenue * 0.1)}</p>
-                    <p className="mt-1 text-sm text-slate-400">Projection sur la base de 10% d'honoraires</p>
+                    <p className="text-sm uppercase tracking-wide text-slate-400">Commissions (10%)</p>
+                    <p className="mt-2 text-2xl font-semibold text-blue-400">{formatCurrency(dashboardStats.monthlyRevenue * 0.1)}</p>
+                    <p className="mt-1 text-xs text-slate-400">Projection honoraires</p>
                   </div>
                 </div>
               </div>

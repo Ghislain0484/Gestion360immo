@@ -50,6 +50,8 @@ export interface DashboardStats {
   totalTenants: number;
   totalContracts: number;
   monthlyRevenue: number;
+  expectedRevenue: number;
+  remainingRevenue: number;
   activeContracts: number;
   occupancyRate: number;
 }
