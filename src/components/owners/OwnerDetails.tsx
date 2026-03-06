@@ -18,6 +18,7 @@ import { OwnerForm } from './OwnerForm';
 import OwnerReversalModal from './OwnerReversalModal';
 import { PaymentsList } from '../payments/PaymentsList';
 import { OwnerReversalCalculator, ReversalDetails } from './OwnerReversalCalculator';
+import { OwnerRentSummary } from './OwnerRentSummary';
 import { AssignTenantModal } from '../tenants/AssignTenantModal';
 
 export const OwnerDetails: React.FC = () => {
@@ -266,6 +267,16 @@ export const OwnerDetails: React.FC = () => {
 
                         {activeTab === 'financials' && (
                             <div className="space-y-6">
+                                {/* Résumé des revenus locatifs */}
+                                <Card>
+                                    <div className="p-6">
+                                        <OwnerRentSummary
+                                            ownerId={owner.id}
+                                            ownerProperties={ownerProperties}
+                                        />
+                                    </div>
+                                </Card>
+
                                 {/* Calculateur de reversement */}
                                 <Card>
                                     <div className="p-6">

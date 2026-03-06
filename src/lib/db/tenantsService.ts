@@ -7,8 +7,13 @@ export const tenantsService = {
     async getAll(filters: TenantFilters = {}): Promise<Tenant[]> {
         let query = supabase
             .from('tenants')
-            .select('*')
+            .select('*, active_contracts:contracts(id, status, property:properties(title))')
             .order('created_at', { ascending: false });
+
+        // Note: Joining with contracts might return multiple rows if not filtered properly.
+        // But since we want "occupancy status", we can filter active contracts in selection if supported,
+        // or filter client-side. Supabase allows filtering joined tables.
+        query = query.eq('active_contracts.status', 'active');
 
         if (filters.agency_id) {
             query = query.eq('agency_id', filters.agency_id);

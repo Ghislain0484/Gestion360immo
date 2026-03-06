@@ -255,7 +255,7 @@ export const Dashboard: React.FC = () => {
         color: 'green' as const,
       },
       {
-        title: 'Locataires actifs',
+        title: 'Total locataires',
         value: dashboardStats.totalTenants.toString(),
         icon: UserCheck,
         trend: { value: 8, isPositive: true },

@@ -17,8 +17,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import debounce from 'lodash/debounce';
 import { SuccessModal } from '../ui/SuccessModal';
 import { toast } from 'react-hot-toast';
+import { clsx } from 'clsx';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 100;
 
 // ─── Action Menu Dropdown ────────────────────────────────────────────────────
 interface ActionMenuProps {
@@ -199,10 +200,25 @@ const TenantCard: React.FC<TenantCardProps> = ({
       </div>
 
       {/* Footer badge */}
-      <div className={`mx-4 mb-4 flex items-center gap-2 px-3 py-1.5 rounded-lg ${pCfg.bg} border ${pCfg.border}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${pCfg.dot} flex-shrink-0`} />
-        <StatusIcon className={`h-3.5 w-3.5 ${pCfg.color} flex-shrink-0`} />
-        <span className={`text-xs font-medium ${pCfg.color}`}>{pCfg.label}</span>
+      <div className="mx-4 mb-4 flex flex-col gap-2">
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${pCfg.bg} border ${pCfg.border}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${pCfg.dot} flex-shrink-0`} />
+          <StatusIcon className={`h-3.5 w-3.5 ${pCfg.color} flex-shrink-0`} />
+          <span className={`text-xs font-medium ${pCfg.color}`}>{pCfg.label}</span>
+        </div>
+
+        {/* Occupancy Status */}
+        <div className={clsx(
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg border",
+          tenant.active_contracts?.length ? "bg-blue-50 border-blue-100 text-blue-700" : "bg-gray-50 border-gray-100 text-gray-500"
+        )}>
+          <Home className="h-3.5 w-3.5 flex-shrink-0" />
+          <span className="text-xs font-medium truncate">
+            {tenant.active_contracts?.length
+              ? `Occupe : ${tenant.active_contracts[0].property?.title || 'Bien inconnu'}`
+              : "Aucun bien occupé"}
+          </span>
+        </div>
       </div>
     </div>
   );
