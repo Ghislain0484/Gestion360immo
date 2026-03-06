@@ -16,14 +16,26 @@ export const rentReceiptsService = {
       .select(`
         *,
         contracts!inner(agency_id),
-        property:properties(business_id),
-        tenant:tenants(business_id),
+        property:properties(title, business_id),
+        tenant:tenants(first_name, last_name, business_id),
         owner:owners(business_id)
       `)
       .order('created_at', { ascending: false });
 
     if (params?.agency_id) {
       query = query.eq('contracts.agency_id', params.agency_id);
+    }
+    if (params?.tenant_id) {
+      query = query.eq('tenant_id', params.tenant_id);
+    }
+    if (params?.property_id) {
+      query = query.eq('property_id', params.property_id);
+    }
+    if (params?.owner_id) {
+      query = query.eq('owner_id', params.owner_id);
+    }
+    if (params?.contract_id) {
+      query = query.eq('contract_id', params.contract_id);
     }
 
     const { data, error } = await query;
