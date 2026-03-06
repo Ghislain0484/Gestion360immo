@@ -72,16 +72,24 @@ export const CollaborationHub: React.FC = () => {
         setMessages(messagesData ?? []);
 
         // Fetch collaboration requests
-        const { data: requestsData, error: requestsError } = await supabase
-          .from('collaboration_requests')
-          .select('*, requester_agency:requester_agency_id(name)')
-          .eq('target_agency_id', authAgencyId)
-          .order('created_at', { ascending: false });
+        try {
+          const { data: requestsData, error: requestsError } = await supabase
+            .from('collaboration_requests')
+            .select('*, requester_agency:requester_agency_id(name)')
+            .eq('target_agency_id', authAgencyId)
+            .order('created_at', { ascending: false });
 
-        if (requestsError) {
-          throw new Error(`❌ requests.select | ${requestsError.message}`);
+          if (requestsError) {
+            console.warn('⚠️ Table collaboration_requests non trouvée ou inaccessible:', requestsError.message);
+            // On ne jette pas d'erreur ici pour ne pas bloquer tout le hub
+            setCollaborationRequests([]);
+          } else {
+            setCollaborationRequests(requestsData ?? []);
+          }
+        } catch (tableErr) {
+          console.error('Erreur silencieuse collaboration_requests:', tableErr);
+          setCollaborationRequests([]);
         }
-        setCollaborationRequests(requestsData ?? []);
       } catch (err: any) {
         console.error('Erreur chargement données:', err);
         setError(err.message || 'Erreur lors du chargement des données');

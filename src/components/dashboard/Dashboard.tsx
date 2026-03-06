@@ -11,7 +11,10 @@ import {
   Eye,
   Edit,
   Printer,
+  Download,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { printReceiptHTML, downloadReceiptPDF } from '../../utils/receiptActions';
 import { StatsCard } from './StatsCard';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -46,6 +49,7 @@ interface Payment {
   date: string;
   receiptNumber: string;
   status: 'completed';
+  receipt?: RentReceipt;
 }
 
 interface GetAllParams {
@@ -58,6 +62,8 @@ export const Dashboard: React.FC = () => {
   const [showAllActivities, setShowAllActivities] = useState(false);
   const [showAllRentals, setShowAllRentals] = useState(false);
   const [showAllPayments, setShowAllPayments] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activitiesError, setActivitiesError] = useState<string | null>(null);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
@@ -409,6 +415,7 @@ export const Dashboard: React.FC = () => {
         amount: receipt.total_amount,
         date: formattedDate,
         status: 'completed',
+        receipt,
         ...baseDescriptor,
       });
 
@@ -419,6 +426,7 @@ export const Dashboard: React.FC = () => {
           amount: receipt.owner_payment ?? 0,
           date: formattedDate,
           status: 'completed',
+          receipt,
           ...baseDescriptor,
         });
       }
@@ -896,7 +904,11 @@ export const Dashboard: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         className="text-slate-500 hover:text-slate-700"
-                        onClick={() => alert('Visualisation non implementee')}
+                        title="Voir détails"
+                        onClick={() => {
+                          setSelectedPayment(payment);
+                          setShowPaymentDetails(true);
+                        }}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -904,17 +916,39 @@ export const Dashboard: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         className="text-slate-500 hover:text-slate-700"
-                        onClick={() => alert('Modification non implementee')}
+                        title="Imprimer"
+                        onClick={() => {
+                          if (payment.receipt && user?.agency_id) {
+                            printReceiptHTML(payment.receipt, user.agency_id, {
+                              tenantName: payment.tenant,
+                              ownerName: payment.owner,
+                              propertyTitle: payment.property
+                            });
+                          } else {
+                            toast.error("Données de reçu manquantes");
+                          }
+                        }}
                       >
-                        <Edit className="h-4 w-4" />
+                        <Printer className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="text-slate-500 hover:text-slate-700"
-                        onClick={() => alert('Impression non implementee')}
+                        title="Télécharger"
+                        onClick={() => {
+                          if (payment.receipt && user?.agency_id) {
+                            downloadReceiptPDF(payment.receipt, user.agency_id, {
+                              tenantName: payment.tenant,
+                              ownerName: payment.owner,
+                              propertyTitle: payment.property
+                            });
+                          } else {
+                            toast.error("Données de reçu manquantes");
+                          }
+                        }}
                       >
-                        <Printer className="h-4 w-4" />
+                        <Download className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -1094,14 +1128,55 @@ export const Dashboard: React.FC = () => {
                       <p className="text-sm text-slate-500 capitalize">{payment.status}</p>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-700" onClick={() => alert('Visualisation non implementee')}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-slate-500 hover:text-slate-700"
+                        title="Voir détails"
+                        onClick={() => {
+                          setSelectedPayment(payment);
+                          setShowPaymentDetails(true);
+                        }}
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-700" onClick={() => alert('Modification non implementee')}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-700" onClick={() => alert('Impression non implementee')}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-slate-500 hover:text-slate-700"
+                        title="Imprimer"
+                        onClick={() => {
+                          if (payment.receipt && user?.agency_id) {
+                            printReceiptHTML(payment.receipt, user.agency_id, {
+                              tenantName: payment.tenant,
+                              ownerName: payment.owner,
+                              propertyTitle: payment.property
+                            });
+                          } else {
+                            toast.error("Données de reçu manquantes");
+                          }
+                        }}
+                      >
                         <Printer className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-slate-500 hover:text-slate-700"
+                        title="Télécharger"
+                        onClick={() => {
+                          if (payment.receipt && user?.agency_id) {
+                            downloadReceiptPDF(payment.receipt, user.agency_id, {
+                              tenantName: payment.tenant,
+                              ownerName: payment.owner,
+                              propertyTitle: payment.property
+                            });
+                          } else {
+                            toast.error("Données de reçu manquantes");
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -1109,6 +1184,110 @@ export const Dashboard: React.FC = () => {
               ))
             )}
           </div>
+        </Modal>
+
+        {/* Modal Détails du Paiement */}
+        <Modal
+          isOpen={showPaymentDetails}
+          onClose={() => {
+            setShowPaymentDetails(false);
+            setSelectedPayment(null);
+          }}
+          title="Détails du Paiement"
+          size="lg"
+        >
+          {selectedPayment && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-br from-slate-50 to-blue-50 border border-blue-100 rounded-2xl p-6 shadow-sm">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <Badge variant={selectedPayment.type === 'received' ? 'success' : 'info'} className="mb-2">
+                      {selectedPayment.type === 'received' ? 'Encaissement Loyer' : 'Reversement Propriétaire'}
+                    </Badge>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      Reçu N° {selectedPayment.receiptNumber}
+                    </h3>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-slate-500">Montant</p>
+                    <p className="text-2xl font-black text-blue-600">
+                      {formatCurrency(selectedPayment.amount)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Locataire</p>
+                      <p className="font-semibold text-slate-700">{selectedPayment.tenant}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Propriétaire</p>
+                      <p className="font-semibold text-slate-700">{selectedPayment.owner}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Bien Immobilier</p>
+                      <p className="font-semibold text-slate-700">{selectedPayment.property}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Date de Paiement</p>
+                      <p className="font-semibold text-slate-700">
+                        {new Date(selectedPayment.date).toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedPayment.receipt?.notes && (
+                  <div className="mt-6 pt-6 border-t border-blue-100">
+                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Notes / Observations</p>
+                    <p className="text-sm text-slate-600 italic">"{selectedPayment.receipt.notes}"</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Button
+                  className="w-full flex items-center justify-center gap-2 py-6 rounded-xl hover:shadow-lg transition-all"
+                  onClick={() => {
+                    if (selectedPayment.receipt && user?.agency_id) {
+                      printReceiptHTML(selectedPayment.receipt, user.agency_id, {
+                        tenantName: selectedPayment.tenant,
+                        ownerName: selectedPayment.owner,
+                        propertyTitle: selectedPayment.property
+                      });
+                    }
+                  }}
+                >
+                  <Printer className="w-5 h-5" />
+                  <span>Imprimer le Reçu</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2 py-6 rounded-xl border-2 hover:bg-slate-50 transition-all"
+                  onClick={() => {
+                    if (selectedPayment.receipt && user?.agency_id) {
+                      downloadReceiptPDF(selectedPayment.receipt, user.agency_id, {
+                        tenantName: selectedPayment.tenant,
+                        ownerName: selectedPayment.owner,
+                        propertyTitle: selectedPayment.property
+                      });
+                    }
+                  }}
+                >
+                  <Download className="w-5 h-5" />
+                  <span>Télécharger PDF</span>
+                </Button>
+              </div>
+            </div>
+          )}
         </Modal>
       </div>
     </div>
