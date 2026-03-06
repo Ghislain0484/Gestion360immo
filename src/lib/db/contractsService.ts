@@ -51,9 +51,9 @@ export const contractsService = {
     if (property_id) {
       query = query.eq('property_id', property_id);
     }
-    if (limit !== undefined && offset !== undefined) {
-      query = query.range(offset, offset + limit - 1);
-    }
+    const limitVal = limit ?? 100;
+    const offsetVal = offset ?? 0;
+    query = query.range(offsetVal, offsetVal + limitVal - 1);
 
     const { data, error } = await query;
     if (error) throw new Error(formatSbError('❌ contracts.select', error));

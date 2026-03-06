@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import clsx from 'clsx';
 import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Download, Printer, Edit, RotateCw, XCircle } from 'lucide-react';
 import { debounce } from 'lodash';
 import { Button } from '../ui/Button';
@@ -19,7 +20,7 @@ export const ContractsList: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | Contract['type']>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | Contract['status']>('all');
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 100;
 
   const { data: contracts = [], refetch, setData, initialLoading } = useRealtimeData<Contract>(
     () => dbService.contracts.getAll({
@@ -345,9 +346,20 @@ export const ContractsList: React.FC = () => {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
-                    <FileText className="h-8 w-8 text-blue-600" />
+                    <div className={clsx(
+                      "p-2 rounded-lg",
+                      contract.type === 'location' ? "bg-blue-100 text-blue-600" :
+                        contract.type === 'gestion' ? "bg-orange-100 text-orange-600" :
+                          "bg-green-100 text-green-600"
+                    )}>
+                      <FileText className="h-6 w-6" />
+                    </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900">Contrat #{contract.id.slice(0, 8)}</h3>
+                      <h3 className="font-semibold text-gray-900 line-clamp-1">
+                        {contract.type === 'location' ? `Loc : ${tenants.find(t => t.id === contract.tenant_id)?.last_name || 'Inconnu'}` :
+                          contract.type === 'gestion' ? `Gest : ${owners.find(o => o.id === contract.owner_id)?.last_name || 'Inconnu'}` :
+                            `Vente : ${contract.id.slice(0, 8)}`}
+                      </h3>
                       <p className="text-sm text-gray-500">
                         Propriété: {properties.find((p) => p.id === contract.property_id)?.title || 'N/A'}
                       </p>

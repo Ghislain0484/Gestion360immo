@@ -234,17 +234,12 @@ export function useRealtimeData<T extends AgencyEntity>(
 // -----------------------------
 // useDashboardStats
 // -----------------------------
+import { DashboardStats } from '../types/platform';
+
+// ... (vers ligne 237)
 export function useDashboardStats() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<{
-    totalProperties: number;
-    totalOwners: number;
-    totalTenants: number;
-    totalContracts: number;
-    monthlyRevenue: number;
-    activeContracts: number;
-    occupancyRate: number;
-  } | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -256,6 +251,8 @@ export function useDashboardStats() {
         totalTenants: 0,
         totalContracts: 0,
         monthlyRevenue: 0,
+        expectedRevenue: 0,
+        remainingRevenue: 0,
         activeContracts: 0,
         occupancyRate: 0,
       });
@@ -280,6 +277,8 @@ export function useDashboardStats() {
         totalTenants: 0,
         totalContracts: 0,
         monthlyRevenue: 0,
+        expectedRevenue: 0,
+        remainingRevenue: 0,
         activeContracts: 0,
         occupancyRate: 0,
       });

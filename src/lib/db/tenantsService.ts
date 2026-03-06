@@ -31,11 +31,10 @@ export const tenantsService = {
             );
         }
 
-        if (filters.limit !== undefined) {
-            const from = filters.offset ?? 0;
-            const to = from + filters.limit - 1;
-            query = query.range(from, to);
-        }
+        const limit = filters.limit ?? 100;
+        const from = filters.offset ?? 0;
+        const to = from + limit - 1;
+        query = query.range(from, to);
 
         const { data, error } = await query;
         if (error) throw new Error(formatSbError('❌ tenants.select', error));

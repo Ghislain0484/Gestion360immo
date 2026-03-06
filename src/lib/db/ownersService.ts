@@ -32,7 +32,7 @@ export const ownersService = {
   async getAll({
     agency_id,
     search,
-    limit = 10,
+    limit = 100,
     offset = 0,
   }: GetAllParams = {}): Promise<Owner[]> {
     let query = supabase
