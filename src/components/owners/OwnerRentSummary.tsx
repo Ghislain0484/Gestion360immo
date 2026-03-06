@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Clock, Building2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Clock, Building2, Calendar, Users, Home, Target, FileText } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
@@ -7,6 +7,7 @@ import { Property, RentReceipt } from '../../types/db';
 import { Contract } from '../../types/contracts';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
+import { Badge } from '../ui/Badge';
 
 interface OwnerRentSummaryProps {
     ownerId: string;
@@ -19,23 +20,24 @@ const MONTHS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
 export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, ownerProperties }) => {
     const { agencyId } = useAuth();
     const now = new Date();
-    const currentMonth = now.getMonth() + 1; // 1-12
-    const currentYear = now.getFullYear();
+
+    // --- State for Period Selection ---
+    const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
     const formatCurrency = (amount: number) =>
         new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amount);
 
-    // --- Fetch all active contracts for the owner's properties ---
+    // --- Fetch all contracts for the owner's properties ---
     const fetchContracts = React.useCallback(async () => {
         if (!agencyId || ownerProperties.length === 0) return [];
-        // Fetch all location contracts for agency, filter client-side by property
-        return dbService.contracts.getAll({ agency_id: agencyId, status: 'active', type: 'location' });
+        return dbService.contracts.getAll({ agency_id: agencyId, type: 'location' });
     }, [agencyId, ownerProperties]);
 
     const { data: allContracts = [], initialLoading: loadingContracts } = useRealtimeData<Contract>(
         fetchContracts,
         'contracts',
-        { agency_id: agencyId || undefined, status: 'active', type: 'location' }
+        { agency_id: agencyId || undefined, type: 'location' }
     );
 
     // Filter contracts to only those for this owner's properties
@@ -59,32 +61,37 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
 
     // --- Computations ---
     const stats = useMemo(() => {
-        // Monthly expected = sum of monthly_rent for all active contracts
-        const monthlyExpected = ownerContracts.reduce((sum, c) => sum + (c.monthly_rent || 0), 0);
-        const yearlyExpected = monthlyExpected * 12;
-
-        // Current month receipts
-        const currentMonthReceipts = allReceipts.filter(
-            r => r.period_month === currentMonth && r.period_year === currentYear
+        // Filter receipts for the selected period
+        const currentPeriodReceipts = allReceipts.filter(
+            r => r.period_month === selectedMonth && r.period_year === selectedYear
         );
 
         // Year receipts
-        const currentYearReceipts = allReceipts.filter(r => r.period_year === currentYear);
+        const currentYearReceipts = allReceipts.filter(r => r.period_year === selectedYear);
 
-        // Collected
-        const monthlyCollected = currentMonthReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0);
-        const yearlyCollected = currentYearReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0);
+        // Revenue Potential (Sum of target monthly_rent for ALL owner properties)
+        const totalPotential = ownerProperties.reduce((sum, p) => sum + (p.monthly_rent || 0), 0);
 
-        // Unpaid
-        const monthlyUnpaid = Math.max(0, monthlyExpected - monthlyCollected);
-        const yearlyUnpaid = Math.max(0, yearlyExpected - yearlyCollected);
+        // Occupancy quantification
+        let occupiedCount = 0;
 
-        // Per-property status for current month
+        // Per-property status for selected month
         const propertyRows = ownerProperties.map(prop => {
-            const contract = ownerContracts.find(c => c.property_id === prop.id);
-            const monthlyRent = contract?.monthly_rent || 0;
+            // A property is considered "occupied" if it has an active/renewed contract
+            // (Note: In a true history mode, we'd check if the contract was active during the selected period)
+            const contract = ownerContracts.find(c =>
+                c.property_id === prop.id &&
+                ['active', 'renewed'].includes(c.status)
+            );
 
-            const receipt = currentMonthReceipts.find(r => r.property_id === prop.id);
+            const isOccupied = !!contract;
+            if (isOccupied) occupiedCount++;
+
+            const monthlyRentTarget = prop.monthly_rent || 0;
+            const monthlyRentContractVal = contract?.monthly_rent || 0;
+
+            const receipt = currentPeriodReceipts.find(r => r.property_id === prop.id);
+
             let status: 'paid' | 'partial' | 'unpaid' | 'no_contract';
             let amountPaid = 0;
             let balanceDue = 0;
@@ -93,18 +100,48 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                 status = 'no_contract';
             } else if (!receipt) {
                 status = 'unpaid';
-                balanceDue = monthlyRent;
+                balanceDue = monthlyRentContractVal;
             } else {
                 amountPaid = receipt.amount_paid ?? receipt.total_amount;
-                balanceDue = receipt.balance_due ?? Math.max(0, monthlyRent - amountPaid);
+                balanceDue = receipt.balance_due ?? Math.max(0, monthlyRentContractVal - amountPaid);
                 status = receipt.payment_status === 'partial' || balanceDue > 0 ? 'partial' : 'paid';
             }
 
-            return { prop, monthlyRent, status, amountPaid, balanceDue };
+            return {
+                prop,
+                monthlyRentTarget,
+                monthlyRentContract: monthlyRentContractVal,
+                status,
+                amountPaid,
+                balanceDue,
+                isOccupied
+            };
         });
 
-        return { monthlyExpected, yearlyExpected, monthlyCollected, yearlyCollected, monthlyUnpaid, yearlyUnpaid, propertyRows };
-    }, [ownerContracts, allReceipts, ownerProperties, currentMonth, currentYear]);
+        // Financials only for "Occupied" properties (expected rent according to contracts)
+        const monthlyExpected = propertyRows.reduce((sum, row) => sum + row.monthlyRentContract, 0);
+        const monthlyPaid = propertyRows.reduce((sum, row) => sum + row.amountPaid, 0);
+        const monthlyRemaining = Math.max(0, monthlyExpected - monthlyPaid);
+
+        // Yearly view
+        const yearlyCollected = currentYearReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0);
+        const yearlyExpected = monthlyExpected * 12; // Approximation
+        const yearlyUnpaid = Math.max(0, yearlyExpected - yearlyCollected);
+
+        return {
+            totalPotential,
+            monthlyExpected,
+            monthlyPaid,
+            monthlyRemaining,
+            yearlyExpected,
+            yearlyCollected,
+            yearlyUnpaid,
+            propertyRows,
+            occupiedCount,
+            vacantCount: ownerProperties.length - occupiedCount,
+            totalCount: ownerProperties.length
+        };
+    }, [ownerContracts, allReceipts, ownerProperties, selectedMonth, selectedYear]);
 
     if (loadingContracts || loadingReceipts) {
         return <div className="flex justify-center py-8"><LoadingSpinner size="md" label="Chargement du résumé..." /></div>;
@@ -121,194 +158,250 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
 
     const statusBadge = (status: 'paid' | 'partial' | 'unpaid' | 'no_contract') => {
         switch (status) {
-            case 'paid': return (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                    <CheckCircle className="w-3 h-3" /> Payé
-                </span>
-            );
-            case 'partial': return (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
-                    <AlertTriangle className="w-3 h-3" /> Partiel
-                </span>
-            );
-            case 'unpaid': return (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                    <Clock className="w-3 h-3" /> Impayé
-                </span>
-            );
-            default: return (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-                    Sans contrat actif
-                </span>
-            );
+            case 'paid': return <Badge variant="success"><CheckCircle className="w-3 h-3 mr-1" /> Payé</Badge>;
+            case 'partial': return <Badge variant="warning"><AlertTriangle className="w-3 h-3 mr-1" /> Partiel</Badge>;
+            case 'unpaid': return <Badge variant="danger"><Clock className="w-3 h-3 mr-1" /> Impayé</Badge>;
+            default: return <Badge variant="secondary">Vacant</Badge>;
         }
     };
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-blue-600" />
+            {/* Header & Month/Year Picker */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
+                        <TrendingUp className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h3 className="font-black text-slate-900 text-xl tracking-tight">Analyse de Performance</h3>
+                        <p className="text-sm text-slate-500 font-medium">Répertoire détaillé des loyers</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 className="font-semibold text-gray-900 text-lg">Tableau de bord des revenus</h3>
-                    <p className="text-sm text-gray-500">
-                        {MONTHS_FR[currentMonth]} {currentYear} — Vue consolidée de tous les biens
-                    </p>
+
+                <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <Calendar className="w-4 h-4 text-slate-400 mr-2" />
+                        <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                            className="bg-transparent border-none text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer p-0 pr-6"
+                        >
+                            {MONTHS_FR.map((name, i) => i > 0 && <option key={i} value={i}>{name}</option>)}
+                        </select>
+                    </div>
+                    <select
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                        className="bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-blue-500 cursor-pointer h-full py-1.5"
+                    >
+                        {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
-            {/* Summary Cards — 2 rows: monthly | yearly */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                {/* Monthly */}
-                <Card className="p-5 border border-blue-100 bg-gradient-to-br from-blue-50 to-white">
-                    <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-3">
-                        📅 Ce mois · {MONTHS_FR[currentMonth]} {currentYear}
-                    </p>
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Loyers attendus</span>
-                            <span className="font-bold text-gray-900">{formatCurrency(stats.monthlyExpected)}</span>
+            {/* Top KPIs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Potential KPI */}
+                <Card className="p-4 bg-slate-50 border-slate-200 shadow-none">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white rounded-xl text-slate-400 border border-slate-100"><Target className="w-5 h-5" /></div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Potentiel Mensuel</p>
+                            <p className="text-lg font-black text-slate-900 leading-none">{formatCurrency(stats.totalPotential)}</p>
                         </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-green-700 flex items-center gap-1">
-                                <TrendingUp className="w-3 h-3" /> Encaissé
-                            </span>
-                            <span className="font-bold text-green-700">{formatCurrency(stats.monthlyCollected)}</span>
-                        </div>
-                        <div className="flex justify-between items-center border-t border-blue-100 pt-2 mt-2">
-                            <span className="text-sm text-red-600 flex items-center gap-1">
-                                <TrendingDown className="w-3 h-3" /> Reste à percevoir
-                            </span>
-                            <span className={`font-bold ${stats.monthlyUnpaid > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                {formatCurrency(stats.monthlyUnpaid)}
-                            </span>
-                        </div>
-                        {/* Progress bar */}
-                        {stats.monthlyExpected > 0 && (
-                            <div className="mt-2">
-                                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                    <span>Taux de collecte</span>
-                                    <span>{Math.min(100, Math.round((stats.monthlyCollected / stats.monthlyExpected) * 100))}%</span>
-                                </div>
-                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full rounded-full transition-all duration-500"
-                                        style={{
-                                            width: `${Math.min(100, (stats.monthlyCollected / stats.monthlyExpected) * 100)}%`,
-                                            background: stats.monthlyUnpaid === 0 ? '#16a34a' : '#3b82f6'
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </Card>
 
-                {/* Yearly */}
-                <Card className="p-5 border border-purple-100 bg-gradient-to-br from-purple-50 to-white">
-                    <p className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-3">
-                        📆 Cette année · {currentYear}
-                    </p>
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Loyers attendus</span>
-                            <span className="font-bold text-gray-900">{formatCurrency(stats.yearlyExpected)}</span>
+                <Card className="p-4 bg-blue-50/50 border-blue-100 shadow-none">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white rounded-xl text-blue-600 border border-blue-100 shadow-sm"><FileText className="w-5 h-5" /></div>
+                        <div>
+                            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest leading-none mb-1">Attendu (Contrats)</p>
+                            <p className="text-lg font-black text-slate-900 leading-none">{formatCurrency(stats.monthlyExpected)}</p>
                         </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-green-700 flex items-center gap-1">
-                                <TrendingUp className="w-3 h-3" /> Encaissé
-                            </span>
-                            <span className="font-bold text-green-700">{formatCurrency(stats.yearlyCollected)}</span>
+                    </div>
+                </Card>
+
+                <Card className="p-4 bg-emerald-50/50 border-emerald-100 shadow-none">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white rounded-xl text-emerald-600 border border-emerald-100 shadow-sm"><CheckCircle className="w-5 h-5" /></div>
+                        <div>
+                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest leading-none mb-1">Encaissé Réel</p>
+                            <p className="text-lg font-black text-emerald-700 leading-none">{formatCurrency(stats.monthlyPaid)}</p>
                         </div>
-                        <div className="flex justify-between items-center border-t border-purple-100 pt-2 mt-2">
-                            <span className="text-sm text-red-600 flex items-center gap-1">
-                                <TrendingDown className="w-3 h-3" /> Reste à percevoir
-                            </span>
-                            <span className={`font-bold ${stats.yearlyUnpaid > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                {formatCurrency(stats.yearlyUnpaid)}
-                            </span>
+                    </div>
+                </Card>
+
+                <Card className="p-4 bg-rose-50 border-rose-100 shadow-none">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white rounded-xl text-rose-600 border border-rose-100 shadow-sm"><AlertTriangle className="w-5 h-5" /></div>
+                        <div>
+                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest leading-none mb-1">Reste à Percevoir</p>
+                            <p className={`text-lg font-black leading-none ${stats.monthlyRemaining > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                                {formatCurrency(stats.monthlyRemaining)}
+                            </p>
                         </div>
-                        {/* Progress bar */}
-                        {stats.yearlyExpected > 0 && (
-                            <div className="mt-2">
-                                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                    <span>Taux de collecte</span>
-                                    <span>{Math.min(100, Math.round((stats.yearlyCollected / stats.yearlyExpected) * 100))}%</span>
-                                </div>
-                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full rounded-full transition-all duration-500"
-                                        style={{
-                                            width: `${Math.min(100, (stats.yearlyCollected / stats.yearlyExpected) * 100)}%`,
-                                            background: stats.yearlyUnpaid === 0 ? '#16a34a' : '#7c3aed'
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </Card>
             </div>
 
-            {/* Per-property table for current month */}
-            <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-gray-400" />
-                    Statut par bien — {MONTHS_FR[currentMonth]} {currentYear}
-                </h4>
-                <Card className="overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-100">
-                            <tr>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Bien</th>
-                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Loyer attendu</th>
-                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Encaissé</th>
-                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Reste</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 bg-white">
-                            {stats.propertyRows.map(({ prop, monthlyRent, status, amountPaid, balanceDue }) => (
-                                <tr key={prop.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-4 py-3">
-                                        <div className="font-medium text-gray-900">{prop.title}</div>
-                                        <div className="text-xs text-gray-400">{prop.location?.commune}, {prop.location?.quartier}</div>
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-gray-700 font-medium">
-                                        {monthlyRent > 0 ? formatCurrency(monthlyRent) : <span className="text-gray-400">—</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-semibold text-green-700">
-                                        {amountPaid > 0 ? formatCurrency(amountPaid) : <span className="text-gray-400">—</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-semibold">
-                                        {balanceDue > 0
-                                            ? <span className="text-red-600">{formatCurrency(balanceDue)}</span>
-                                            : <span className="text-green-600">—</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-center">{statusBadge(status)}</td>
+            {/* Occupancy Logic Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100">
+                            <Home className="w-5 h-5 text-slate-400" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Patrimoine</p>
+                            <p className="text-lg font-black text-slate-900">{stats.totalCount < 10 ? `0${stats.totalCount}` : stats.totalCount}</p>
+                        </div>
+                    </div>
+                    <Badge variant="secondary" className="bg-slate-50 text-slate-500 border-none">Biens</Badge>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                            <Users className="w-5 h-5 text-emerald-500" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Occupation</p>
+                            <p className="text-lg font-black text-emerald-600">{stats.occupiedCount < 10 ? `0${stats.occupiedCount}` : stats.occupiedCount}</p>
+                        </div>
+                    </div>
+                    <Badge variant="success" className="bg-emerald-50 text-emerald-600 border-none">Occupés</Badge>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center border border-orange-100">
+                            <Building2 className="w-5 h-5 text-orange-500" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Vacance</p>
+                            <p className="text-lg font-black text-orange-600">{stats.vacantCount < 10 ? `0${stats.vacantCount}` : stats.vacantCount}</p>
+                        </div>
+                    </div>
+                    <Badge variant="warning" className="bg-orange-50 text-orange-600 border-none">Vacants</Badge>
+                </div>
+            </div>
+
+            {/* Detailed Table */}
+            <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                    <div>
+                        <h4 className="font-black text-slate-900 text-lg flex items-center gap-2 mb-1">
+                            <Target className="w-5 h-5 text-blue-500" />
+                            Répertoire Financier par Bien
+                        </h4>
+                        <p className="text-xs text-slate-400">Détail des montants cibles (Potentiel) vs loyers contractuels (Réel)</p>
+                    </div>
+                    <Badge variant="info" className="py-1 px-3">
+                        Période : {MONTHS_FR[selectedMonth]} {selectedYear}
+                    </Badge>
+                </div>
+
+                <Card className="p-0 overflow-hidden border-slate-200 shadow-elegant" variant="default">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-100">
+                                    <th className="px-6 py-4 text-left font-black text-[10px] text-slate-400 uppercase tracking-widest">Description du Bien</th>
+                                    <th className="px-4 py-4 text-right font-black text-[10px] text-slate-400 uppercase tracking-widest">Loyer Cible (Fiche)</th>
+                                    <th className="px-4 py-4 text-right font-black text-[10px] text-slate-400 uppercase tracking-widest">Loyer Réel (Contrat)</th>
+                                    <th className="px-4 py-4 text-right font-black text-[10px] text-slate-400 uppercase tracking-widest">Perçu (Mois)</th>
+                                    <th className="px-4 py-4 text-center font-black text-[10px] text-slate-400 uppercase tracking-widest">Statut</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                        {/* Footer row totals */}
-                        <tfoot className="bg-gray-50 border-t-2 border-gray-200">
-                            <tr>
-                                <td className="px-4 py-3 font-bold text-gray-700">Total</td>
-                                <td className="px-4 py-3 text-right font-bold text-gray-900">{formatCurrency(stats.monthlyExpected)}</td>
-                                <td className="px-4 py-3 text-right font-bold text-green-700">{formatCurrency(stats.monthlyCollected)}</td>
-                                <td className="px-4 py-3 text-right font-bold text-red-600">
-                                    {stats.monthlyUnpaid > 0 ? formatCurrency(stats.monthlyUnpaid) : '—'}
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                    {stats.monthlyUnpaid === 0 && stats.monthlyExpected > 0
-                                        ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700"><CheckCircle className="w-3 h-3" /> Tout soldé</span>
-                                        : null}
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {stats.propertyRows.map(({ prop, monthlyRentTarget, monthlyRentContract, status, amountPaid, balanceDue, isOccupied }) => (
+                                    <tr key={prop.id} className={`hover:bg-blue-50/20 transition-colors ${!isOccupied ? 'bg-slate-50/20' : ''}`}>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${isOccupied ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-300 border-slate-100'
+                                                    }`}>
+                                                    <Building2 className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-slate-900 mb-0.5">{prop.title}</div>
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                        <span className="text-slate-300">•</span> {prop.property_type || 'Catégorie N/A'}
+                                                        <span className="text-slate-300">•</span> {prop.location?.commune || 'Sans commune'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-right font-bold text-slate-900 bg-slate-50/30">
+                                            {formatCurrency(monthlyRentTarget)}
+                                        </td>
+                                        <td className="px-4 py-4 text-right">
+                                            {isOccupied ? (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="font-black text-blue-600">{formatCurrency(monthlyRentContract)}</span>
+                                                    {monthlyRentContract !== monthlyRentTarget && (
+                                                        <span className={`text-[10px] font-bold ${monthlyRentContract > monthlyRentTarget ? 'text-emerald-500' : 'text-orange-500'}`}>
+                                                            {monthlyRentContract > monthlyRentTarget ? '↑ Sur-performance' : '↓ Sous-coté'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-300 italic text-xs font-medium">Non loué</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 text-right">
+                                            <div className="flex flex-col items-end">
+                                                <span className={`font-black ${amountPaid > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                                    {amountPaid > 0 ? formatCurrency(amountPaid) : '—'}
+                                                </span>
+                                                {balanceDue > 0 && (
+                                                    <span className="text-[10px] font-black text-rose-500">
+                                                        Reste : {formatCurrency(balanceDue)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            {statusBadge(status)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot className="bg-slate-900 text-white">
+                                <tr>
+                                    <td className="px-6 py-5">
+                                        <div className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-1">Résumé Consolidé</div>
+                                        <div className="text-sm font-medium text-slate-300 italic">Total des montants listés</div>
+                                    </td>
+                                    <td className="px-4 py-5 text-right">
+                                        <div className="font-black text-lg">{formatCurrency(stats.totalPotential)}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter italic">Potentiel total</div>
+                                    </td>
+                                    <td className="px-4 py-5 text-right">
+                                        <div className="font-black text-lg text-blue-400">{formatCurrency(stats.monthlyExpected)}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter italic">Attendu contrats</div>
+                                    </td>
+                                    <td className="px-4 py-5 text-right">
+                                        <div className="font-black text-lg text-emerald-400">{formatCurrency(stats.monthlyPaid)}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter italic">Encaissé réel</div>
+                                    </td>
+                                    <td className="px-4 py-5 text-center">
+                                        {stats.totalPotential > 0 && (
+                                            <div className="inline-block p-1 border border-slate-700 rounded-lg">
+                                                <div className="text-[8px] font-black text-slate-500 uppercase px-2 mb-0.5">Performance</div>
+                                                <div className="text-xs font-black text-white px-2">
+                                                    {Math.round((stats.monthlyPaid / stats.totalPotential) * 100)}%
+                                                </div>
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </Card>
             </div>
         </div>

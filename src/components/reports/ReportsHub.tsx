@@ -93,6 +93,8 @@ export const ReportsHub: React.FC = () => {
   const reportData = dashboardStats ? {
     overview: {
       totalRevenue: dashboardStats.monthlyRevenue,
+      expectedRevenue: dashboardStats.expectedRevenue || 0,
+      remainingRevenue: dashboardStats.remainingRevenue || 0,
       totalCommissions: monthlyRevenue.length > 0 ? monthlyRevenue[monthlyRevenue.length - 1].commissions : 0,
       activeContracts: dashboardStats.activeContracts,
       newClients: (owners?.length || 0) + (tenants?.length || 0),
@@ -116,41 +118,23 @@ export const ReportsHub: React.FC = () => {
     },
   } : null;
 
-  // Calculate growth percentages
-  const getGrowthPercentage = (current: number, previous: number) => {
-    if (previous === 0) return 0;
-    return Number(((current - previous) / previous * 100).toFixed(1));
-  };
-
-  const revenueGrowth = monthlyRevenue.length >= 2
-    ? getGrowthPercentage(monthlyRevenue[monthlyRevenue.length - 1].revenue, monthlyRevenue[monthlyRevenue.length - 2].revenue)
-    : 0;
-  const commissionsGrowth = monthlyRevenue.length >= 2
-    ? getGrowthPercentage(monthlyRevenue[monthlyRevenue.length - 1].commissions, monthlyRevenue[monthlyRevenue.length - 2].commissions)
-    : 0;
-  const contractsGrowth = dashboardStats && dashboardStats.activeContracts > 0
-    ? 5 // Placeholder: Calculate from historical contract data
-    : 0;
-  const clientsGrowth = reportData
-    ? getGrowthPercentage(reportData.overview.newClients, reportData.overview.newClients * 0.85) // Placeholder: Use historical client data
-    : 0;
 
   // Chart data
   const revenueChartData = reportData ? {
     labels: reportData.financial.monthlyRevenue.map(m => m.month),
     datasets: [
       {
-        label: 'Revenus (FCFA)',
+        label: 'Collecté (FCFA)',
         data: reportData.financial.monthlyRevenue.map(m => m.revenue),
-        backgroundColor: 'rgba(59, 130, 246, 0.5)',
-        borderColor: 'rgba(59, 130, 246, 1)',
+        backgroundColor: 'rgba(16, 185, 129, 0.7)',
+        borderColor: 'rgba(16, 185, 129, 1)',
         borderWidth: 1,
       },
       {
         label: 'Commissions (FCFA)',
         data: reportData.financial.monthlyRevenue.map(m => m.commissions),
-        backgroundColor: 'rgba(16, 185, 129, 0.5)',
-        borderColor: 'rgba(16, 185, 129, 1)',
+        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+        borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1,
       },
     ],
@@ -363,37 +347,35 @@ export const ReportsHub: React.FC = () => {
           {selectedReport === 'overview' && (
             reportData ? (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <Card>
-                    <div className="p-6">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="inline-flex items-center justify-center p-3 rounded-lg bg-green-500">
-                            <DollarSign className="h-6 w-6 text-white" />
-                          </div>
-                        </div>
-                        <div className="ml-5 w-0 flex-1">
-                          <dl>
-                            <dt className="text-sm font-medium text-gray-500 truncate">
-                              Revenus totaux
-                            </dt>
-                            <dd className="text-lg font-semibold text-gray-900">
-                              {formatCurrency(reportData.overview.totalRevenue)}
-                            </dd>
-                          </dl>
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <div className="flex items-center text-sm">
-                          <span className={`flex items-center ${revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {revenueGrowth >= 0 ? '↗' : '↘'} {Math.abs(revenueGrowth)}%
-                          </span>
-                          <span className="ml-2 text-gray-500">vs mois précédent</span>
-                        </div>
-                      </div>
+                    <div className="p-6 text-center">
+                      <p className="text-sm font-medium text-slate-500 mb-1">Total Loyer Attendu</p>
+                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(reportData.overview.expectedRevenue)}</p>
+                      <Badge variant="info" className="mt-2">Ce mois</Badge>
                     </div>
                   </Card>
+                  <Card>
+                    <div className="p-6 text-center">
+                      <p className="text-sm font-medium text-emerald-600 mb-1">Total Loyer Encaissé</p>
+                      <p className="text-2xl font-bold text-emerald-700">{formatCurrency(reportData.overview.totalRevenue)}</p>
+                      <Badge variant="success" className="mt-2">
+                        {reportData.overview.expectedRevenue > 0
+                          ? `${Math.round((reportData.overview.totalRevenue / reportData.overview.expectedRevenue) * 100)}%`
+                          : '0%'}
+                      </Badge>
+                    </div>
+                  </Card>
+                  <Card>
+                    <div className="p-6 text-center">
+                      <p className="text-sm font-medium text-rose-600 mb-1">Reste à Encaisser</p>
+                      <p className="text-2xl font-bold text-rose-700">{formatCurrency(reportData.overview.remainingRevenue)}</p>
+                      <Badge variant="danger" className="mt-2">Action requise</Badge>
+                    </div>
+                  </Card>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <Card>
                     <div className="p-6">
                       <div className="flex items-center">
@@ -411,14 +393,6 @@ export const ReportsHub: React.FC = () => {
                               {formatCurrency(reportData.overview.totalCommissions)}
                             </dd>
                           </dl>
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <div className="flex items-center text-sm">
-                          <span className={`flex items-center ${commissionsGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {commissionsGrowth >= 0 ? '↗' : '↘'} {Math.abs(commissionsGrowth)}%
-                          </span>
-                          <span className="ml-2 text-gray-500">vs mois précédent</span>
                         </div>
                       </div>
                     </div>
@@ -443,14 +417,6 @@ export const ReportsHub: React.FC = () => {
                           </dl>
                         </div>
                       </div>
-                      <div className="mt-4">
-                        <div className="flex items-center text-sm">
-                          <span className={`flex items-center ${contractsGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {contractsGrowth >= 0 ? '↗' : '↘'} {Math.abs(contractsGrowth)}%
-                          </span>
-                          <span className="ml-2 text-gray-500">vs mois précédent</span>
-                        </div>
-                      </div>
                     </div>
                   </Card>
 
@@ -473,14 +439,13 @@ export const ReportsHub: React.FC = () => {
                           </dl>
                         </div>
                       </div>
-                      <div className="mt-4">
-                        <div className="flex items-center text-sm">
-                          <span className={`flex items-center ${clientsGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {clientsGrowth >= 0 ? '↗' : '↘'} {Math.abs(clientsGrowth)}%
-                          </span>
-                          <span className="ml-2 text-gray-500">vs mois précédent</span>
-                        </div>
-                      </div>
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <div className="p-6 text-center">
+                      <p className="text-3xl font-bold text-blue-600 mb-1">{reportData.overview.occupancyRate}%</p>
+                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Taux d'occupation</p>
                     </div>
                   </Card>
                 </div>

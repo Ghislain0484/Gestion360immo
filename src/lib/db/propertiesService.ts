@@ -19,7 +19,7 @@ export const propertiesService = {
     owner_id,
     search,
     standing,
-    limit = 10,
+    limit = 100,
     offset = 0,
     includeOwner = false,
   }: GetAllParams = {}): Promise<Property[]> {
