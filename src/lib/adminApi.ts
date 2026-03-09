@@ -64,19 +64,20 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     throw errors[0];
   }
 
-  // Calculer les revenus à partir des agences actives
+  // Calculer les revenus à partir des agences opérationnelles (actives + essai)
   const agencies = agenciesRes.data ?? [];
-  const activeAgencies = agencies.filter((a: any) => a.subscription_status === 'active');
+  const operationalAgencies = agencies.filter((a: any) =>
+    a.subscription_status === 'active' || a.subscription_status === 'trial'
+  );
 
-  // Revenus mensuels = somme des monthly_fee des agences actives
-  const subscriptionRevenue = activeAgencies.reduce((sum: number, agency: any) => {
+  // Revenus mensuels = somme des monthly_fee des agences opérationnelles
+  const subscriptionRevenue = operationalAgencies.reduce((sum: number, agency: any) => {
     return sum + (agency.monthly_fee ?? 0);
   }, 0);
 
-  // Revenus totaux = tous les monthly_fee (actifs + suspendus, etc.)
+  // Revenus totaux = tous les monthly_fee (actifs + essai)
   const totalRevenue = agencies.reduce((sum: number, agency: any) => {
-    // On compte seulement les agences actives pour le total
-    if (agency.subscription_status === 'active') {
+    if (agency.subscription_status === 'active' || agency.subscription_status === 'trial') {
       return sum + (agency.monthly_fee ?? 0);
     }
     return sum;
@@ -92,7 +93,7 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     pendingRequests: pendingRes.count ?? 0,
     approvedAgencies: approvedAgenciesRes.count ?? 0,
     totalAgencies: totalAgenciesRes.count ?? 0,
-    activeAgencies: activeAgencies.length,
+    activeAgencies: operationalAgencies.length,
     totalRevenue,
     monthlyGrowth: Math.round(monthlyGrowthRaw * 10) / 10,
     subscriptionRevenue,

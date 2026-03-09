@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Plus, Search, LayoutGrid, List as ListIcon, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { clsx } from 'clsx';
+import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
@@ -24,7 +26,7 @@ export const PropertiesList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterStanding, setFilterStanding] = useState<string>('all');
-
+  const [filterStatus, setFilterStatus] = useState<'all' | 'vacant' | 'occupied'>('all');
   const fetchProperties = useCallback(() => dbService.properties.getAll({
     agency_id: authAgencyId || undefined,
     limit: 1000,
@@ -48,6 +50,36 @@ export const PropertiesList: React.FC = () => {
     { agency_id: authAgencyId || undefined }
   );
 
+  const getRentalInfo = (propertyId: string) => {
+    const activeContract = contracts?.find(c => c.property_id === propertyId && c.status === 'active' && c.type === 'location');
+
+    if (!activeContract) return { isOccupied: false };
+
+    const tenant = tenants?.find(t => t.id === activeContract.tenant_id);
+    return {
+      isOccupied: !!tenant,
+      tenantName: tenant ? `${tenant.first_name} ${tenant.last_name}` : 'Inconnu',
+      rentAmount: activeContract.monthly_rent
+    };
+  };
+
+  // Décomptes pour les filtres rapides
+  const stats = useMemo(() => {
+    if (!properties) return { total: 0, vacant: 0, occupied: 0 };
+    return {
+      total: properties.length,
+      vacant: properties.filter(p => {
+        const info = getRentalInfo(p.id);
+        const isOccupied = info.isOccupied;
+        return p.is_available && !isOccupied;
+      }).length,
+      occupied: properties.filter(p => {
+        const info = getRentalInfo(p.id);
+        return info.isOccupied;
+      }).length
+    };
+  }, [properties, contracts, tenants]);
+
   const { create: createProperty, loading: creatingLoading } = useSupabaseCreate(
     dbService.properties.create,
     {
@@ -63,33 +95,38 @@ export const PropertiesList: React.FC = () => {
     }
   );
 
-  const getRentalInfo = (propertyId: string) => {
-    const activeContract = contracts?.find(c => c.property_id === propertyId && c.status === 'active' && c.type === 'location');
-
-    if (!activeContract) return { isOccupied: false };
-
-    const tenant = tenants?.find(t => t.id === activeContract.tenant_id);
-    return {
-      isOccupied: !!tenant,
-      tenantName: tenant ? `${tenant.first_name} ${tenant.last_name}` : 'Inconnu',
-      rentAmount: activeContract.monthly_rent
-    };
-  };
-
   const debouncedSetSearchTerm = debounce((value: string) => setSearchTerm(value), 300);
 
   const filteredProperties = useMemo(() => {
     return properties.filter((property) => {
+      const info = getRentalInfo(property.id);
+      const isOccupied = info.isOccupied;
+      const isAvailable = property.is_available && !isOccupied;
+
+      const s = searchTerm.toLowerCase();
+      const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const ns = normalize(searchTerm);
+
+      const statusLabel = isOccupied ? 'occupé' : (isAvailable ? 'disponible' : 'indisponible');
+      const alternateStatusLabel = isOccupied ? 'loué' : (isAvailable ? 'vacant' : '');
+
       const matchesSearch =
-        property.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        property.location.quartier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        property.location.commune.toLowerCase().includes(searchTerm.toLowerCase());
+        property.title.toLowerCase().includes(s) ||
+        property.location.quartier.toLowerCase().includes(s) ||
+        property.location.commune.toLowerCase().includes(s) ||
+        normalize(statusLabel).includes(ns) ||
+        (alternateStatusLabel && normalize(alternateStatusLabel).includes(ns));
 
       const matchesStanding = filterStanding === 'all' || property.standing === filterStanding;
 
-      return matchesSearch && matchesStanding;
+      const matchesStatus =
+        filterStatus === 'all' ||
+        (filterStatus === 'vacant' && isAvailable) ||
+        (filterStatus === 'occupied' && isOccupied);
+
+      return matchesSearch && matchesStanding && matchesStatus;
     });
-  }, [properties, searchTerm, filterStanding]);
+  }, [properties, searchTerm, filterStanding, contracts, tenants, filterStatus]);
 
   const handlePropertyClick = (property: Property) => {
     const slug = generateSlug(property.id, property.title);
@@ -204,27 +241,83 @@ export const PropertiesList: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Rechercher par titre, quartier..."
-              className="pl-10"
-              onChange={(e) => debouncedSetSearchTerm(e.target.value)}
-            />
+      <Card className="p-4 shadow-md border-none bg-white/90 backdrop-blur-sm">
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Rechercher par titre, quartier..."
+                className="pl-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                onChange={(e) => debouncedSetSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <select
+                value={filterStanding}
+                onChange={(e) => setFilterStanding(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-medium text-slate-700"
+              >
+                <option value="all">Tous standings</option>
+                <option value="economique">Économique</option>
+                <option value="moyen">Moyen</option>
+                <option value="haut">Haut</option>
+              </select>
+            </div>
           </div>
 
-          <select
-            value={filterStanding}
-            onChange={(e) => setFilterStanding(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="all">Tous standings</option>
-            <option value="economique">Économique</option>
-            <option value="moyen">Moyen</option>
-            <option value="haut">Haut</option>
-          </select>
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="flex p-1 bg-slate-100 rounded-xl">
+                <button
+                  onClick={() => setFilterStatus('all')}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                    filterStatus === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Tous
+                  <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterStatus === 'all' ? "bg-blue-100" : "bg-slate-200")}>
+                    {stats.total}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setFilterStatus('vacant')}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                    filterStatus === 'vacant' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Vacants
+                  <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterStatus === 'vacant' ? "bg-emerald-100" : "bg-slate-200")}>
+                    {stats.vacant}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setFilterStatus('occupied')}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                    filterStatus === 'occupied' ? "bg-white text-amber-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Occupés
+                  <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterStatus === 'occupied' ? "bg-amber-100" : "bg-slate-200")}>
+                    {stats.occupied}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 ml-2">
+                <Badge variant="primary" className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md border-none">
+                  {filteredProperties.length}
+                </Badge>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {filterStatus === 'vacant' ? 'Biens Vacants' : filterStatus === 'occupied' ? 'Biens Occupés' : 'Biens'} trouvé{filteredProperties.length > 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </Card>
 

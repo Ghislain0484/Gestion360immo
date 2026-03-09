@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Building2, DollarSign, Award, Settings, Home, FileText, Users } from 'lucide-react';
+import { BarChart3, Building2, DollarSign, Award, Settings, Home, FileText } from 'lucide-react';
 import clsx from 'clsx';
 
 interface AdminSidebarProps {
@@ -24,7 +24,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     pendingRequestsCount = 0,
 }) => {
     return (
-        <aside className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
+        <aside className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-0 z-[60]">
             <nav className="p-4 space-y-2">
                 {menuItems.map((item) => {
                     const Icon = item.icon;
