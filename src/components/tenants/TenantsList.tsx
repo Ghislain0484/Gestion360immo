@@ -3,6 +3,7 @@ import { Plus, Search, User, Phone, MapPin, Briefcase, FileText, DollarSign, Tra
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { TenantForm } from './TenantForm';
 import { LinkTenantToPropertyModal } from './LinkTenantToPropertyModal';
@@ -415,11 +416,11 @@ export const TenantsList: React.FC = () => {
     return tenants.filter(t => {
       const s = searchTerm.toLowerCase();
       const matchesSearch = !s ||
-        t.first_name.toLowerCase().includes(s) ||
-        t.last_name.toLowerCase().includes(s) ||
-        t.phone.includes(s) ||
-        t.profession.toLowerCase().includes(s) ||
-        t.city.toLowerCase().includes(s);
+        (t.first_name || "").toLowerCase().includes(s) ||
+        (t.last_name || "").toLowerCase().includes(s) ||
+        (t.phone || "").includes(s) ||
+        (t.profession || "").toLowerCase().includes(s) ||
+        (t.city || "").toLowerCase().includes(s);
       const matchesMarital = filterMaritalStatus === 'all' || t.marital_status === filterMaritalStatus;
       const matchesPayment = filterPaymentStatus === 'all' || t.payment_status === filterPaymentStatus;
       return matchesSearch && matchesMarital && matchesPayment;
@@ -498,6 +499,15 @@ export const TenantsList: React.FC = () => {
           </select>
         </div>
       </Card>
+      {/* Results Count Badge */}
+      <div className="flex items-center gap-2 mb-2">
+        <Badge variant="primary" className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm border-none">
+          {filteredTenants.length}
+        </Badge>
+        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          locataire{filteredTenants.length > 1 ? 's' : ''} trouvé{filteredTenants.length > 1 ? 's' : ''}
+        </span>
+      </div>
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

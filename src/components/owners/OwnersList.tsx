@@ -155,6 +155,16 @@ export const OwnersList: React.FC = () => {
         </div>
       </Card>
 
+      {/* Results Count Badge */}
+      <div className="flex items-center gap-2 mb-2">
+        <Badge variant="primary" className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm border-none">
+          {filteredOwners.length}
+        </Badge>
+        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          propriétaire{filteredOwners.length > 1 ? 's' : ''} trouvé{filteredOwners.length > 1 ? 's' : ''}
+        </span>
+      </div>
+
       {/* List Content */}
       {filteredOwners.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-lg border border-gray-200 border-dashed">

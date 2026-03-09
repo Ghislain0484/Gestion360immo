@@ -24,6 +24,11 @@ export const AdminDashboard: React.FC = () => {
   // Utilisation du Context Admin pour les stats globales
   const { platformStats, pendingRequestsCount, loading } = useAdmin();
 
+  // Reset selected agency when tab changes to avoid blocking navigation/overlay
+  React.useEffect(() => {
+    setSelectedAgency(null);
+  }, [activeTab]);
+
   // Utilisation de React Query pour les agences
   const { data: agencies = [] } = useAgencies();
 
@@ -56,7 +61,7 @@ export const AdminDashboard: React.FC = () => {
         />
 
         {/* Main Content */}
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-8 relative">
           <div className="max-w-7xl mx-auto">
             {/* Vue d'ensemble */}
             {activeTab === 'overview' && (

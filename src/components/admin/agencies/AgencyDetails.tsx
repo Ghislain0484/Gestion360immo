@@ -114,7 +114,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="absolute inset-0 bg-black/10 backdrop-blur-[2px] flex items-start justify-center z-50 p-4 pt-10 min-h-full">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                 {/* Header */}
                 <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
@@ -128,7 +128,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                 {agency.subscription_status && getStatusBadge(agency.subscription_status)}
                                 {agency.plan_type && (
                                     <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-medium">
-                                        {agency.plan_type.charAt(0).toUpperCase() + agency.plan_type.slice(1)}
+                                        {(agency.plan_type as string).charAt(0).toUpperCase() + (agency.plan_type as string).slice(1)}
                                     </span>
                                 )}
                             </div>
@@ -328,7 +328,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                         <Home className="h-5 w-5 text-blue-600" />
                                         <p className="text-xs font-semibold text-blue-900">Propriétés</p>
                                     </div>
-                                    <p className="text-2xl font-bold text-blue-900">{stats.totalProperties}</p>
+                                    <p className="text-2xl font-bold text-blue-900">{stats?.totalProperties ?? 0}</p>
                                 </div>
                             </Card>
                             <Card className="bg-green-50 border-green-200">
@@ -337,7 +337,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                         <Users className="h-5 w-5 text-green-600" />
                                         <p className="text-xs font-semibold text-green-900">Locataires</p>
                                     </div>
-                                    <p className="text-2xl font-bold text-green-900">{stats.totalTenants}</p>
+                                    <p className="text-2xl font-bold text-green-900">{stats?.totalTenants ?? 0}</p>
                                 </div>
                             </Card>
                             <Card className="bg-purple-50 border-purple-200">
@@ -346,7 +346,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                         <FileText className="h-5 w-5 text-purple-600" />
                                         <p className="text-xs font-semibold text-purple-900">Contrats</p>
                                     </div>
-                                    <p className="text-2xl font-bold text-purple-900">{stats.totalContracts}</p>
+                                    <p className="text-2xl font-bold text-purple-900">{stats?.totalContracts ?? 0}</p>
                                 </div>
                             </Card>
                             <Card className="bg-emerald-50 border-emerald-200">
