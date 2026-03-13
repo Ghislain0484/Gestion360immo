@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, FileText, Home, User, Printer } from 'lucide-react';
+import { clsx } from 'clsx';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -9,11 +10,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Inventory, Property, Tenant } from '../../types/db';
 import { InventoryDocument } from '../documents/InventoryDocument';
 import { Modal } from '../ui/Modal';
+import { InventoryForm } from './InventoryForm';
+import toast from 'react-hot-toast';
 
 export const InventoryList: React.FC = () => {
     const { user } = useAuth();
     const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null);
     const [showDocument, setShowDocument] = useState(false);
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const { data: inventories = [], initialLoading } = useRealtimeData<Inventory>(
         () => dbService.inventories.getAll({ agency_id: user?.agency_id }),
@@ -56,22 +61,8 @@ export const InventoryList: React.FC = () => {
                 </div>
                 <Button
                     onClick={() => {
-                        const dummyInventory: Inventory = {
-                            id: 'draft-' + Date.now(),
-                            agency_id: user?.agency_id || '',
-                            property_id: properties[0]?.id || '',
-                            date: new Date().toISOString(),
-                            type: 'entry',
-                            status: 'draft',
-                            rooms: [
-                                { name: 'Salon', elements: [{ name: 'Murs', condition: 'bon' }, { name: 'Sol', condition: 'bon' }] },
-                                { name: 'Cuisine', elements: [{ name: 'Evier', condition: 'bon' }] }
-                            ],
-                            created_at: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
-                        };
-                        setSelectedInventory(dummyInventory);
-                        setShowDocument(true);
+                        setSelectedInventory(null);
+                        setIsFormOpen(true);
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg"
                 >
@@ -80,18 +71,47 @@ export const InventoryList: React.FC = () => {
                 </Button>
             </div>
 
-            <Card className="p-4">
-                <div className="flex items-center gap-4">
-                    <FileText className="text-gray-400 w-5 h-5" />
-                    <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="border-gray-300 rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                    >
-                        <option value="all">Tous les types</option>
-                        <option value="entry">Entrée</option>
-                        <option value="exit">Sortie</option>
-                    </select>
+            <Card className="p-4 shadow-sm border-none bg-white/80 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className="flex p-1 bg-gray-100 rounded-xl">
+                            <button
+                                onClick={() => setFilterType('all')}
+                                className={clsx(
+                                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                                    filterType === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                                )}
+                            >
+                                Tous
+                            </button>
+                            <button
+                                onClick={() => setFilterType('entry')}
+                                className={clsx(
+                                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                                    filterType === 'entry' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                                )}
+                            >
+                                Entrée
+                            </button>
+                            <button
+                                onClick={() => setFilterType('exit')}
+                                className={clsx(
+                                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                                    filterType === 'exit' ? "bg-white text-orange-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                                )}
+                            >
+                                Sortie
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Badge variant="primary" className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm border-none">
+                            {filteredInventories.length}
+                        </Badge>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            constat{filteredInventories.length > 1 ? 's' : ''} trouvé{filteredInventories.length > 1 ? 's' : ''}
+                        </span>
+                    </div>
                 </div>
             </Card>
 
@@ -136,19 +156,56 @@ export const InventoryList: React.FC = () => {
                                         <Badge variant={inv.status === 'signed' ? 'success' : inv.status === 'completed' ? 'info' : 'secondary'}>
                                             {inv.status === 'signed' ? 'Signé' : inv.status === 'completed' ? 'Terminé' : 'Brouillon'}
                                         </Badge>
-                                        <Button variant="ghost" size="sm" onClick={() => {
-                                            setSelectedInventory(inv);
-                                            setShowDocument(true);
-                                        }} className="text-gray-500 hover:text-primary-600">
-                                            <Printer className="h-4 w-4 mr-2" />
-                                            Imprimer
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button variant="ghost" size="sm" onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedInventory(inv);
+                                                setIsFormOpen(true);
+                                            }} className="text-gray-500 hover:text-primary-600">
+                                                Modifier
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedInventory(inv);
+                                                setShowDocument(true);
+                                            }} className="text-gray-500 hover:text-primary-600">
+                                                <Printer className="h-4 w-4 mr-2" />
+                                                Imprimer
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </Card>
                     ))}
                 </div>
+            )}
+
+            {isFormOpen && (
+                <InventoryForm
+                    isOpen={isFormOpen}
+                    onClose={() => setIsFormOpen(false)}
+                    onSubmit={async (data) => {
+                        setIsSubmitting(true);
+                        try {
+                            if (selectedInventory?.id && !selectedInventory.id.startsWith('draft-')) {
+                                await dbService.inventories.update(selectedInventory.id, data);
+                                toast.success('État des lieux mis à jour');
+                            } else {
+                                await dbService.inventories.create(data);
+                                toast.success('Nouvel état des lieux enregistré');
+                            }
+                        } catch (error) {
+                            console.error(error);
+                            toast.error('Erreur lors de l’enregistrement');
+                        } finally {
+                            setIsSubmitting(false);
+                            setIsFormOpen(false);
+                        }
+                    }}
+                    initialData={selectedInventory || undefined}
+                    isLoading={isSubmitting}
+                />
             )}
 
             {showDocument && selectedInventory && (

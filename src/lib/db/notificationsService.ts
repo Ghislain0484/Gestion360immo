@@ -1,5 +1,5 @@
 import { supabase } from '../config';
-import { normalizeNotification } from '../normalizers';
+import { normalizeNotification, normalizePartialNotification } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { Notification } from "../../types/db";
 
@@ -29,7 +29,7 @@ export const notificationsService = {
         return data;
     },
     async update(id: string, updates: Partial<Notification>): Promise<Notification> {
-        const clean = normalizeNotification(updates);
+        const clean = normalizePartialNotification(updates);
         const { data, error } = await supabase.from('notifications').update(clean).eq('id', id).select('*').single();
         if (error) throw new Error(formatSbError('❌ notifications.update', error));
         return data;

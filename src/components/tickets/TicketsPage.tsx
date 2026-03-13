@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Filter, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Plus, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card } from '../ui/Card';
@@ -104,20 +104,40 @@ export const TicketsPage: React.FC = () => {
                 </button>
             </div>
 
-            <Card className="p-4">
-                <div className="flex items-center gap-4">
-                    <Filter className="text-gray-400 w-5 h-5" />
-                    <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="border-gray-300 rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                    >
-                        <option value="all">Tous les status</option>
-                        <option value="open">Ouverts</option>
-                        <option value="in_progress">En cours</option>
-                        <option value="resolved">Résolus</option>
-                        <option value="closed">Fermés</option>
-                    </select>
+            <Card className="p-4 shadow-sm border-none bg-white/80 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className="flex p-1 bg-gray-100 rounded-xl">
+                            {[
+                                { id: 'all', label: 'Tous', color: 'blue' },
+                                { id: 'open', label: 'Ouverts', color: 'blue' },
+                                { id: 'in_progress', label: 'En cours', color: 'yellow' },
+                                { id: 'resolved', label: 'Résolus', color: 'emerald' },
+                                { id: 'closed', label: 'Fermés', color: 'gray' }
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setFilterStatus(tab.id)}
+                                    className={clsx(
+                                        "px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                                        filterStatus === tab.id 
+                                            ? `bg-white text-${tab.color}-600 shadow-sm` 
+                                            : "text-gray-500 hover:text-gray-700"
+                                    )}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow-sm">
+                            {tickets.length}
+                        </span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            ticket{tickets.length > 1 ? 's' : ''} trouvé{tickets.length > 1 ? 's' : ''}
+                        </span>
+                    </div>
                 </div>
             </Card>
 

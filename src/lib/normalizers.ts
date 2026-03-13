@@ -380,6 +380,19 @@ export const normalizeNotification = (n: Partial<Notification>) => ({
     created_at: nilIfEmpty(n.created_at) ?? new Date().toISOString(),
 });
 
+export const normalizePartialNotification = (n: Partial<Notification>): Partial<Notification> => {
+    const partial: any = {};
+    if (n.user_id !== undefined) partial.user_id = nilIfEmpty(n.user_id);
+    if (n.type !== undefined) partial.type = n.type;
+    if (n.title !== undefined) partial.title = nilIfEmpty(n.title);
+    if (n.message !== undefined) partial.message = nilIfEmpty(n.message);
+    if (n.data !== undefined) partial.data = n.data;
+    if (n.is_read !== undefined) partial.is_read = n.is_read;
+    if (n.priority !== undefined) partial.priority = n.priority;
+    if (n.agency_id !== undefined) partial.agency_id = nilIfEmpty(n.agency_id);
+    return partial;
+};
+
 export const normalizePlatformSetting = (ps: Partial<PlatformSetting>) => ({
     setting_key: nilIfEmpty(ps.setting_key),
     setting_value: ps.setting_value ?? {},

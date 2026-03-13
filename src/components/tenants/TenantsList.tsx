@@ -462,7 +462,7 @@ export const TenantsList: React.FC = () => {
 
       return matchesSearch && matchesMarital && matchesPayment && matchesOccupancy;
     });
-  }, [tenants, searchTerm, filterMaritalStatus, filterPaymentStatus]);
+  }, [tenants, searchTerm, filterMaritalStatus, filterPaymentStatus, filterOccupancy]);
 
   const debouncedRefetch = useCallback(debounce(() => refetch(), 500), [refetch]);
   useEffect(() => { debouncedRefetch(); return () => debouncedRefetch.cancel(); }, [searchTerm, filterPaymentStatus, filterMaritalStatus, currentPage, debouncedRefetch]);

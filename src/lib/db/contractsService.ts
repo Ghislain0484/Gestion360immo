@@ -13,6 +13,7 @@ export const contractsService = {
     type,
     tenant_id,
     property_id,
+    owner_id,
   }: {
     agency_id?: string;
     limit?: number;
@@ -22,6 +23,7 @@ export const contractsService = {
     type?: string;
     tenant_id?: string;
     property_id?: string;
+    owner_id?: string;
   } = {}): Promise<Contract[]> {
     let query = supabase
       .from('contracts')
@@ -50,6 +52,9 @@ export const contractsService = {
     }
     if (property_id) {
       query = query.eq('property_id', property_id);
+    }
+    if (owner_id) {
+      query = query.eq('owner_id', owner_id);
     }
     const limitVal = limit ?? 100;
     const offsetVal = offset ?? 0;

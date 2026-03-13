@@ -149,19 +149,19 @@ export const ContractsList: React.FC = () => {
 
   // Fetch related data for enhanced search
   const { data: owners = [] } = useRealtimeData<Owner>(
-    () => dbService.owners.getAll({ agency_id: user?.agency_id }),
+    () => dbService.owners.getAll({ agency_id: user?.agency_id, limit: 1000 }),
     'owners',
-    { agency_id: user?.agency_id }
+    { agency_id: user?.agency_id, limit: 1000 }
   );
   const { data: properties = [] } = useRealtimeData<Property>(
-    () => dbService.properties.getAll({ agency_id: user?.agency_id }),
+    () => dbService.properties.getAll({ agency_id: user?.agency_id, limit: 1000 }),
     'properties',
-    { agency_id: user?.agency_id }
+    { agency_id: user?.agency_id, limit: 1000 }
   );
   const { data: tenants = [] } = useRealtimeData<Tenant>(
-    () => dbService.tenants.getAll({ agency_id: user?.agency_id }),
+    () => dbService.tenants.getAll({ agency_id: user?.agency_id, limit: 1000 }),
     'tenants',
-    { agency_id: user?.agency_id }
+    { agency_id: user?.agency_id, limit: 1000 }
   );
 
   const { create: createContract } = useSupabaseCreate<Contract>(dbService.contracts.create, {
@@ -318,15 +318,6 @@ export const ContractsList: React.FC = () => {
     }
   };
 
-  const getTypeColor = (type: Contract['type']) => {
-    switch (type) {
-      case 'location': return 'info';
-      case 'vente': return 'success';
-      case 'gestion': return 'warning';
-      default: return 'secondary';
-    }
-  };
-
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amount);
 
@@ -343,9 +334,10 @@ export const ContractsList: React.FC = () => {
         (property ? property.title.toLowerCase().includes(searchLower) : false) ||
         (tenant ? `${tenant.first_name} ${tenant.last_name}`.toLowerCase().includes(searchLower) : false);
       const matchesType = filterType === 'all' || contract.type === filterType;
-      return matchesSearch && matchesType;
+      const matchesStatus = filterStatus === 'all' || contract.status === filterStatus;
+      return matchesSearch && matchesType && matchesStatus;
     });
-  }, [contracts, owners, properties, tenants, searchTerm, filterType]);
+  }, [contracts, owners, properties, tenants, searchTerm, filterType, filterStatus]);
 
   const openForm = (contract?: Partial<Contract>, readOnly: boolean = false) =>
     setShowForm({ open: true, contract, readOnly });
@@ -378,41 +370,67 @@ export const ContractsList: React.FC = () => {
       </div>
 
       {/* Filtres */}
-      <Card>
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Rechercher par ID, termes, propriétaire, propriété, locataire..."
-              onChange={(e) => debouncedSetSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+      <Card className="p-4 shadow-sm border-none bg-white/80 backdrop-blur-sm">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Rechercher par ID, termes, propriétaire, propriété, locataire..."
+                onChange={(e) => debouncedSetSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as 'all' | Contract['type'])}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Tous types</option>
+              <option value="location">Location</option>
+              <option value="vente">Vente</option>
+              <option value="gestion">Gestion</option>
+            </select>
           </div>
 
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as 'all' | Contract['type'])}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tous types</option>
-            <option value="location">Location</option>
-            <option value="vente">Vente</option>
-            <option value="gestion">Gestion</option>
-          </select>
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-gray-100/50">
+            <div className="flex items-center gap-2">
+              <div className="flex p-1 bg-gray-100 rounded-xl overflow-x-auto no-scrollbar">
+                {[
+                  { id: 'all', label: 'Tous', color: 'blue' },
+                  { id: 'draft', label: 'Brouillon', color: 'amber' },
+                  { id: 'active', label: 'Actifs', color: 'emerald' },
+                  { id: 'expired', label: 'Expirés', color: 'rose' },
+                  { id: 'terminated', label: 'Résiliés', color: 'gray' },
+                  { id: 'renewed', label: 'Renouvelés', color: 'indigo' }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setFilterStatus(tab.id as any)}
+                    className={clsx(
+                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                      filterStatus === tab.id 
+                        ? `bg-white text-${tab.color}-600 shadow-sm` 
+                        : "text-gray-500 hover:text-gray-700 hover:bg-white/50"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as 'all' | Contract['status'])}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tous statuts</option>
-            <option value="draft">Brouillon</option>
-            <option value="active">Actif</option>
-            <option value="expired">Expiré</option>
-            <option value="terminated">Résilié</option>
-            <option value="renewed">Renouvelé</option>
-          </select>
+            <div className="flex items-center gap-2">
+              <Badge variant="primary" className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm border-none">
+                {filteredContracts.length}
+              </Badge>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                contrat{filteredContracts.length > 1 ? 's' : ''} trouvé{filteredContracts.length > 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
         </div>
       </Card>
 

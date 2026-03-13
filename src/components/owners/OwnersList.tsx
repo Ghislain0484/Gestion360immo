@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Filter, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Trash2, Edit } from 'lucide-react';
 import { useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +14,7 @@ import { dbService } from '../../lib/supabase';
 import { generateSlug } from '../../utils/idSystem';
 import debounce from 'lodash/debounce';
 import toast from 'react-hot-toast';
+import { clsx } from 'clsx';
 
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
@@ -21,10 +22,11 @@ export const OwnersList: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'active' | 'free'>('all');
 
   const fetchOwners = useCallback(() => dbService.owners.getAll({
     agency_id: authAgencyId || undefined,
-    limit: 100
+    limit: 1000
   }), [authAgencyId]);
 
   const { data: owners, initialLoading, error, refetch } = useRealtimeData<Owner>(
@@ -77,15 +79,22 @@ export const OwnersList: React.FC = () => {
   const debouncedSetSearchTerm = debounce((value: string) => setSearchTerm(value), 300);
 
   const filteredOwners = useMemo(() => {
-    if (!searchTerm) return owners;
-    const lower = searchTerm.toLowerCase();
-    return owners.filter((owner) =>
-      owner.first_name.toLowerCase().includes(lower) ||
-      owner.last_name.toLowerCase().includes(lower) ||
-      owner.phone.includes(lower) ||
-      owner.city.toLowerCase().includes(lower)
-    );
-  }, [owners, searchTerm]);
+    return owners.filter((owner) => {
+      const lower = searchTerm.toLowerCase();
+      const matchesSearch = !searchTerm ||
+        owner.first_name.toLowerCase().includes(lower) ||
+        owner.last_name.toLowerCase().includes(lower) ||
+        owner.phone.includes(lower) ||
+        owner.city.toLowerCase().includes(lower);
+
+      const tenantCount = getTenantCount(owner.id);
+      const matchesOccupancy = filterOccupancy === 'all' ||
+        (filterOccupancy === 'active' && tenantCount > 0) ||
+        (filterOccupancy === 'free' && tenantCount === 0);
+
+      return matchesSearch && matchesOccupancy;
+    });
+  }, [owners, searchTerm, filterOccupancy, properties, contracts]);
 
   const handleRowClick = (owner: Owner) => {
     console.log('Row clicked:', owner);
@@ -147,10 +156,38 @@ export const OwnersList: React.FC = () => {
               onChange={(e) => debouncedSetSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex whitespace-nowrap gap-2 w-full sm:w-auto">
-            <Button variant="outline" leftIcon={<Filter className="w-4 h-4" />}>
-              Filtres
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center gap-2">
+              <div className="flex p-1 bg-gray-100 rounded-xl">
+                <button
+                  onClick={() => setFilterOccupancy('all')}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                    filterOccupancy === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Tous
+                </button>
+                <button
+                  onClick={() => setFilterOccupancy('active')}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                    filterOccupancy === 'active' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Actifs
+                </button>
+                <button
+                  onClick={() => setFilterOccupancy('free')}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                    filterOccupancy === 'free' ? "bg-white text-amber-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Sans locataire
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </Card>
