@@ -1,5 +1,5 @@
 import { dbService } from '../lib/supabase';
-import { Contract, RentReceipt } from '../types/db';
+import { Contract } from '../types/db';
 import { differenceInDays, isSameDay, startOfDay } from 'date-fns';
 
 const REMINDER_DAYS_BEFORE = 5;
@@ -27,6 +27,16 @@ export const paymentReminderService = {
 
             for (const contract of contracts) {
                 if (!contract.tenant_id) continue;
+                const extraData = contract.extra_data as any;
+
+                // Respect billing start date for takeovers
+                if (extraData?.billing_start_date) {
+                    const billingStart = new Date(extraData.billing_start_date);
+                    if (startOfDay(new Date()) < startOfDay(billingStart)) {
+                        console.log(`⏳ Skipping reminder for contract ${contract.id}: Billing starts on ${extraData.billing_start_date}`);
+                        continue;
+                    }
+                }
 
                 // Calculate due date for this month
                 const startDate = new Date(contract.start_date);

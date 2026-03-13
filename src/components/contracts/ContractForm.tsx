@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Save, FileText, Calendar, DollarSign, Upload, Printer } from 'lucide-react';
+import { Save, FileText, Calendar, DollarSign, Upload, Printer, Eye } from 'lucide-react';
 import Select, { SingleValue } from 'react-select';
 import AsyncSelect from 'react-select/async';
 import { Button } from '../ui/Button';
@@ -45,6 +45,8 @@ export const ContractForm = React.memo<ContractFormProps>(
       extra_data: {
         is_existing_tenant: false,
         deposit_held_by: 'agency',
+        lease_usage: 'habitation',
+        business_activity: '',
         billing_start_date: new Date().toISOString().split('T')[0],
         ...initialData?.extra_data
       },
@@ -131,6 +133,12 @@ export const ContractForm = React.memo<ContractFormProps>(
         if (updates.owner_id && updates.owner_id !== prev.owner_id) {
           updated.property_id = undefined;
           setCurrentProperty(null);
+        }
+        // Ajuster caution selon type de bail
+        if (updates.extra_data?.lease_usage && updates.extra_data.lease_usage !== prev.extra_data?.lease_usage) {
+          if (updated.monthly_rent && updated.extra_data) {
+            updated.deposit = updated.extra_data.lease_usage === 'commercial' ? updated.monthly_rent * 3 : updated.monthly_rent * 2;
+          }
         }
         // Recalculate commission
         if (updates.monthly_rent !== undefined || updates.commission_rate !== undefined) {
@@ -402,6 +410,25 @@ export const ContractForm = React.memo<ContractFormProps>(
                 </select>
               </div>
 
+              {formData.type === 'location' && (
+                <div>
+                  <label htmlFor="lease_usage" className="block text-sm font-medium text-gray-700 mb-2">Usage du bail</label>
+                  <select
+                    id="lease_usage"
+                    value={formData.extra_data?.lease_usage || 'habitation'}
+                    onChange={(e) => updateFormData({
+                      extra_data: { ...formData.extra_data, lease_usage: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="habitation">Habitation (OHADA)</option>
+                    <option value="professionnel">Professionnel (OHADA)</option>
+                    <option value="commercial">Commercial (AUDCG)</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
                   Statut
@@ -421,6 +448,20 @@ export const ContractForm = React.memo<ContractFormProps>(
                   <option value="renewed">Renouvelé</option>
                 </select>
               </div>
+
+              {formData.type === 'location' && formData.extra_data?.lease_usage === 'commercial' && (
+                <div className="md:col-span-2">
+                  <label htmlFor="business_activity" className="block text-sm font-medium text-gray-700 mb-2">Nature de l'activité commerciale</label>
+                  <Input
+                    id="business_activity"
+                    value={formData.extra_data?.business_activity || ''}
+                    onChange={(e) => updateFormData({
+                      extra_data: { ...formData.extra_data, business_activity: e.target.value }
+                    })}
+                    placeholder="Ex: Vente de tissus, Restauration, Services informatiques..."
+                  />
+                </div>
+              )}
             </div>
 
             <div className="mt-6 pt-6 border-t border-gray-100">
@@ -725,13 +766,52 @@ export const ContractForm = React.memo<ContractFormProps>(
             )}
 
             {!readOnly && (
-              <Button
-                type="submit"
-                disabled={submitting}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {submitting ? 'Enregistrement...' : initialData?.id ? 'Mettre à jour' : 'Enregistrer le contrat'}
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    if (!user?.agency_id) return;
+                    try {
+                      // Fetch full data for preview
+                      const agencies = await dbService.agencies.getAll();
+                      const fullAgency = agencies.find(a => a.id === formData.agency_id) || 
+                                        await dbService.agencies.getById(user.agency_id);
+                      
+                      const [owners, tenants, properties] = await Promise.all([
+                        dbService.owners.getAll({ agency_id: formData.agency_id }),
+                        dbService.tenants.getAll({ agency_id: formData.agency_id }),
+                        dbService.properties.getAll({ agency_id: formData.agency_id })
+                      ]);
+
+                      const fullOwner = owners.find(o => o.id === formData.owner_id);
+                      const fullTenant = tenants.find(t => t.id === formData.tenant_id);
+                      const fullProperty = properties.find(p => p.id === formData.property_id);
+                      const clientData = formData.type === 'gestion' ? fullOwner : fullTenant;
+
+                      if (fullAgency && clientData) {
+                        await OHADAContractGenerator.previewContract(formData, fullAgency, clientData, fullProperty);
+                      } else {
+                        toast.error("Veuillez sélectionner un tiers et un bien pour l'aperçu.");
+                      }
+                    } catch (err) {
+                      console.error("Preview error:", err);
+                      toast.error("Erreur lors de la génération de l'aperçu");
+                    }
+                  }}
+                  className="mr-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Aperçu OHADA
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {submitting ? 'Enregistrement...' : initialData?.id ? 'Mettre à jour' : 'Enregistrer le contrat'}
+                </Button>
+              </>
             )}
           </div>
         </form>

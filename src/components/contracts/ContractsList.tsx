@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import clsx from 'clsx';
-import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Download, Printer, Edit, RotateCw, XCircle } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Download, Printer, Edit, RotateCw, XCircle, MoreVertical, ShieldCheck, Home } from 'lucide-react';
 import { debounce } from 'lodash';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -12,6 +12,119 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Contract, Owner, Property, Tenant } from '../../types/db';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import toast from 'react-hot-toast';
+
+import { useRef, useEffect } from 'react';
+
+// ─── Action Menu Dropdown ────────────────────────────────────────────────────
+interface ActionMenuProps {
+  contract: Contract;
+  onPreview: () => void;
+  onEdit: () => void;
+  onRegenerate: () => void;
+  onRenew: () => void;
+  onPrint: () => void;
+  onDownload: () => void;
+  onTerminate: () => void;
+  onDelete: () => void;
+}
+
+const ActionMenu: React.FC<ActionMenuProps> = ({
+  contract, onPreview, onEdit, onRegenerate, onRenew, onPrint, onDownload, onTerminate, onDelete
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+        aria-label="Actions"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-8 z-50 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-1 animate-scaleIn">
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+            onClick={() => { onPreview(); setOpen(false); }}
+          >
+            <Eye className="h-4 w-4 text-blue-500" />
+            Aperçu OHADA
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
+            onClick={() => { onEdit(); setOpen(false); }}
+          >
+            <Edit className="h-4 w-4 text-orange-500" />
+            Modifier
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+            onClick={() => { onRegenerate(); setOpen(false); }}
+          >
+            <RotateCw className="h-4 w-4 text-purple-500" />
+            Mettre aux normes OHADA
+          </button>
+          
+          <div className="my-1 border-t border-gray-100" />
+          
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-black transition-colors"
+            onClick={() => { onPrint(); setOpen(false); }}
+          >
+            <Printer className="h-4 w-4 text-gray-900" />
+            Imprimer
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
+            onClick={() => { onDownload(); setOpen(false); }}
+          >
+            <Download className="h-4 w-4 text-green-500" />
+            Télécharger (PDF/HTML)
+          </button>
+
+          {contract.status === 'active' && (
+            <>
+              <div className="my-1 border-t border-gray-100" />
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                onClick={() => { onRenew(); setOpen(false); }}
+              >
+                <RotateCw className="h-4 w-4 text-indigo-500" />
+                Renouveler le contrat
+              </button>
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                onClick={() => { onTerminate(); setOpen(false); }}
+              >
+                <XCircle className="h-4 w-4" />
+                Résilier le contrat
+              </button>
+            </>
+          )}
+
+          <div className="my-1 border-t border-gray-100" />
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            onClick={() => { onDelete(); setOpen(false); }}
+          >
+            <Trash2 className="h-4 w-4" />
+            Supprimer définitivement
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ContractsList: React.FC = () => {
   const { user } = useAuth();
@@ -346,242 +459,142 @@ export const ContractsList: React.FC = () => {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredContracts.map((contract) => (
-            <Card
-              key={contract.id}
-              className="hover:shadow-lg transition-all cursor-pointer border-transparent hover:border-blue-200 group"
-              onClick={() => openForm(contract, true)}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredContracts.map((contract) => {
+            const owner = owners.find(o => o.id === contract.owner_id);
+            const tenant = tenants.find(t => t.id === contract.tenant_id);
+            const property = properties.find(p => p.id === contract.property_id);
+            const clientName = contract.type === 'gestion' 
+              ? `${owner?.first_name} ${owner?.last_name}` 
+              : `${tenant?.first_name} ${tenant?.last_name}`;
+
+            return (
+              <div
+                key={contract.id}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
+                onClick={() => openForm(contract, true)}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className={clsx(
-                      "p-2 rounded-lg",
-                      contract.type === 'location' ? "bg-blue-100 text-blue-600" :
-                        contract.type === 'gestion' ? "bg-orange-100 text-orange-600" :
-                          "bg-green-100 text-green-600"
+                      "w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm",
+                      contract.type === 'location' ? "bg-blue-50 text-blue-600" :
+                      contract.type === 'gestion' ? "bg-orange-50 text-orange-600" :
+                      "bg-emerald-50 text-emerald-600"
                     )}>
                       <FileText className="h-6 w-6" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 line-clamp-1">
-                        {contract.type === 'location' ? `Loc : ${tenants.find(t => t.id === contract.tenant_id)?.last_name || 'Inconnu'}` :
-                          contract.type === 'gestion' ? `Gest : ${owners.find(o => o.id === contract.owner_id)?.last_name || 'Inconnu'}` :
-                            `Vente : ${contract.id.slice(0, 8)}`}
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-sm leading-tight group-hover:text-blue-600 transition-colors truncate">
+                        {clientName}
                       </h3>
-                      <p className="text-sm text-gray-500">
-                        Propriété: {properties.find((p) => p.id === contract.property_id)?.title || 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant={getTypeColor(contract.type)} size="sm">
-                      {contract.type.charAt(0).toUpperCase() + contract.type.slice(1)}
-                    </Badge>
-                    <Badge variant={getStatusColor(contract.status)} size="sm">
-                      {contract.status.charAt(0).toUpperCase() + contract.status.slice(1)}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-green-600" />
-                    <div>
-                      <p className="text-xs text-gray-500">Début</p>
-                      <p className="text-sm font-medium">
-                        {new Date(contract.start_date).toLocaleDateString('fr-FR')}
-                      </p>
-                    </div>
-                  </div>
-                  {contract.end_date && (
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-red-600" />
-                      <div>
-                        <p className="text-xs text-gray-500">Fin</p>
-                        <p className="text-sm font-medium">
-                          {new Date(contract.end_date).toLocaleDateString('fr-FR')}
-                        </p>
+                      <div className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider text-gray-400 mt-0.5">
+                        <span className={clsx(
+                          contract.type === 'location' ? "text-blue-500" :
+                          contract.type === 'gestion' ? "text-orange-500" :
+                          "text-emerald-500"
+                        )}>
+                          {contract.type}
+                        </span>
+                        <span>•</span>
+                        <span>{contract.id.slice(0, 8)}</span>
                       </div>
                     </div>
-                  )}
-                  <div className="flex items-center space-x-2">
-                    <DollarSign className="h-4 w-4 text-yellow-600" />
-                    <div>
-                      <p className="text-xs text-gray-500">Commission</p>
-                      <p className="text-sm font-medium">{formatCurrency(contract.commission_amount)}</p>
+                  </div>
+                  <ActionMenu
+                    contract={contract}
+                    onPreview={async () => {
+                      if (!user?.agency_id) return;
+                      const fullAgency = await dbService.agencies.getById(user.agency_id);
+                      const clientData = contract.type === 'gestion' ? owner : tenant;
+                      if (fullAgency && clientData) {
+                        await OHADAContractGenerator.previewContract(contract, fullAgency, clientData, property);
+                      }
+                    }}
+                    onEdit={() => openForm(contract, false)}
+                    onRegenerate={async () => {
+                      if (!confirm('Régénérer aux normes OHADA ?')) return;
+                      try {
+                        const fullAgency = await dbService.agencies.getById(user?.agency_id || '');
+                        const newTerms = OHADAContractGenerator.regenerateTerms(contract, fullAgency, tenant, owner, property);
+                        await updateContract(contract.id, { terms: newTerms });
+                        toast.success('Mis aux normes OHADA !');
+                      } catch (err) { toast.error('Erreur'); }
+                    }}
+                    onRenew={() => handleRenewContract(contract)}
+                    onPrint={async () => {
+                      if (!user?.agency_id) return;
+                      const printWindow = window.open('', '_blank');
+                      if (!printWindow) return;
+                      try {
+                        const fullAgency = await dbService.agencies.getById(user.agency_id);
+                        const clientData = contract.type === 'gestion' ? owner : tenant;
+                        if (fullAgency && clientData) {
+                          await OHADAContractGenerator.printContract(contract, fullAgency, clientData, property, printWindow);
+                        } else printWindow.close();
+                      } catch { printWindow.close(); }
+                    }}
+                    onDownload={async () => {
+                      if (!user?.agency_id) return;
+                      const fullAgency = await dbService.agencies.getById(user.agency_id);
+                      const clientData = contract.type === 'gestion' ? owner : tenant;
+                      if (fullAgency && clientData) {
+                        await OHADAContractGenerator.downloadContract(contract, fullAgency, clientData, property);
+                      }
+                    }}
+                    onTerminate={() => handleTerminateContract(contract)}
+                    onDelete={() => handleDeleteContract(contract.id)}
+                  />
+                </div>
+
+                {/* Divider */}
+                <div className="mx-4 border-t border-gray-50" />
+
+                {/* Body */}
+                <div className="px-4 py-3 space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <Home className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                    <span className="truncate font-medium">{property?.title || 'Bien inconnu'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1.5 text-gray-500">
+                      <Calendar className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>{new Date(contract.start_date).toLocaleDateString('fr-FR')}</span>
                     </div>
+                    {contract.end_date && (
+                      <div className="flex items-center gap-1.5 text-gray-500">
+                        <Calendar className="h-3.5 w-3.5 text-rose-500" />
+                        <span>{new Date(contract.end_date).toLocaleDateString('fr-FR')}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center gap-1.5">
+                      <DollarSign className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="text-sm font-bold text-gray-900">
+                        {formatCurrency(contract.monthly_rent || contract.sale_price || 0)}
+                      </span>
+                    </div>
+                    <Badge variant={getStatusColor(contract.status)} size="sm">
+                      {contract.status}
+                    </Badge>
                   </div>
                 </div>
 
-                {/* Transition Info */}
+                {/* Footer Transition Info */}
                 {contract.extra_data?.is_existing_tenant && (
-                  <div className="mb-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
-                    <div className="flex items-center gap-2 mb-2 text-blue-800 font-medium text-sm">
-                      <RotateCw className="w-4 h-4" />
+                  <div className="mx-4 mb-4 p-2.5 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-blue-700 uppercase">
+                      <RotateCw className="w-3 h-3" />
                       Reprise de bail
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <p className="text-gray-500">Caution détenue par</p>
-                        <p className="font-medium text-gray-700">
-                          {contract.extra_data.deposit_held_by === 'agency' ? 'Notre agence' :
-                            contract.extra_data.deposit_held_by === 'previous_owner' ? 'Ancien propriétaire' : 'Autre'}
-                        </p>
-                      </div>
-                      {contract.extra_data.billing_start_date && (
-                        <div>
-                          <p className="text-gray-500">Début facturation</p>
-                          <p className="font-medium text-gray-700">
-                            {new Date(contract.extra_data.billing_start_date).toLocaleDateString('fr-FR')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
                   </div>
                 )}
-
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-gray-500">
-                    Créé le {new Date(contract.created_at).toLocaleDateString('fr-FR')}
-                  </div>
-                  <div className="flex space-x-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openForm(contract, true);
-                      }}
-                      title="Voir les détails"
-                      className="p-1 h-8 w-8 text-blue-600 hover:bg-blue-50"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openForm(contract, false); // Edit mode
-                      }}
-                      title="Modifier le contrat"
-                      className="p-1 h-8 w-8 text-orange-600 hover:bg-orange-50"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    {contract.status === 'active' && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRenewContract(contract);
-                          }}
-                          title="Renouveler"
-                          className="p-1 h-8 w-8 text-indigo-600 hover:bg-indigo-50"
-                        >
-                          <RotateCw className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleTerminateContract(contract);
-                          }}
-                          title="Résilier"
-                          className="p-1 h-8 w-8 text-red-600 hover:bg-red-50"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const print = async () => {
-                          if (!user?.agency_id) {
-                            toast.error("Impossible d'identifier l'agence");
-                            return;
-                          }
-
-                          const printWindow = window.open('', '_blank');
-                          if (!printWindow) {
-                            toast.error("Pop-up bloqué. Veuillez autoriser les pop-ups pour imprimer.");
-                            return;
-                          }
-
-                          printWindow.document.write('<div style="font-family: Arial; padding: 20px;">Chargement du contrat en cours...</div>');
-
-                          try {
-                            const fullAgency = await dbService.agencies.getById(user.agency_id);
-                            const fullTenant = tenants.find(t => t.id === contract.tenant_id);
-                            const fullOwner = owners.find(o => o.id === contract.owner_id);
-                            const fullProperty = properties.find(p => p.id === contract.property_id);
-
-                            // Pour un contrat de gestion, le "client" est le propriétaire
-                            const clientData = contract.type === 'gestion' ? fullOwner : fullTenant;
-
-                            if (fullAgency && clientData) {
-                              printWindow.document.body.innerHTML = '';
-                              await OHADAContractGenerator.printContract(contract, fullAgency, clientData, fullProperty, printWindow);
-                            } else {
-                              printWindow.close();
-                              toast.error("Impossible de récupérer les informations nécessaires");
-                            }
-                          } catch (error) {
-                            printWindow.close();
-                            console.error("Print error", error);
-                            toast.error("Erreur lors de l'impression");
-                          }
-                        };
-                        print();
-                      }}
-                      title="Imprimer"
-                      className="p-1 h-8 w-8 text-gray-600 hover:bg-gray-50"
-                    >
-                      <Printer className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={!contract.documents?.length}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        for (const url of contract.documents || []) {
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = url.split('/').pop() || 'document';
-                          link.click();
-                        }
-                      }}
-                      title="Télécharger les documents"
-                      className="p-1 h-8 w-8 text-gray-600 hover:bg-gray-50 disabled:opacity-30"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="p-1 h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteContract(contract.id);
-                      }}
-                      title="Supprimer définitivement"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
               </div>
-            </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 

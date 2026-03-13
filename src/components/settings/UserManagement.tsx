@@ -11,6 +11,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
 import { supabase } from '../../lib/config';
 import toast from 'react-hot-toast';
+import { useQuotaManager } from '../../hooks/useQuotaManager';
+import { QuotaExceededModal } from '../shared/QuotaExceededModal';
 
 interface AuthUser extends User {
   role: AgencyUserRole;
@@ -36,6 +38,9 @@ export const UserManagement: React.FC = () => {
   const [userToResetPassword, setUserToResetPassword] = useState<ExtendedUser | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
+  
+  const { stats, isEnterprise } = useQuotaManager();
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
 
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
@@ -183,6 +188,13 @@ export const UserManagement: React.FC = () => {
     }
 
     try {
+      // Vérification du quota pour les nouveaux utilisateurs
+      if (!editingUser && !isEnterprise && stats.users.isReached) {
+        setShowQuotaModal(true);
+        setLoading(false);
+        return;
+      }
+
       // 0. Validation basique
       if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.email.trim()) {
         throw new Error('Tous les champs obligatoires doivent être remplis');
@@ -195,6 +207,7 @@ export const UserManagement: React.FC = () => {
       const emailLower = formData.email.toLowerCase();
 
       if (editingUser) {
+        // ... (existing update logic)
         console.log('📝 Updating existing agency user:', editingUser.id);
 
         if (emailLower !== editingUser.email.toLowerCase()) {
@@ -704,7 +717,13 @@ export const UserManagement: React.FC = () => {
             {realUsers.length > 1 ? 's' : ''})
           </p>
         </div>
-        <Button onClick={() => setShowUserForm(true)}>
+        <Button onClick={() => {
+          if (!isEnterprise && stats.users.isReached) {
+            setShowQuotaModal(true);
+          } else {
+            setShowUserForm(true);
+          }
+        }}>
           <Plus className="h-4 w-4 mr-2" />
           Ajouter un utilisateur
         </Button>
@@ -823,7 +842,13 @@ export const UserManagement: React.FC = () => {
               Aucun utilisateur dans votre agence
             </h3>
             <p className="text-gray-600 mb-4">Commencez par créer des comptes pour vos employés.</p>
-            <Button onClick={() => setShowUserForm(true)}>
+            <Button onClick={() => {
+              if (!isEnterprise && stats.users.isReached) {
+                setShowQuotaModal(true);
+              } else {
+                setShowUserForm(true);
+              }
+            }}>
               <Plus className="h-4 w-4 mr-2" />
               Créer le premier utilisateur
             </Button>
@@ -1028,6 +1053,13 @@ export const UserManagement: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      <QuotaExceededModal 
+        isOpen={showQuotaModal} 
+        onClose={() => setShowQuotaModal(false)} 
+        type="users" 
+        currentLimit={stats.users.max} 
+      />
     </div>
   );
 };

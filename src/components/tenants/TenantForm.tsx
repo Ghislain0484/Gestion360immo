@@ -11,6 +11,8 @@ import { supabase } from '../../lib/config';
 import { dbService } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { validatePhoneCI, validateEmail } from '../../utils/validationUtils';
+import { useQuotaManager } from '../../hooks/useQuotaManager';
+import { QuotaExceededModal } from '../shared/QuotaExceededModal';
 
 interface RentalParams {
   propertyId: string;
@@ -32,6 +34,9 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
   const { user, isLoading: authLoading } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const { stats } = useQuotaManager();
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
 
   const [formData, setFormData] = useState<TenantFormData>({
     first_name: initialData?.first_name || '',
@@ -189,8 +194,14 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-    setIsSubmitting(true);
     setFormError(null);
+
+    // Vérification quota locataire
+    if (!initialData?.agency_id && !isEnterprise && stats.tenants.isReached) {
+      setShowQuotaModal(true);
+      setIsSubmitting(false);
+      return;
+    }
 
     // Validation des champs essentiels
     if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.phone.trim()) {
@@ -671,6 +682,13 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
           </Button>
         </div>
       </form>
+
+      <QuotaExceededModal 
+        isOpen={showQuotaModal} 
+        onClose={() => setShowQuotaModal(false)} 
+        type="tenants" 
+        currentLimit={stats.tenants.max} 
+      />
     </Modal>
   );
 };

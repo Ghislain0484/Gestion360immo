@@ -238,6 +238,7 @@ export const TenantsList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'bon' | 'irregulier' | 'mauvais'>('all');
   const [filterMaritalStatus, setFilterMaritalStatus] = useState<'all' | 'celibataire' | 'marie' | 'divorce' | 'veuf'>('all');
+  const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'active' | 'free'>('all');
   const [currentPage, setCurrentPage] = useState(0);
   const [searchParams] = useSearchParams();
   const action = searchParams.get('action');
@@ -267,6 +268,26 @@ export const TenantsList: React.FC = () => {
     fetchTenants,
     'tenants'
   );
+
+  // Calculate stats for filters
+  const stats = useMemo(() => {
+    if (!tenants) return { total: 0, active: 0, free: 0 };
+    const filteredBySearch = tenants.filter(t => {
+      const tenant = t as TenantWithRental;
+      const s = searchTerm.toLowerCase();
+      return !s ||
+        (tenant.first_name || "").toLowerCase().includes(s) ||
+        (tenant.last_name || "").toLowerCase().includes(s) ||
+        (tenant.phone || "").includes(s);
+    });
+
+    const active = filteredBySearch.filter(t => (t as TenantWithRental).active_contracts?.length! > 0).length;
+    return {
+      total: filteredBySearch.length,
+      active,
+      free: filteredBySearch.length - active
+    };
+  }, [tenants, searchTerm]);
 
   const { deleteItem: deleteTenant, loading: deleting } = useSupabaseDelete(
     dbService.tenants.delete,
@@ -414,16 +435,32 @@ export const TenantsList: React.FC = () => {
   const filteredTenants = useMemo(() => {
     if (!tenants) return [];
     return tenants.filter(t => {
+      const tenant = t as TenantWithRental;
       const s = searchTerm.toLowerCase();
+      const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const ns = normalize(searchTerm);
+
+      const isOccupying = tenant.active_contracts && tenant.active_contracts.length > 0;
+      const statusLabel = isOccupying ? 'occupant' : 'en attente';
+      const alternateStatusLabel = isOccupying ? 'actif' : 'libre';
+
       const matchesSearch = !s ||
-        (t.first_name || "").toLowerCase().includes(s) ||
-        (t.last_name || "").toLowerCase().includes(s) ||
-        (t.phone || "").includes(s) ||
-        (t.profession || "").toLowerCase().includes(s) ||
-        (t.city || "").toLowerCase().includes(s);
-      const matchesMarital = filterMaritalStatus === 'all' || t.marital_status === filterMaritalStatus;
-      const matchesPayment = filterPaymentStatus === 'all' || t.payment_status === filterPaymentStatus;
-      return matchesSearch && matchesMarital && matchesPayment;
+        (tenant.first_name || "").toLowerCase().includes(s) ||
+        (tenant.last_name || "").toLowerCase().includes(s) ||
+        (tenant.phone || "").includes(s) ||
+        (tenant.profession || "").toLowerCase().includes(s) ||
+        (tenant.city || "").toLowerCase().includes(s) ||
+        normalize(statusLabel).includes(ns) ||
+        normalize(alternateStatusLabel).includes(ns);
+
+      const matchesMarital = filterMaritalStatus === 'all' || tenant.marital_status === filterMaritalStatus;
+      const matchesPayment = filterPaymentStatus === 'all' || tenant.payment_status === filterPaymentStatus;
+
+      const matchesOccupancy = filterOccupancy === 'all' ||
+        (filterOccupancy === 'active' && isOccupying) ||
+        (filterOccupancy === 'free' && !isOccupying);
+
+      return matchesSearch && matchesMarital && matchesPayment && matchesOccupancy;
     });
   }, [tenants, searchTerm, filterMaritalStatus, filterPaymentStatus]);
 
@@ -497,6 +534,49 @@ export const TenantsList: React.FC = () => {
             <option value="divorce">Divorcé(e)</option>
             <option value="veuf">Veuf/Veuve</option>
           </select>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="flex p-1 bg-gray-100 rounded-xl">
+              <button
+                onClick={() => setFilterOccupancy('all')}
+                className={clsx(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  filterOccupancy === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                Tous
+                <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterOccupancy === 'all' ? "bg-blue-100" : "bg-gray-200")}>
+                  {stats.total}
+                </span>
+              </button>
+              <button
+                onClick={() => setFilterOccupancy('active')}
+                className={clsx(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  filterOccupancy === 'active' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                Actifs
+                <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterOccupancy === 'active' ? "bg-emerald-100" : "bg-gray-200")}>
+                  {stats.active}
+                </span>
+              </button>
+              <button
+                onClick={() => setFilterOccupancy('free')}
+                className={clsx(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                  filterOccupancy === 'free' ? "bg-white text-amber-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                Libres
+                <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterOccupancy === 'free' ? "bg-amber-100" : "bg-gray-200")}>
+                  {stats.free}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       </Card>
       {/* Results Count Badge */}

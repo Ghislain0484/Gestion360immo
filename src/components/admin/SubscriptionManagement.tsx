@@ -125,19 +125,19 @@ export const SubscriptionManagement: React.FC = () => {
       id: 'basic',
       name: 'Basique',
       price: settings?.subscription_basic_price || 25000,
-      features: ['Jusqu\'à 50 propriétés', 'Support email', 'Rapports basiques'],
+      features: ['Gestion de 10 propriétés', 'Jusqu\'à 10 locataires', '2 utilisateurs'],
     },
     {
       id: 'premium',
       name: 'Premium',
-      price: settings?.subscription_premium_price || 35000,
-      features: ['Propriétés illimitées', 'Support prioritaire', 'Rapports avancés', 'Collaboration'],
+      price: settings?.subscription_premium_price || 50000,
+      features: ['Gestion de 50 propriétés', 'Jusqu\'à 50 locataires', '5 utilisateurs'],
     },
     {
       id: 'enterprise',
       name: 'Entreprise',
-      price: settings?.subscription_enterprise_price || 50000,
-      features: ['Tout Premium +', 'API personnalisée', 'Support dédié', 'Formation'],
+      price: settings?.subscription_enterprise_price || 100000,
+      features: ['Propriétés illimitées', 'Locataires illimités', 'Utilisateurs illimités'],
     },
   ];
 

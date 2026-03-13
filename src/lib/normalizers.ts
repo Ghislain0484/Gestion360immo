@@ -131,6 +131,8 @@ export const normalizeAgencyRegistrationRequest = (arr: Partial<AgencyRegistrati
     processed_at: nilIfEmpty(arr.processed_at),
     director_password: nilIfEmpty(arr.director_password),
     director_auth_user_id: nilIfEmpty(arr.director_auth_user_id),
+    selected_plan: nilIfEmpty(arr.selected_plan),
+    billing_cycle: nilIfEmpty(arr.billing_cycle),
 });
 
 export const normalizeAgencySubscription = (as: Partial<AgencySubscription>) => ({

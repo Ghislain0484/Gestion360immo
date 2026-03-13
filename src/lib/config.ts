@@ -15,6 +15,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
         detectSessionInUrl: true,
         storage: localStorage,
         storageKey: 'supabase.auth.token',
+        broadcast: false, // Désactiver le broadcast pour éviter l'erreur "No Listener"
     },
     realtime: {
         params: {

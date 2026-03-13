@@ -164,7 +164,7 @@ export const usePlatformStats = () => {
         queryKey: ['platform-stats'],
         queryFn: async () => {
             const agencies = await dbService.agencies.getAll();
-            const activeAgencies = agencies?.filter((a) => a.subscription_status === 'active') || [];
+            const activeAgencies = agencies?.filter((a) => a.status === 'approved') || [];
 
             const totalRevenue = activeAgencies.reduce((sum, a) => sum + (a.monthly_fee || 0), 0);
 
@@ -285,8 +285,8 @@ export const usePlatformSettings = () => {
 
             return {
                 subscription_basic_price: Number(settingsMap['subscription_basic_price']) || 25000,
-                subscription_premium_price: Number(settingsMap['subscription_premium_price']) || 35000,
-                subscription_enterprise_price: Number(settingsMap['subscription_enterprise_price']) || 50000,
+                subscription_premium_price: Number(settingsMap['subscription_premium_price']) || 50000,
+                subscription_enterprise_price: Number(settingsMap['subscription_enterprise_price']) || 100000,
                 ...settingsMap,
             };
         },
