@@ -55,7 +55,6 @@ export const InventoryForm: React.FC<InventoryFormProps> = ({
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loadingData, setLoadingData] = useState(false);
-
   // Fetch essential data
   useEffect(() => {
     if (isOpen && user?.agency_id) {

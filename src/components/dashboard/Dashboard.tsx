@@ -9,9 +9,8 @@ import {
   TrendingUp,
   Receipt,
   Eye,
-  Edit,
   Printer,
-  Download,
+  Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { printReceiptHTML, downloadReceiptPDF } from '../../utils/receiptActions';
@@ -82,7 +81,7 @@ export const Dashboard: React.FC = () => {
   >([]);
 
   const realtimeFilters = useMemo(
-    () => ({ agency_id: user?.agency_id ?? undefined, limit: 1000 }),
+    () => ({ agency_id: user?.agency_id || undefined, status: 'active', limit: 1000 }),
     [user?.agency_id],
   );
   if (authLoading) {

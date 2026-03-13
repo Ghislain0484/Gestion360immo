@@ -44,7 +44,7 @@ export const OwnerDetails: React.FC = () => {
 
     const fetchProperties = React.useCallback(async () => {
         if (!owner?.id || !authAgencyId) return [];
-        return dbService.properties.getAll({ owner_id: owner.id, agency_id: authAgencyId, limit: 100 });
+        return dbService.properties.getAll({ owner_id: owner.id, agency_id: authAgencyId, limit: 1000 });
     }, [owner?.id, authAgencyId]);
 
     const { data: ownerProperties = [] } = useRealtimeData<Property>(
