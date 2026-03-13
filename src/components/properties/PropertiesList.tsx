@@ -36,7 +36,8 @@ export const PropertiesList: React.FC = () => {
 
   const { data: properties, initialLoading, error, refetch } = useRealtimeData<Property>(
     fetchProperties,
-    'properties'
+    'properties',
+    { limit: 1000 }
   );
 
   // Fetch contracts and tenants for display

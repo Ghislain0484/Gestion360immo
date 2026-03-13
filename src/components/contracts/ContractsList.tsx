@@ -133,7 +133,7 @@ export const ContractsList: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | Contract['type']>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | Contract['status']>('all');
   const [page, setPage] = useState(1);
-  const pageSize = 100;
+  const pageSize = 1000;
 
   const { data: contracts = [], refetch, setData, initialLoading } = useRealtimeData<Contract>(
     () => dbService.contracts.getAll({

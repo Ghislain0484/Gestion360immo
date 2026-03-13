@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Sidebar */}
       <div
         className={clsx(
-          "fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 border-r border-gray-200 dark:border-slate-600 transform transition-all duration-300 ease-out lg:translate-x-0 shadow-2xl lg:shadow-none flex flex-col",
+          "fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 border-r border-gray-200 dark:border-slate-600 transform transition-all duration-300 ease-out shadow-2xl flex flex-col lg:hidden",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
