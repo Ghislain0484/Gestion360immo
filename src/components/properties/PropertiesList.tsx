@@ -43,12 +43,12 @@ export const PropertiesList: React.FC = () => {
   const { data: contracts } = useRealtimeData(
     dbService.contracts.getAll,
     'contracts',
-    { agency_id: authAgencyId || undefined }
+    { agency_id: authAgencyId || undefined, limit: 1000 }
   );
   const { data: tenants } = useRealtimeData(
     dbService.tenants.getAll,
     'tenants',
-    { agency_id: authAgencyId || undefined }
+    { agency_id: authAgencyId || undefined, limit: 1000 }
   );
 
   const getRentalInfo = (propertyId: string) => {

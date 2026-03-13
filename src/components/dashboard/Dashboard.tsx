@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import clsx from 'clsx';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -82,7 +82,7 @@ export const Dashboard: React.FC = () => {
   >([]);
 
   const realtimeFilters = useMemo(
-    () => ({ agency_id: user?.agency_id ?? undefined }),
+    () => ({ agency_id: user?.agency_id ?? undefined, limit: 1000 }),
     [user?.agency_id],
   );
   if (authLoading) {

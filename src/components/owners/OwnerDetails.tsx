@@ -53,8 +53,16 @@ export const OwnerDetails: React.FC = () => {
         { owner_id: owner?.id }
     );
 
-    const { data: contracts = [] } = useRealtimeData(dbService.contracts.getAll, 'contracts', { agency_id: authAgencyId || undefined });
-    const { data: tenants = [] } = useRealtimeData(dbService.tenants.getAll, 'tenants', { agency_id: authAgencyId || undefined });
+    const { data: contracts = [] } = useRealtimeData(
+        dbService.contracts.getAll,
+        'contracts',
+        { agency_id: authAgencyId || undefined, owner_id: owner?.id, limit: 500 }
+    );
+    const { data: tenants = [] } = useRealtimeData(
+        dbService.tenants.getAll,
+        'tenants',
+        { agency_id: authAgencyId || undefined }
+    );
 
     // 3. State Hooks
     const [activeTab, setActiveTab] = useState('properties');
@@ -205,6 +213,8 @@ export const OwnerDetails: React.FC = () => {
                                                     <PropertyCard
                                                         property={property}
                                                         isOccupied={!!activeContract}
+                                                        tenantName={activeContract ? `${activeContract.tenant?.first_name} ${activeContract.tenant?.last_name}` : undefined}
+                                                        rentAmount={activeContract?.monthly_rent}
                                                         onClick={() => {
                                                             const slug = generateSlug(property.id, property.title);
                                                             navigate(`/proprietes/${slug}`);

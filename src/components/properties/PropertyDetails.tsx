@@ -85,7 +85,7 @@ export const PropertyDetails: React.FC = () => {
     const { data: contracts = [] } = useRealtimeData(
         dbService.contracts.getAll,
         'contracts',
-        { agency_id: authAgencyId || undefined }
+        { agency_id: authAgencyId || undefined, property_id: propertyId }
     );
     const { data: tenants = [] } = useRealtimeData(
         dbService.tenants.getAll,

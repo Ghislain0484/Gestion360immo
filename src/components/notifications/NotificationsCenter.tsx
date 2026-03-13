@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import NotificationSettingsForm from './NotificationSettingsForm';
+import toast from 'react-hot-toast';
 
 const NotificationsList: React.FC<{
   notifications: Notification[];
@@ -38,8 +39,6 @@ const NotificationsList: React.FC<{
     const timer = setTimeout(() => setHighlightedIds([]), 3000);
     return () => clearTimeout(timer);
   }, [notifications]);
-
-  const unreadCount = useMemo(() => notifications?.filter(n => !n.is_read).length || 0, [notifications]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -148,17 +147,37 @@ export const NotificationsCenter: React.FC = () => {
 
   const markAsRead = async (notificationId: string) => {
     if (!userId) return;
-    await dbService.notifications.update(notificationId, { is_read: true });
+    try {
+      await dbService.notifications.update(notificationId, { is_read: true });
+      toast.success('Notification lue');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors du marquage comme lu');
+    }
   };
 
   const markAllAsRead = async () => {
     if (!userId || !notifications) return;
-    await Promise.all(notifications.filter(n => !n.is_read).map(n => dbService.notifications.update(n.id, { is_read: true })));
+    try {
+      const unread = notifications.filter(n => !n.is_read);
+      if (unread.length === 0) return;
+      await Promise.all(unread.map(n => dbService.notifications.update(n.id, { is_read: true })));
+      toast.success('Toutes les notifications sont lues');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de la mise à jour massive');
+    }
   };
 
   const deleteNotification = async (notificationId: string) => {
     if (!userId) return;
-    await dbService.notifications.delete(notificationId);
+    try {
+      await dbService.notifications.delete(notificationId);
+      toast.success('Notification supprimée');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erreur lors de la suppression');
+    }
   };
 
   const saveNotificationSettings = async () => {
