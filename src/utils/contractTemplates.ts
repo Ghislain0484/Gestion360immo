@@ -28,8 +28,7 @@ export class OHADAContractGenerator {
       contractDate: new Date(),
     };
 
-    return `
-CONTRAT DE MANDAT DE GESTION IMMOBILIÈRE
+    return `CONTRAT DE MANDAT DE GESTION IMMOBILIÈRE
 
 En application des dispositions du Code Civil ivoirien et de l'Acte Uniforme OHADA relatif au Droit Commercial Général
 
@@ -38,7 +37,7 @@ ENTRE LES SOUSSIGNÉS :
 D'UNE PART,
 ${data.agencyName.toUpperCase()}
 Société de gestion immobilière
-Registre de Commerce : ${data.agencyRegister}
+Registre de Commerce : ${data.agencyRegister || 'En cours'}
 Siège social : ${data.agencyAddress}
 Téléphone : ${data.agencyPhone}
 Email : ${data.agencyEmail}
@@ -58,69 +57,38 @@ Ci-après dénommé(e) "LE MANDANT" ou "LE PROPRIÉTAIRE"
 IL A ÉTÉ CONVENU ET ARRÊTÉ CE QUI SUIT :
 
 ARTICLE 1 - OBJET DU CONTRAT
-Le PROPRIÉTAIRE donne mandat à L'AGENCE pour la gestion, l'administration et la mise en location de son bien immobilier, conformément aux dispositions légales en vigueur en Côte d'Ivoire et aux Actes Uniformes OHADA.
+Le PROPRIÉTAIRE donne mandat à L'AGENCE pour la gestion, l'administration et la mise en location de son bien immobilier, conformément aux dispositions légales en vigueur et aux Actes Uniformes OHADA.
 
 ARTICLE 2 - OBLIGATIONS DE L'AGENCE
 L'AGENCE s'engage à :
-- Rechercher des locataires solvables et de bonne moralité
-- Établir les contrats de bail conformément à la législation ivoirienne
-- Percevoir les loyers et charges pour le compte du PROPRIÉTAIRE
-- Effectuer les reversements dans les délais convenus
-- Assurer le suivi des relations locatives
-- Tenir une comptabilité détaillée des opérations
+- Rechercher des locataires solvables et de bonne moralité.
+- Établir les contrats de bail conformément à la législation en vigueur.
+- Percevoir les loyers et charges pour le compte du PROPRIÉTAIRE.
+- Effectuer les reversements après déduction de sa commission.
+- Assurer le suivi des relations locatives et l'entretien courant.
 
 ARTICLE 3 - OBLIGATIONS DU PROPRIÉTAIRE
-Le PROPRIÉTAIRE s'engage à :
-- Fournir tous les documents relatifs à la propriété du bien
-- Maintenir le bien en bon état de location
-- Informer L'AGENCE de tout changement concernant le bien
-- Respecter les termes du présent contrat
+Le PROPRIÉTAIRE s'engage à fournir tous les documents de propriété et à maintenir le bien dans un état décent de location.
 
-ARTICLE 4 - RÉMUNÉRATION
-En contrepartie de ses services, L'AGENCE percevra une commission de ${data.commissionRate}% (${this.numberToWords(data.commissionRate)} pour cent) du montant des loyers encaissés, TTC.
-Cette commission de ${data.commissionRate}% sera prélevée à titre de gestion locative sur chaque loyer perçu.
-Cette commission sera prélevée avant reversement au PROPRIÉTAIRE.
+ARTICLE 4 - RÉMUNÉRATION ET COMMISSIONS
+En contrepartie, L'AGENCE percevra :
+- Une commission de gestion de ${data.commissionRate}% sur chaque loyer encaissé.
+- Des frais de dossiers et de rédaction de contrat à la charge du locataire.
 
-ARTICLE 5 - REVERSEMENTS
-L'AGENCE s'engage à reverser au PROPRIÉTAIRE le montant des loyers perçus, déduction faite de sa commission de ${data.commissionRate}%, dans un délai maximum de 10 (dix) jours ouvrables suivant l'encaissement.
+ARTICLE 5 - DURÉE ET RÉSILIATION
+Le présent contrat est conclu pour une durée d'un (1) an renouvelable par tacite reconduction. Il peut être résilié avec un préavis de trois (3) mois.
 
-ARTICLE 6 - DURÉE
-Le présent contrat est conclu pour une durée indéterminée à compter du ${data.contractDate.toLocaleDateString('fr-FR')}.
-Il peut être résilié par chacune des parties moyennant un préavis de trois (3) mois par lettre recommandée avec accusé de réception.
-
-ARTICLE 7 - RÉSILIATION
-En cas de manquement grave aux obligations contractuelles, le présent contrat pourra être résilié de plein droit après mise en demeure restée sans effet pendant quinze (15) jours.
-
-ARTICLE 8 - LITIGES
-Tout litige relatif à l'interprétation ou à l'exécution du présent contrat sera soumis aux juridictions compétentes de la République de Côte d'Ivoire.
-Le droit applicable est le droit ivoirien et les Actes Uniformes OHADA.
-
-ARTICLE 9 - DISPOSITIONS DIVERSES
-Le présent contrat constitue l'intégralité des accords entre les parties. Toute modification devra faire l'objet d'un avenant écrit et signé par les deux parties.
-
-Fait à ${data.agencyAddress.split(',')[0] || 'Abidjan'}, le ${data.contractDate.toLocaleDateString('fr-FR')}
-En deux (2) exemplaires originaux
-
-LE PROPRIÉTAIRE                           L'AGENCE
-${data.ownerFirstName} ${data.ownerLastName}                    ${data.agencyName}
-
-Signature :                               Signature et cachet :
-
-
-
-
-_____________________                     _____________________
-
-Conformément aux articles 1984 et suivants du Code Civil ivoirien et aux dispositions de l'Acte Uniforme OHADA relatif au Droit Commercial Général.
+Fait à ${data.agencyAddress ? data.agencyAddress.split(',')[0] : 'Abidjan'}, le ${data.contractDate.toLocaleDateString('fr-FR')}
+En deux (2) exemplaires originaux.
 `;
   }
 
   // Template de contrat de location (Agence - Locataire)
   static generateRentalContract(agencyData: any, tenantData: any, propertyData: any, rentalTerms: any): string {
     const endDate = new Date(rentalTerms.startDate);
-    endDate.setMonth(endDate.getMonth() + rentalTerms.duration);
+    endDate.setMonth(endDate.getMonth() + (rentalTerms.duration || 12));
 
-    const totalDueAtSigning = (rentalTerms.monthlyRent * 2) + (rentalTerms.monthlyRent * 2) + rentalTerms.monthlyRent; // 2 mois avance + 2 mois caution + 1 mois frais
+    const totalDueAtSigning = (rentalTerms.monthlyRent * 2) + (rentalTerms.deposit || (rentalTerms.monthlyRent * 2)) + (rentalTerms.agencyFee || rentalTerms.monthlyRent);
 
     return `
 CONTRAT DE BAIL D'HABITATION
@@ -132,7 +100,7 @@ ENTRE LES SOUSSIGNÉS :
 D'UNE PART,
 ${agencyData.name.toUpperCase()}
 Société de gestion immobilière
-Registre de Commerce : ${agencyData.commercial_register}
+Registre de Commerce : ${agencyData.commercial_register || 'En cours'}
 Siège social : ${agencyData.address}
 Téléphone : ${agencyData.phone}
 Email : ${agencyData.email}
@@ -141,9 +109,9 @@ Ci-après dénommée "LE BAILLEUR"
 
 ET D'AUTRE PART,
 Monsieur/Madame ${tenantData.first_name.toUpperCase()} ${tenantData.last_name.toUpperCase()}
-Profession : ${tenantData.profession}
-Nationalité : ${tenantData.nationality}
-Domicilié(e) à : ${tenantData.address}
+Profession : ${tenantData.profession || 'Non spécifiée'}
+Nationalité : ${tenantData.nationality || 'Ivoirienne'}
+Domicilié(e) à : ${tenantData.address || 'Abidjan'}
 Téléphone : ${tenantData.phone}
 ${tenantData.email ? `Email : ${tenantData.email}` : ''}
 Ci-après dénommé(e) "LE PRENEUR" ou "LE LOCATAIRE"
@@ -161,7 +129,7 @@ Le bien loué est destiné exclusivement à l'habitation du PRENEUR et de sa fam
 Toute autre utilisation est formellement interdite sans accord écrit préalable du BAILLEUR.
 
 ARTICLE 3 - DURÉE
-Le présent bail est consenti pour une durée de ${rentalTerms.duration} (${this.numberToWords(rentalTerms.duration)}) mois, 
+Le présent bail est consenti pour une durée de ${rentalTerms.duration || 12} (${this.numberToWords(rentalTerms.duration || 12)}) mois, 
 soit du ${rentalTerms.startDate.toLocaleDateString('fr-FR')} au ${endDate.toLocaleDateString('fr-FR')}.
 
 À défaut de congé donné par l'une ou l'autre des parties dans les formes et délais légaux, 
@@ -177,13 +145,18 @@ Les charges locatives s'élèvent à ${rentalTerms.charges.toLocaleString()} (${
 Elles comprennent : eau, électricité, entretien des parties communes.
 ` : ''}
 
-ARTICLE ${rentalTerms.charges ? '6' : '5'} - DÉPÔT DE GARANTIE ET PAIEMENTS À LA SIGNATURE
-Le PRENEUR verse à la signature des présentes :
+ARTICLE ${rentalTerms.charges ? '6' : '5'} - DÉPÔT DE GARANTIE ET PAIEMENTS
+${rentalTerms.isExistingTenant ? `Le PRENEUR déclare et les parties reconnaissent que les sommes suivantes ont déjà été versées antérieurement à la signature des présentes (Reprise de bail) :
+- Dépôt de garantie (Caution) : ${(rentalTerms.deposit || (rentalTerms.monthlyRent * 2)).toLocaleString()} FRANCS CFA
+- Caution détenue par : ${rentalTerms.depositHeldBy || 'Ancien gestionnaire / Propriétaire'}
+- Date de début de facturation par l'Agence : ${rentalTerms.billingStartDate ? new Date(rentalTerms.billingStartDate).toLocaleDateString('fr-FR') : 'À la signature'}
+` : `Le PRENEUR verse à la signature des présentes :
 - Deux (2) mois de loyer d'avance : ${(rentalTerms.monthlyRent * 2).toLocaleString()} FRANCS CFA
-- Deux (2) mois de caution : ${(rentalTerms.monthlyRent * 2).toLocaleString()} FRANCS CFA  
-- Un (1) mois de frais d'agence : ${rentalTerms.monthlyRent.toLocaleString()} FRANCS CFA
+- Dépôt de garantie (Caution) : ${(rentalTerms.deposit || (rentalTerms.monthlyRent * 2)).toLocaleString()} FRANCS CFA  
+- Frais d'agence : ${(rentalTerms.agencyFee || rentalTerms.monthlyRent).toLocaleString()} FRANCS CFA
 
 TOTAL À PAYER À LA SIGNATURE : ${totalDueAtSigning.toLocaleString()} (${this.numberToWords(totalDueAtSigning)}) FRANCS CFA
+`}
 
 La caution sera restituée en fin de bail, déduction faite des sommes éventuellement dues.
 
@@ -218,7 +191,7 @@ Le droit applicable est le droit ivoirien.
 ARTICLE ${rentalTerms.charges ? '12' : '11'} - ENREGISTREMENT
 Le présent contrat sera enregistré conformément aux dispositions fiscales en vigueur, les frais étant à la charge du PRENEUR.
 
-Fait à ${agencyData.address.split(',')[0] || 'Abidjan'}, le ${rentalTerms.startDate.toLocaleDateString('fr-FR')}
+Fait à ${agencyData.address?.split(',')[0] || 'Abidjan'}, le ${rentalTerms.startDate.toLocaleDateString('fr-FR')}
 En trois (3) exemplaires originaux
 
 LE PRENEUR                               LE BAILLEUR
@@ -247,12 +220,12 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
 
     let result = '';
     let thousandIndex = 0;
+    let tempNum = num;
 
-    while (num > 0) {
-      const chunk = num % 1000;
+    while (tempNum > 0) {
+      const chunk = tempNum % 1000;
       if (chunk !== 0) {
         let chunkText = '';
-
         const hundreds = Math.floor(chunk / 100);
         const remainder = chunk % 100;
 
@@ -266,7 +239,7 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
           const onesDigit = remainder % 10;
           chunkText += tens[tensDigit];
           if (onesDigit > 0) {
-            chunkText += (tensDigit === 8 ? '-' : '-') + ones[onesDigit];
+            chunkText += '-' + ones[onesDigit];
           }
         } else if (remainder >= 10) {
           chunkText += teens[remainder - 10];
@@ -277,11 +250,9 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
         if (thousands[thousandIndex]) {
           chunkText += ' ' + thousands[thousandIndex];
         }
-
         result = chunkText + (result ? ' ' + result : '');
       }
-
-      num = Math.floor(num / 1000);
+      tempNum = Math.floor(tempNum / 1000);
       thousandIndex++;
     }
 
@@ -298,12 +269,12 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
     return {
       type: 'gestion' as const,
       owner_id: ownerData.id,
-      tenant_id: undefined,
+      tenant_id: '00000000-0000-0000-0000-000000000000',
       property_id: propertyData.id,
       agency_id: agencyData.id,
-      start_date: new Date().toISOString(),
+      start_date: new Date().toISOString().split('T')[0],
       commission_rate: commissionRate,
-      commission_amount: 0, // Sera calculé lors de la location
+      commission_amount: 0,
       status: 'active' as const,
       terms: this.generateManagementContract(agencyData, ownerData, commissionRate),
       documents: [],
@@ -322,51 +293,17 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
       advance?: number;
       duration: number;
       startDate: Date;
+      usage?: 'habitation' | 'professionnel' | 'commercial';
+      isExistingTenant?: boolean;
+      depositHeldBy?: string;
+      billingStartDate?: string;
     }
   ): Partial<Contract> {
     const endDate = new Date(rentalParams.startDate);
-    endDate.setMonth(endDate.getMonth() + rentalParams.duration);
+    endDate.setMonth(endDate.getMonth() + (rentalParams.duration || 12));
 
-    const advancePayment = rentalParams.advance || (rentalParams.monthlyRent * 2);
-    const agencyFee = rentalParams.agencyFee || (rentalParams.monthlyRent * 1);
-    const totalUpfront = advancePayment + rentalParams.deposit + agencyFee;
-
-    const terms = `
-CONTRA DE BAIL A USAGE D'HABITATION
-Entre les soussignés :
-
-D'une part,
-L'agence ${agency.name}, représentée par ses mandataires légaux,
-Agissant au nom et pour le compte du propriétaire du bien sis à ${property.location.commune}, ${property.location.quartier}.
-
-Et d'autre part,
-M./Mme ${tenant.first_name} ${tenant.last_name},
-Né(e) le ... à ..., de nationalité ${tenant.nationality},
-Tel: ${tenant.phone}
-
-IL A ÉTÉ CONVENU CE QUI SUIT :
-
-1. OBJET DU CONTRAT
-Le Bailleur donne en location au Preneur, à usage d'habitation, les locaux dont la désignation suit :
-${property.details.type} situé à ${property.location.quartier}, ${property.location.commune}.
-Consistance : ${property.description || 'Non spécifiée'}
-
-2. DURÉE
-Le présent bail est consenti et accepté pour une durée de ${rentalParams.duration} mois,
-commençant le ${rentalParams.startDate.toLocaleDateString('fr-FR')} pour se terminer le ${endDate.toLocaleDateString('fr-FR')}.
-
-3. LOYER ET CHARGES
-Le présent bail est consenti et accepté moyennant un loyer mensuel de ${rentalParams.monthlyRent.toLocaleString('fr-FR')} FCFA.
-
-4. CONDITIONS FINANCIÈRES (2+2+1)
-À la signature des présentes, le Preneur verse la somme totale de ${totalUpfront.toLocaleString('fr-FR')} FCFA, décomposée comme suit :
-- Avance sur loyer (2 mois) : ${advancePayment.toLocaleString('fr-FR')} FCFA
-- Dépôt de garantie (Caution 2 mois) : ${rentalParams.deposit.toLocaleString('fr-FR')} FCFA
-- Frais d'agence (1 mois) : ${agencyFee.toLocaleString('fr-FR')} FCFA
-
-En foi de quoi, le présent contrat est établi pour servir et valoir ce que de droit.
-    `.trim();
-
+    const agencyFee = rentalParams.agencyFee || rentalParams.monthlyRent;
+    
     return {
       agency_id: agency.id,
       property_id: property.id,
@@ -374,12 +311,27 @@ En foi de quoi, le présent contrat est établi pour servir et valoir ce que de 
       tenant_id: tenant.id,
       monthly_rent: rentalParams.monthlyRent,
       deposit: rentalParams.deposit,
-      commission_rate: 10, // Default 10% management fee
+      commission_rate: 10,
       commission_amount: rentalParams.monthlyRent * 0.1,
       start_date: rentalParams.startDate.toISOString().split('T')[0],
       end_date: endDate.toISOString().split('T')[0],
       type: 'location',
-      terms: terms,
+      extra_data: {
+        lease_usage: rentalParams.usage || 'habitation'
+      },
+      terms: (rentalParams.usage === 'commercial' || rentalParams.usage === 'professionnel')
+        ? `BAIL PROFESSIONNEL/COMMERCIAL - ${property.title}`
+        : this.generateRentalContract(agency, tenant, property, {
+          monthlyRent: rentalParams.monthlyRent,
+          deposit: rentalParams.deposit,
+          agencyFee: agencyFee,
+          duration: rentalParams.duration,
+          startDate: rentalParams.startDate,
+          charges: 0,
+          isExistingTenant: rentalParams.isExistingTenant,
+          depositHeldBy: rentalParams.depositHeldBy,
+          billingStartDate: rentalParams.billingStartDate
+      }),
     };
   }
 
@@ -396,56 +348,14 @@ En foi de quoi, le présent contrat est établi pour servir et valoir ce que de 
     return labels[title as keyof typeof labels] || title;
   }
 
-  // Validation conformité OHADA
-  static validateOHADACompliance(contractData: any): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    // Vérifications obligatoires OHADA
-    if (!contractData.agencyRegister) {
-      errors.push('Numéro de registre de commerce obligatoire (OHADA)');
-    }
-
-    if (!contractData.contractDate) {
-      errors.push('Date de signature obligatoire');
-    }
-
-    if (contractData.type === 'location') {
-      if (!contractData.monthlyRent || contractData.monthlyRent <= 0) {
-        errors.push('Montant du loyer obligatoire et positif');
-      }
-
-      if (!contractData.deposit || contractData.deposit < contractData.monthlyRent) {
-        errors.push('Dépôt de garantie obligatoire (minimum 1 mois de loyer)');
-      }
-
-      if (!contractData.duration || contractData.duration < 1) {
-        errors.push('Durée du bail obligatoire (minimum 1 mois)');
-      }
-    }
-
-    if (contractData.type === 'gestion') {
-      if (!contractData.commissionRate || contractData.commissionRate <= 0 || contractData.commissionRate > 50) {
-        errors.push('Taux de commission obligatoire (entre 0 et 50%)');
-      }
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
-  }
-
-  // Générer numéro de contrat conforme
   static generateContractNumber(agencyCode: string, type: 'gestion' | 'location'): string {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const sequence = Math.floor(Math.random() * 9999) + 1;
     const typeCode = type === 'gestion' ? 'GES' : 'LOC';
-
     return `${agencyCode}-${typeCode}-${year}${month}-${String(sequence).padStart(4, '0')}`;
   }
 
-  // Helper: Convert image URL to base64 data URI
   static async fetchImageAsBase64(url: string): Promise<string> {
     try {
       const response = await fetch(url, { mode: 'cors' });
@@ -458,101 +368,247 @@ En foi de quoi, le présent contrat est établi pour servir et valoir ce que de 
         reader.readAsDataURL(blob);
       });
     } catch {
-      console.warn('Could not load logo image, skipping:', url);
-      return ''; // Return empty string if fetch fails — no image shown rather than broken
+      console.warn('Could not load image, skipping:', url);
+      return '';
     }
   }
 
-  // Fonction d'impression de contrat (async to support logo fetch)
+  static getContractHTML(contractData: any, agencyData: any, clientData: any, _propertyData?: any): string {
+    const title = contractData.type === 'gestion' ? 'CONTRAT DE MANDAT DE GESTION IMMOBILIÈRE' : 'CONTRAT DE BAIL D\'HABITATION';
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title} - ${agencyData.name}</title>
+          <style>
+            @page { size: A4; margin: 20mm; }
+            body { 
+              font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+              color: #1a1a1a;
+              line-height: 1.6;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+            }
+            .page {
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header { 
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 2px solid #2563eb;
+              padding-bottom: 15px;
+              margin-bottom: 30px;
+            }
+            .agency-info { text-align: right; font-size: 12px; color: #4b5563; }
+            .agency-name { font-size: 20px; font-weight: 800; color: #1e40af; margin-bottom: 2px; }
+            .agency-logo { max-height: 60px; max-width: 180px; object-fit: contain; }
+            
+            .contract-title { 
+              text-align: center;
+              margin: 30px 0;
+              padding: 12px;
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 6px;
+            }
+            .contract-title h1 { 
+              font-size: 16px; 
+              color: #1e293b; 
+              margin: 0;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+            }
+            
+            .content { 
+              font-size: 13.5px; 
+              text-align: justify;
+              white-space: pre-line;
+            }
+            
+            .signature-section { 
+              margin-top: 50px; 
+              display: grid; 
+              grid-template-columns: 1fr 1fr;
+              gap: 30px;
+              page-break-inside: avoid;
+            }
+            .signature-box { 
+              padding: 15px;
+              border: 1px solid #e2e8f0;
+              border-radius: 10px;
+              min-height: 150px;
+              position: relative;
+            }
+            .signature-label { 
+              font-size: 11px; 
+              font-weight: 700; 
+              text-transform: uppercase; 
+              color: #64748b;
+              margin-bottom: 10px;
+              border-bottom: 1px solid #f1f5f9;
+              padding-bottom: 5px;
+            }
+            .signature-name { font-size: 13px; font-weight: 600; color: #0f172a; }
+            .signature-space { 
+              margin-top: 35px; 
+              border-top: 1px dashed #cbd5e1; 
+              padding-top: 8px;
+              font-style: italic;
+              font-size: 10px;
+              color: #94a3b8;
+            }
+            .footer { 
+              position: fixed; bottom: 15px; left: 20mm; right: 20mm;
+              text-align: center; font-size: 9px; color: #94a3b8;
+              border-top: 1px solid #f1f5f9; padding-top: 8px;
+            }
+            @media print {
+              .header { border-bottom-color: #000; }
+              .agency-name { color: #000; }
+              .content { font-size: 12pt; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="header">
+              <div class="logo-container">
+                {LOGO_PLACEHOLDER}
+              </div>
+              <div class="agency-info">
+                <div class="agency-name">${agencyData.name}</div>
+                <div>${agencyData.address || ''}</div>
+                <div>Tél: ${agencyData.phone || ''}</div>
+                <div>Email: ${agencyData.email || ''}</div>
+                ${agencyData.commercial_register ? `<div>RC: ${agencyData.commercial_register}</div>` : ''}
+              </div>
+            </div>
+            
+            <div class="contract-title">
+              <h1>${title}</h1>
+              <div style="font-size: 10px; color: #64748b; margin-top: 4px;">Conforme aux Actes Uniformes OHADA</div>
+            </div>
+            
+            <div class="content">
+              ${contractData.terms}
+            </div>
+            
+            <div class="signature-section">
+              <div class="signature-box">
+                <div class="signature-label">Le ${contractData.type === 'gestion' ? 'Mandant (Propriétaire)' : 'Preneur (Locataire)'}</div>
+                <div class="signature-name">${clientData.first_name || clientData.firstName} ${clientData.last_name || clientData.lastName}</div>
+                <div class="signature-space">Mention "Lu et approuvé" suivie de la signature</div>
+              </div>
+              <div class="signature-box">
+                <div class="signature-label">Le Mandataire (L'Agence)</div>
+                <div class="signature-name">${agencyData.name}</div>
+                <div class="signature-space">Signature et Cachet de l'Agence</div>
+              </div>
+            </div>
+            
+            <div class="footer">
+              Document généré par GESTION360 le ${new Date().toLocaleDateString('fr-FR')} - Conforme à la législation ivoirienne.
+            </div>
+          </div>
+          {WATERMARK_PLACEHOLDER}
+        </body>
+      </html>
+    `;
+  }
+
   static async printContract(contractData: any, agencyData: any, clientData: any, propertyData?: any, targetWindow?: Window | null) {
     const printWindow = targetWindow || window.open('', '_blank');
     if (!printWindow) return;
 
-    // Pre-fetch logo as base64 to avoid CORS block in new window
     let logoBase64 = '';
-    console.log('🖨️ printContract - agencyData.logo_url:', agencyData?.logo_url);
     if (agencyData.logo_url) {
       logoBase64 = await OHADAContractGenerator.fetchImageAsBase64(agencyData.logo_url);
-      console.log('🖨️ printContract - logoBase64 length:', logoBase64.length, 'starts with:', logoBase64.substring(0, 30));
     }
-    const logoHtml = logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-height: 80px; margin-bottom: 10px;">` : '';
+    
+    let html = this.getContractHTML(contractData, agencyData, clientData, propertyData);
+    
+    const logoHtml = logoBase64 ? `<img src="${logoBase64}" alt="Logo" class="agency-logo">` : `<div class="agency-name">${agencyData.name.toUpperCase()}</div>`;
     const watermarkHtml = logoBase64 ? `
-      <div style="
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) rotate(-45deg);
-        opacity: 0.08;
-        z-index: -1;
-        pointer-events: none;
-        width: 80%;
-        text-align: center;
-      ">
+      <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); opacity: 0.05; z-index: -1; pointer-events: none; width: 80%; text-align: center;">
         <img src="${logoBase64}" alt="Watermark" style="width: 100%; max-width: 600px; height: auto;">
       </div>` : '';
 
-    const contractHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Contrat ${contractData.type} - ${agencyData.name}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
-            .company-name { font-size: 24px; font-weight: bold; color: #333; }
-            .contract-title { font-size: 20px; margin: 20px 0; text-align: center; }
-            .content { margin: 30px 0; }
-            .signature-section { margin-top: 50px; display: flex; justify-content: space-between; }
-            .signature-box { text-align: center; width: 45%; }
-            .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #666; }
-            @media print { body { margin: 0; } }
-          </style>
-        </head>
-        <body>
-          ${watermarkHtml}
-          <div class="header">
-            ${logoHtml}
-            <div class="company-name">${agencyData.name.toUpperCase()}</div>
-            <div>${agencyData.address}</div>
-            <div>Tél: ${agencyData.phone}</div>
-            <div>Email: ${agencyData.email}</div>
-            ${agencyData.commercial_register ? `<div>RC: ${agencyData.commercial_register}</div>` : ''}
-          </div>
-          
-          <div class="contract-title">
-            <strong>${contractData.type === 'gestion' ? 'CONTRAT DE MANDAT DE GESTION IMMOBILIÈRE' : 'CONTRAT DE BAIL D\'HABITATION'}</strong>
-          </div>
-          
-          <div class="content">
-            ${contractData.terms.replace(/\n/g, '<br>')}
-          </div>
-          
-          <div class="signature-section">
-            <div class="signature-box">
-              <p><strong>${contractData.type === 'gestion' ? 'LE PROPRIÉTAIRE' : 'LE LOCATAIRE'}</strong></p>
-              <p>${clientData.firstName || clientData.first_name} ${clientData.lastName || clientData.last_name}</p>
-              <br><br><br>
-              <p>Signature: ________________</p>
-            </div>
-            <div class="signature-box">
-              <p><strong>L'AGENCE</strong></p>
-              <p>${agencyData.name}</p>
-              <br><br><br>
-              <p>Signature et cachet: ________________</p>
-            </div>
-          </div>
-          
-          <div class="footer">
-            <div>Contrat généré automatiquement le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}</div>
-            <div>Conforme à la législation ivoirienne et aux Actes Uniformes OHADA</div>
-          </div>
-        </body>
-      </html>
-    `;
+    html = html.replace('{LOGO_PLACEHOLDER}', logoHtml).replace('{WATERMARK_PLACEHOLDER}', watermarkHtml);
 
-    printWindow.document.body.innerHTML = '';
-    printWindow.document.write(contractHtml);
+    printWindow.document.open();
+    printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.print();
+    
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 500);
+  }
+
+  static async previewContract(contractData: any, agencyData: any, clientData: any, propertyData?: any) {
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) return;
+
+    let logoBase64 = '';
+    if (agencyData.logo_url) {
+      logoBase64 = await OHADAContractGenerator.fetchImageAsBase64(agencyData.logo_url);
+    }
+    
+    let html = this.getContractHTML(contractData, agencyData, clientData, propertyData);
+    
+    const logoHtml = logoBase64 ? `<img src="${logoBase64}" alt="Logo" class="agency-logo">` : `<div class="agency-name">${agencyData.name.toUpperCase()}</div>`;
+    const watermarkHtml = logoBase64 ? `
+      <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); opacity: 0.05; z-index: -1; pointer-events: none; width: 80%; text-align: center;">
+        <img src="${logoBase64}" alt="Watermark" style="width: 100%; max-width: 600px; height: auto;">
+      </div>` : '';
+
+    html = html.replace('{LOGO_PLACEHOLDER}', logoHtml).replace('{WATERMARK_PLACEHOLDER}', watermarkHtml);
+
+    previewWindow.document.open();
+    previewWindow.document.write(html);
+    previewWindow.document.close();
+  }
+
+  static async downloadContract(contractData: any, agencyData: any, clientData: any, propertyData?: any) {
+    let logoBase64 = '';
+    if (agencyData.logo_url) {
+      logoBase64 = await OHADAContractGenerator.fetchImageAsBase64(agencyData.logo_url);
+    }
+    
+    let html = this.getContractHTML(contractData, agencyData, clientData, propertyData);
+    const logoHtml = logoBase64 ? `<img src="${logoBase64}" alt="Logo" class="agency-logo">` : `<div class="agency-name">${agencyData.name.toUpperCase()}</div>`;
+    html = html.replace('{LOGO_PLACEHOLDER}', logoHtml).replace('{WATERMARK_PLACEHOLDER}', '');
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Contrat_${contractData.type}_${clientData.last_name || clientData.lastName}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Permet de régénérer les termes d'un contrat existant selon le nouveau template OHADA
+  static regenerateTerms(contract: any, agency: any, tenant: any, owner: any, property: any): string {
+    if (contract.type === 'location' && tenant) {
+      return this.generateRentalContract(agency, tenant, property, {
+        monthlyRent: contract.monthly_rent,
+        deposit: contract.deposit,
+        duration: contract.duration || 12,
+        startDate: new Date(contract.start_date),
+        charges: contract.charges || 0,
+        isExistingTenant: contract.extra_data?.is_existing_tenant,
+        depositHeldBy: contract.extra_data?.deposit_held_by,
+        billingStartDate: contract.extra_data?.billing_start_date
+      });
+    } else if (contract.type === 'gestion' && owner) {
+      return this.generateManagementContract(agency, owner, contract.commission_rate || 10);
+    }
+    return contract.terms || '';
   }
 }

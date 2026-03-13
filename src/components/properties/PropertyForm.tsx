@@ -14,6 +14,8 @@ import { StandingCalculator } from '../../utils/standingCalculator';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { useQuotaManager } from '../../hooks/useQuotaManager';
+import { QuotaExceededModal } from '../shared/QuotaExceededModal';
 
 interface PropertyFormProps {
   isOpen: boolean;
@@ -57,6 +59,9 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   const [currentStep, setCurrentStep] = useState(1);
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<number | null>(null);
+  
+  const { stats, isEnterprise } = useQuotaManager();
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
 
   useEffect(() => {
     console.log('🔄 PropertyForm MOUNTED');
@@ -192,6 +197,12 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     e.preventDefault();
     if (isSubmitting) return;
     setFormError(undefined);
+
+    // Vérification du quota
+    if (!initialData?.agency_id && !isEnterprise && stats.properties.isReached) {
+      setShowQuotaModal(true);
+      return;
+    }
 
     // Validation des champs essentiels uniquement
     if (!formData.title.trim()) {
@@ -724,7 +735,14 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
             {currentStep < 4 ? (
               <Button
                 type="button"
-                onClick={() => { setFormError(undefined); setCurrentStep(currentStep + 1); }}
+                onClick={() => { 
+                  setFormError(undefined); 
+                  if (currentStep === 1 && !initialData?.agency_id && !isEnterprise && stats.properties.isReached) {
+                    setShowQuotaModal(true);
+                    return;
+                  }
+                  setCurrentStep(currentStep + 1); 
+                }}
                 aria-label="Étape suivante"
               >
                 Suivant
@@ -747,6 +765,13 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
           </div>
         </div>
       </form>
+
+      <QuotaExceededModal 
+        isOpen={showQuotaModal} 
+        onClose={() => setShowQuotaModal(false)} 
+        type="properties" 
+        currentLimit={stats.properties.max} 
+      />
 
       <RoomDetailsForm
         isOpen={showRoomForm}

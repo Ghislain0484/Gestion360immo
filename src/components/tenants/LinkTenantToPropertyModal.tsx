@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
 import { Property, Tenant } from '../../types/db';
 import { toast } from 'react-hot-toast';
+import { OHADAContractGenerator } from '../../utils/contractTemplates';
 
 interface LinkTenantToPropertyModalProps {
     isOpen: boolean;
@@ -32,6 +33,7 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
     const [error, setError] = useState<string | null>(null);
     const [propertyOccupied, setPropertyOccupied] = useState(false);
     const [checkingProperty, setCheckingProperty] = useState(false);
+    const [leaseUsage, setLeaseUsage] = useState<'habitation' | 'professionnel' | 'commercial'>('habitation');
 
     const loadPropertyOptions = useCallback(async (inputValue: string) => {
         if (!user?.agency_id) return [];
@@ -93,25 +95,31 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
                 throw new Error('Ce bien a déjà un locataire actif. Veuillez d\'abord résilier le contrat en cours.');
             }
 
-            const contractPayload = {
-                agency_id: user.agency_id,
-                property_id: selectedProperty.id,
-                owner_id: property.owner_id,
-                tenant_id: tenant.id,
-                type: 'location' as const,
-                status: 'active' as const,
-                start_date: startDate,
-                monthly_rent: parseFloat(monthlyRent),
+            const agency = await dbService.agencies.getById(user.agency_id);
+            if (!agency) throw new Error('Informations agence introuvables.');
+
+            const contractPayloadBase = OHADAContractGenerator.generateRentalContractForTenant(tenant, agency, property, {
+                monthlyRent: parseFloat(monthlyRent),
                 deposit: parseFloat(deposit) || 0,
-                commission_rate: 10,
-                commission_amount: (parseFloat(monthlyRent) * 10) / 100,
-                terms: `Contrat de bail - ${tenant.first_name} ${tenant.last_name} - ${selectedProperty.title}`,
-                documents: [],
+                duration: 12, // Par défaut 12 mois
+                startDate: new Date(startDate),
+                usage: leaseUsage
+            });
+
+            const contractPayload = {
+                ...contractPayloadBase,
+                status: 'active' as const,
+                documents: []
             };
+
             await dbService.contracts.create(contractPayload);
             await dbService.properties.update(selectedProperty.id, { is_available: false });
 
             toast.success(`${tenant.first_name} ${tenant.last_name} rattaché(e) à "${selectedProperty.title}" avec succès !`, { id: toastId });
+            
+            if (confirm('Le contrat a été généré. Voulez-vous l\'imprimer maintenant ?')) {
+                await OHADAContractGenerator.printContract(contractPayload, agency, tenant);
+            }
             onLinked();
             onClose();
         } catch (err: any) {
@@ -193,6 +201,29 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
                         styles={selectStyles}
                         isClearable
                     />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Usage du bail</label>
+                        <select
+                            value={leaseUsage}
+                            onChange={(e) => {
+                                const val = e.target.value as any;
+                                setLeaseUsage(val);
+                                // Ajuster caution si loyer présent
+                                if (monthlyRent) {
+                                    const rent = parseFloat(monthlyRent);
+                                    setDeposit(String(val === 'commercial' ? rent * 3 : rent * 2));
+                                }
+                            }}
+                            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        >
+                            <option value="habitation">Habitation (OHADA)</option>
+                            <option value="professionnel">Professionnel (OHADA)</option>
+                            <option value="commercial">Commercial (AUDCG)</option>
+                        </select>
+                    </div>
                 </div>
 
                 {/* Rental terms — hidden if occupied */}

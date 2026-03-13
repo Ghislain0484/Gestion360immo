@@ -227,6 +227,68 @@ const mandatGestionBody = `
 </section>
 `;
 
+const bailCommercialBody = `
+<section style="font-family: 'Helvetica Neue', Arial, sans-serif; color: #111827; line-height: 1.6;">
+  <header style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #DC2626; padding-bottom:16px; margin-bottom:24px;">
+    <div>
+      <h1 style="font-size:24px; color:#DC2626; margin:0;">Contrat de bail à usage commercial</h1>
+      <p style="margin:4px 0 0; font-size:14px; color:#4B5563;">{{agency.name}} — {{agency.registrationNumber}}</p>
+      <p style="margin:0; font-size:14px; color:#4B5563;">{{agency.fullAddress}} | {{agency.phone}} | {{agency.email}}</p>
+    </div>
+    {{#agency.logoUrl}}
+      <img src="{{agency.logoUrl}}" alt="Logo agence" style="max-height:72px; object-fit:contain;">
+    {{/agency.logoUrl}}
+  </header>
+
+  <article>
+    <h2 style="font-size:18px; color:#DC2626; margin-bottom:12px;">Entre les soussignés</h2>
+    <p><strong>Le Bailleur :</strong> {{agency.name}}, représentant le propriétaire {{owner.fullName}}, domicilié à {{owner.address}}.</p>
+    <p><strong>Le Preneur :</strong> {{tenant.fullName}}, enregistré au RCCM {{tenant.registrationNumber}}, siège social {{tenant.address}}.</p>
+
+    <h3 style="font-size:16px; color:#DC2626; margin-top:24px;">Article 1 - Objet</h3>
+    <p>Location à usage commercial du local situé à {{property.fullAddress}}. Le PRENEUR y exercera l'activité de : {{property.businessActivity}}.</p>
+
+    <h3 style="font-size:16px; color:#DC2626; margin-top:24px;">Article 2 - Cadre Juridique (OHADA)</h3>
+    <p>Le présent bail est régi par les dispositions des articles 101 à 134 de l'Acte Uniforme portant sur le Droit Commercial Général (AUDCG).</p>
+
+    <h3 style="font-size:16px; color:#DC2626; margin-top:24px;">Article 3 - Durée</h3>
+    <p>Durée de {{dates.durationMonths}} mois à compter du {{dates.effectiveDate}}. Le PRENEUR bénéficie d'un droit au renouvellement après deux ans d'exploitation effective (art. 123 AUDCG).</p>
+
+    <h3 style="font-size:16px; color:#DC2626; margin-top:24px;">Article 4 - Loyer et Caution</h3>
+    <ul>
+      <li>Loyer mensuel : <strong>{{financial.monthlyRent}}</strong>.</li>
+      <li>Dépôt de garantie : <strong>{{financial.securityDeposit}}</strong> (correspondant à {{financial.depositMonths}} mois de loyer).</li>
+    </ul>
+
+    <h3 style="font-size:16px; color:#DC2626; margin-top:24px;">Article 5 - Obligations Spécifiques</h3>
+    <ul>
+      <li><strong>Exploitation :</strong> Le local doit rester exploité conformément à sa destination (art. 112 AUDCG).</li>
+      <li><strong>Entretien :</strong> Le preneur assure les réparations locatives. Le bailleur assure les grosses réparations (toiture, murs porteurs).</li>
+    </ul>
+
+    <h3 style="font-size:16px; color:#DC2626; margin-top:24px;">Article 6 - Cession du Bail</h3>
+    <p>Conformément à l'article 118 AUDCG, le preneur peut céder son bail à l'acquéreur de son fonds de commerce sans l'opposition du bailleur, sauf motif légitime.</p>
+
+    <h3 style="font-size:16px; color:#DC2626; margin-top:24px;">Article 7 - Résiliation</h3>
+    <p>En cas d'inexécution d'une clause contractuelle, la résiliation ne peut être prononcée qu'après une mise en demeure par acte d'huissier restée infructueuse pendant un mois (art. 133 AUDCG).</p>
+
+    <footer style="margin-top:32px;">
+      <p>Fait à {{jurisdiction}}, le {{dates.generatedOn}}.</p>
+      <table style="width:100%; margin-top:24px; text-align:center;">
+        <tr>
+          <td><strong>Le Bailleur</strong><br><span style="font-size:12px;">{{agency.name}}</span></td>
+          <td><strong>Le Preneur</strong><br><span style="font-size:12px;">{{tenant.fullName}}</span></td>
+        </tr>
+        <tr>
+          <td style="padding-top:60px;">Signature & Cachet</td>
+          <td style="padding-top:60px;">Signature & Cachet</td>
+        </tr>
+      </table>
+    </footer>
+  </article>
+</section>
+`;
+
 export const DEFAULT_TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
   {
     key: 'gestion',
@@ -318,6 +380,36 @@ export const DEFAULT_TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
       'financial.paymentTerms',
     ],
   },
+  {
+    key: 'bail_commercial',
+    usage: 'professionnel',
+    name: "Contrat de bail commercial OHADA",
+    version: 1,
+    language: 'fr',
+    body: bailCommercialBody.trim(),
+    variables: [
+      'agency.name',
+      'agency.registrationNumber',
+      'agency.fullAddress',
+      'agency.phone',
+      'agency.email',
+      'agency.logoUrl',
+      'owner.fullName',
+      'owner.address',
+      'tenant.fullName',
+      'tenant.registrationNumber',
+      'tenant.address',
+      'property.fullAddress',
+      'property.businessActivity',
+      'dates.effectiveDate',
+      'dates.generatedOn',
+      'dates.durationMonths',
+      'jurisdiction',
+      'financial.monthlyRent',
+      'financial.securityDeposit',
+      'financial.depositMonths',
+    ],
+  },
 ];
 
 const getSafe = (obj: Record<string, any>, path: string): string => {
@@ -332,7 +424,7 @@ const getSafe = (obj: Record<string, any>, path: string): string => {
 
 export const renderTemplateBody = (template: string, context: Record<string, any>): string =>
   template
-    .replace(/\{\{\#([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, inner) => {
+    .replace(/\{\{\#([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, inner) => {
       const value = getSafe(context, key.trim());
       if (!value) return '';
       return inner;
@@ -345,12 +437,18 @@ export const renderTemplateBody = (template: string, context: Record<string, any
 const DEFAULT_MAINTENANCE_THRESHOLD = 50000;
 
 export const buildFinancialTerms = (context: ContractGenerationContext): ContractFinancialTerms => {
-  const terms = context.financialTerms ?? {};
-  const rent = terms.monthlyRent ?? 0;
+  const terms = context.financialTerms || {} as ContractFinancialTerms;
   const isBailHabitation = context.contractType === 'bail_habitation';
-  const advance = terms.advancePayment ?? (isBailHabitation ? rent * 2 : terms.advancePayment ?? 0);
-  const deposit = terms.securityDeposit ?? (isBailHabitation ? rent * 2 : terms.securityDeposit ?? 0);
-  const agencyFees = terms.agencyFees ?? (isBailHabitation ? rent : terms.agencyFees ?? 0);
+  const isBailCommercial = context.contractType === 'bail_commercial';
+  const rent = terms.monthlyRent || 0;
+  
+  // Logic par défaut pour les acomptes/caution
+  const defaultAdvance = isBailHabitation ? rent * 2 : (isBailCommercial ? rent * 3 : 0);
+  const defaultDeposit = isBailHabitation ? rent * 2 : (isBailCommercial ? rent * 3 : 0);
+
+  const advance = terms.advancePayment ?? defaultAdvance;
+  const deposit = terms.securityDeposit ?? defaultDeposit;
+  const agencyFees = terms.agencyFees ?? (isBailHabitation ? rent : (isBailCommercial ? rent * 1.5 : 0));
   const total = advance + deposit + agencyFees;
   const commissionRate =
     typeof terms.commissionRate === 'number'
@@ -426,7 +524,6 @@ export const renderDefaultTemplate = (
     throw new Error(`Template ${templateType} non reconnu`);
   }
 
-  const financial = buildFinancialTerms(context);
   const effectiveDate = context.effectiveDate
     ? format(new Date(context.effectiveDate), 'dd MMMM yyyy', { locale: fr })
     : '';
@@ -434,7 +531,7 @@ export const renderDefaultTemplate = (
     ? format(new Date(context.endDate), 'dd MMMM yyyy', { locale: fr })
     : '';
   const generatedOn = format(new Date(), 'dd MMMM yyyy', { locale: fr });
-
+  const financial = buildFinancialTerms(context);
   const formattedFinancial = formatFinancialTerms(financial, context);
 
   const renderContext = buildTemplateRenderContext(
@@ -486,21 +583,26 @@ export const buildTemplateRenderContext = (
     tenant: {
       fullName: context.tenant ? `${context.tenant.first_name} ${context.tenant.last_name}`.trim() : '',
       address: context.tenant?.address ?? '',
-      registrationNumber: (context.tenant as any)?.registration_number ?? '',
+      registrationNumber: (context.tenant as any)?.registration_number ?? (context.tenant as any)?.id_card_number ?? '',
     },
     property: {
-      description: context.property?.title ?? context.property?.type ?? '',
+      description: context.property?.title ?? context.property?.details?.type ?? '',
       fullAddress: context.property
-        ? `${context.property.location?.address_line ?? ''} ${context.property.location?.commune ?? ''}`.trim()
+        ? `${context.property.location?.quartier ?? ''} ${context.property.location?.commune ?? ''}`.trim()
         : '',
-      usageLabel: context.property?.usage_type === 'professionnel' ? 'professionnel' : 'commercial',
+      usageLabel: (context.property as any)?.usage_type === 'professionnel' ? 'professionnel' : 'commercial',
+      businessActivity: (context.property as any)?.extra_data?.business_activity ?? 'toutes activités commerciales conformes à la loi',
     },
     dates: {
       effectiveDate: dates.effectiveDate,
       endDate: dates.endDate,
       generatedOn: dates.generatedOn,
-      renewalNoticeMonths: context.renewalNoticeMonths ?? (contractType === 'bail_professionnel' ? 6 : 3),
+      renewalNoticeMonths: context.renewalNoticeMonths ?? (contractType === 'bail_habitation' ? 3 : 6),
+      durationMonths: context.metadata?.durationMonths ?? 12,
     },
-    financial: formattedFinancial,
+    financial: {
+      ...formattedFinancial,
+      depositMonths: Math.round((financial?.securityDeposit ?? 0) / (financial?.monthlyRent || 1)),
+    },
   jurisdiction: context.locationJurisdiction ?? 'Abidjan',
   });

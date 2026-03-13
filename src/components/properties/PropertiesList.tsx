@@ -15,6 +15,7 @@ import { generateSlug } from '../../utils/idSystem';
 import debounce from 'lodash/debounce';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { OHADAContractGenerator } from '../../utils/contractTemplates';
 
 export const PropertiesList: React.FC = () => {
   const navigate = useNavigate();
@@ -83,10 +84,40 @@ export const PropertiesList: React.FC = () => {
   const { create: createProperty, loading: creatingLoading } = useSupabaseCreate(
     dbService.properties.create,
     {
-      onSuccess: () => {
+      onSuccess: async (newProperty) => {
         setShowForm(false);
         refetch();
-        // Success message is handled by PropertyForm's internal SuccessModal
+        
+        // GÉNERATION AUTOMATIQUE DU CONTRAT DE GESTION
+        if (newProperty && authAgencyId) {
+          try {
+            toast.loading('Génération du contrat de gestion...', { id: 'mgmt-gen' });
+            const agency = await dbService.agencies.getById(authAgencyId);
+            const owner = await dbService.owners.getById(newProperty.owner_id);
+            
+            if (agency && owner) {
+              const contractPayload = {
+                agency_id: authAgencyId,
+                property_id: newProperty.id,
+                owner_id: newProperty.owner_id,
+                tenant_id: '00000000-0000-0000-0000-000000000000', // Locataire vide pour gestion
+                type: 'gestion' as const,
+                start_date: new Date().toISOString().split('T')[0],
+                commission_rate: 10,
+                commission_amount: 0,
+                status: 'active' as const,
+                terms: OHADAContractGenerator.generateManagementContract(agency, owner, 10),
+                documents: []
+              };
+              
+              await dbService.contracts.create(contractPayload);
+              toast.success('Contrat de gestion généré automatiquement', { id: 'mgmt-gen' });
+            }
+          } catch (err) {
+            console.error('Error generating management contract:', err);
+            toast.error('Erreur lors de la génération du contrat de gestion', { id: 'mgmt-gen' });
+          }
+        }
       },
       onError: (err) => {
         console.error("Property Creation Error:", err);
@@ -107,8 +138,8 @@ export const PropertiesList: React.FC = () => {
       const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       const ns = normalize(searchTerm);
 
-      const statusLabel = isOccupied ? 'occupé' : (isAvailable ? 'disponible' : 'indisponible');
-      const alternateStatusLabel = isOccupied ? 'loué' : (isAvailable ? 'vacant' : '');
+      const statusLabel = isOccupied ? 'occupé' : (isAvailable ? 'vacant' : 'indisponible');
+      const alternateStatusLabel = isOccupied ? 'loué' : (isAvailable ? 'disponible' : '');
 
       const matchesSearch =
         property.title.toLowerCase().includes(s) ||

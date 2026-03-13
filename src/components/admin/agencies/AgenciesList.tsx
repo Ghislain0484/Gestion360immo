@@ -219,7 +219,7 @@ const AgencyCard = React.memo<{
             style={{ animationDelay: `${index * 50}ms` }}
             role="listitem"
         >
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
             <div className="relative p-6">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">

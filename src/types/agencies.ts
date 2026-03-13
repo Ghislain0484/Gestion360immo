@@ -55,6 +55,8 @@ export interface AgencyRegistrationRequest {
   created_at: string; // timestamptz
   director_password?: string | null;
   director_auth_user_id?: string | null; // UUID, FK vers users(id)
+  selected_plan?: PlanType | null;
+  billing_cycle?: 'monthly' | 'yearly' | null;
 }
 
 export interface AgencySubscription extends AgencyEntity {

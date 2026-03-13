@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Clock, Building2, User, Mail, Phone, MapPin } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Building2, User, Mail, Phone, MapPin, Plus } from 'lucide-react';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
@@ -140,27 +140,37 @@ export const RegistrationRequests: React.FC = () => {
                             <div className="p-6">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-4">
-                                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-                                            <Building2 className="h-6 w-6 text-blue-600" />
+                                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 border border-indigo-100 shadow-sm transition-transform group-hover:scale-110">
+                                            <Building2 className="h-7 w-7 text-indigo-600" />
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h4 className="text-lg font-semibold text-slate-900">{request.agency_name}</h4>
+                                            <div className="flex items-center gap-3 mb-1.5">
+                                                <h4 className="text-xl font-bold text-slate-900 tracking-tight">{request.agency_name}</h4>
                                                 {getStatusBadge(request.status)}
                                             </div>
-                                            <p className="text-sm text-slate-500">
-                                                Demande du {new Date(request.created_at).toLocaleDateString('fr-FR')}
-                                            </p>
+                                            <div className="flex items-center gap-4">
+                                                <p className="text-sm font-medium text-slate-400">
+                                                    Demande soumise le {new Date(request.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+                                                </p>
+                                                {request.status === 'pending' && (
+                                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-wider border border-emerald-100 animate-pulse">
+                                                        <Plus className="h-3 w-3" />
+                                                        Offre 2 Mois Gratuits incluse
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="grid md:grid-cols-2 gap-4 mb-4 text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <User className="h-4 w-4 text-gray-400" />
+                                <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 p-6 rounded-3xl bg-slate-50/50 border border-slate-100/50 mb-6 group-hover:bg-white transition-colors duration-300">
+                                    <div className="flex items-start gap-3">
+                                        <div className="p-2 rounded-lg bg-white shadow-sm">
+                                            <User className="h-4 w-4 text-indigo-500" />
+                                        </div>
                                         <div>
-                                            <p className="text-gray-500">Directeur</p>
-                                            <p className="font-medium text-gray-900">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Directeur</p>
+                                            <p className="text-sm font-semibold text-slate-900">
                                                 {request.director_first_name} {request.director_last_name}
                                             </p>
                                         </div>

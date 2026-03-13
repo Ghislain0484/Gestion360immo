@@ -83,6 +83,7 @@ export interface PlatformStats {
   totalProperties: number;
   totalContracts: number;
   totalRevenue: number;
+  todayRevenue: number;
   monthlyGrowth: number;
   subscriptionRevenue: number;
 

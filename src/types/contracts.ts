@@ -90,7 +90,7 @@ export interface DashboardStats {
   occupancyRate: number;
 }
 
-export type ContractTemplateType = 'gestion' | 'bail_habitation' | 'bail_professionnel';
+export type ContractTemplateType = 'gestion' | 'bail_habitation' | 'bail_professionnel' | 'bail_commercial';
 export type ContractLifecycleStatus = 'draft' | 'generated' | 'validated' | 'signed' | 'archived';
 
 export interface ContractTemplate extends AgencyEntity {

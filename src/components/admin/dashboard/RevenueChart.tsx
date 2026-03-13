@@ -67,27 +67,27 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ stats, loading }) =>
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 mb-6">
                     <div className="flex items-center gap-3 mb-2">
                         <DollarSign className="h-6 w-6 text-emerald-600" />
-                        <p className="text-sm font-semibold text-emerald-900">Revenus totaux</p>
+                        <p className="text-sm font-semibold text-emerald-900">Encaissements Réels</p>
                     </div>
                     <p className="text-3xl font-bold text-emerald-900">{formatCurrency(revenueData.total)}</p>
-                    <p className="text-sm text-emerald-700 mt-1">Depuis le lancement de la plateforme</p>
+                    <p className="text-sm text-emerald-700 mt-1">Cash-flow total encaissé</p>
                 </div>
 
                 {/* Statistiques détaillées */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-50 rounded-xl p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                            Abonnements mensuels
+                            Potentiel Mensuel (MRR)
                         </p>
                         <p className="text-lg font-semibold text-slate-900">{formatCurrency(revenueData.subscription)}</p>
-                        <p className="text-xs text-slate-500 mt-1">Revenus récurrents</p>
+                        <p className="text-xs text-slate-500 mt-1">Revenus récurrents prévus</p>
                     </div>
                     <div className="bg-slate-50 rounded-xl p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
                             Moyenne par agence
                         </p>
                         <p className="text-lg font-semibold text-slate-900">{formatCurrency(revenueData.avgPerAgency)}</p>
-                        <p className="text-xs text-slate-500 mt-1">Revenu moyen</p>
+                        <p className="text-xs text-slate-500 mt-1">Facturation moyenne</p>
                     </div>
                 </div>
 

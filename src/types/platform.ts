@@ -39,6 +39,7 @@ export interface PlatformStats {
   subscriptionRevenue: number;
   totalProperties: number;
   totalContracts: number;
+  todayRevenue: number;
 
   pendingRequests: number;
   approvedAgencies: number;
