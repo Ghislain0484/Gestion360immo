@@ -12,6 +12,17 @@ export interface Message extends AgencyEntity {
   is_read: boolean;
   attachments: JsonB;
   created_at: string; // timestamptz
+  sender?: {
+    first_name: string;
+    last_name: string;
+  };
+  receiver?: {
+    first_name: string;
+    last_name: string;
+  };
+  agency?: {
+    name: string;
+  };
 }
 
 export interface Notification extends AgencyEntity {

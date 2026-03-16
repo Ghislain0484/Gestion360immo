@@ -36,7 +36,10 @@ BEGIN
             END as reputation_score
         FROM public.tenants t
         JOIN public.agencies a ON t.agency_id = a.id
-        WHERE (LOWER(t.email) = LOWER(p_search) OR t.phone = p_search)
+        WHERE (LOWER(t.email) = LOWER(p_search) 
+               OR t.phone = p_search 
+               OR LOWER(t.first_name || ' ' || t.last_name) ILIKE '%' || LOWER(p_search) || '%'
+               OR LOWER(t.last_name || ' ' || t.first_name) ILIKE '%' || LOWER(p_search) || '%')
         AND t.agency_id != (SELECT au.agency_id FROM public.agency_users au WHERE au.user_id = auth.uid() LIMIT 1);
         
     ELSIF p_type = 'owner' THEN
@@ -51,7 +54,10 @@ BEGIN
             'Propriétaire' as reputation_score
         FROM public.owners o
         JOIN public.agencies a ON o.agency_id = a.id
-        WHERE (LOWER(o.email) = LOWER(p_search) OR o.phone = p_search)
+        WHERE (LOWER(o.email) = LOWER(p_search) 
+               OR o.phone = p_search 
+               OR LOWER(o.first_name || ' ' || o.last_name) ILIKE '%' || LOWER(p_search) || '%'
+               OR LOWER(o.last_name || ' ' || o.first_name) ILIKE '%' || LOWER(p_search) || '%')
         AND o.agency_id != (SELECT au.agency_id FROM public.agency_users au WHERE au.user_id = auth.uid() LIMIT 1);
     END IF;
 END;
@@ -59,13 +65,39 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.check_tier_reputation_v22(TEXT, TEXT) TO authenticated;
 
--- 2. TABLE DES DEMANDES D'ACCÈS (Optionnel si on utilise messages, mais mieux pour le suivi)
+-- 2. CROSS-AGENCY RLS POLICIES (Access granted if request is approved)
+-- For Tenants
+DROP POLICY IF EXISTS "Agencies can see approved shared tenants" ON public.tenants;
+CREATE POLICY "Agencies can see approved shared tenants"
+    ON public.tenants FOR SELECT
+    USING (
+        id IN (
+            SELECT tier_id FROM public.collaboration_requests 
+            WHERE tier_type = 'tenant' AND status = 'approved'
+            AND requester_agency_id IN (SELECT agency_id FROM public.agency_users WHERE user_id = auth.uid())
+        )
+    );
+
+-- For Owners
+DROP POLICY IF EXISTS "Agencies can see approved shared owners" ON public.owners;
+CREATE POLICY "Agencies can see approved shared owners"
+    ON public.owners FOR SELECT
+    USING (
+        id IN (
+            SELECT tier_id FROM public.collaboration_requests 
+            WHERE tier_type = 'owner' AND status = 'approved'
+            AND requester_agency_id IN (SELECT agency_id FROM public.agency_users WHERE user_id = auth.uid())
+        )
+    );
+
+-- 3. TABLE DES DEMANDES D'ACCÈS
 CREATE TABLE IF NOT EXISTS public.collaboration_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requester_agency_id UUID REFERENCES public.agencies(id),
     target_agency_id UUID REFERENCES public.agencies(id),
     tier_id UUID,
     tier_type TEXT,
+    requester_id UUID REFERENCES public.users(id),
     status TEXT DEFAULT 'pending', -- pending, approved, rejected
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
@@ -74,15 +106,18 @@ CREATE TABLE IF NOT EXISTS public.collaboration_requests (
 -- RLS pour collaboration_requests
 ALTER TABLE public.collaboration_requests ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Agencies can see their own requests" ON public.collaboration_requests;
 CREATE POLICY "Agencies can see their own requests"
     ON public.collaboration_requests FOR SELECT
     USING (requester_agency_id IN (SELECT agency_id FROM public.agency_users WHERE user_id = auth.uid())
        OR target_agency_id IN (SELECT agency_id FROM public.agency_users WHERE user_id = auth.uid()));
 
+DROP POLICY IF EXISTS "Agencies can create requests" ON public.collaboration_requests;
 CREATE POLICY "Agencies can create requests"
     ON public.collaboration_requests FOR INSERT
     WITH CHECK (requester_agency_id IN (SELECT agency_id FROM public.agency_users WHERE user_id = auth.uid()));
 
+DROP POLICY IF EXISTS "Target agency can update status" ON public.collaboration_requests;
 CREATE POLICY "Target agency can update status"
     ON public.collaboration_requests FOR UPDATE
     USING (target_agency_id IN (SELECT agency_id FROM public.agency_users WHERE user_id = auth.uid()));

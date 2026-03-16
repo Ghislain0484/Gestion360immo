@@ -229,6 +229,10 @@ export const normalizeAnnouncement = (a: Partial<Announcement>) => ({
     is_active: a.is_active ?? true,
     expires_at: nilIfEmpty(a.expires_at),
     views: a.views ?? 0,
+    mandate_url: nilIfEmpty(a.mandate_url),
+    mandate_type: nilIfEmpty(a.mandate_type),
+    external_property_ref: nilIfEmpty(a.external_property_ref),
+    photos: a.photos ?? null,
 });
 
 export const normalizeAnnouncementInterest = (ai: Partial<AnnouncementInterest>) => ({

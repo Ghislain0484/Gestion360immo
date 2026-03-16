@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Search, UserCheck, Phone, MapPin, Briefcase, Flag, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare, Shield } from 'lucide-react';
+import { Search, UserCheck, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare, Shield } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
-import { Tenant, Contract, Message, Notification } from '../../types/db';
+import { Tenant, Contract } from '../../types/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
 import { dbService } from '../../lib/supabase';
@@ -14,6 +14,9 @@ import toast from 'react-hot-toast';
 interface TenantHistory extends Tenant {
   agency_name: string;
   contracts: Array<Contract & { property_title: string }>;
+  redacted_name: string;
+  reputation_score: number;
+  contract_count: number;
 }
 
 export const TenantHistorySearch: React.FC = () => {
@@ -27,6 +30,21 @@ export const TenantHistorySearch: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestingAccess, setRequestingAccess] = useState(false);
+  const [myRequests, setMyRequests] = useState<any[]>([]);
+
+  // Charger les demandes déjà faites par cette agence
+  const fetchMyRequests = async () => {
+    if (!authAgencyId) return;
+    const { data } = await supabase
+      .from('collaboration_requests')
+      .select('*')
+      .eq('requester_agency_id', authAgencyId);
+    setMyRequests(data || []);
+  };
+
+  React.useEffect(() => {
+    fetchMyRequests();
+  }, [authAgencyId]);
 
 
 
@@ -39,7 +57,10 @@ export const TenantHistorySearch: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Utiliser le nouveau RPC V22 pour une recherche anonymisée et respectueuse de la vie privée
+      // 1. Charger les dernières demandes pour avoir les statuts à jour
+      await fetchMyRequests();
+
+      // 2. Utiliser le nouveau RPC V22 pour une recherche anonymisée
       const { data, error } = await supabase.rpc('check_tier_reputation_v22', {
         p_search: searchTerm.trim(),
         p_type: 'tenant'
@@ -72,6 +93,7 @@ export const TenantHistorySearch: React.FC = () => {
           target_agency_id: result.agency_id,
           tier_id: result.id,
           tier_type: 'tenant',
+          requester_id: user.id,
           status: 'pending'
         });
 
@@ -99,10 +121,38 @@ export const TenantHistorySearch: React.FC = () => {
 
       toast.success('Demande d\'accès envoyée avec succès !');
       setShowRequestModal(false);
+      await fetchMyRequests(); // Rafraîchir
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setRequestingAccess(false);
+    }
+  };
+
+  const loadFullTenantDetails = async (tenantId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select(`
+          *,
+          agency:agencies(name),
+          contracts(*)
+        `)
+        .eq('id', tenantId)
+        .single();
+
+      if (error) throw error;
+      
+      setSelectedTenant({
+        ...data,
+        agency_name: data.agency?.name
+      });
+      setShowDetails(true);
+    } catch (err: any) {
+      toast.error("Erreur lors de la récupération des détails : " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -260,19 +310,51 @@ export const TenantHistorySearch: React.FC = () => {
                     </div>
                   </div>
 
+
                   <div className="mt-3 pt-3 border-t border-gray-200">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        setSelectedTenant(tenant);
-                        setShowRequestModal(true);
-                      }}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Demander l'accès au dossier
-                    </Button>
+                    {(() => {
+                      const request = myRequests.find(r => r.tier_id === tenant.id);
+                      if (request?.status === 'approved') {
+                        return (
+                          <Button
+                            variant="success"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => loadFullTenantDetails(tenant.id)}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Voir le dossier complet
+                          </Button>
+                        );
+                      }
+                      if (request?.status === 'pending') {
+                        return (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full cursor-not-allowed opacity-70"
+                            disabled
+                          >
+                            <AlertTriangle className="h-4 w-4 mr-2" />
+                            Demande en attente...
+                          </Button>
+                        );
+                      }
+                      return (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            setSelectedTenant(tenant);
+                            setShowRequestModal(true);
+                          }}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Demander l'accès au dossier
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </div>
               </Card>
@@ -348,7 +430,7 @@ export const TenantHistorySearch: React.FC = () => {
                 <h4 className="font-medium text-gray-900 mb-2">Historique des contrats</h4>
                 {selectedTenant.contracts && selectedTenant.contracts.length > 0 ? (
                   <div className="space-y-2">
-                    {selectedTenant.contracts.map((contract, index) => (
+                    {selectedTenant.contracts.map((contract: any, index: number) => (
                       <div key={index} className="p-3 bg-gray-50 rounded-lg text-sm">
                         <p className="font-medium">{contract.property_title}</p>
                         <p className="text-gray-600">

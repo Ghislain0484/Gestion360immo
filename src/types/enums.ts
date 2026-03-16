@@ -1,4 +1,4 @@
-export type AgencyUserRole = 'director' | 'manager' | 'agent';
+export type AgencyUserRole = 'director' | 'manager' | 'agent' | 'cashier';
 export type PlanType = 'basic' | 'premium' | 'enterprise';
 export type SubscriptionStatus = 'trial' | 'active' | 'suspended' | 'cancelled';
 export type MaritalStatus = 'celibataire' | 'marie' | 'divorce' | 'veuf';

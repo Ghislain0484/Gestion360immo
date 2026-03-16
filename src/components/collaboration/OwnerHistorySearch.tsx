@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Search, UserCheck, Phone, MapPin, Briefcase, Flag, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare, Shield, Users } from 'lucide-react';
+import { Search, AlertTriangle, CheckCircle, Building2, MessageSquare, Shield, Users, FileText } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
-import { Owner, Message, Notification } from '../../types/db';
+import { Owner } from '../../types/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
 import { dbService } from '../../lib/supabase';
@@ -14,6 +14,8 @@ import toast from 'react-hot-toast';
 interface OwnerHistory extends Owner {
   agency_name: string;
   properties_count: number;
+  redacted_name: string;
+  contract_count: number;
 }
 
 export const OwnerHistorySearch: React.FC = () => {
@@ -26,6 +28,21 @@ export const OwnerHistorySearch: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestingAccess, setRequestingAccess] = useState(false);
+  const [myRequests, setMyRequests] = useState<any[]>([]);
+
+  // Charger les demandes déjà faites par cette agence
+  const fetchMyRequests = async () => {
+    if (!authAgencyId) return;
+    const { data } = await supabase
+      .from('collaboration_requests')
+      .select('*')
+      .eq('requester_agency_id', authAgencyId);
+    setMyRequests(data || []);
+  };
+
+  React.useEffect(() => {
+    fetchMyRequests();
+  }, [authAgencyId]);
 
 
 
@@ -38,6 +55,10 @@ export const OwnerHistorySearch: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      // 1. Charger les dernières demandes pour avoir les statuts à jour
+      await fetchMyRequests();
+
+      // 2. Utiliser le nouveau RPC V22 pour une recherche anonymisée
       const { data, error } = await supabase.rpc('check_tier_reputation_v22', {
         p_search: searchTerm.trim(),
         p_type: 'owner'
@@ -69,6 +90,7 @@ export const OwnerHistorySearch: React.FC = () => {
           target_agency_id: result.agency_id,
           tier_id: result.id,
           tier_type: 'owner',
+          requester_id: user.id,
           status: 'pending'
         });
 
@@ -95,10 +117,37 @@ export const OwnerHistorySearch: React.FC = () => {
 
       toast.success('Demande d\'accès envoyée !');
       setShowRequestModal(false);
+      await fetchMyRequests();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setRequestingAccess(false);
+    }
+  };
+
+  const loadFullOwnerDetails = async (ownerId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('owners')
+        .select(`
+          *,
+          agency:agencies(name)
+        `)
+        .eq('id', ownerId)
+        .single();
+
+      if (error) throw error;
+      
+      setSelectedOwner({
+        ...data,
+        agency_name: data.agency?.name
+      });
+      setShowDetails(true);
+    } catch (err: any) {
+      toast.error("Erreur lors de la récupération des détails : " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -261,19 +310,51 @@ export const OwnerHistorySearch: React.FC = () => {
                     </div>
                   </div>
 
+
                   <div className="mt-3 pt-3 border-t border-gray-200">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        setSelectedOwner(owner);
-                        setShowRequestModal(true);
-                      }}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Demander l'accès au dossier
-                    </Button>
+                     {(() => {
+                      const request = myRequests.find(r => r.tier_id === owner.id);
+                      if (request?.status === 'approved') {
+                        return (
+                          <Button
+                            variant="success"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => loadFullOwnerDetails(owner.id)}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Voir le dossier complet
+                          </Button>
+                        );
+                      }
+                      if (request?.status === 'pending') {
+                        return (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full cursor-not-allowed opacity-70"
+                            disabled
+                          >
+                            <AlertTriangle className="h-4 w-4 mr-2" />
+                            Demande en attente...
+                          </Button>
+                        );
+                      }
+                      return (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            setSelectedOwner(owner);
+                            setShowRequestModal(true);
+                          }}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Demander l'accès au dossier
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </div>
               </Card>
@@ -384,6 +465,44 @@ export const OwnerHistorySearch: React.FC = () => {
             </div>
           </div>
         )}
+      </Modal>
+      <Modal
+        isOpen={showRequestModal}
+        onClose={() => {
+          setShowRequestModal(false);
+          setSelectedOwner(null);
+        }}
+        title="Demande d'accès aux informations"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
+            <p className="text-sm text-blue-800">
+              Vous allez envoyer une demande de consultation de dossier à l'agence <strong>{selectedOwner?.agency_name}</strong> pour le candidat <strong>{selectedOwner?.redacted_name}</strong>.
+            </p>
+          </div>
+
+          <p className="text-sm text-gray-600">
+            Une fois validée, vous pourrez voir l'historique de paiement complet, les contrats passés et les notes de gestion.
+          </p>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowRequestModal(false)}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={() => handleRequestAccess(selectedOwner)}
+              isLoading={requestingAccess}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Envoyer la demande
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
