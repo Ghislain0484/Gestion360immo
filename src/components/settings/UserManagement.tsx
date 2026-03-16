@@ -55,6 +55,7 @@ export const UserManagement: React.FC = () => {
       tenants: false,
       contracts: false,
       collaboration: false,
+      caisse: false,
       reports: false,
       notifications: true,
       settings: false,
@@ -119,6 +120,7 @@ export const UserManagement: React.FC = () => {
     director: 'Directeur',
     manager: "Chef d'agence",
     agent: 'Agent',
+    cashier: 'Caissière / Caissier',
   };
 
   const permissionLabels: Record<keyof UserPermissions, string> = {
@@ -128,6 +130,7 @@ export const UserManagement: React.FC = () => {
     tenants: 'Locataires',
     contracts: 'Contrats',
     collaboration: 'Collaboration',
+    caisse: 'Caisse & Trésorerie',
     reports: 'Rapports',
     notifications: 'Notifications',
     settings: 'Paramètres',
@@ -441,6 +444,7 @@ export const UserManagement: React.FC = () => {
         tenants: false,
         contracts: false,
         collaboration: false,
+        caisse: false,
         reports: false,
         notifications: true,
         settings: false,
@@ -617,6 +621,7 @@ export const UserManagement: React.FC = () => {
           tenants: true,
           contracts: true,
           collaboration: true,
+          caisse: true,
           reports: true,
           notifications: true,
           settings: true,
@@ -630,6 +635,21 @@ export const UserManagement: React.FC = () => {
           tenants: true,
           contracts: true,
           collaboration: true,
+          caisse: true,
+          reports: true,
+          notifications: true,
+          settings: false,
+          userManagement: false,
+        };
+      case 'cashier':
+        return {
+          dashboard: true,
+          properties: false,
+          owners: false,
+          tenants: false,
+          contracts: false,
+          collaboration: false,
+          caisse: true,
           reports: true,
           notifications: true,
           settings: false,
@@ -643,6 +663,7 @@ export const UserManagement: React.FC = () => {
           tenants: true,
           contracts: false,
           collaboration: false,
+          caisse: false,
           reports: false,
           notifications: true,
           settings: false,
@@ -656,6 +677,7 @@ export const UserManagement: React.FC = () => {
           tenants: false,
           contracts: false,
           collaboration: false,
+          caisse: false,
           reports: false,
           notifications: true,
           settings: false,
@@ -955,6 +977,7 @@ export const UserManagement: React.FC = () => {
             >
               <option value="agent">Agent</option>
               <option value="manager">Chef d'agence</option>
+              <option value="cashier">Caissière / Caissier</option>
             </select>
           </div>
           <div>

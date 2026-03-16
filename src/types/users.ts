@@ -22,6 +22,7 @@ export interface UserPermissions {
   tenants: boolean;
   contracts: boolean;
   collaboration: boolean;
+  caisse: boolean;
   reports: boolean;
   notifications: boolean;
   settings: boolean;
