@@ -176,3 +176,17 @@ The StorageApiError: Bucket not found indicates that the agency-logos bucket doe
     4.2. Renseigner le fichier .env avec ces variables
         - VITE_SUPABASE_URL=
         - VITE_SUPABASE_ANON_KEY=
+
+5. Google Maps (Pour la carte du Dashboard)
+    5.1. Console Google Cloud
+        - Activer la "Maps JavaScript API" sur votre projet.
+        - Créer une clé API dans "Identifiants".
+        - **IMPORTANT : Restreindre la clé** :
+            - Type de restriction : "Référents HTTP (sites Web)".
+            - Ajouter votre domaine de production : `https://votre-domaine.com/*` (ex: `https://gestion360immo.com/*`).
+            - Ajouter également `http://localhost:5173/*` pour le développement local.
+
+    5.2. Variables d'environnement Production (Vercel)
+        - Allez dans les paramètres de votre projet Vercel -> Environment Variables.
+        - Ajoutez la variable `VITE_GOOGLE_MAPS_API_KEY` avec votre clé API comme valeur.
+        - Redéployez l'application pour que la variable soit prise en compte.
