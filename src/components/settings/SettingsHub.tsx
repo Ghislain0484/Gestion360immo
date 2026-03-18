@@ -6,12 +6,17 @@ import { NotificationSettings } from './NotificationSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { DataSettings } from './DataSettings';
 import { UserManagement } from './UserManagement';
+import { SubscriptionSettings } from './SubscriptionSettings';
 import { Card } from '../ui/Card';
 import { useAuth } from '../../contexts/AuthContext';
+import { APP_NAME, IS_STANDALONE } from '../../lib/constants';
 
 export const SettingsHub: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'profile';
+  });
 
   const settingsTabs = [
     { id: 'profile', name: 'Profil', icon: User },
@@ -19,13 +24,18 @@ export const SettingsHub: React.FC = () => {
     { id: 'notifications', name: 'Notifications', icon: Bell },
     { id: 'appearance', name: 'Apparence', icon: Palette },
     { id: 'data', name: 'Données', icon: Database },
-    ...(user?.role === 'director' ? [{ id: 'users', name: 'Utilisateurs', icon: Users }] : [])
+    ...(user?.role === 'director' ? [
+      { id: 'users', name: 'Utilisateurs', icon: Users },
+      ...(!IS_STANDALONE ? [{ id: 'subscription', name: 'Abonnement', icon: Settings }] : [])
+    ] : [])
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Paramètres</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {IS_STANDALONE ? `Paramètres ${APP_NAME}` : 'Paramètres'}
+        </h1>
         <p className="text-gray-600 mt-1">
           Configurez votre compte et vos préférences
         </p>
@@ -62,9 +72,10 @@ export const SettingsHub: React.FC = () => {
           {activeTab === 'appearance' && <AppearanceSettings />}
           {activeTab === 'data' && <DataSettings />}
           {activeTab === 'users' && <UserManagement />}
+          {activeTab === 'subscription' && <SubscriptionSettings />}
 
           {/* Other tabs placeholder */}
-          {!['profile', 'security', 'notifications', 'appearance', 'data', 'users'].includes(activeTab) && (
+          {!['profile', 'security', 'notifications', 'appearance', 'data', 'users', 'subscription'].includes(activeTab) && (
             <Card className="p-8 text-center">
               <Settings className="h-16 w-16 mx-auto mb-4 text-gray-400" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">

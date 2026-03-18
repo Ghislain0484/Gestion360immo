@@ -8,6 +8,7 @@ interface ModalProps {
   title?: React.ReactNode;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  noPadding?: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -16,6 +17,7 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   children,
   size = 'md',
+  noPadding = false,
 }) => {
   useEffect(() => {
     if (isOpen) {
@@ -67,7 +69,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
 
           {/* Content */}
-          <div className="p-6">
+          <div className={cn(!noPadding && "p-6")}>
             {children}
           </div>
         </div>

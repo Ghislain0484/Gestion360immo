@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Building2, TrendingUp, Info, AlertCircle } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
@@ -10,6 +10,7 @@ interface PropertyMapCardProps {
 }
 
 const ABIDJAN_CENTER = { lat: 5.3484, lng: -4.0305 };
+const GOOGLE_MAPS_LIBRARIES: any[] = ["places"];
 
 const COMMUNE_COORDS: Record<string, { lat: number; lng: number; label: string; color: string }> = {
     'cocody': { lat: 5.3484, lng: -3.9897, label: 'Cocody', color: '#6366f1' },
@@ -66,7 +67,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
     const { isLoaded, loadError } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: isApiKeyMissing ? '' : apiKey,
-        libraries: ['places'] as any
+        libraries: GOOGLE_MAPS_LIBRARIES
     });
 
     const activeContractsByProperty = useMemo(() => {

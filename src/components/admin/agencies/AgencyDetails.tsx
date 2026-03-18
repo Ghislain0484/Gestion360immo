@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, MapPin, Phone, Mail, Calendar, Users, Home, FileText, DollarSign, X, Edit, Save } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, Calendar, Users, Home, FileText, DollarSign, X, Edit, Save, CheckCircle, Building } from 'lucide-react';
+import { clsx } from 'clsx';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import { Agency } from '../../../types/db';
-import { dbService } from '../../../lib/supabase';
+import { dbService, supabase } from '../../../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { usePlatformSettings } from '../../../hooks/useAdminQueries';
 
@@ -40,7 +41,31 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
         commercial_register: agency.commercial_register || '',
         plan_type: agency.plan_type || 'basic',
         monthly_fee: agency.monthly_fee || 25000,
+        enabled_modules: agency.enabled_modules || ['base'],
     });
+
+    // Mettre à jour le formulaire si les props changent (ex: après un refresh)
+    useEffect(() => {
+        setFormData({
+            name: agency.name,
+            city: agency.city,
+            phone: agency.phone,
+            email: agency.email,
+            address: agency.address || '',
+            commercial_register: agency.commercial_register || '',
+            plan_type: agency.plan_type || 'basic',
+            monthly_fee: agency.monthly_fee || 25000,
+            enabled_modules: agency.enabled_modules || ['base'],
+        });
+    }, [agency]);
+
+    const availableModules = [
+        { id: 'base', name: 'Gestion Immobilière (Base)', icon: Home, description: 'Module standard de location et vente' },
+        { id: 'hotel', name: 'Gestion Hôtelière', icon: Building, description: 'Chambres et réservations hôtelières' },
+        { id: 'residences', name: 'Résidences Meublées', icon: Building2, description: 'Appartements meublés et courts séjours' },
+        { id: 'collaboration', name: 'Hub Collaboration', icon: Users, description: 'Messagerie et partage inter-agences' },
+        { id: 'internal_mode', name: 'Mode Interne (Privé)', icon: FileText, description: 'Masque les fonctions collaboratives' },
+    ];
 
     useEffect(() => {
         fetchAgencyStats();
@@ -82,7 +107,19 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                 commercial_register: formData.commercial_register,
                 plan_type: formData.plan_type as any,
                 monthly_fee: formData.monthly_fee,
-            });
+                enabled_modules: formData.enabled_modules,
+            } as any);
+
+            // 🔄 Synchroniser avec la table agency_subscriptions
+            await supabase
+                .from('agency_subscriptions')
+                .upsert({
+                    agency_id: agency.id,
+                    plan_type: formData.plan_type as any,
+                    monthly_fee: formData.monthly_fee,
+                    status: 'active',
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'agency_id' });
 
             toast.success('Agence modifiée avec succès');
             setEditMode(false);
@@ -233,8 +270,8 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                                     const plan = e.target.value as 'basic' | 'premium' | 'enterprise';
                                                     const fees = {
                                                         basic: settings?.subscription_basic_price || 25000,
-                                                        premium: settings?.subscription_premium_price || 35000,
-                                                        enterprise: settings?.subscription_enterprise_price || 50000
+                                                        premium: settings?.subscription_premium_price || 50000,
+                                                        enterprise: settings?.subscription_enterprise_price || 100000
                                                     };
                                                     setFormData({
                                                         ...formData,
@@ -245,8 +282,8 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             >
                                                 <option value="basic">Basic ({new Intl.NumberFormat('fr-FR').format(settings?.subscription_basic_price || 25000)} FCFA)</option>
-                                                <option value="premium">Premium ({new Intl.NumberFormat('fr-FR').format(settings?.subscription_premium_price || 35000)} FCFA)</option>
-                                                <option value="enterprise">Enterprise ({new Intl.NumberFormat('fr-FR').format(settings?.subscription_enterprise_price || 50000)} FCFA)</option>
+                                                <option value="premium">Premium ({new Intl.NumberFormat('fr-FR').format(settings?.subscription_premium_price || 50000)} FCFA)</option>
+                                                <option value="enterprise">Enterprise ({new Intl.NumberFormat('fr-FR').format(settings?.subscription_enterprise_price || 100000)} FCFA)</option>
                                             </select>
                                         </div>
                                         <div>
@@ -361,6 +398,59 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                         </div>
                     ) : null}
 
+                    {/* Gestion des Modules */}
+                    <Card>
+                        <div className="p-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                                <Save className="h-5 w-5 text-indigo-500" />
+                                Gestion des Modules Actifs
+                            </h3>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {availableModules.map((module) => {
+                                    const isActive = formData.enabled_modules.includes(module.id);
+                                    return (
+                                        <div 
+                                            key={module.id}
+                                            onClick={() => {
+                                                if (!editMode) return;
+                                                const newModules = isActive
+                                                    ? formData.enabled_modules.filter(m => m !== module.id)
+                                                    : [...formData.enabled_modules, module.id];
+                                                setFormData({ ...formData, enabled_modules: newModules });
+                                            }}
+                                            className={clsx(
+                                                "p-4 rounded-xl border-2 transition-all flex items-start gap-4",
+                                                isActive 
+                                                    ? "border-indigo-500 bg-indigo-50 shadow-sm" 
+                                                    : "border-gray-100 bg-gray-50 opacity-60",
+                                                editMode ? "cursor-pointer hover:border-indigo-300" : "cursor-default"
+                                            )}
+                                        >
+                                            <div className={clsx(
+                                                "p-2 rounded-lg",
+                                                isActive ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-500"
+                                            )}>
+                                                <module.icon size={20} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-bold text-gray-900 leading-none mb-1">{module.name}</p>
+                                                <p className="text-[10px] text-gray-500 font-medium leading-tight">{module.description}</p>
+                                            </div>
+                                            {isActive && <CheckCircle className="h-5 w-5 text-indigo-600" />}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {!editMode && (
+                                <p className="mt-4 text-[10px] text-gray-400 italic">
+                                    Passez en mode édition pour modifier l'activation des modules.
+                                </p>
+                            )}
+                        </div>
+                    </Card>
+
                     {/* Actions */}
                     <div className="flex gap-3 pt-4 border-t">
                         {editMode ? (
@@ -378,6 +468,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                             commercial_register: agency.commercial_register || '',
                                             plan_type: agency.plan_type || 'basic',
                                             monthly_fee: agency.monthly_fee || 25000,
+                                            enabled_modules: agency.enabled_modules || ['base'],
                                         });
                                     }}
                                     className="flex-1"

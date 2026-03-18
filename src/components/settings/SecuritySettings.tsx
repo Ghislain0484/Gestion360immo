@@ -4,37 +4,35 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
 export const SecuritySettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
+  const { updatePassword } = useAuth();
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('Les mots de passe ne correspondent pas');
+      toast.error('Les mots de passe ne correspondent pas');
       return;
     }
 
     if (passwordData.newPassword.length < 8) {
-      alert('Le mot de passe doit contenir au moins 8 caractères');
+      toast.error('Le mot de passe doit contenir au moins 8 caractères');
       return;
     }
 
     setLoading(true);
     try {
-      // Update password logic here
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      alert('Mot de passe mis à jour avec succès !');
+      await updatePassword(passwordData.currentPassword, passwordData.newPassword);
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      // On ne redirige pas, on laisse l'utilisateur sur la page
     } catch (error) {
-      alert('Erreur lors de la mise à jour du mot de passe');
+      // L'erreur est déjà gérée par le toast dans AuthContext
+      console.error('Erreur handlePasswordChange:', error);
     } finally {
       setLoading(false);
     }

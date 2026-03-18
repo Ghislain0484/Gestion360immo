@@ -287,6 +287,7 @@ export const usePlatformSettings = () => {
                 subscription_basic_price: Number(settingsMap['subscription_basic_price']) || 25000,
                 subscription_premium_price: Number(settingsMap['subscription_premium_price']) || 50000,
                 subscription_enterprise_price: Number(settingsMap['subscription_enterprise_price']) || 100000,
+                subscription_grace_period_days: Number(settingsMap['subscription_grace_period_days']) || 7,
                 ...settingsMap,
             };
         },
@@ -328,7 +329,7 @@ export const useUpdatePlatformSetting = () => {
 
             return { settingKey, settingValue };
         },
-        onSuccess: (data) => {
+        onSuccess: () => {
             toast.success('Paramètre mis à jour avec succès');
             queryClient.invalidateQueries({ queryKey: ['platform-settings'] });
         },

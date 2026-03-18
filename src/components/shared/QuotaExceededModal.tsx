@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, Zap, X } from 'lucide-react';
+import { ShieldAlert, Zap } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 
@@ -63,7 +63,7 @@ export const QuotaExceededModal: React.FC<QuotaExceededModalProps> = ({
                         variant="primary" 
                         className="w-full py-4 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-600/20"
                         onClick={() => {
-                            // Redirection vers la page d'abonnement ou contact admin
+                            // Redirection vers l'onglet abonnement dans les paramètres
                             window.location.href = '/settings?tab=subscription';
                         }}
                     >

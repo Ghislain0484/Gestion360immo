@@ -16,6 +16,7 @@ export interface AgencyInfo {
   name: string;
   city: string;
   logo_url?: string | null;
+  enabled_modules?: string[];
 }
 
 export interface AuthUser extends User {
@@ -32,9 +33,11 @@ interface AuthContextType {
   isLoading: boolean;
   agencyId: string | null;
   agencies: AgencyInfo[];
-  switchAgency: (agencyId: string | null) => void;
+  switchAgency: (agencyId: string | null) => void; // Keep original type for now, instruction's diff was problematic
+  refreshAuth: () => Promise<void>; // Added as per instruction
   login: (email: string, password: string) => Promise<void>;
   loginAdmin: (email: string, password: string) => Promise<PlatformAdmin>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -84,12 +87,12 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
 
     const agencyIds = rawAgencyUsers.map((au: any) => au.agency_id).filter(Boolean);
 
-    // 3. Charger les infos des agences (nom, ville) pour le sélecteur
+    // 3. Charger les infos des agences (nom, ville, modules) pour le sélecteur
     let agenciesInfo: AgencyInfo[] = [];
     if (agencyIds.length > 0) {
       const { data: agenciesData, error: agenciesError } = await supabase
         .from('agencies')
-        .select('id, name, city, logo_url')
+        .select('id, name, city, logo_url, enabled_modules')
         .in('id', agencyIds);
 
       if (!agenciesError && agenciesData) {
@@ -103,6 +106,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
               name: agencyDetails.name,
               city: agencyDetails.city,
               logo_url: agencyDetails.logo_url,
+              enabled_modules: agencyDetails.enabled_modules || ['base'],
             };
           })
           .filter(Boolean) as AgencyInfo[];
@@ -115,7 +119,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
       console.warn('⚠️ AuthContext: agency_users vide, tentative via agencies.director_id...');
       const { data: directorAgencies, error: directorError } = await supabase
         .from('agencies')
-        .select('id, name, city, logo_url')
+        .select('id, name, city, logo_url, enabled_modules') // Ajout de enabled_modules ici aussi
         .eq('director_id', userId)
         .eq('status', 'approved');
 
@@ -126,6 +130,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
           name: a.name,
           city: a.city,
           logo_url: a.logo_url,
+          enabled_modules: a.enabled_modules || ['base'], // Fallback module
         }));
         console.log('✅ AuthContext: Agences trouvées via director_id:', agenciesInfo.length);
 
@@ -349,6 +354,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('🔄 AuthContext: Agence active changée vers:', newAgencyId);
   }, [user]);
 
+  const refreshAuth = useCallback(async () => {
+    console.log('🔄 AuthContext: refreshAuth');
+    await checkSession();
+  }, [checkSession]);
+
   const login = useCallback(async (email: string, password: string) => {
     console.log('🔄 AuthContext: login', { email });
     setIsLoading(true);
@@ -451,6 +461,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const updatePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    console.log('🔄 AuthContext: updatePassword');
+    setIsLoading(true);
+    try {
+      // 1. Vérifier le mot de passe actuel en tentant une ré-authentification silencieuse
+      const { data: sessionData } = await supabase.auth.getSession();
+      const email = sessionData.session?.user?.email;
+
+      if (!email) throw new Error('Utilisateur non identifié');
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        throw new Error('Mot de passe actuel incorrect');
+      }
+
+      // 2. Mettre à jour le mot de passe
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) throw updateError;
+
+      toast.success('Mot de passe mis à jour avec succès');
+    } catch (err: any) {
+      console.error('❌ AuthContext: Erreur updatePassword:', err);
+      toast.error(err.message || 'Erreur lors de la mise à jour du mot de passe');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     console.log('🔄 AuthContext: logout');
     setIsLoading(true);
@@ -486,11 +532,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       agencyId: resolvedAgencyId,
       agencies: user?.agencies ?? [],
       switchAgency,
+      refreshAuth, // Added as per instruction
       login,
       loginAdmin,
+      updatePassword,
       logout,
     }),
-    [user, admin, isLoading, resolvedAgencyId, switchAgency, login, loginAdmin, logout]
+    [user, admin, isLoading, resolvedAgencyId, switchAgency, refreshAuth, login, loginAdmin, updatePassword, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealtimeData } from './useSupabaseData';
 import { dbService } from '../lib/supabase';
+import { usePlatformSettings } from './useAdminQueries';
 
 export interface QuotaConfig {
     maxProperties: number;
@@ -17,15 +18,27 @@ const QUOTAS: Record<string, QuotaConfig> = {
 
 export const useQuotaManager = () => {
     const { agencyId } = useAuth();
+    const { data: settings } = usePlatformSettings();
+    const [agencyStatus, setAgencyStatus] = useState<string>('active');
     const [agencyPlan, setAgencyPlan] = useState<string>('basic');
+    const [isInternalMode, setIsInternalMode] = useState<boolean>(false);
+    const [subscription, setSubscription] = useState<any>(null);
 
-    // Récupérer les détails de l'agence pour le plan
+    // Récupérer les détails de l'agence pour le plan et les modules
     useEffect(() => {
         if (agencyId) {
             dbService.agencies.getById(agencyId).then(agency => {
+                if (agency?.subscription_status) {
+                    setAgencyStatus(agency.subscription_status);
+                }
                 if (agency?.plan_type) {
                     setAgencyPlan(agency.plan_type.toLowerCase());
                 }
+                if (agency?.enabled_modules?.includes('internal_mode')) {
+                    setIsInternalMode(true);
+                }
+                // Subscription is joined in getById
+                setSubscription((agency as any).subscription);
             });
         }
     }, [agencyId]);
@@ -35,27 +48,55 @@ export const useQuotaManager = () => {
     const { data: tenants } = useRealtimeData(dbService.tenants.getAll, 'tenants', { agency_id: agencyId || '' });
     const { data: users } = useRealtimeData(dbService.users.getAll, 'users_profiles', { agency_id: agencyId || '' });
 
-    const config = QUOTAS[agencyPlan] || QUOTAS.basic;
+    const config = isInternalMode ? QUOTAS.enterprise : (QUOTAS[agencyPlan] || QUOTAS.basic);
+
+    // Logic pour la période de grâce
+    const gracePeriodDaysRemaining = useMemo(() => {
+        if (!subscription || agencyStatus !== 'active') return 0;
+        
+        const nextPayment = new Date(subscription.next_payment_date);
+        const today = new Date();
+        
+        if (today <= nextPayment) return 0; // Pas encore en retard
+        
+        const graceDaysAllowed = (settings as any)?.subscription_grace_period_days || 7;
+        const diffTime = Math.abs(today.getTime() - nextPayment.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return Math.max(0, graceDaysAllowed - diffDays);
+    }, [subscription, agencyStatus, settings]);
 
     const stats = useMemo(() => ({
         properties: {
             current: properties?.length || 0,
             max: config.maxProperties,
-            isReached: (properties?.length || 0) >= config.maxProperties
+            isReached: !isInternalMode && (properties?.length || 0) >= config.maxProperties,
+            isNear: !isInternalMode && (properties?.length || 0) >= config.maxProperties * 0.8
         },
         tenants: {
             current: tenants?.length || 0,
             max: config.maxTenants,
-            isReached: (tenants?.length || 0) >= config.maxTenants
+            isReached: !isInternalMode && (tenants?.length || 0) >= config.maxTenants,
+            isNear: !isInternalMode && (tenants?.length || 0) >= config.maxTenants * 0.8
         },
         users: {
             current: users?.length || 0,
             max: config.maxUsers,
-            isReached: (users?.length || 0) >= config.maxUsers
+            isReached: !isInternalMode && (users?.length || 0) >= config.maxUsers,
+            isNear: !isInternalMode && (users?.length || 0) >= config.maxUsers * 0.8
         }
-    }), [properties, tenants, users, config]);
+    }), [properties, tenants, users, config, isInternalMode]);
+
+    const isOverLimit = useMemo(() => 
+        stats.properties.isReached || stats.tenants.isReached || stats.users.isReached
+    , [stats]);
+
+    const isNearLimit = useMemo(() => 
+        stats.properties.isNear || stats.tenants.isNear || stats.users.isNear
+    , [stats]);
 
     const checkQuota = (type: 'properties' | 'tenants' | 'users') => {
+        if (isInternalMode) return true;
         return !stats[type].isReached;
     };
 
@@ -63,6 +104,11 @@ export const useQuotaManager = () => {
         stats,
         checkQuota,
         plan: agencyPlan,
-        isEnterprise: agencyPlan === 'enterprise'
+        status: agencyStatus,
+        isEnterprise: agencyPlan === 'enterprise',
+        isOverLimit,
+        isNearLimit,
+        gracePeriodDaysRemaining,
+        subscription
     };
 };

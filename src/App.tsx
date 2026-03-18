@@ -25,6 +25,8 @@ import { CaissePage } from './components/caisse/CaissePage';
 import { TicketsPage } from './components/tickets/TicketsPage';
 import { InventoryList } from './components/inventory/InventoryList';
 import { AgencyPicker } from './components/layout/AgencyPicker';
+import { HotelDashboard } from './components/hotel/HotelDashboard';
+import { ResidencesDashboard } from './components/residences/ResidencesDashboard';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -85,6 +87,26 @@ const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children
   return <>{children}</>;
 };
 
+import { APP_NAME, IS_STANDALONE, APP_EDITION } from './lib/constants';
+
+// Guard for modular features
+const ModuleGuard: React.FC<{ children: React.ReactNode; module: string }> = ({ children, module }) => {
+  const { agencies, agencyId } = useAuth();
+  const currentAgency = agencies.find(a => a.agency_id === agencyId);
+  const enabledModules = IS_STANDALONE 
+    ? ['base', 'hotel', 'residences', 'collaboration'] 
+    : (currentAgency?.enabled_modules || ['base']);
+
+  const isEditionAllowed = APP_EDITION === 'full' || (module !== 'hotel' && module !== 'residences');
+  const isModuleEnabled = enabledModules.includes(module);
+
+  if (!isEditionAllowed || !isModuleEnabled) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const AppContent: React.FC = () => {
   const { user, admin } = useAuth();
 
@@ -124,10 +146,23 @@ const AppContent: React.FC = () => {
           <Route path="/travaux" element={<TicketsPage />} />
           <Route path="/caisse" element={<CaissePage />} />
           <Route path="/contrats" element={<ContractsList />} />
-          <Route path="/collaboration" element={<CollaborationHub />} />
+          <Route 
+            path="/collaboration" 
+            element={<ModuleGuard module="collaboration"><CollaborationHub /></ModuleGuard>} 
+          />
           <Route path="/rapports" element={<ReportsHub />} />
           <Route path="/notifications" element={<NotificationsCenter />} />
           <Route path="/parametres" element={<SettingsHub />} />
+          
+          {/* Modular Routes */}
+          <Route 
+            path="/hotel" 
+            element={<ModuleGuard module="hotel"><HotelDashboard /></ModuleGuard>} 
+          />
+          <Route 
+            path="/residences" 
+            element={<ModuleGuard module="residences"><ResidencesDashboard /></ModuleGuard>} 
+          />
 
           {/* Legacy Routes Redirects or Aliases */}
           <Route path="/owners" element={<Navigate to="/proprietaires" replace />} />

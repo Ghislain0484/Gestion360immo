@@ -29,6 +29,7 @@ import { systemAlertsService } from './db/systemAlertsService';
 import { notificationsService } from './db/notificationsService';
 import { notificationSettingsService } from './db/notificationSettingsService';
 import { inventoriesService } from './db/inventoriesService';
+import { modularService } from './db/modularService';
 import { MonthlyRevenueItem, RentReceiptSummary } from '../types/contracts';
 
 export const dbService = {
@@ -203,4 +204,5 @@ export const dbService = {
   notificationSettings: notificationSettingsService,
   systemAlerts: systemAlertsService,
   inventories: inventoriesService,
+  modular: modularService,
 };

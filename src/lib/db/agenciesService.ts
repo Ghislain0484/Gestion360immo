@@ -11,7 +11,7 @@ export const agenciesService = {
   async getAll({ agency_id }: GetAllParams = {}): Promise<Agency[]> {
     let query = supabase
       .from('agencies')
-      .select('*')
+      .select('*, subscription:agency_subscriptions(*)')
       .order('created_at', { ascending: false });
 
     if (agency_id) {
@@ -20,12 +20,16 @@ export const agenciesService = {
 
     const { data, error } = await query;
     if (error) throw new Error(formatSbError('❌ agencies.select', error));
-    return data ?? [];
+    return (data as any) ?? [];
   },
   async getById(id: string): Promise<Agency | null> {
-    const { data, error } = await supabase.from('agencies').select('*').eq('id', id).maybeSingle();
+    const { data, error } = await supabase
+      .from('agencies')
+      .select('*, subscription:agency_subscriptions(*)')
+      .eq('id', id)
+      .maybeSingle();
     if (error) throw new Error(formatSbError('❌ agencies.select (by id)', error));
-    return data;
+    return data as any;
   },
   async create(agency: Partial<Agency>): Promise<Agency> {
     const clean = normalizeAgency(agency);

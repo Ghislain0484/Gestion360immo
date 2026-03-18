@@ -27,7 +27,7 @@ Informations de connexion :
 
 Veuillez vous connecter et changer votre mot de passe lors de votre première connexion.
 
-URL de connexion : https://gestion360immo.com
+URL de connexion : ${window.location.origin}
 
 Cordialement,
 L'équipe {agencyName}
