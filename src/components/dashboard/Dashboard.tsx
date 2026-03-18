@@ -12,6 +12,7 @@ import {
   Printer,
   Download
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { printReceiptHTML, downloadReceiptPDF } from '../../utils/receiptActions';
 import { StatsCard } from './StatsCard';
@@ -579,28 +580,26 @@ export const Dashboard: React.FC = () => {
         label: 'Contrats actifs',
         value: (dashboardStats.activeContracts || dashboardStats.totalContracts || 0).toLocaleString('fr-FR'),
         accent: 'bg-indigo-100/70 text-indigo-600',
-        icon: FileText,
+      icon: FileText,
       },
     ];
   }, [dashboardStats]);
 
   const showSpotlightSkeleton = statsLoading && !dashboardStats;
   return (
-    <div className="relative min-h-screen bg-slate-100">
+    <div className="relative min-h-screen">
+      {/* Decorative ambient blobs */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-[320px] bg-gradient-to-br from-sky-50 via-white to-emerald-100"
+        className="pointer-events-none absolute -top-24 right-12 h-96 w-96 rounded-full bg-primary-500/10 blur-[120px] animate-pulse"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute -top-24 right-12 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute left-10 top-72 h-64 w-64 rounded-full bg-emerald-200/40 blur-3xl"
+        className="pointer-events-none absolute left-10 top-72 h-80 w-80 rounded-full bg-emerald-500/10 blur-[100px] animate-pulse"
+        style={{ animationDelay: '2s' }}
         aria-hidden="true"
       />
 
-      <div className="relative z-10 mx-auto max-w-7xl space-y-10 px-4 pb-16 pt-12 sm:px-6 lg:px-8">
+      <div className="relative z-10 mx-auto max-w-[1700px] space-y-10 px-4 pb-16 pt-8 sm:px-6 lg:px-10">
         {error && (
           <Card className="border border-rose-200 bg-rose-50/90 text-rose-700 shadow-lg" role="alert">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -620,85 +619,92 @@ export const Dashboard: React.FC = () => {
           </Card>
         )}
 
-        <div className="grid items-stretch gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-          <Card className="relative overflow-hidden border-none bg-white/85 backdrop-blur-xl shadow-2xl shadow-slate-200/60">
-            <div
-              className="pointer-events-none absolute -top-24 -right-28 h-72 w-72 rounded-full bg-sky-200/50 blur-3xl"
-              aria-hidden="true"
-            />
-            <div
-              className="pointer-events-none absolute -bottom-32 left-10 h-80 w-80 rounded-full bg-emerald-200/40 blur-3xl"
-              aria-hidden="true"
-            />
-            <div className="relative flex flex-col gap-8">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <Badge variant="info" className="text-xs uppercase tracking-wide">
-                    Espace agence
+        <div className="grid items-stretch gap-8 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="card-glass relative overflow-hidden p-8 sm:p-10 border-none shadow-premium"
+          >
+            <div className="relative flex flex-col gap-10">
+              <div className="flex flex-wrap items-center justify-between gap-6">
+                <div className="flex-1 min-w-[300px]">
+                  <Badge variant="primary" className="bg-primary-600/10 text-primary-600 border-none font-bold tracking-[0.2em] px-4 py-1.5 rounded-full mb-6">
+                    Tableau de Bord
                   </Badge>
-                  <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-                    Bonjour, {greetingName}
+                  <h1 className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                    Ravi de vous revoir, <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-600">{greetingName}</span>
                   </h1>
-                  <p className="mt-3 max-w-xl text-base text-slate-600">
-                    Pilotez vos performances en un coup d'oeil et enchainez vos actions prioritaires avec serenite.
+                  <p className="mt-4 max-w-xl text-lg text-slate-500 font-medium leading-relaxed">
+                    Tout semble optimal aujourd'hui. Voici un aperçu de l'activité de votre agence.
                   </p>
                 </div>
-                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                  <Button size="lg" onClick={() => navigate('/contracts')} className="shadow-md shadow-blue-500/20">
-                    <FileText className="mr-2 h-5 w-5" />
-                    Creer un contrat
+                <div className="flex flex-wrap gap-3 self-start">
+                  <Button size="lg" onClick={() => navigate('/contracts')} className="btn-premium">
+                    <FileText className="h-5 w-5" />
+                    Nouveau Contrat
                   </Button>
                   <Button
                     variant="outline"
                     size="lg"
                     onClick={() => navigate('/reports')}
-                    className="border-slate-200 text-slate-700 hover:bg-slate-100"
+                    className="rounded-xl border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all px-8"
                   >
-                    Vue analytique
+                    Statistiques
                   </Button>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-6 sm:grid-cols-3">
                 {showSpotlightSkeleton
                   ? Array.from({ length: 3 }).map((_, index) => (
-                    <div key={index} className="h-24 animate-pulse rounded-2xl bg-white/70 shadow-inner" />
+                    <div key={index} className="h-28 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
                   ))
-                  : spotlightMetrics.map(({ label, value, accent, icon: Icon }) => (
-                    <div
+                  : spotlightMetrics.map(({ label, value, accent, icon: Icon }, idx) => (
+                    <motion.div
                       key={label}
-                      className="rounded-2xl border border-white/60 bg-white/70 px-4 py-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-md transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:bg-white/90"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 + idx * 0.1 }}
+                      className="group p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
                     >
                       <div className="flex items-center gap-4">
-                        <span className={clsx('flex h-12 w-12 items-center justify-center rounded-2xl shadow-inner transition-transform duration-300 group-hover:scale-110', accent)}>
+                        <div className={clsx('flex h-12 w-12 items-center justify-center rounded-xl shadow-inner transition-transform duration-500 group-hover:rotate-6', accent)}>
                           <Icon className="h-6 w-6" />
-                        </span>
+                        </div>
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-500">{label}</p>
-                          <p className="text-2xl font-bold tracking-tight text-slate-900">{value}</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+                          <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{value}</p>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
               </div>
             </div>
-          </Card>
+          </motion.div>
 
-          <BibleVerseCard
-            compact
-            showRefresh
-            className="h-full border-none bg-white/85 backdrop-blur-xl shadow-2xl shadow-slate-200/60"
-          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="h-full"
+          >
+            <BibleVerseCard
+              compact
+              showRefresh
+              className="h-full card-glass border-none shadow-premium transition-transform hover:scale-[1.01]"
+            />
+          </motion.div>
         </div>
 
         <section className="space-y-6">
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {statsLoading && !stats.length
               ? Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-32 animate-pulse rounded-2xl bg-white/70 shadow-inner" />
+                <div key={index} className="h-32 animate-pulse rounded-3xl bg-slate-100 dark:bg-slate-800" />
               ))
               : stats.length > 0
-                ? stats.map((stat) => <StatsCard key={stat.title} {...stat} />)
+                ? stats.map((stat, idx) => <StatsCard key={stat.title} index={idx} {...stat} />)
                 : (
                   <Card className="md:col-span-2 xl:col-span-4 border border-dashed border-slate-200 text-center text-slate-500">
                     Aucune statistique disponible pour le moment.

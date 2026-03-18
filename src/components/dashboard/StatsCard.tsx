@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { LucideIcon } from 'lucide-react';
-import { Card } from '../ui/Card';
+import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
 interface StatsCardProps {
@@ -12,6 +12,7 @@ interface StatsCardProps {
     isPositive: boolean;
   };
   color?: 'blue' | 'green' | 'yellow' | 'red';
+  index?: number;
 }
 
 export const StatsCard: React.FC<StatsCardProps> = ({
@@ -20,67 +21,63 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   icon: Icon,
   trend,
   color = 'blue',
+  index = 0,
 }) => {
-  const validColors = ['blue', 'green', 'yellow', 'red'] as const;
-  if (!validColors.includes(color)) {
-    console.warn(`Invalid color "${color}" provided to StatsCard. Using default "blue".`);
-  }
+  const colorConfig = {
+    blue: { bg: 'bg-blue-500', shadow: 'shadow-glow-primary', text: 'text-blue-600' },
+    green: { bg: 'bg-emerald-500', shadow: 'shadow-glow-success', text: 'text-emerald-600' },
+    yellow: { bg: 'bg-amber-500', shadow: 'shadow-amber-500/20', text: 'text-amber-600' },
+    red: { bg: 'bg-rose-500', shadow: 'shadow-rose-500/20', text: 'text-rose-600' },
+  };
 
-  const colorClasses = useMemo(() => ({
-    blue: 'bg-blue-500',
-    green: 'bg-green-500',
-    yellow: 'bg-yellow-500',
-    red: 'bg-red-500',
-  }), []);
-
-  const formattedValue = value ?? 'N/A';
+  const config = colorConfig[color] || colorConfig.blue;
 
   return (
-    <Card
-      className="relative overflow-hidden hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-gray-50"
-      role="region"
-      aria-label={`Carte de statistique: ${title}`}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      whileHover={{ y: -5, scale: 1.02 }}
+      className="card-glass p-6 group cursor-default"
     >
-      <div className="flex items-center">
-        <div className="flex-shrink-0">
-          <div
-            className={clsx(
-              'inline-flex items-center justify-center p-3 rounded-xl shadow-lg',
-              colorClasses[color] || colorClasses.blue
-            )}
-            aria-hidden="true"
-          >
-            <Icon className="h-6 w-6 text-white" />
-          </div>
+      <div className="flex items-center gap-5">
+        <div 
+          className={clsx(
+            "p-4 rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110 group-hover:rotate-3 duration-500",
+            config.bg,
+            config.shadow
+          )}
+        >
+          <Icon className="w-6 h-6" />
         </div>
-
-        <div className="ml-5 w-0 flex-1">
-          <dl>
-            <dt className="text-sm font-medium text-gray-500 truncate">
-              {title}
-            </dt>
-            <dd className="text-lg font-semibold text-gray-900">
-              {formattedValue}
-            </dd>
-          </dl>
+        
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-500 transition-colors">
+            {title}
+          </p>
+          <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+            {value ?? '0'}
+          </h3>
         </div>
       </div>
 
       {trend && (
-        <div className="mt-4" aria-describedby={`trend-${title}`}>
-          <div className="flex items-center text-sm">
-            <span
-              className={clsx(
-                'flex items-center',
-                trend.isPositive ? 'text-green-600' : 'text-red-600'
-              )}
-            >
-              {trend.isPositive ? '↗' : '↘'} {Math.abs(trend.value)}%
-            </span>
-            <span className="ml-2 text-gray-500">vs mois précédent</span>
+        <div className="mt-4 flex items-center gap-2">
+          <div className={clsx(
+            "flex items-center gap-1 text-sm font-bold px-2 py-0.5 rounded-full backdrop-blur-md",
+            trend.isPositive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"
+          )}>
+            {trend.isPositive ? '↗' : '↘'} {Math.abs(trend.value)}%
           </div>
+          <span className="text-xs text-slate-400 font-medium italic">vs mois dernier</span>
         </div>
       )}
-    </Card>
+
+      {/* Subtle background decoration */}
+      <div className={clsx(
+        "absolute -right-4 -bottom-4 w-24 h-24 rounded-full opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-700",
+        config.bg
+      )} />
+    </motion.div>
   );
-};
+};

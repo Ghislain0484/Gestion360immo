@@ -70,6 +70,7 @@ export const normalizeAgency = (a: Partial<Agency>) => {
     if (a.subscription_status !== undefined) result.subscription_status = a.subscription_status;
     if (a.plan_type !== undefined) result.plan_type = a.plan_type;
     if (a.monthly_fee !== undefined) result.monthly_fee = a.monthly_fee;
+    if (a.enabled_modules !== undefined) result.enabled_modules = a.enabled_modules || ['base'];
 
     return result;
 };

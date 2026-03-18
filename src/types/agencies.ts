@@ -21,6 +21,7 @@ export interface Agency extends AgencyEntity {
   subscription_status?: SubscriptionStatus | null;
   plan_type?: PlanType | null;
   monthly_fee?: number | null;
+  enabled_modules?: string[] | null;
 }
 
 export interface AgencyFormData {

@@ -9,17 +9,18 @@ import {
   Building,
   LogOut,
   Users,
-  FileText,
   BarChart3,
   Bell,
-  ClipboardCheck,
   ChevronDown,
   Sun,
-  Moon
+  Moon,
+  ClipboardCheck,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { clsx } from 'clsx';
 import toast from 'react-hot-toast';
+import { APP_NAME, IS_STANDALONE, FORCED_STANDALONE_MODULES, APP_EDITION } from '../../lib/constants';
 
 export const Navbar: React.FC = () => {
   const { pathname } = useLocation();
@@ -53,6 +54,18 @@ export const Navbar: React.FC = () => {
     toast.success(newMode ? '🌙 Mode sombre activé' : '☀️ Mode clair activé');
   };
 
+  const rawModules = IS_STANDALONE 
+    ? FORCED_STANDALONE_MODULES 
+    : (currentAgency?.enabled_modules || ['base']);
+
+  // Filtrage selon l'édition de l'application
+  const enabledModules = rawModules.filter(mod => {
+    if (APP_EDITION === 'standard' && (mod === 'hotel' || mod === 'residences')) {
+      return false;
+    }
+    return true;
+  });
+
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Caisse', href: '/caisse', icon: Wallet },
@@ -61,13 +74,16 @@ export const Navbar: React.FC = () => {
     { name: 'Locataires', href: '/locataires', icon: Key },
     { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck },
     { name: 'Contrats', href: '/contrats', icon: FileText },
+    ...(enabledModules.includes('hotel') ? [{ name: 'Hôtel', href: '/hotel', icon: Building }] : []),
+    ...(enabledModules.includes('residences') ? [{ name: 'Résidences', href: '/residences', icon: Building2 }] : []),
   ];
 
   const moreNavigation = [
-    { name: 'Collaboration', href: '/collaboration', icon: Users },
+    ...(enabledModules.includes('collaboration') && !enabledModules.includes('internal_mode') 
+      ? [{ name: 'Collaboration', href: '/collaboration', icon: Users }] 
+      : []),
     { name: 'Rapports', href: '/rapports', icon: BarChart3 },
-    { name: 'Notifications', href: '/notifications', icon: Bell },
-    { name: 'Paramètres', href: '/parametres', icon: Settings },
+    ...(!IS_STANDALONE ? [{ name: 'Paramètres', href: '/parametres', icon: Settings }] : [{ name: 'Application', href: '/parametres', icon: Settings }]),
   ];
 
   const isActiveLink = (path: string) => {
@@ -100,8 +116,8 @@ export const Navbar: React.FC = () => {
   }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-40 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 shadow-sm hidden lg:block">
-      <div className="max-w-[1600px] mx-auto px-4 lg:px-6">
+    <nav className="fixed top-0 left-0 right-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-slate-800 shadow-glass hidden lg:block transition-all duration-500">
+      <div className="max-w-[1700px] mx-auto px-4 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Agency Selector */}
           <div className="flex items-center gap-8">
@@ -122,11 +138,11 @@ export const Navbar: React.FC = () => {
                   )}
                 >
                   <h1 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                    {currentAgency?.name || 'Gestion360'}
-                    {agencies.length > 1 && <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-primary-500 transition-colors" />}
+                    {IS_STANDALONE ? APP_NAME : (currentAgency?.name || APP_NAME)}
+                    {agencies.length > 1 && !IS_STANDALONE && <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-primary-500 transition-colors" />}
                   </h1>
                   <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-                    {currentAgency?.city || 'Immo Pro'}
+                    {IS_STANDALONE ? 'Version Interne' : (currentAgency?.city || 'Immo Pro')}
                   </span>
                 </button>
 
@@ -175,15 +191,18 @@ export const Navbar: React.FC = () => {
                   <NavLink
                     key={item.name}
                     to={item.href}
-                    className={clsx(
-                      "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200",
-                      active 
-                        ? "bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400" 
-                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                    className={({ isActive }) => clsx(
+                      "group flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 relative overflow-hidden",
+                      isActive 
+                        ? "bg-primary-600 text-white shadow-glow-primary translate-y-[-1px]" 
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                     )}
                   >
-                    <item.icon className={clsx("w-4 h-4", active && "animate-pulse")} />
-                    {item.name}
+                    <item.icon className={clsx("w-4 h-4 transition-transform group-hover:scale-110")} />
+                    <span>{item.name}</span>
+                    {isActiveLink(item.href) && (
+                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full mb-1" />
+                    )}
                   </NavLink>
                 );
               })}

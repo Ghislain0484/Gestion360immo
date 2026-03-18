@@ -62,25 +62,24 @@ export const AgencyManagement: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [requests, agencies, subscriptions] = await Promise.all([
-        dbService.agencyRegistrationRequests.getAll(),
+      const [agenciesData, requestsData] = await Promise.all([
         dbService.agencies.getAll(),
-        dbService.agencySubscriptions.getAll(),
+        dbService.agencyRegistrationRequests.getAll()
       ]);
 
-      // Combiner les données des agences avec leurs abonnements
-      const enrichedAgencies = agencies.map(agency => {
-        const subscription = subscriptions.find(sub => sub.agency_id === agency.id);
+      // Plus besoin de fetcher les subscriptions séparément car le service le fait maintenant via un join
+      const enrichedAgencies = (agenciesData || []).map(agency => {
+        const sub = (agency as any).subscription;
         return {
           ...agency,
-          subscription_status: subscription?.status,
-          plan_type: subscription?.plan_type,
-          monthly_fee: subscription?.monthly_fee,
+          subscription_status: sub?.status || agency.subscription_status || 'active',
+          plan_type: sub?.plan_type || agency.plan_type || 'basic',
+          monthly_fee: sub?.monthly_fee || agency.monthly_fee || 0
         };
       });
 
-      setRegistrationRequests(requests);
       setAgencies(enrichedAgencies);
+      setRegistrationRequests(requestsData || []);
     } catch (err: any) {
       console.error('❌ Erreur chargement:', err);
       const errorMessage = err.message || 'Erreur lors du chargement des données';

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { clsx } from 'clsx';
+import { APP_NAME, IS_STANDALONE, FORCED_STANDALONE_MODULES } from '../../lib/constants';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -43,11 +44,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const secondaryNavigation = [
     { name: 'Contrats', href: '/contrats', icon: FileText },
-    { name: 'Collaboration', href: '/collaboration', icon: Users },
+    { 
+      name: 'G. Hôtelière', 
+      href: '/hotel', 
+      icon: Building, 
+      module: 'hotel' 
+    },
+    { 
+      name: 'Résidences', 
+      href: '/residences', 
+      icon: Building2, 
+      module: 'residences' 
+    },
+    { name: 'Collaboration', href: '/collaboration', icon: Users, module: 'collaboration' },
     { name: 'Rapports', href: '/rapports', icon: BarChart3 },
     { name: 'Notifications', href: '/notifications', icon: Bell },
-    { name: 'Paramètres', href: '/parametres', icon: Settings },
+    { 
+      name: IS_STANDALONE ? 'Application' : 'Paramètres', 
+      href: '/parametres', 
+      icon: Settings 
+    },
   ];
+
+  const enabledModules = IS_STANDALONE 
+    ? FORCED_STANDALONE_MODULES 
+    : (currentAgency?.enabled_modules || ['base']);
+  
+  const filteredSecondaryNav = secondaryNavigation.filter(item => 
+    !item.module || 
+    enabledModules.includes(item.module) || 
+    (item.module === 'collaboration' && !enabledModules.includes('internal_mode'))
+  );
 
   const isActiveLink = (path: string) => {
     if (path === '/' && pathname !== '/') return false;
@@ -71,56 +98,50 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {/* Logo */}
-        <div className="flex items-center space-x-3 mb-8 px-6 pt-6">
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-primary-600 to-primary-400 rounded-full blur opacity-25 group-hover:opacity-75 transition duration-300"></div>
-            <div className="relative w-12 h-12 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center shadow-lg ring-2 ring-white dark:ring-slate-600 group-hover:scale-110 transition-transform duration-300 overflow-hidden">
-              {currentAgency?.logo_url ? (
-                <img
-                  src={currentAgency.logo_url}
-                  alt={currentAgency.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Building2 className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-              )}
+        {/* Logo and Agency Selector */}
+        <div className="flex flex-col px-6 pt-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-primary-600 to-primary-400 rounded-full blur opacity-25 group-hover:opacity-75 transition duration-300"></div>
+                <div className="relative w-12 h-12 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center shadow-lg ring-2 ring-white dark:ring-slate-600 group-hover:scale-110 transition-transform duration-300 overflow-hidden">
+                  {currentAgency?.logo_url ? (
+                    <img
+                      src={currentAgency.logo_url}
+                      alt="Logo"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Building2 className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tight leading-none">
+                  {APP_NAME}
+                </h1>
+                <p className="text-[10px] uppercase font-bold text-primary-600/80 dark:text-primary-400/80 tracking-widest mt-1">
+                  {IS_STANDALONE ? 'Version Interne' : 'Gestion Immobilière'}
+                </p>
+              </div>
             </div>
+            <button
+              onClick={onClose}
+              className="lg:hidden p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <X size={20} />
+            </button>
           </div>
-          <div className="flex-1 min-w-0 flex flex-col justify-center">
-            {agencies.length > 1 ? (
-              <button
-                onClick={() => switchAgency(null)}
-                className="group flex flex-col items-start w-full text-left hover:bg-white/10 p-1 -m-1 rounded-lg transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-700 shadow-none hover:shadow-sm"
-                title="Changer d'agence active"
-              >
-                <h1 className="text-lg font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent dark:from-primary-400 dark:to-primary-300 leading-tight flex items-center gap-2">
-                  Gestion360 {currentAgency && `- ${currentAgency.name}`}
-                  <span className="text-[10px] items-center gap-1 text-primary-500 bg-primary-50 px-1.5 py-0.5 rounded-full hidden group-hover:flex">
-                    Changer
-                  </span>
-                </h1>
-                <p className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                  {currentAgency ? currentAgency.city : 'CHOISIR UNE AGENCE'}
-                </p>
-              </button>
-            ) : (
-              <>
-                <h1 className="text-lg font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent dark:from-primary-400 dark:to-primary-300 leading-tight">
-                  Gestion360 {currentAgency && `- ${currentAgency.name}`}
-                </h1>
-                <p className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                  {currentAgency ? currentAgency.city : 'IMMO PRO'}
-                </p>
-              </>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="lg:hidden p-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-slate-800/50 transition-all duration-200 hover:scale-110"
-          >
-            <X size={20} />
-          </button>
+
+          {!IS_STANDALONE && agencies.length > 1 && (
+            <button
+              onClick={() => switchAgency(null)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-600 bg-gray-100/50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+            >
+              <span className="truncate">{currentAgency?.name || 'Changer d\'agence'}</span>
+              <Users size={12} className="ml-2 shrink-0" />
+            </button>
+          )}
         </div>
 
         {/* Main Navigation */}
@@ -158,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           {/* Secondary Navigation */}
           <div>
-            {secondaryNavigation.map((item) => {
+            {filteredSecondaryNav.map((item) => {
               const active = isActiveLink(item.href);
               return (
                 <NavLink
