@@ -116,7 +116,11 @@ export const AdminDashboard: React.FC = () => {
                         <div className="grid gap-10 lg:grid-cols-2">
                           <div className="group/card relative rounded-[32px] overflow-hidden bg-slate-50/50 p-1 border border-slate-200/50 transition-all hover:border-indigo-500/20 hover:bg-white shadow-sm hover:shadow-2xl">
                             <div className="p-8">
-                              <AgenciesOverview agencies={recentAgencies} loading={loading} />
+                              <AgenciesOverview 
+                                agencies={recentAgencies} 
+                                loading={loading} 
+                                onViewDetails={setSelectedAgency}
+                              />
                             </div>
                           </div>
                           <div className="group/card relative rounded-[32px] overflow-hidden bg-slate-50/50 p-1 border border-slate-200/50 transition-all hover:border-purple-500/20 hover:bg-white shadow-sm hover:shadow-2xl">
@@ -147,17 +151,21 @@ export const AdminDashboard: React.FC = () => {
                           </p>
                         </div>
                         <AgenciesList onViewDetails={setSelectedAgency} />
-                        {selectedAgency && (
-                          <AgencyDetails
-                            agency={selectedAgency}
-                            onClose={() => setSelectedAgency(null)}
-                            onUpdate={() => {
-                              setSelectedAgency(null);
-                              window.location.reload();
-                            }}
-                          />
-                        )}
                       </div>
+                    )}
+
+                    {/* Modal de détails de l'agence (Accessible depuis n'importe quel onglet) */}
+                    {selectedAgency && (
+                      <AgencyDetails
+                        agency={selectedAgency}
+                        onClose={() => setSelectedAgency(null)}
+                        onUpdate={() => {
+                          setSelectedAgency(null);
+                          // Optionnel: on peut forcer un rechargement si nécessaire, 
+                          // mais React Query devrait déjà l'avoir fait via les invalidations
+                          window.location.reload();
+                        }}
+                      />
                     )}
 
                     {/* Simplified remaining tabs for brevity but consistent with main style */}

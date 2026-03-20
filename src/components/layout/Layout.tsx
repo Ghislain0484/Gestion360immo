@@ -5,6 +5,35 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { Navbar } from './Navbar';
 import { QuotaBanner } from '../shared/QuotaBanner';
+import { WifiOff } from 'lucide-react';
+
+const NetworkStatus: React.FC = () => {
+  const [isOnline, setIsOnline] = useState(window.navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  if (isOnline) return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[100] animate-bounce">
+      <div className="bg-red-600 text-white px-4 py-2 rounded-full shadow-2xl flex items-center space-x-2 border-2 border-white dark:border-slate-800">
+        <WifiOff size={18} />
+        <span className="text-xs font-black uppercase tracking-tighter">Mode Hors-ligne</span>
+      </div>
+    </div>
+  );
+};
 
 export const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -14,6 +43,7 @@ export const Layout: React.FC = () => {
     <div className="min-h-screen bg-mesh font-sans text-gray-900 dark:text-slate-100 transition-colors duration-500 overflow-x-hidden text-sm uppercase font-bold">
       <Navbar />
       <QuotaBanner />
+      <NetworkStatus />
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="transition-all duration-300">

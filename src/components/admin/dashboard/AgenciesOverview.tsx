@@ -1,5 +1,6 @@
 import React from 'react';
-import { Building2, MapPin, Calendar, TrendingUp } from 'lucide-react';
+import { Building2, MapPin, Calendar } from 'lucide-react';
+import { clsx } from 'clsx';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
 import { Agency } from '../../../types/db';
@@ -7,9 +8,10 @@ import { Agency } from '../../../types/db';
 interface AgenciesOverviewProps {
     agencies: Agency[];
     loading?: boolean;
+    onViewDetails?: (agency: Agency) => void;
 }
 
-export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, loading }) => {
+export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, loading, onViewDetails }) => {
     if (loading) {
         return (
             <Card className="border-none bg-white/90 shadow-md">
@@ -38,15 +40,19 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
         }
     };
 
-    const getPlanBadge = (plan: string) => {
+    const getPlanBadge = (agency: Agency) => {
+        const subRaw = (agency as any)?.subscription;
+        const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
+        const actualPlan = sub?.plan_type || agency.plan_type || 'basic';
+
         const colors: Record<string, string> = {
             basic: 'bg-gray-100 text-gray-700',
             premium: 'bg-blue-100 text-blue-700',
             enterprise: 'bg-purple-100 text-purple-700',
         };
         return (
-            <span className={`px-2 py-1 rounded-md text-xs font-medium ${colors[plan] || colors.basic}`}>
-                {plan.charAt(0).toUpperCase() + plan.slice(1)}
+            <span className={`px-2 py-1 rounded-md text-xs font-medium ${colors[actualPlan] || colors.basic}`}>
+                {actualPlan.charAt(0).toUpperCase() + actualPlan.slice(1)}
             </span>
         );
     };
@@ -67,7 +73,11 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
                         {agencies.slice(0, 6).map((agency) => (
                             <div
                                 key={agency.id}
-                                className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:bg-slate-100 transition-colors"
+                                onClick={() => onViewDetails?.(agency)}
+                                className={clsx(
+                                    "flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 transition-colors",
+                                    onViewDetails ? "cursor-pointer hover:bg-slate-100 hover:border-slate-200" : ""
+                                )}
                             >
                                 <div className="flex items-center gap-3 flex-1">
                                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm">
@@ -88,7 +98,7 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    {agency.plan_type && getPlanBadge(agency.plan_type)}
+                                    {getPlanBadge(agency)}
                                     <div className="text-right">
                                         <div className="flex items-center gap-1 text-xs text-slate-400">
                                             <Calendar className="h-3 w-3" />

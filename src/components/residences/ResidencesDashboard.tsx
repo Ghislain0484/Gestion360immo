@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Plus, Building2, UserCircle, Receipt, Home, 
-    Star, Shield, Smartphone, Plane, LayoutDashboard, Info, Loader2
+    Star, Shield, Smartphone, Plane, LayoutDashboard, Info, Loader2,
+    AlertTriangle, Clock
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -11,12 +12,14 @@ import { SiteManager } from '../modular/management/SiteManager';
 import { UnitForm } from '../modular/management/UnitForm';
 import { Modal } from '../ui/Modal';
 import { ResidenceBookingModal } from './ResidenceBookingModal';
+import { ResidenceUnitDetailsModal } from './ResidenceUnitDetailsModal';
 import { ShuttleRequestModal, MobileMoneyModal, PricingPolicyModal } from './ResidenceServiceModals';
-import { ExpenseManager } from '../modular/management/ExpenseManager';
+import { FinanceManager } from '../modular/management/FinanceManager';
 import { ClientCRM } from '../modular/management/ClientCRM';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
 import { ResidenceUnit } from '../../types/modular';
+import { getCalendarDate, isSameDay } from '../../lib/utils/dateUtils';
 import toast from 'react-hot-toast';
 
 export const ResidencesDashboard: React.FC = () => {
@@ -24,6 +27,7 @@ export const ResidencesDashboard: React.FC = () => {
     const [view, setView] = useState<'dashboard' | 'management' | 'finances' | 'crm'>('dashboard');
     const [isAddingUnit, setIsAddingUnit] = useState(false);
     const [selectedUnit, setSelectedUnit] = useState<ResidenceUnit | null>(null);
+    const [selectedOccupiedUnit, setSelectedOccupiedUnit] = useState<ResidenceUnit | null>(null);
     const [units, setUnits] = useState<ResidenceUnit[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
@@ -70,10 +74,10 @@ export const ResidencesDashboard: React.FC = () => {
         ];
     }, [units]);
 
-    const getStatusStyles = (status: string) => {
+    const getStatusStyles = (status: ResidenceUnit['status']) => {
         switch (status) {
-            case 'ready': return 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:border-emerald-300';
-            case 'occupied': return 'bg-indigo-50 text-indigo-700 border-indigo-100';
+            case 'ready': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+            case 'occupied': return 'bg-white text-slate-700 border-slate-200';
             case 'cleaning': return 'bg-amber-50 text-amber-700 border-amber-100';
             case 'reserved': return 'bg-blue-50 text-blue-700 border-blue-100';
             case 'maintenance': return 'bg-rose-50 text-rose-700 border-rose-100';
@@ -84,6 +88,13 @@ export const ResidencesDashboard: React.FC = () => {
     const handleUnitClick = (unit: ResidenceUnit) => {
         if (unit.status === 'ready') {
             setSelectedUnit(unit);
+        } else if (unit.status === 'occupied') {
+            setSelectedOccupiedUnit(unit);
+        } else if (unit.status === 'cleaning') {
+            // Simplified: allow marking as ready from click if in cleaning
+            if (confirm('Voulez-vous marquer cette unité comme Prête ?')) {
+                dbService.modular.updateUnitStatus(unit.id, 'ready').then(() => fetchUnits());
+            }
         } else {
             toast(`Cette unité est actuellement ${unit.status}`);
         }
@@ -189,10 +200,31 @@ export const ResidencesDashboard: React.FC = () => {
                                             <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 italic">{res.site?.name || 'Site non défini'}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <span className="text-[9px] font-black px-2 py-1 rounded-full bg-white/70 uppercase tracking-widest border border-black/5 block mb-1">
-                                            {res.status}
-                                        </span>
+                                    <div className="text-right flex flex-col items-end gap-1">
+                                        <div className="flex flex-col items-end">
+                                            <span className={`text-[9px] font-black px-2 py-1 rounded-full bg-white/70 uppercase tracking-widest border border-black/5 block ${
+                                                res.status === 'occupied' && res.current_booking?.[0]?.check_out && getCalendarDate(res.current_booking[0].check_out).getTime() <= getCalendarDate(new Date().toISOString()).getTime()
+                                                    ? 'text-rose-600 border-rose-200 animate-pulse'
+                                                    : ''
+                                            }`}>
+                                                {res.status}
+                                            </span>
+                                            {res.status === 'occupied' && res.current_booking?.[0]?.check_out && (
+                                                <span className={`text-[8px] font-black uppercase mt-1 flex items-center gap-1 ${
+                                                    getCalendarDate(res.current_booking[0].check_out).getTime() <= getCalendarDate(new Date().toISOString()).getTime() 
+                                                        ? 'text-rose-600' 
+                                                        : 'text-slate-400'
+                                                }`}>
+                                                    {isSameDay(getCalendarDate(res.current_booking[0].check_out), new Date()) ? (
+                                                        <><AlertTriangle size={10} /> DÉPART AUJOURD'HUI</>
+                                                    ) : getCalendarDate(res.current_booking[0].check_out) < getCalendarDate(new Date().toISOString()) ? (
+                                                        <><AlertTriangle size={10} /> SÉJOUR ÉCHU</>
+                                                    ) : (
+                                                        <><Clock size={10} /> Jusqu'au {new Date(res.current_booking[0].check_out).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</>
+                                                    )}
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className="text-[10px] font-black text-slate-500 italic block">{formatPrice(res.base_price_per_night)} / nuit</span>
                                     </div>
                                 </div>
@@ -275,9 +307,29 @@ export const ResidencesDashboard: React.FC = () => {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                 {view === 'dashboard' && renderDashboard()}
                 {view === 'management' && <SiteManager />}
-                {view === 'finances' && <ExpenseManager />}
-                {view === 'crm' && <ClientCRM />}
+                {view === 'finances' && <FinanceManager moduleType="residences" />}
+                {view === 'crm' && <ClientCRM moduleType="residences" />}
             </div>
+
+            <Modal isOpen={!!selectedOccupiedUnit} onClose={() => setSelectedOccupiedUnit(null)} title="" noPadding>
+                {selectedOccupiedUnit && (
+                    <ResidenceUnitDetailsModal 
+                        unit={selectedOccupiedUnit}
+                        onClose={() => setSelectedOccupiedUnit(null)} 
+                        onSuccess={fetchUnits} 
+                    />
+                )}
+            </Modal>
+
+            <Modal isOpen={!!selectedOccupiedUnit} onClose={() => setSelectedOccupiedUnit(null)} title="" noPadding>
+                {selectedOccupiedUnit && (
+                    <ResidenceUnitDetailsModal 
+                        unit={selectedOccupiedUnit}
+                        onClose={() => setSelectedOccupiedUnit(null)} 
+                        onSuccess={fetchUnits} 
+                    />
+                )}
+            </Modal>
 
             <Modal isOpen={isAddingUnit} onClose={() => setIsAddingUnit(false)} title="" noPadding>
                 <UnitForm onCancel={() => setIsAddingUnit(false)} onSuccess={fetchUnits} />
@@ -291,6 +343,7 @@ export const ResidencesDashboard: React.FC = () => {
                             name: selectedUnit.unit_name,
                             type: selectedUnit.unit_type,
                             site: selectedUnit.site?.name || 'Site',
+                            site_id: selectedUnit.site_id,
                             price: selectedUnit.base_price_per_night
                         }}
                         onClose={() => setSelectedUnit(null)} 

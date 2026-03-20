@@ -56,9 +56,11 @@ export const AgenciesList: React.FC<AgenciesListProps> = React.memo(({ onViewDet
         );
     }, []);
 
-    const getPlanBadge = useMemo(() => (plan: string | null | undefined) => {
-        // Valeur par défaut si null ou undefined
-        const actualPlan = plan || 'premium';
+    const getPlanBadge = useMemo(() => (agency: Agency) => {
+        // Priorité à l'abonnement réel si présent, sinon au champ plan_type de l'agence
+        const subRaw = (agency as any)?.subscription;
+        const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
+        const actualPlan = sub?.plan_type || agency.plan_type || 'basic';
 
         const colors: Record<string, string> = {
             basic: 'bg-gray-100 text-gray-700 border border-gray-300',
@@ -66,7 +68,7 @@ export const AgenciesList: React.FC<AgenciesListProps> = React.memo(({ onViewDet
             enterprise: 'bg-purple-100 text-purple-700 border border-purple-300',
         };
 
-        const planColor = colors[actualPlan] || colors.premium;
+        const planColor = colors[actualPlan] || colors.basic;
 
         return (
             <span className={`px-2 py-1 rounded-md text-xs font-semibold ${planColor}`}>
@@ -211,7 +213,7 @@ const AgencyCard = React.memo<{
     onToggleStatus: (agency: Agency) => void;
     isProcessing: boolean;
     getStatusBadge: (status: string | null | undefined) => JSX.Element;
-    getPlanBadge: (plan: string | null | undefined) => JSX.Element | null;
+    getPlanBadge: (agency: Agency) => JSX.Element | null;
 }>(({ agency, index, onViewDetails, onToggleStatus, isProcessing, getStatusBadge, getPlanBadge }) => {
     return (
         <Card
@@ -230,7 +232,7 @@ const AgencyCard = React.memo<{
                             <div className="flex items-center gap-2 mb-2">
                                 <p className="text-xl font-bold text-slate-900">{agency.name}</p>
                                 {getStatusBadge(agency.subscription_status)}
-                                {getPlanBadge(agency.plan_type)}
+                                {getPlanBadge(agency)}
                             </div>
                             <div className="flex items-center gap-6 text-sm text-slate-600">
                                 <div className="flex items-center gap-2">

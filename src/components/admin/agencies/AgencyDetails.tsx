@@ -5,7 +5,8 @@ import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import { Agency } from '../../../types/db';
-import { dbService, supabase } from '../../../lib/supabase';
+import { dbService } from '../../../lib/supabase';
+import { agencySubscriptionsService } from '../../../lib/db/agencySubscriptionsService';
 import { toast } from 'react-hot-toast';
 import { usePlatformSettings } from '../../../hooks/useAdminQueries';
 
@@ -97,36 +98,46 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
     const handleSave = async () => {
         try {
             setSaving(true);
+            console.log('💾 AgencyDetails.handleSave - Début', { agencyId: agency.id, formData });
 
-            await dbService.agencies.update(agency.id, {
+            // 1. Mettre à jour l'agence (Informations générales + Plan + Modules)
+            // On regroupe tout en UN SEUL appel pour éviter les désynchronisations
+            const updatePayload = {
                 name: formData.name,
                 city: formData.city,
                 phone: formData.phone,
                 email: formData.email,
                 address: formData.address,
                 commercial_register: formData.commercial_register,
-                plan_type: formData.plan_type as any,
+                plan_type: formData.plan_type,
                 monthly_fee: formData.monthly_fee,
                 enabled_modules: formData.enabled_modules,
-            } as any);
+                subscription_status: 'active',
+                updated_at: new Date().toISOString()
+            };
 
-            // 🔄 Synchroniser avec la table agency_subscriptions
-            await supabase
-                .from('agency_subscriptions')
-                .upsert({
-                    agency_id: agency.id,
-                    plan_type: formData.plan_type as any,
-                    monthly_fee: formData.monthly_fee,
-                    status: 'active',
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'agency_id' });
+            await dbService.agencies.update(agency.id, updatePayload as any);
+            console.log('✅ agencies table updated');
 
-            toast.success('Agence modifiée avec succès');
+            // 2. Synchroniser avec la table agency_subscriptions
+            await agencySubscriptionsService.syncSubscription(
+                agency.id,
+                formData.plan_type,
+                formData.monthly_fee
+            );
+            console.log('✅ agency_subscriptions table synced');
+
+            // 3. Notification et rafraîchissement
+            toast.success('Agence et abonnement mis à jour avec succès');
             setEditMode(false);
-            onUpdate?.();
+            
+            // Déclencher le rafraîchissement du parent
+            if (onUpdate) {
+                onUpdate();
+            }
         } catch (error: any) {
-            console.error('Erreur lors de la modification:', error);
-            toast.error('Erreur lors de la modification de l\'agence');
+            console.error('❌ Erreur lors de la modification:', error);
+            toast.error(error.message || 'Erreur lors de la modification de l\'agence');
         } finally {
             setSaving(false);
         }
@@ -162,12 +173,21 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900">{agency.name}</h2>
                             <div className="flex items-center gap-2 mt-1">
-                                {agency.subscription_status && getStatusBadge(agency.subscription_status)}
-                                {agency.plan_type && (
-                                    <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-medium">
-                                        {(agency.plan_type as string).charAt(0).toUpperCase() + (agency.plan_type as string).slice(1)}
-                                    </span>
-                                )}
+                                {(() => {
+                                    const subRaw = (agency as any)?.subscription;
+                                    const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
+                                    const actualStatus = sub?.status || agency.subscription_status || 'active';
+                                    const actualPlan = sub?.plan_type || agency.plan_type || 'basic';
+
+                                    return (
+                                        <>
+                                            {getStatusBadge(actualStatus)}
+                                            <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-medium">
+                                                {actualPlan.charAt(0).toUpperCase() + actualPlan.slice(1)}
+                                            </span>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>

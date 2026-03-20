@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Key, User, Calendar, MapPin, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { Key, User, Calendar, MapPin, CheckCircle, ArrowRight } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { usePriceCalculator } from '../../hooks/usePriceCalculator';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
-import { Tenant } from '../../types/db';
-import { HotelRoom } from '../../types/modular';
+import { HotelRoom, ModularClient } from '../../types/modular';
 import toast from 'react-hot-toast';
 
 interface HotelBookingModalProps {
@@ -18,9 +17,9 @@ interface HotelBookingModalProps {
 export const HotelBookingModal: React.FC<HotelBookingModalProps> = ({ room, onClose, onSuccess }) => {
     const { agencyId } = useAuth();
     const [days, setDays] = useState(1);
-    const [tenants, setTenants] = useState<Tenant[]>([]);
-    const [selectedTenantId, setSelectedTenantId] = useState('');
-    const [isLoadingTenants, setIsLoadingTenants] = useState(true);
+    const [clients, setClients] = useState<ModularClient[]>([]);
+    const [selectedClientId, setSelectedClientId] = useState('');
+    const [isLoadingClients, setIsLoadingClients] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
     const { formatPrice, calculateTotal } = usePriceCalculator({
@@ -31,18 +30,18 @@ export const HotelBookingModal: React.FC<HotelBookingModalProps> = ({ room, onCl
 
     useEffect(() => {
         if (agencyId) {
-            fetchTenants();
+            fetchClients();
         }
     }, [agencyId]);
 
-    const fetchTenants = async () => {
+    const fetchClients = async () => {
         try {
-            const data = await dbService.tenants.getAll({ agency_id: agencyId! });
-            setTenants(data);
+            const data = await dbService.modular.getClients(agencyId!, 'hotel');
+            setClients(data);
         } catch (error) {
-            console.error('Error fetching tenants:', error);
+            console.error('Error fetching clients:', error);
         } finally {
-            setIsLoadingTenants(false);
+            setIsLoadingClients(false);
         }
     };
 
@@ -51,7 +50,7 @@ export const HotelBookingModal: React.FC<HotelBookingModalProps> = ({ room, onCl
     const totalPrice = calculateTotal(days, room.base_price_per_night);
 
     const handleConfirm = async () => {
-        if (!selectedTenantId) {
+        if (!selectedClientId) {
             toast.error('Veuillez sélectionner un client');
             return;
         }
@@ -65,7 +64,7 @@ export const HotelBookingModal: React.FC<HotelBookingModalProps> = ({ room, onCl
             await dbService.modular.createBooking({
                 agency_id: agencyId!,
                 room_id: room.id,
-                tenant_id: selectedTenantId,
+                client_id: selectedClientId,
                 check_in: checkIn.toISOString(),
                 check_out: checkOut.toISOString(),
                 total_amount: totalPrice,
@@ -127,14 +126,14 @@ export const HotelBookingModal: React.FC<HotelBookingModalProps> = ({ room, onCl
                                 </label>
                                 <select 
                                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary-500 transition-colors"
-                                    value={selectedTenantId}
-                                    onChange={(e) => setSelectedTenantId(e.target.value)}
+                                    value={selectedClientId}
+                                    onChange={(e) => setSelectedClientId(e.target.value)}
                                 >
                                     <option value="">Sélectionner le client...</option>
-                                    {tenants.map(t => (
-                                        <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
+                                    {clients.map((c: ModularClient) => (
+                                        <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
                                     ))}
-                                    {isLoadingTenants && <option disabled>Chargement...</option>}
+                                    {isLoadingClients && <option disabled>Chargement...</option>}
                                 </select>
                             </div>
                             <div className="space-y-2">

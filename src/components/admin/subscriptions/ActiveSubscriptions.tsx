@@ -7,20 +7,25 @@ import { useAgencies } from '../../../hooks/useAdminQueries';
 export const ActiveSubscriptions: React.FC = () => {
     const { data: agencies = [], isLoading } = useAgencies();
 
-    // Transformer les agences en abonnements avec calculs mémoïsés
+    // Transformer les agences en abonnements avec les données réelles
     const subscriptions = useMemo(() => {
-        return agencies.map((agency) => ({
-            id: agency.id,
-            agency_id: agency.id,
-            agency_name: agency.name,
-            plan_type: agency.plan_type || 'basic',
-            status: agency.subscription_status || 'active',
-            start_date: agency.created_at,
-            end_date: new Date(
-                new Date(agency.created_at).setFullYear(new Date(agency.created_at).getFullYear() + 1)
-            ).toISOString(),
-            monthly_fee: agency.monthly_fee || 0,
-        }));
+        return agencies.map((agency) => {
+            const subRaw = (agency as any)?.subscription;
+            const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
+
+            return {
+                id: sub?.id || `${agency.id}-legacy`,
+                agency_id: agency.id,
+                agency_name: agency.name,
+                plan_type: sub?.plan_type || agency.plan_type || 'basic',
+                status: sub?.status || agency.subscription_status || 'active',
+                start_date: sub?.start_date || agency.created_at,
+                end_date: sub?.next_payment_date || new Date(
+                    new Date(agency.created_at).setFullYear(new Date(agency.created_at).getFullYear() + 1)
+                ).toISOString(),
+                monthly_fee: sub?.monthly_fee !== undefined ? sub.monthly_fee : (agency.monthly_fee || 0),
+            };
+        });
     }, [agencies]);
 
     const formatCurrency = (amount: number) =>
@@ -36,6 +41,7 @@ export const ActiveSubscriptions: React.FC = () => {
             trial: { variant: 'secondary', label: 'Essai', icon: Clock },
             suspended: { variant: 'warning', label: 'Suspendu', icon: AlertCircle },
             cancelled: { variant: 'danger', label: 'Annulé', icon: AlertCircle },
+            expired: { variant: 'danger', label: 'Expiré', icon: AlertCircle },
         };
         const config = variants[status] || { variant: 'secondary', label: status, icon: AlertCircle };
         const Icon = config.icon;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, DollarSign, Info, MapPin, Loader2 } from 'lucide-react';
+import { Home, DollarSign, Info, MapPin } from 'lucide-react';
 import { Card } from '../../ui/Card';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
@@ -64,6 +64,18 @@ export const UnitForm: React.FC<UnitFormProps> = ({ onCancel, onSuccess }) => {
             toast.error('Veuillez sélectionner une résidence');
             return;
         }
+        if (!formData.unit_name.trim()) {
+            toast.error("Le nom de l'unité est requis");
+            return;
+        }
+        if (formData.base_price_per_night <= 0) {
+            toast.error("Le prix par nuit doit être supérieur à 0");
+            return;
+        }
+        if (formData.caution_amount < 0 || isNaN(formData.caution_amount)) {
+            toast.error("Vérifiez le montant de la caution");
+            return;
+        }
 
         try {
             setIsSaving(true);
@@ -75,16 +87,16 @@ export const UnitForm: React.FC<UnitFormProps> = ({ onCancel, onSuccess }) => {
                 unit_type: unitTypes.find(t => t.id === formData.unit_category)?.name || 'Appartement',
                 unit_category: formData.unit_category,
                 base_price_per_night: formData.base_price_per_night,
-                security_deposit_amount: formData.caution_amount,
+                caution_amount: formData.caution_amount,
                 status: formData.status
             } as any);
 
             toast.success('Unité créée avec succès');
             onSuccess?.();
             onCancel?.();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving unit:', error);
-            toast.error('Erreur lors de la création de l\'unité');
+            toast.error(error.message || 'Erreur lors de la création de l\'unité');
         } finally {
             setIsSaving(false);
         }
@@ -110,7 +122,6 @@ export const UnitForm: React.FC<UnitFormProps> = ({ onCancel, onSuccess }) => {
                         <MapPin size={10} /> Résidence de rattachement
                     </label>
                     <select 
-                        required
                         className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-black focus:border-indigo-500 outline-none transition-colors"
                         value={formData.site_id}
                         onChange={(e) => setFormData(prev => ({ ...prev, site_id: e.target.value }))}
@@ -155,7 +166,6 @@ export const UnitForm: React.FC<UnitFormProps> = ({ onCancel, onSuccess }) => {
                             label="Numéro ou Nom de l'Unité" 
                             placeholder="ex: Appt 402 ou Suite Ivoire" 
                             className="font-bold border-2"
-                            required
                             value={formData.unit_name}
                             onChange={(e) => setFormData(prev => ({ ...prev, unit_name: e.target.value }))}
                         />
@@ -166,7 +176,6 @@ export const UnitForm: React.FC<UnitFormProps> = ({ onCancel, onSuccess }) => {
                             <div className="relative">
                                 <input 
                                     type="number" 
-                                    required
                                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-lg font-black focus:border-emerald-500 outline-none transition-colors pr-12"
                                     placeholder="45 000"
                                     value={formData.base_price_per_night || ''}
@@ -183,7 +192,6 @@ export const UnitForm: React.FC<UnitFormProps> = ({ onCancel, onSuccess }) => {
                             <div className="relative">
                                 <input 
                                     type="number" 
-                                    required
                                     className="w-full bg-amber-50/50 border-2 border-amber-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-amber-500 outline-none transition-colors"
                                     placeholder="100 000"
                                     value={formData.caution_amount || ''}

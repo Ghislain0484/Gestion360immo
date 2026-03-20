@@ -3,6 +3,7 @@ import { MaritalStatus, PropertyTitle } from './enums';
 
 export interface Owner extends AgencyEntity {
   id: string; // UUID
+  user_id?: string | null; // UUID, FK vers auth.users(id)
   business_id?: string;
   first_name: string;
   last_name: string;

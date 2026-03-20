@@ -21,6 +21,7 @@ export interface HotelRoom {
     base_price_per_night: number;
     created_at: string;
     updated_at: string;
+    current_booking?: { check_out: string; booking_status: string }[];
 }
 
 export interface ResidenceUnit {
@@ -38,12 +39,14 @@ export interface ResidenceUnit {
     created_at: string;
     updated_at: string;
     site?: ResidenceSite; // Joined data
+    current_booking?: { check_out: string; booking_status: string }[];
 }
 
 export interface ModularBooking {
     id: string;
     agency_id: string;
     tenant_id?: string;
+    client_id?: string;
     guest_name?: string;
     room_id?: string;
     residence_id?: string;
@@ -79,3 +82,55 @@ export interface SiteFinancialSummary {
     total_expenses: number;
     net_profit: number;
 }
+
+export interface ModularClient {
+    id: string;
+    agency_id: string;
+    first_name: string;
+    last_name: string;
+    email?: string;
+    phone: string;
+    client_type: 'regular' | 'vip' | 'corporate';
+    loyalty_points: number;
+    preferences: string[];
+    nationality?: string;
+    id_card_number?: string;
+    id_card_url?: string;
+    total_stays: number;
+    total_spent: number;
+    last_stay_at?: string;
+    module_type: ModuleType;
+    created_at: string;
+    updated_at: string;
+}
+
+export type ModularClientFormData = Omit<ModularClient, 'id' | 'created_at' | 'updated_at' | 'total_stays' | 'total_spent' | 'last_stay_at'>;
+
+export interface ModularTransaction {
+    id: string;
+    agency_id: string;
+    site_id?: string;
+    type: 'income' | 'expense' | 'deposit' | 'transfer' | 'salary';
+    category: string;
+    amount: number;
+    description?: string;
+    transaction_date: string;
+    payment_method: string;
+    related_id?: string;
+    module_type?: ModuleType;
+    created_at: string;
+    updated_at: string;
+
+    // Joined relations (optional)
+    booking?: ModularBooking & { client?: ModularClient };
+    client?: ModularClient;
+}
+
+export interface FinanceStats {
+    total_income: number;
+    total_expenses: number;
+    net_balance: number;
+    occupancy_rate: number;
+    revenue_by_site: Record<string, number>;
+}
+
