@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.tsx';
 import './index.css';
+import { OfflineSyncManager } from './lib/offlineSync';
+
+// Initialisation du gestionnaire de synchronisation Hors-ligne
+OfflineSyncManager.init();
 
 // Configuration du QueryClient
 const queryClient = new QueryClient({

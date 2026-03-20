@@ -131,4 +131,49 @@ export const agencySubscriptionsService = {
 
         return true;
     },
+
+    /**
+     * Synchronise les informations d'abonnement entre les tables 'agencies' et 'agency_subscriptions'
+     */
+    async syncSubscription(agencyId: string, planType: string, monthlyFee: number, status: string = 'active'): Promise<boolean> {
+        console.log('🔄 agencySubscriptionsService.syncSubscription', { agencyId, planType, monthlyFee, status });
+        
+        // 1. Mise à jour de la table agency_subscriptions (upsert)
+        const nextPaymentDate = new Date();
+        nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
+        
+        const { error: subError } = await supabase
+            .from('agency_subscriptions')
+            .upsert({
+                agency_id: agencyId,
+                plan_type: planType,
+                monthly_fee: monthlyFee,
+                status: status,
+                next_payment_date: nextPaymentDate.toISOString().split('T')[0],
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'agency_id' });
+
+        if (subError) {
+            console.error('❌ Error syncing agency_subscriptions:', subError);
+            throw new Error(formatSbError('❌ agency_subscriptions.upsert', subError));
+        }
+
+        // 2. Mise à jour de la table agencies pour redondance et performance (badge admin)
+        const { error: agencyError } = await supabase
+            .from('agencies')
+            .update({
+                plan_type: planType,
+                monthly_fee: monthlyFee,
+                subscription_status: status,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', agencyId);
+
+        if (agencyError) {
+            console.error('❌ Error syncing agencies table:', agencyError);
+            throw new Error(formatSbError('❌ agencies.update (sync)', agencyError));
+        }
+
+        return true;
+    }
 };

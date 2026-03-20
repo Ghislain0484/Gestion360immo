@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building, Save, X, Loader2 } from 'lucide-react';
+import { Building, X } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -9,19 +9,20 @@ import { HotelRoom } from '../../types/modular';
 import toast from 'react-hot-toast';
 
 interface RoomFormProps {
+    room?: HotelRoom | null;
     onClose: () => void;
     onSuccess: () => void;
 }
 
-export const RoomForm: React.FC<RoomFormProps> = ({ onClose, onSuccess }) => {
+export const RoomForm: React.FC<RoomFormProps> = ({ room, onClose, onSuccess }) => {
     const { agencyId } = useAuth();
     const [isSaving, setIsSaving] = useState(false);
     const [formData, setFormData] = useState({
-        room_number: '',
-        room_type: 'standard' as HotelRoom['room_type'],
-        floor: 1,
-        base_price_per_night: 45000,
-        status: 'available' as HotelRoom['status']
+        room_number: room?.room_number || '',
+        room_type: room?.room_type || 'standard' as HotelRoom['room_type'],
+        floor: room?.floor || 1,
+        base_price_per_night: room?.base_price_per_night || 45000,
+        status: room?.status || 'available' as HotelRoom['status']
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -30,15 +31,23 @@ export const RoomForm: React.FC<RoomFormProps> = ({ onClose, onSuccess }) => {
 
         try {
             setIsSaving(true);
-            await dbService.modular.createRoom({
-                ...formData,
-                agency_id: agencyId
-            });
-            toast.success('Chambre ajoutée avec succès');
+            if (room) {
+                await dbService.modular.updateRoom(room.id, {
+                    ...formData,
+                    agency_id: agencyId
+                });
+                toast.success('Chambre modifiée avec succès');
+            } else {
+                await dbService.modular.createRoom({
+                    ...formData,
+                    agency_id: agencyId
+                });
+                toast.success('Chambre ajoutée avec succès');
+            }
             onSuccess();
         } catch (error) {
-            console.error('Error creating room:', error);
-            toast.error('Erreur lors de la création de la chambre');
+            console.error('Error saving room:', error);
+            toast.error('Erreur lors de la sauvegarde de la chambre');
         } finally {
             setIsSaving(false);
         }
@@ -50,7 +59,7 @@ export const RoomForm: React.FC<RoomFormProps> = ({ onClose, onSuccess }) => {
                 <div className="bg-primary-900 p-6 text-white flex justify-between items-center">
                     <h3 className="text-xl font-black uppercase tracking-tight italic flex items-center gap-2">
                         <Building size={20} className="text-primary-400" />
-                        Nouvelle Chambre
+                        {room ? `Modifier Chambre ${room.room_number}` : 'Nouvelle Chambre'}
                     </h3>
                     <button onClick={onClose} className="hover:rotate-90 transition-transform">
                         <X size={24} />
@@ -58,13 +67,29 @@ export const RoomForm: React.FC<RoomFormProps> = ({ onClose, onSuccess }) => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-8 space-y-4">
-                    <Input 
-                        label="Numéro de chambre" 
-                        placeholder="ex: 101, 204..." 
-                        required 
-                        value={formData.room_number}
-                        onChange={e => setFormData(prev => ({ ...prev, room_number: e.target.value }))}
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                        <Input 
+                            label="Numéro" 
+                            placeholder="ex: 101" 
+                            required 
+                            value={formData.room_number}
+                            onChange={e => setFormData(prev => ({ ...prev, room_number: e.target.value }))}
+                        />
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">État Actuel</label>
+                            <select 
+                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary-500 transition-colors"
+                                value={formData.status}
+                                onChange={e => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
+                            >
+                                <option value="available">Disponible</option>
+                                <option value="occupied">Occupé</option>
+                                <option value="cleaning">Ménage</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="reserved">Réservé</option>
+                            </select>
+                        </div>
+                    </div>
                     
                     <div className="space-y-1">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Type de chambre</label>

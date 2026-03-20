@@ -28,17 +28,24 @@ export const useQuotaManager = () => {
     useEffect(() => {
         if (agencyId) {
             dbService.agencies.getById(agencyId).then(agency => {
+                const subRaw = (agency as any)?.subscription;
+                const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
+
                 if (agency?.subscription_status) {
                     setAgencyStatus(agency.subscription_status);
                 }
-                if (agency?.plan_type) {
-                    setAgencyPlan(agency.plan_type.toLowerCase());
+                
+                const currentPlan = sub?.plan_type || agency?.plan_type;
+                if (currentPlan) {
+                    setAgencyPlan(currentPlan.toLowerCase());
                 }
+                
                 if (agency?.enabled_modules?.includes('internal_mode')) {
                     setIsInternalMode(true);
                 }
+                
                 // Subscription is joined in getById
-                setSubscription((agency as any).subscription);
+                setSubscription(sub);
             });
         }
     }, [agencyId]);

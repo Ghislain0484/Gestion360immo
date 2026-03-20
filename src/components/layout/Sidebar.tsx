@@ -35,15 +35,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const navigation = [
     { name: 'Tableau de bord', href: '/', icon: LayoutDashboard },
     { name: 'Caisse', href: '/caisse', icon: Wallet },
-    { name: 'Propriétaires', href: '/proprietaires', icon: Building },
-    { name: 'Propriétés', href: '/proprietes', icon: Building2 },
-    { name: 'Locataires', href: '/locataires', icon: Key },
-    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck },
-    { name: 'Travaux', href: '/travaux', icon: LayoutDashboard },
+    { name: 'Propriétaires', href: '/proprietaires', icon: Building, module: 'base' },
+    { name: 'Propriétés', href: '/proprietes', icon: Building2, module: 'base' },
+    { name: 'Locataires', href: '/locataires', icon: Key, module: 'base' },
+    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'base' },
+    { name: 'Travaux', href: '/travaux', icon: LayoutDashboard, module: 'base' },
   ];
 
   const secondaryNavigation = [
-    { name: 'Contrats', href: '/contrats', icon: FileText },
+    { name: 'Contrats', href: '/contrats', icon: FileText, module: 'base' },
     { 
       name: 'G. Hôtelière', 
       href: '/hotel', 
@@ -80,6 +80,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     if (path === '/' && pathname !== '/') return false;
     return pathname.startsWith(path);
   };
+
+  const filteredNavigation = navigation.filter(item => 
+    !item.module || enabledModules.includes(item.module)
+  );
 
   return (
     <>
@@ -147,7 +151,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Main Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
           <div className="mb-6">
-            {navigation.map((item) => {
+            {filteredNavigation.map((item) => {
               const active = isActiveLink(item.href);
               return (
                 <NavLink

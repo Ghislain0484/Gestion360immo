@@ -25,8 +25,6 @@ export const SiteManager: React.FC = () => {
         city: 'Abidjan',
         amenities: [] as string[]
     });
-
-    const zones = ['Cocody', 'Plateau', 'Marcory', 'Assinie', 'Bassam', 'Riviera', 'Zone 4', 'Angré'];
     const availableAmenities = [
         { name: 'Wifi', icon: <Wifi size={14} /> },
         { name: 'Sécurité 24/7', icon: <Shield size={14} /> },
@@ -59,19 +57,44 @@ export const SiteManager: React.FC = () => {
 
         try {
             setIsSaving(true);
-            await dbService.modular.createSite({
-                ...formData,
-                agency_id: agencyId
-            });
-            toast.success('Site créé avec succès');
+            if (editingSite) {
+                await dbService.modular.updateSite(editingSite.id, {
+                    ...formData,
+                    agency_id: agencyId
+                });
+                toast.success('Site modifié avec succès');
+            } else {
+                await dbService.modular.createSite({
+                    ...formData,
+                    agency_id: agencyId
+                });
+                toast.success('Site créé avec succès');
+            }
             setIsModalOpen(false);
+            setEditingSite(null);
             setFormData({ name: '', zone: 'Cocody', address: '', city: 'Abidjan', amenities: [] });
             fetchSites();
         } catch (error) {
             console.error('Error saving site:', error);
-            toast.error('Erreur lors de la création du site');
+            toast.error('Erreur lors de la sauvegarde du site');
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async (siteId: string, siteName: string) => {
+        if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la résidence "${siteName}" ? Toutes les unités associées doivent d'abord être supprimées.`)) return;
+        
+        try {
+            setIsLoading(true);
+            await dbService.modular.deleteSite(siteId);
+            toast.success('Site supprimé avec succès');
+            fetchSites();
+        } catch (error) {
+            console.error('Error deleting site:', error);
+            toast.error('Impossible de supprimer ce site. Il contient probablement des unités.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -133,10 +156,27 @@ export const SiteManager: React.FC = () => {
                                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">{site.address}</p>
                                 </div>
                                 <div className="flex gap-1">
-                                    <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
+                                    <button 
+                                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                        onClick={() => {
+                                            setEditingSite(site);
+                                            setFormData({
+                                                name: site.name,
+                                                zone: site.zone,
+                                                address: site.address || '',
+                                                city: site.city,
+                                                amenities: site.amenities || []
+                                            });
+                                            setIsModalOpen(true);
+                                        }}
+                                    >
                                         <Edit3 size={16} />
                                     </button>
-                                    <button className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors">
+                                    <button 
+                                        className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                                        onClick={() => handleDelete(site.id, site.name)}
+                                        title="Supprimer ce site"
+                                    >
                                         <Trash2 size={16} />
                                     </button>
                                 </div>
@@ -173,14 +213,13 @@ export const SiteManager: React.FC = () => {
                     />
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400">Zone Géographique</label>
-                            <select 
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-indigo-500"
+                            <Input 
+                                label="Zone / Emplacement" 
+                                placeholder="ex: Cocody 2 Plateaux" 
+                                required 
                                 value={formData.zone}
                                 onChange={(e) => setFormData(prev => ({ ...prev, zone: e.target.value }))}
-                            >
-                                {zones.map(z => <option key={z} value={z}>{z}</option>)}
-                            </select>
+                            />
                         </div>
                         <Input 
                             label="Ville" 

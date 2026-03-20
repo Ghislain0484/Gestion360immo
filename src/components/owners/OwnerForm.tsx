@@ -238,11 +238,11 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
                   aria-required="true"
                 />
                 <Input
-                  label="Email (optionnel)"
+                  label="Email (Requis pour l'accès Portail en ligne)"
                   type="email"
                   value={formData.email || ''}
                   onChange={(e) => updateFormData({ email: e.target.value })}
-                  placeholder="email@exemple.com"
+                  placeholder="Pour se connecter à l'espace"
                 />
               </div>
             </div>

@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AdminProvider } from './contexts/AdminContext';
 import { LoginForm } from './components/auth/LoginForm';
+import { OwnerSignup } from './components/auth/OwnerSignup';
 import { AdminLoginForm } from './components/auth/AdminLoginForm';
 import { Layout } from './components/layout/Layout';
 import { Dashboard } from './components/dashboard/Dashboard';
@@ -27,6 +28,13 @@ import { InventoryList } from './components/inventory/InventoryList';
 import { AgencyPicker } from './components/layout/AgencyPicker';
 import { HotelDashboard } from './components/hotel/HotelDashboard';
 import { ResidencesDashboard } from './components/residences/ResidencesDashboard';
+
+import { OwnerLayout } from './components/owner-portal/OwnerLayout';
+import { OwnerDashboard } from './components/owner-portal/OwnerDashboard';
+import { OwnerProperties } from './components/owner-portal/OwnerProperties';
+import { OwnerTenants } from './components/owner-portal/OwnerTenants';
+import { OwnerFinances } from './components/owner-portal/OwnerFinances';
+import { OwnerMaintenance } from './components/owner-portal/OwnerMaintenance';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -87,7 +95,20 @@ const AdminProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children
   return <>{children}</>;
 };
 
-import { APP_NAME, IS_STANDALONE, APP_EDITION } from './lib/constants';
+// Route protégée pour propriétaires
+const OwnerProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { owner, isLoading } = useAuth();
+  if (isLoading)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  if (!owner) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+};
+
+import { APP_NAME, IS_STANDALONE, APP_EDITION, HIDE_PLATFORM_ADMIN } from './lib/constants';
 
 // Guard for modular features
 const ModuleGuard: React.FC<{ children: React.ReactNode; module: string }> = ({ children, module }) => {
@@ -108,7 +129,7 @@ const ModuleGuard: React.FC<{ children: React.ReactNode; module: string }> = ({ 
 };
 
 const AppContent: React.FC = () => {
-  const { user, admin } = useAuth();
+  const { user, admin, owner } = useAuth();
 
   React.useEffect(() => {
     if (user?.agency_id && user.id) {
@@ -125,8 +146,9 @@ const AppContent: React.FC = () => {
     <Router>
       <Routes>
         {/* Login routes */}
-        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginForm />} />
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : admin ? <Navigate to="/admin" replace /> : owner ? <Navigate to="/espace-proprietaire" replace /> : <LoginForm />} />
         <Route path="/admin/login" element={admin ? <Navigate to="/admin" replace /> : <AdminLoginForm />} />
+        <Route path="/inscription-proprietaire" element={<OwnerSignup />} />
         <Route path="/password-reset" element={<PasswordResetRequest />} />
         <Route path="/reset-password" element={<PasswordResetConfirm />} />
 
@@ -177,11 +199,22 @@ const AppContent: React.FC = () => {
         </Route>
 
         {/* Admin protected route */}
-        <Route path="/admin" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+        {!HIDE_PLATFORM_ADMIN && (
+          <Route path="/admin" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+        )}
+
+        {/* Owner protected routes */}
+        <Route path="/espace-proprietaire" element={<OwnerProtectedRoute><OwnerLayout /></OwnerProtectedRoute>}>
+          <Route index element={<OwnerDashboard />} />
+          <Route path="proprietes" element={<OwnerProperties />} />
+          <Route path="locataires" element={<OwnerTenants />} />
+          <Route path="finances" element={<OwnerFinances />} />
+          <Route path="travaux" element={<OwnerMaintenance />} />
+        </Route>
 
         {/* Redirect default */}
         {/* Redirect default - handled by specific routes now, fallback to login if no match */}
-        <Route path="*" element={<Navigate to={user ? "/" : admin ? "/admin" : "/login"} replace />} />
+        <Route path="*" element={<Navigate to={user ? "/" : admin ? "/admin" : owner ? "/espace-proprietaire" : "/login"} replace />} />
       </Routes>
     </Router>
   );

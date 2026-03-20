@@ -1,7 +1,7 @@
 // @refresh skip
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../lib/config';
-import { User, PlatformAdmin, UserPermissions } from '../types/db';
+import { User, PlatformAdmin, UserPermissions, Owner } from '../types/db';
 import { AgencyUserRole } from '../types/enums';
 import debounce from 'lodash/debounce';
 import toast from 'react-hot-toast';
@@ -30,12 +30,14 @@ export interface AuthUser extends User {
 interface AuthContextType {
   user: AuthUser | null;
   admin: PlatformAdmin | null;
+  owner: Owner | null;
   isLoading: boolean;
   agencyId: string | null;
   agencies: AgencyInfo[];
-  switchAgency: (agencyId: string | null) => void; // Keep original type for now, instruction's diff was problematic
-  refreshAuth: () => Promise<void>; // Added as per instruction
+  switchAgency: (agencyId: string | null) => void;
+  refreshAuth: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginOwner: (email: string, password: string) => Promise<Owner>;
   loginAdmin: (email: string, password: string) => Promise<PlatformAdmin>;
   updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -178,6 +180,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [admin, setAdmin] = useState<PlatformAdmin | null>(null);
+  const [owner, setOwner] = useState<Owner | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeAgencyId, setActiveAgencyId] = useState<string | null>(
     () => localStorage.getItem(ACTIVE_AGENCY_KEY)
@@ -281,16 +284,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return prev;
           });
           setAdmin(null);
+          setOwner(null);
           return;
         }
 
-        // Si ni user ni admin, réinitialiser
+        // Si ce n'est pas un agency_user, vérifier si c'est un owner
+        const { data: ownerArray, error: ownerError } = await supabase
+          .from('owners')
+          .select('*')
+          .eq('user_id', currentUserId)
+          .limit(1);
+
+        const ownerData = ownerArray?.[0];
+        if (!ownerError && ownerData) {
+          setOwner((prev) => {
+            const prevData = prev ? omit(prev, ['updated_at']) : null;
+            const newData = omit(ownerData as Owner, ['updated_at']);
+            if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
+              console.log('🔄 AuthContext: Mise à jour owner:', ownerData);
+              return ownerData as Owner;
+            }
+            return prev;
+          });
+          setUser(null);
+          setAdmin(null);
+          return;
+        }
+
+        // Si ni user ni admin ni owner, réinitialiser
         setUser(null);
         setAdmin(null);
+        setOwner(null);
       } catch (err) {
         console.error('❌ AuthContext: Erreur checkSession:', err);
         setUser(null);
         setAdmin(null);
+        setOwner(null);
       } finally {
         isCheckingSessionRef.current = false;
         setIsLoading(false);
@@ -314,6 +343,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (evt === 'SIGNED_OUT') {
         setUser(null);
         setAdmin(null);
+        setOwner(null);
         setIsLoading(false);
       }
     });
@@ -398,6 +428,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setUser(u);
       setAdmin(null);
+      setOwner(null);
     } catch (err: any) {
       console.error('❌ AuthContext: Erreur login:', err);
       toast.error(err.message || 'Erreur lors de la connexion');
@@ -405,6 +436,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
       console.log('✅ AuthContext: login terminé, isLoading:', false);
+    }
+  }, []);
+
+  const loginOwner = useCallback(async (email: string, password: string): Promise<Owner> => {
+    console.log('🔄 AuthContext: loginOwner', { email });
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim(),
+      });
+      if (error) {
+        if (error.message.includes('invalid credentials')) {
+          throw new Error('Email ou mot de passe incorrect');
+        }
+        throw error;
+      }
+      if (!data.user) throw new Error('Utilisateur non trouvé');
+
+      const { data: ownerArray, error: ownerError } = await supabase
+        .from('owners')
+        .select('*')
+        .eq('user_id', data.user.id)
+        .limit(1);
+
+      const ownerData = ownerArray?.[0];
+
+      if (ownerError || !ownerData) {
+        console.error('❌ AuthContext: Erreur loginOwner, compte propriétaire non trouvé:', ownerError);
+        throw new Error('Compte propriétaire non trouvé');
+      }
+
+      const o = ownerData as Owner;
+      setOwner(o);
+      setUser(null);
+      setAdmin(null);
+      return o;
+    } catch (err: any) {
+      console.error('❌ AuthContext: Erreur loginOwner:', err);
+      toast.error(err.message || 'Erreur lors de la connexion propriétaire');
+      throw err;
+    } finally {
+      setIsLoading(false);
+      console.log('✅ AuthContext: loginOwner terminé, isLoading:', false);
     }
   }, []);
 
@@ -445,6 +520,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setAdmin(admin);
       setUser(null);
+      setOwner(null);
       await supabase
         .from('platform_admins')
         .update({ last_login: new Date().toISOString() })
@@ -504,6 +580,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signOut();
       setUser(null);
       setAdmin(null);
+      setOwner(null);
       setActiveAgencyId(null);
       // NE PAS effacer localStorage pour mémoriser la préférence
     } finally {
@@ -528,17 +605,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     () => ({
       user: user ? { ...user, agency_id: resolvedAgencyId ?? undefined } : null,
       admin,
+      owner,
       isLoading,
       agencyId: resolvedAgencyId,
       agencies: user?.agencies ?? [],
       switchAgency,
       refreshAuth, // Added as per instruction
       login,
+      loginOwner,
       loginAdmin,
       updatePassword,
       logout,
     }),
-    [user, admin, isLoading, resolvedAgencyId, switchAgency, refreshAuth, login, loginAdmin, updatePassword, logout]
+    [user, admin, owner, isLoading, resolvedAgencyId, switchAgency, refreshAuth, login, loginOwner, loginAdmin, updatePassword, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

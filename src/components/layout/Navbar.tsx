@@ -69,11 +69,11 @@ export const Navbar: React.FC = () => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Caisse', href: '/caisse', icon: Wallet },
-    { name: 'Propriétaires', href: '/proprietaires', icon: Building },
-    { name: 'Propriétés', href: '/proprietes', icon: Building2 },
-    { name: 'Locataires', href: '/locataires', icon: Key },
-    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck },
-    { name: 'Contrats', href: '/contrats', icon: FileText },
+    { name: 'Propriétaires', href: '/proprietaires', icon: Building, module: 'base' },
+    { name: 'Propriétés', href: '/proprietes', icon: Building2, module: 'base' },
+    { name: 'Locataires', href: '/locataires', icon: Key, module: 'base' },
+    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'base' },
+    { name: 'Contrats', href: '/contrats', icon: FileText, module: 'base' },
     ...(enabledModules.includes('hotel') ? [{ name: 'Hôtel', href: '/hotel', icon: Building }] : []),
     ...(enabledModules.includes('residences') ? [{ name: 'Résidences', href: '/residences', icon: Building2 }] : []),
   ];
@@ -185,8 +185,7 @@ export const Navbar: React.FC = () => {
 
             {/* Main Nav */}
             <div className="flex items-center gap-1">
-              {navigation.map(item => {
-                const active = isActiveLink(item.href);
+              {navigation.filter(item => !item.module || enabledModules.includes(item.module)).map(item => {
                 return (
                   <NavLink
                     key={item.name}

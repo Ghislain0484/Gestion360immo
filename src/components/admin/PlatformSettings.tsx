@@ -25,6 +25,7 @@ interface SettingsState {
     allowNewRegistrations: boolean;
     maxAgenciesPerCity: number;
     supportEmail: string;
+    enableOwnerPortal: boolean;
   };
 }
 
@@ -56,6 +57,7 @@ export const PlatformSettings: React.FC = () => {
       allowNewRegistrations: true,
       maxAgenciesPerCity: 10,
       supportEmail: 'support@immoplatform.ci',
+      enableOwnerPortal: true,
     },
   });
 
@@ -78,7 +80,7 @@ export const PlatformSettings: React.FC = () => {
         ip_address: 'unknown', // Replace with actual IP if available
         user_agent: navigator.userAgent,
       };
-      await dbService.auditLogs.getAll(); // No insert method, assuming trigger-based logging
+      await dbService.auditLogs.insert(auditLog); 
     } catch (err) {
       console.error('Erreur lors de l’enregistrement de l’audit:', err);
     }
@@ -119,6 +121,7 @@ export const PlatformSettings: React.FC = () => {
           allowNewRegistrations: Boolean(settingsMap['platform_allow_new_registrations']) ?? true,
           maxAgenciesPerCity: Number(settingsMap['platform_max_agencies_per_city']) || 10,
           supportEmail: String(settingsMap['platform_support_email']) || 'support@immoplatform.ci',
+          enableOwnerPortal: Boolean(settingsMap['platform_enable_owner_portal']) ?? true,
         },
       });
     } catch (err: any) {
@@ -323,6 +326,17 @@ export const PlatformSettings: React.FC = () => {
           created_at: new Date().toISOString(),
         },
         {
+          id: settingsMap['platform_enable_owner_portal']?.id || crypto.randomUUID(),
+          setting_key: 'platform_enable_owner_portal',
+          setting_value: settings.platform.enableOwnerPortal,
+          description: 'Activer l\'espace Propriétaires globalement',
+          category: 'platform',
+          is_public: true,
+          updated_by: admin?.id || null,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        },
+        {
           id: settingsMap['platform_support_email']?.id || crypto.randomUUID(),
           setting_key: 'platform_support_email',
           setting_value: settings.platform.supportEmail,
@@ -452,14 +466,16 @@ export const PlatformSettings: React.FC = () => {
               onChange={(e) => updateSetting('subscription', 'trialDays', parseInt(e.target.value) || 0)}
               min={0}
             />
-            <Input
-              label="Délai de grâce (jours)"
-              type="number"
-              value={settings.subscription.gracePeriodDays}
-              onChange={(e) => updateSetting('subscription', 'gracePeriodDays', parseInt(e.target.value) || 0)}
-              min={0}
-              helperText="Délai avant suspension pour impayé"
-            />
+            <div>
+              <Input
+                label="Délai de grâce (jours)"
+                type="number"
+                value={settings.subscription.gracePeriodDays}
+                onChange={(e) => updateSetting('subscription', 'gracePeriodDays', parseInt(e.target.value) || 0)}
+                min={0}
+              />
+              <p className="text-xs text-gray-500 mt-1">Délai avant suspension pour impayé</p>
+            </div>
           </div>
         </div>
       </Card>
@@ -551,6 +567,21 @@ export const PlatformSettings: React.FC = () => {
                     type="checkbox"
                     checked={settings.platform.allowNewRegistrations}
                     onChange={(e) => updateSetting('platform', 'allowNewRegistrations', e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <h4 className="font-medium text-gray-900">Espace Propriétaires</h4>
+                  <p className="text-sm text-gray-500">Activer le portail de connexion et gestion pour les propriétaires</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.platform.enableOwnerPortal}
+                    onChange={(e) => updateSetting('platform', 'enableOwnerPortal', e.target.checked)}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>

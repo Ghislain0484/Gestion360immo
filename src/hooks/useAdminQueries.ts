@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dbService } from '../lib/supabase';
+import { agencySubscriptionsService } from '../lib/db/agencySubscriptionsService';
 import { Agency } from '../types/db';
 import { toast } from 'react-hot-toast';
 
@@ -11,7 +12,7 @@ export const useAgencies = () => {
             const agencies = await dbService.agencies.getAll();
             return agencies || [];
         },
-        staleTime: 5 * 60 * 1000, // Les données restent fraîches pendant 5 minutes
+        staleTime: 30 * 1000, // Réduit à 30 secondes pour plus de réactivité dans l'admin
         gcTime: 10 * 60 * 1000, // Cache conservé pendant 10 minutes
         refetchOnWindowFocus: true,
         refetchOnReconnect: true,
@@ -47,9 +48,22 @@ export const useToggleAgencyStatus = () => {
             });
 
             try {
+                // Mettre à jour le statut dans la table agencies
                 const result = await dbService.agencies.update(id, {
                     subscription_status: newStatus
                 } as any);
+
+                // Synchroniser avec la table agency_subscriptions
+                // On récupère d'abord l'agence pour avoir le plan actuel si non fourni
+                const agency = await dbService.agencies.getById(id);
+                if (agency) {
+                    await agencySubscriptionsService.syncSubscription(
+                        id,
+                        agency.plan_type || 'basic',
+                        agency.monthly_fee || 0,
+                        newStatus
+                    );
+                }
 
                 console.log('✅ Toggle Agency Status - Succès', {
                     agencyId: id,
@@ -229,10 +243,19 @@ export const useUpdateAgencyPlan = () => {
         }) => {
             console.log('🔄 Update Agency Plan - Début', { agencyId, planType, monthlyFee });
 
+            // 1. Mettre à jour la table agencies
             const result = await dbService.agencies.update(agencyId, {
                 plan_type: planType,
                 monthly_fee: monthlyFee,
             } as any);
+
+            // 2. Synchroniser avec agency_subscriptions
+            await agencySubscriptionsService.syncSubscription(
+                agencyId,
+                planType,
+                monthlyFee,
+                'active' // On réactive l'abonnement lors d'un changement de plan
+            );
 
             console.log('✅ Update Agency Plan - Succès', { agencyId, result });
             return { agencyId, planType, monthlyFee, result };
@@ -288,6 +311,7 @@ export const usePlatformSettings = () => {
                 subscription_premium_price: Number(settingsMap['subscription_premium_price']) || 50000,
                 subscription_enterprise_price: Number(settingsMap['subscription_enterprise_price']) || 100000,
                 subscription_grace_period_days: Number(settingsMap['subscription_grace_period_days']) || 7,
+                platform_enable_owner_portal: settingsMap['platform_enable_owner_portal'] !== undefined ? Boolean(settingsMap['platform_enable_owner_portal']) : true,
                 ...settingsMap,
             };
         },

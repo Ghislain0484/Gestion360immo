@@ -11,15 +11,20 @@ import { BibleVerseCard } from '../ui/BibleVerse';
 import { Toaster, toast } from 'react-hot-toast';
 import { AuditLog, AgencyFormData, UserFormData } from '../../types/db';
 
+import { usePlatformSettings } from '../../hooks/useAdminQueries';
+
 export const LoginForm: React.FC = () => {
+  const { data: settings } = usePlatformSettings();
+  const isOwnerPortalEnabled = settings?.platform_enable_owner_portal !== false;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
+  const [userType, setUserType] = useState<'agency' | 'owner'>('agency');
 
-  const { login } = useAuth();
+  const { login, loginOwner } = useAuth();
 
   const highlights = [
     {
@@ -84,7 +89,11 @@ export const LoginForm: React.FC = () => {
         throw new Error('Format d’email invalide');
       }
 
-      await login(email, password);
+      if (userType === 'owner') {
+        await loginOwner(email, password);
+      } else {
+        await login(email, password);
+      }
       await logAudit('user_login_success', null, {
         email,
         timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
@@ -190,12 +199,44 @@ export const LoginForm: React.FC = () => {
                   <Building2 className="h-8 w-8" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-semibold text-slate-900">Connexion agence</h2>
+                  <h2 className="text-2xl font-semibold text-slate-900">
+                    {userType === 'agency' ? 'Connexion agence' : 'Espace propriétaire'}
+                  </h2>
                   <p className="text-sm text-slate-500">
-                    Accédez à votre console et poursuivez vos opérations en toute confiance.
+                    {userType === 'agency' 
+                      ? 'Accédez à votre console et poursuivez vos opérations en toute confiance.'
+                      : 'Suivez la gestion de vos biens et de vos locataires en temps réel.'}
                   </p>
                 </div>
               </div>
+
+              {/* Toggle switch for Agency / Owner */}
+              {isOwnerPortalEnabled && (
+                <div className="flex rounded-lg bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setUserType('agency')}
+                    className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+                      userType === 'agency'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Gestionnaire
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserType('owner')}
+                    className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+                      userType === 'owner'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Propriétaire
+                  </button>
+                </div>
+              )}
 
               <form className="space-y-6" onSubmit={handleSubmit}>
                 {error && (
@@ -205,7 +246,7 @@ export const LoginForm: React.FC = () => {
                 )}
 
                 <Input
-                  label="Email professionnel"
+                  label={userType === 'agency' ? "Email professionnel" : "Email propriétaire"}
                   type="email"
                   value={email}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value.trim())}
@@ -261,12 +302,21 @@ export const LoginForm: React.FC = () => {
                 </Button>
               </form>
 
-              <div className="space-y-4 rounded-2xl bg-slate-50 px-5 py-4 text-center">
-                <p className="text-sm text-slate-600">Pas encore d’accès à la plateforme ?</p>
-                <Button variant="ghost" className="text-blue-600 hover:text-blue-500" onClick={() => setShowRegistration(true)}>
-                  Demander l’activation de mon agence
-                </Button>
-              </div>
+              {userType === 'agency' ? (
+                <div className="space-y-4 rounded-2xl bg-slate-50 px-5 py-4 text-center">
+                  <p className="text-sm text-slate-600">Pas encore d’accès à la plateforme ?</p>
+                  <Button variant="ghost" className="text-blue-600 hover:text-blue-500" onClick={() => setShowRegistration(true)}>
+                    Demander l’activation de mon agence
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4 rounded-2xl bg-slate-50 px-5 py-4 text-center">
+                  <p className="text-sm text-slate-600">Vous n'avez pas encore de compte ?</p>
+                  <a href="/inscription-proprietaire" className="text-blue-600 hover:text-blue-500 font-medium text-sm inline-block">
+                    Inscrivez-vous ici
+                  </a>
+                </div>
+              )}
             </div>
           </Card>
         </div>
