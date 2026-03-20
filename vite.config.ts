@@ -9,6 +9,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+      },
       manifest: {
         name: 'Gestion360 Immo',
         short_name: 'Gestion360',
@@ -42,10 +46,15 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          supabase: ['@supabase/supabase-js'],
-          ui: ['lucide-react', 'clsx', 'tailwind-merge']
+          'vendor-core': ['react', 'react-dom'],
+          'vendor-router': ['react-router-dom', '@tanstack/react-query'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-ui': ['lucide-react', 'clsx', 'tailwind-merge', 'react-hot-toast'],
+          'vendor-utils': ['date-fns', 'dexie', 'html2canvas', 'jspdf'],
+          'modular-core': [
+            './src/lib/db/modularService.ts',
+            './src/lib/offlineSync.ts'
+          ]
         }
       }
     }

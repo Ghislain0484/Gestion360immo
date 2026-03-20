@@ -240,7 +240,7 @@ export const modularService = {
     async getRecentBookings(agencyId: string, limit = 10): Promise<ModularBooking[]> {
         const { data, error } = await supabase
             .from('modular_bookings')
-            .select('*, residence:residence_units(*), room:hotel_rooms(*)')
+            .select('*, residence:residence_units(*), room:hotel_rooms(*), client:modular_clients(*)')
             .eq('agency_id', agencyId)
             .order('created_at', { ascending: false })
             .limit(limit);
