@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building, Users, Plane, Smartphone, Loader2, AlertTriangle, Clock } from 'lucide-react';
+import { Building, Users, Plane, Smartphone, Loader2, AlertTriangle, Clock, TrendingUp } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { usePriceCalculator } from '../../hooks/usePriceCalculator';
@@ -41,11 +41,23 @@ export const HotelDashboard: React.FC = () => {
     // Use the formatter to avoid unused warning
     const priceText = (price: number) => localFormatPrice(price);
 
+    const [stats, setStats] = useState<any>(null);
+
     useEffect(() => {
         if (agencyId) {
             fetchData();
+            fetchStats();
         }
     }, [agencyId]);
+
+    const fetchStats = async () => {
+        try {
+            const statsData = await dbService.modular.getFinanceStats(agencyId!, 'hotel');
+            setStats(statsData);
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -99,30 +111,34 @@ export const HotelDashboard: React.FC = () => {
                 <p className="text-gray-500 mt-1 uppercase text-[10px] font-bold tracking-widest">Expertise Côte d'Ivoire • {rooms.length} Chambres</p>
             </div>
             
-            <div className="flex bg-slate-100 p-1 rounded-2xl border-2 border-slate-200">
+            <div className="flex bg-slate-100 p-1.5 rounded-2xl border-2 border-slate-200 shadow-inner">
                 <button 
                     onClick={() => setView('dashboard')}
-                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'dashboard' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${view === 'dashboard' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                    Tableau de Bord
+                    <Building size={14} />
+                    Overview
                 </button>
                 <button 
                     onClick={() => setView('management')}
-                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'management' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${view === 'management' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                    Suivi du Parc
+                    <Smartphone size={14} />
+                    CHAMBRES
                 </button>
                 <button 
                     onClick={() => setView('finances')}
-                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'finances' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${view === 'finances' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                    Flux de Trésorerie
+                    <Plane size={14} className="rotate-45" />
+                    FINANCES
                 </button>
                 <button 
                     onClick={() => setView('crm')}
-                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'crm' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${view === 'crm' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                    Clients
+                    <Users size={14} />
+                    CLIENTS
                 </button>
             </div>
         </div>
@@ -131,37 +147,34 @@ export const HotelDashboard: React.FC = () => {
     const renderDashboard = () => (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="p-4 border-l-4 border-blue-600 shadow-sm">
-                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Taux d'occupation</p>
+                <Card className="p-4 border-l-4 border-blue-600 shadow-sm bg-white">
+                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest font-sans">Occupation</p>
                     <div className="flex items-end gap-2 mt-1">
                         <p className="text-3xl font-black text-gray-900">
                             {rooms.length > 0 ? Math.round((rooms.filter(r => r.status === 'occupied').length / rooms.length) * 100) : 0}%
                         </p>
-                        <span className="text-xs text-green-600 font-bold mb-1">Direct</span>
+                        <span className="text-[10px] text-blue-600 font-black mb-1 uppercase tracking-tighter">Direct</span>
                     </div>
                 </Card>
-                <Card className="p-4 border-l-4 border-green-600 shadow-sm">
-                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Arrivées / Départs</p>
+                <Card className="p-4 border-l-4 border-indigo-600 shadow-sm bg-indigo-50/30">
+                    <p className="text-[10px] text-indigo-600 uppercase font-black tracking-widest">Recettes (FCFA)</p>
                     <div className="flex items-end gap-2 mt-1">
-                        <p className="text-3xl font-black text-gray-900">{recentBookings.length}</p>
-                        <span className="text-[10px] text-gray-400 font-bold mb-1 italic">Mouvements récents</span>
+                        <p className="text-3xl font-black text-gray-900">{stats?.total_income?.toLocaleString() || 0}</p>
+                        <span className="text-[10px] text-indigo-400 font-bold mb-1 italic">Mouvements globaux</span>
                     </div>
                 </Card>
-                <Card className="p-4 border-l-4 border-amber-600 shadow-sm">
-                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Disponibilité immédiate</p>
+                <Card className="p-4 border-l-4 border-amber-600 shadow-sm bg-white">
+                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest px-1">Chambres libres</p>
                     <div className="flex items-end gap-2 mt-1">
                         <p className="text-3xl font-black text-amber-600">{rooms.filter(r => r.status === 'available').length}</p>
-                        <span className="text-xs text-gray-400 font-bold mb-1">Chambres libres</span>
+                        <span className="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-tighter">Prêtes</span>
                     </div>
                 </Card>
-                <Card className="p-4 border-l-4 border-indigo-600 shadow-sm">
-                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Services VIP</p>
+                <Card className="p-4 border-l-4 border-emerald-600 shadow-sm bg-emerald-50/30">
+                    <p className="text-[10px] text-emerald-600 uppercase font-black tracking-widest">Balance NETTE</p>
                     <div className="flex items-end gap-2 mt-1">
-                        <p className="text-3xl font-black text-indigo-600">Active</p>
-                        <div className="flex gap-1 mb-1 ml-2">
-                            <Plane size={14} className="text-indigo-400" />
-                            <Smartphone size={14} className="text-green-500" />
-                        </div>
+                        <p className="text-3xl font-black text-emerald-600">{stats?.net_balance?.toLocaleString() || 0}</p>
+                        <span className="text-[10px] text-emerald-400 font-bold mb-1 italic">Caisse actuelle</span>
                     </div>
                 </Card>
             </div>
@@ -235,12 +248,68 @@ export const HotelDashboard: React.FC = () => {
                 </Card>
 
                 <div className="space-y-6">
-                    <Card className="p-6 shadow-md border-0 border-t-4 border-green-600 bg-green-50/30">
-                        <h3 className="text-md font-black text-gray-800 uppercase tracking-tight mb-4 flex items-center justify-between italic text-[12px]">
-                            Check-in Rapide
-                            <Users size={18} className="text-green-600" />
+                    <Card className="p-6 shadow-md border-0 border-t-4 border-emerald-600 bg-emerald-50/20">
+                        <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-tight mb-4 flex items-center justify-between italic">
+                            Derniers Revenus
+                            <TrendingUp size={16} className="text-emerald-600" />
                         </h3>
-                        <Button variant="primary" size="sm" className="w-full text-[10px] font-black" onClick={() => setShowBookingModal(true)}>NOUVELLE RÉSERVATION</Button>
+                        <div className="space-y-3">
+                            {stats?.total_income > 0 ? (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
+                                        <span>Total Recettes</span>
+                                        <span className="text-emerald-600">{stats.total_income.toLocaleString()} F</span>
+                                    </div>
+                                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                        <div className="bg-emerald-500 h-full" style={{ width: '100%' }} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-[9px] font-bold text-slate-400 italic">Aucune recette enregistrée</p>
+                            )}
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="w-full text-[9px] font-black uppercase mt-2"
+                                onClick={() => setView('finances')}
+                            >
+                                Voir Détails Trésorerie
+                            </Button>
+                        </div>
+                    </Card>
+
+                    <Card className="p-6 shadow-md border-0 border-t-4 border-indigo-600 bg-indigo-50/20">
+                        <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-tight mb-4 flex items-center justify-between italic">
+                            Check-in Rapide
+                            <Users size={18} className="text-indigo-600" />
+                        </h3>
+                        <Button variant="primary" size="sm" className="w-full text-[10px] font-black shadow-lg shadow-indigo-100" onClick={() => setShowBookingModal(true)}>NOUVELLE RÉSERVATION</Button>
+                    </Card>
+
+                    <Card className="p-6 shadow-md border-0 bg-gradient-to-br from-slate-800 to-slate-900 text-white">
+                        <h3 className="text-[11px] font-black uppercase tracking-tight mb-4 flex items-center justify-between italic text-slate-400">
+                             Mouvements Récents
+                            <Clock size={16} />
+                        </h3>
+                        <div className="space-y-4">
+                            {recentBookings.length > 0 ? (
+                                recentBookings.slice(0, 3).map((booking) => (
+                                    <div key={booking.id} className="border-l-2 border-indigo-500 pl-4 py-1">
+                                        <p className="text-xs font-black uppercase tracking-tight">
+                                            {booking.client?.first_name} {booking.client?.last_name}
+                                        </p>
+                                        <div className="flex justify-between items-center mt-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Chambre {booking.room?.room_number || '??'}</span>
+                                            <span className="text-[9px] font-black px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded-full uppercase">
+                                                {new Date(booking.check_in).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-[9px] font-black text-slate-500 italic uppercase">Aucun mouvement récent</p>
+                            )}
+                        </div>
                     </Card>
 
                     <Card className="p-6 shadow-md border-0 bg-gradient-to-br from-slate-800 to-slate-900 text-white">

@@ -60,6 +60,7 @@ export interface ModularBooking {
     created_at: string;
     residence?: ResidenceUnit; // Joined data
     room?: HotelRoom; // Joined data
+    client?: ModularClient; // Joined data
 }
 
 export interface ResidenceExpense {
