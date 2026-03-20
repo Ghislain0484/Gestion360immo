@@ -5,13 +5,47 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { Badge } from '../ui/Badge';
 
+import { ownersService } from '../../lib/db/ownersService';
+
 export const OwnerSignup: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<'verify' | 'setup'>('verify');
+  const [ownerInfo, setOwnerInfo] = useState<{ name: string } | null>(null);
   const navigate = useNavigate();
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const status = await ownersService.checkEmailStatus(email);
+      
+      if (!status.exists) {
+        setError("Cette adresse email n'est pas reconnue par notre système. Veuillez contacter votre agence pour qu'elle enregistre votre email.");
+        return;
+      }
+
+      if (status.activated) {
+        setError("Votre compte est déjà activé. Vous pouvez vous connecter normalement.");
+        toast.error("Compte déjà activé");
+        setTimeout(() => navigate('/connexion?tab=owner'), 2000);
+        return;
+      }
+
+      setOwnerInfo({ name: status.ownerName || '' });
+      setStep('setup');
+      toast.success(`Bienvenue ${status.ownerName} !`);
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la vérification de l'email.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,23 +64,33 @@ export const OwnerSignup: React.FC = () => {
     setLoading(true);
 
     try {
+      // Create auth user
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            role: 'owner',
+            full_name: ownerInfo?.name
+          }
+        }
       });
 
       if (signUpError) {
         throw signUpError;
       }
 
-      toast.success('Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
+      toast.success('Compte activé avec succès ! Bienvenue sur votre portail.');
       navigate('/connexion?tab=owner');
     } catch (err: any) {
-      console.error('Error during signup:', err);
-      if (err.message?.includes('already registered')) {
+      console.error('Error during activation:', err);
+      // More professional error handling for the specific "Database error" message
+      if (err.message?.includes('Database error saving new user')) {
+        setError("Une erreur technique est survenue lors de la liaison de votre compte. Veuillez réessayer ou contacter le support.");
+      } else if (err.message?.includes('already registered')) {
         setError('Cet email est déjà utilisé. Veuillez vous connecter.');
       } else {
-        setError(err.message || 'Une erreur est survenue lors de la création du compte.');
+        setError(err.message || 'Une erreur est survenue lors de l’activation.');
       }
     } finally {
       setLoading(false);
@@ -67,9 +111,14 @@ export const OwnerSignup: React.FC = () => {
             <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-slate-900/20">
               <Building2 className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Activer mon espace</h1>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+              {step === 'verify' ? 'Activer mon espace' : 'Sécuriser mon compte'}
+            </h1>
             <p className="text-slate-500 mt-3 text-lg">
-              Créez vos identifiants à l'aide de l'adresse email communiquée à votre agence de gestion.
+              {step === 'verify' 
+                ? "Créez vos identifiants à l'aide de l'adresse email communiquée à votre agence de gestion."
+                : `Ravi de vous revoir, ${ownerInfo?.name}. Choisissez un mot de passe pour accéder à votre espace.`
+              }
             </p>
           </div>
 
@@ -82,67 +131,102 @@ export const OwnerSignup: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSignup} className="space-y-6">
-            <div className="space-y-1.5">
-              <label className="block text-sm font-bold text-slate-700">Adresse Email</label>
-              <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+          {step === 'verify' ? (
+            <form onSubmit={handleVerifyEmail} className="space-y-6">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-bold text-slate-700">Adresse Email Professionnelle</label>
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
+                    placeholder="votre@email.com"
+                    required
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-xl shadow-slate-900/20 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
+              >
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    <span>Vérifier mon admissibilité</span>
+                    <ShieldCheck className="w-5 h-5 ml-2" />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSignup} className="space-y-6">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-bold text-slate-700">Adresse Email</label>
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
-                  placeholder="votre@email.com"
-                  required
+                  disabled
+                  className="w-full px-4 py-3.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-medium opacity-70 cursor-not-allowed"
                 />
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-sm font-bold text-slate-700">Créer un mot de passe</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
-                  placeholder="••••••••"
-                  required
-                />
+              <div className="space-y-1.5">
+                <label className="block text-sm font-bold text-slate-700">Créer un mot de passe</label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-sm font-bold text-slate-700">Confirmer le mot de passe</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
-                  placeholder="••••••••"
-                  required
-                />
+              <div className="space-y-1.5">
+                <label className="block text-sm font-bold text-slate-700">Confirmer le mot de passe</label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-xl shadow-slate-900/20 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Activation en cours...</span>
-                </>
-              ) : (
-                'Activer mon compte propriétaire'
-              )}
-            </button>
-          </form>
+              <div className="flex gap-4 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setStep('verify')}
+                  className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 px-4 rounded-xl transition-all active:scale-[0.98]"
+                >
+                  Retour
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-2/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-xl shadow-blue-600/20 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    'Confirmer l’activation'
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
 
           <p className="mt-8 text-center text-sm text-slate-500 font-medium tracking-tight">
             Plateforme sécurisée propulsée par Gestion360Immo
