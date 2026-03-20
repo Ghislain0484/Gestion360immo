@@ -160,4 +160,21 @@ export const ownersService = {
     // 6. Finally delete the owner
     await this.delete(ownerId);
   },
+  async checkEmailStatus(email: string): Promise<{ exists: boolean; activated: boolean; ownerName?: string }> {
+    const { data, error } = await supabase
+      .from('owners')
+      .select('first_name, last_name, user_id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (error) throw new Error(formatSbError('❌ owners.checkEmailStatus', error));
+    
+    if (!data) return { exists: false, activated: false };
+    
+    return { 
+      exists: true, 
+      activated: !!data.user_id,
+      ownerName: `${data.first_name} ${data.last_name}`
+    };
+  },
 };
