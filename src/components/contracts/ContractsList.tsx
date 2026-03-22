@@ -141,10 +141,10 @@ export const ContractsList: React.FC = () => {
       limit: pageSize,
       offset: (page - 1) * pageSize,
       // We perform search client-side only below to allow searching across joined data (tenants/properties)
-      status: filterStatus !== 'all' ? filterStatus : undefined,
+      status: filterStatus === 'active' ? undefined : (filterStatus !== 'all' ? filterStatus : undefined),
     }),
     'contracts',
-    { agency_id: user?.agency_id, limit: pageSize, offset: (page - 1) * pageSize, status: filterStatus !== 'all' ? filterStatus : undefined }
+    { agency_id: user?.agency_id, limit: pageSize, offset: (page - 1) * pageSize, status: filterStatus === 'active' ? undefined : (filterStatus !== 'all' ? filterStatus : undefined) }
   );
 
   // Fetch related data for enhanced search
@@ -334,7 +334,8 @@ export const ContractsList: React.FC = () => {
         (property ? property.title.toLowerCase().includes(searchLower) : false) ||
         (tenant ? `${tenant.first_name} ${tenant.last_name}`.toLowerCase().includes(searchLower) : false);
       const matchesType = filterType === 'all' || contract.type === filterType;
-      const matchesStatus = filterStatus === 'all' || contract.status === filterStatus;
+      const matchesStatus = filterStatus === 'all' || 
+                           (filterStatus === 'active' ? (contract.status === 'active' || contract.status === 'renewed') : contract.status === filterStatus);
       return matchesSearch && matchesType && matchesStatus;
     });
   }, [contracts, owners, properties, tenants, searchTerm, filterType, filterStatus]);

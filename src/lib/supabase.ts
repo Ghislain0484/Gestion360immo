@@ -105,10 +105,9 @@ export const dbService = {
         }),
         supabase
           .from('contracts')
-          .select('property_id, monthly_rent', { count: 'exact' })
+          .select('property_id, monthly_rent, type', { count: 'exact' })
           .eq('agency_id', agencyId)
-          .in('status', ['active', 'renewed'])
-          .eq('type', 'location'),
+          .in('status', ['active', 'renewed']),
         modularService.getAgencyTransactions(
           agencyId,
           startDate.toISOString(),
@@ -158,18 +157,18 @@ export const dbService = {
       // Chiffre d'affaires global encaissé pour l'agence et les proprios (hors cautions)
       const monthlyRevenue = rentRevenue + modularRevenue;
 
-      // Calculate expected revenue from active contracts
-      const expectedRevenue = Array.isArray(activeContractsData)
-        ? activeContractsData.reduce((sum: number, c: any) => sum + (c.monthly_rent || 0), 0)
-        : 0;
+      // Calculate expected revenue from active contracts (Locataires uniquement)
+      const activeRentals = Array.isArray(activeContractsData)
+        ? activeContractsData.filter((c: any) => c.type === 'location')
+        : [];
+      
+      const expectedRevenue = activeRentals.reduce((sum: number, c: any) => sum + (c.monthly_rent || 0), 0);
 
       const remainingRevenue = Math.max(0, expectedRevenue - rentRevenue);
 
       const safeTotalProperties = totalProperties ?? 0;
-      // Unique properties from active contracts
-      const safeOccupiedProperties = Array.isArray(activeContractsData) 
-        ? new Set(activeContractsData.map((c: any) => c.property_id)).size
-        : 0;
+      // Unique properties from active rentals
+      const safeOccupiedProperties = new Set(activeRentals.map((c: any) => c.property_id)).size;
 
       const occupancyRate =
         safeTotalProperties > 0
