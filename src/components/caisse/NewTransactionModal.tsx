@@ -9,6 +9,7 @@ interface NewTransactionModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    transaction?: any; // To support editing
 }
 
 interface TransactionFormData {
@@ -20,39 +21,80 @@ interface TransactionFormData {
     payment_method: string;
 }
 
-export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen, onClose, onSuccess, transaction }) => {
     const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
 
     const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<TransactionFormData>({
         defaultValues: {
-            type: 'debit',
-            transaction_date: new Date().toISOString().split('T')[0],
-            payment_method: 'cash'
+            type: transaction?.type || 'debit',
+            amount: transaction?.amount || 0,
+            category: transaction?.category || '',
+            description: transaction?.description || '',
+            transaction_date: transaction?.transaction_date || new Date().toISOString().split('T')[0],
+            payment_method: transaction?.payment_method || 'cash'
         }
     });
+
+    // Reset form when transaction changes
+    React.useEffect(() => {
+        if (transaction) {
+            reset({
+                type: transaction.type === 'income' || transaction.type === 'credit' ? 'credit' : 'debit',
+                amount: transaction.amount,
+                category: transaction.category,
+                description: transaction.description,
+                transaction_date: transaction.transaction_date,
+                payment_method: transaction.payment_method
+            });
+        } else {
+            reset({
+                type: 'debit',
+                amount: 0,
+                category: '',
+                description: '',
+                transaction_date: new Date().toISOString().split('T')[0],
+                payment_method: 'cash'
+            });
+        }
+    }, [transaction, reset, isOpen]);
 
     const transactionType = watch('type');
 
     const onSubmit = async (data: TransactionFormData) => {
         setIsLoading(true);
         try {
-            const { error } = await supabase
-                .from('cash_transactions')
-                .insert([{
-                    ...data,
-                    agency_id: user?.agency_id,
-                    created_by: user?.id
-                }]);
+            const payload = {
+                agency_id: user?.agency_id,
+                created_by: user?.id,
+                type: data.type === 'credit' ? 'income' : 'expense', // Map back to internal modular types
+                amount: data.amount,
+                category: data.category,
+                description: data.description,
+                transaction_date: data.transaction_date,
+                payment_method: data.payment_method
+            };
 
-            if (error) throw error;
+            if (transaction?.id) {
+                const { error } = await supabase
+                    .from('modular_transactions')
+                    .update(payload)
+                    .eq('id', transaction.id);
+                if (error) throw error;
+                toast.success('Transaction mise à jour');
+            } else {
+                const { error } = await supabase
+                    .from('modular_transactions')
+                    .insert([payload]);
+                if (error) throw error;
+                toast.success('Transaction enregistrée');
+            }
 
-            toast.success('Transaction enregistrée');
             reset();
             onSuccess();
             onClose();
         } catch (error) {
-            console.error('Error creating transaction:', error);
+            console.error('Error saving transaction:', error);
             toast.error('Erreur lors de l\'enregistrement');
         } finally {
             setIsLoading(false);
@@ -60,7 +102,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Nouveau Mouvement de Caisse">
+        <Modal isOpen={isOpen} onClose={onClose} title={transaction?.id ? "Modifier le Mouvement" : "Nouveau Mouvement de Caisse"}>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
                 {/* Type */}

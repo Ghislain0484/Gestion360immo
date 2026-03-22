@@ -16,6 +16,7 @@ import { dbService } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { useQuotaManager } from '../../hooks/useQuotaManager';
 import { QuotaExceededModal } from '../shared/QuotaExceededModal';
+import { propertySchema } from '../../lib/validation';
 
 interface PropertyFormProps {
   isOpen: boolean;
@@ -56,9 +57,25 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     sale_price: initialData?.sale_price || 0,
   });
   const [formError, setFormError] = useState<string | undefined>(undefined);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [currentStep, setCurrentStep] = useState(1);
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<number | null>(null);
+
+  // Real-time validation
+  useEffect(() => {
+    const result = propertySchema.safeParse(formData);
+    if (!result.success) {
+      const newErrors: Record<string, string> = {};
+      result.error.issues.forEach((issue) => {
+        const path = issue.path.join('.');
+        newErrors[path] = issue.message;
+      });
+      setErrors(newErrors);
+    } else {
+      setErrors({});
+    }
+  }, [formData]);
   
   const { stats, isEnterprise } = useQuotaManager();
   const [showQuotaModal, setShowQuotaModal] = useState(false);
@@ -360,18 +377,18 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="ID du bien"
+                label="Identifiant / Titre du bien"
                 value={formData.title}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 required
-                aria-label="ID du bien"
+                error={errors.title}
               />
               <Input
                 label="Commune"
                 value={formData.location.commune}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, location: { ...prev.location, commune: e.target.value } }))}
                 required
-                aria-label="Commune"
+                error={errors['location.commune']}
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -380,7 +397,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                 value={formData.location.quartier}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, location: { ...prev.location, quartier: e.target.value } }))}
                 required
-                aria-label="Quartier ou lotissement"
+                error={errors['location.quartier']}
               />
               <Input
                 label="Numéro du lot (optionnel)"
@@ -471,9 +488,9 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                     Aucun propriétaire disponible
                   </div>
                 )}
-                {formData.owner_id && (
-                  <div className="text-sm text-green-600">
-                    ✓ Propriétaire sélectionné
+                {errors.owner_id && (
+                  <div className="text-sm text-red-600">
+                    {errors.owner_id}
                   </div>
                 )}
               </div>
@@ -507,6 +524,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
                   onChange={(e) => setFormData(prev => ({ ...prev, monthly_rent: parseFloat(e.target.value) || 0 }))}
                   placeholder="Ex: 150000"
                   min="0"
+                  error={errors.monthly_rent}
                 />
               )}
               {formData.for_sale && (

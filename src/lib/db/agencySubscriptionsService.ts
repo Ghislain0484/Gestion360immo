@@ -35,7 +35,7 @@ export const agencySubscriptionsService = {
             .from('platform_admins')
             .select('role')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
         if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
             throw new Error('Permissions insuffisantes');
         }
@@ -80,7 +80,7 @@ export const agencySubscriptionsService = {
             .from('platform_admins')
             .select('role')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
         if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
             throw new Error('Permissions insuffisantes');
         }
@@ -109,7 +109,7 @@ export const agencySubscriptionsService = {
             .from('platform_admins')
             .select('role')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
         if (adminError || !admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
             throw new Error('Permissions insuffisantes');
         }
@@ -121,11 +121,16 @@ export const agencySubscriptionsService = {
             .single();
         if (subError || !sub) throw new Error(formatSbError('❌ agency_subscriptions.select', subError));
 
-        const nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        // Essai gratuit de 60 jours
+        const nextPaymentDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
         const { error } = await supabase
             .from('agency_subscriptions')
-            .update({ status: 'active', next_payment_date: nextPaymentDate })
+            .update({ 
+                status: 'trial', 
+                next_payment_date: nextPaymentDate,
+                trial_days_remaining: 60
+            })
             .eq('id', sub.id);
         if (error) throw new Error(formatSbError('❌ agency_subscriptions.update', error));
 
@@ -138,9 +143,15 @@ export const agencySubscriptionsService = {
     async syncSubscription(agencyId: string, planType: string, monthlyFee: number, status: string = 'active'): Promise<boolean> {
         console.log('🔄 agencySubscriptionsService.syncSubscription', { agencyId, planType, monthlyFee, status });
         
-        // 1. Mise à jour de la table agency_subscriptions (upsert)
-        const nextPaymentDate = new Date();
-        nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
+        // 1. Calculer la prochaine date de paiement
+        const now = new Date();
+        let nextPaymentDate = new Date();
+        
+        if (status === 'trial') {
+            nextPaymentDate.setDate(now.getDate() + 60);
+        } else {
+            nextPaymentDate.setMonth(now.getMonth() + 1);
+        }
         
         const { error: subError } = await supabase
             .from('agency_subscriptions')
@@ -158,7 +169,7 @@ export const agencySubscriptionsService = {
             throw new Error(formatSbError('❌ agency_subscriptions.upsert', subError));
         }
 
-        // 2. Mise à jour de la table agencies pour redondance et performance (badge admin)
+        // 2. Mise à jour de la table agencies
         const { error: agencyError } = await supabase
             .from('agencies')
             .update({

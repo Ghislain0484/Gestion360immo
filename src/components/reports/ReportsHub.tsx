@@ -24,6 +24,8 @@ import { Property, Contract, Owner, Tenant } from '../../types/db';
 import { MonthlyRevenueItem } from '../../types/contracts';
 import { jsPDF } from 'jspdf';
 import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from '../../utils/agencyBranding';
+import { MultiSectionReportModal } from '../admin/reports/MultiSectionReportModal';
+import { Layout } from 'lucide-react';
 
 ChartJS.register(
   CategoryScale,
@@ -42,6 +44,7 @@ export const ReportsHub: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState('overview');
   //const [monthlyRevenue, setMonthlyRevenue] = useState<{ month: string; revenue: number; commissions: number }[]>([]);
   const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenueItem[]>([]);
+  const [isAdvancedModalOpen, setIsAdvancedModalOpen] = useState(false);
 
   const { user } = useAuth();
 
@@ -229,6 +232,21 @@ export const ReportsHub: React.FC = () => {
   // avgRooms non calculable car PropertyDetails ne contient pas rooms
   const avgRooms = 0; // Champ non disponible dans le schéma actuel
 
+  const getPeriodLabel = (p: string) => {
+    switch (p) {
+      case 'week': return 'Cette semaine';
+      case 'month': return 'Ce mois';
+      case 'quarter': return 'Ce trimestre';
+      case 'year': return 'Cette année';
+      default: return p;
+    }
+  };
+
+  const sanitizeCurrency = (val: string) => {
+    // Replace non-breaking spaces and other special spaces with regular spaces
+    return val.replace(/[\u00A0\u202F]/g, ' ');
+  };
+
 
   // Export PDF du rapport courant
   const handleExport = async () => {
@@ -242,7 +260,7 @@ export const ReportsHub: React.FC = () => {
       const reportName = reportTypes.find(r => r.id === selectedReport)?.name || 'Rapport';
       doc.text(`RAPPORT : ${reportName.toUpperCase()}`, pageWidth / 2, y, { align: 'center' }); y += 8;
       doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
-      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Période : ${selectedPeriod}`, pageWidth / 2, y, { align: 'center' }); y += 12;
+      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Période : ${getPeriodLabel(selectedPeriod)}`, pageWidth / 2, y, { align: 'center' }); y += 12;
       doc.setDrawColor(200, 200, 200); doc.line(20, y, pageWidth - 20, y); y += 8;
 
       const writeRow = (label: string, val: string) => {
@@ -251,7 +269,7 @@ export const ReportsHub: React.FC = () => {
         doc.setTextColor(80, 80, 80);
         doc.text(label, 20, y);
         doc.setTextColor(30, 30, 30);
-        doc.text(val, 120, y);
+        doc.text(sanitizeCurrency(val), 120, y);
         y += 8;
       };
 
@@ -312,7 +330,11 @@ export const ReportsHub: React.FC = () => {
           </select>
           <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
-            Exporter PDF
+            PDF Simple
+          </Button>
+          <Button variant="primary" onClick={() => setIsAdvancedModalOpen(true)}>
+            <Layout className="h-4 w-4 mr-2" />
+            Rapport Avancé
           </Button>
         </div>
       </div>
@@ -722,6 +744,11 @@ export const ReportsHub: React.FC = () => {
           )}
         </>
       )}
+
+      <MultiSectionReportModal 
+        isOpen={isAdvancedModalOpen} 
+        onClose={() => setIsAdvancedModalOpen(false)} 
+      />
     </div>
   );
 };

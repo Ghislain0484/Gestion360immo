@@ -3,6 +3,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AdminProvider } from './contexts/AdminContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { LoadingProvider } from './contexts/LoadingContext';
 import { LoginForm } from './components/auth/LoginForm';
 import { OwnerSignup } from './components/auth/OwnerSignup';
 import { AdminLoginForm } from './components/auth/AdminLoginForm';
@@ -35,6 +37,7 @@ import { OwnerProperties } from './components/owner-portal/OwnerProperties';
 import { OwnerTenants } from './components/owner-portal/OwnerTenants';
 import { OwnerFinances } from './components/owner-portal/OwnerFinances';
 import { OwnerMaintenance } from './components/owner-portal/OwnerMaintenance';
+import { OwnerDocuments } from './components/owner-portal/OwnerDocuments';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -209,6 +212,7 @@ const AppContent: React.FC = () => {
           <Route path="proprietes" element={<OwnerProperties />} />
           <Route path="locataires" element={<OwnerTenants />} />
           <Route path="finances" element={<OwnerFinances />} />
+          <Route path="documents" element={<OwnerDocuments />} />
           <Route path="travaux" element={<OwnerMaintenance />} />
         </Route>
 
@@ -222,13 +226,17 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <AdminProvider>
-        <ErrorBoundary>
-          <AppContent />
-        </ErrorBoundary>
-      </AdminProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <LoadingProvider>
+        <AuthProvider>
+          <AdminProvider>
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
+          </AdminProvider>
+        </AuthProvider>
+      </LoadingProvider>
+    </ThemeProvider>
   );
 }
 

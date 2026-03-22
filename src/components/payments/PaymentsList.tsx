@@ -3,6 +3,7 @@ import { Calendar, Download, Eye, CreditCard, X } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { RentReceipt } from '../../types/db';
+import { ModularTransaction } from '../../types/modular';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
@@ -35,8 +36,8 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
     limit = 20,
     showActions = true,
 }) => {
-    const { user } = useAuth();
-    const [selectedPayment, setSelectedPayment] = React.useState<PaymentWithDetails | null>(null);
+    const { user, agencyId } = useAuth();
+    const [selectedPayment, setSelectedPayment] = React.useState<any | null>(null);
 
     // Fetch payments with filters
     const fetchPayments = React.useCallback(async () => {
@@ -45,13 +46,53 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
         if (propertyId) params.property_id = propertyId;
         if (ownerId) params.owner_id = ownerId;
 
-        const data = await dbService.rentReceipts.getAll(params);
-        return data || [];
-    }, [tenantId, propertyId, ownerId]);
+        // Fetch rent receipts
+        const receiptsData = await dbService.rentReceipts.getAll(params);
+        
+        // Fetch modular transactions
+        let modularData: ModularTransaction[] = [];
+        if (tenantId) {
+            modularData = await dbService.modular.getTenantTransactions(tenantId);
+        } else if (agencyId) {
+            // For agency-wide list, we'd need a more global fetch, but usually this is used per tenant/property
+            const startDate = new Date(2020, 0, 1).toISOString();
+            const endDate = new Date(2030, 0, 1).toISOString();
+            modularData = await dbService.modular.getAgencyTransactions(agencyId, startDate, endDate);
+        }
 
-    const { data: payments = [], initialLoading } = useRealtimeData<PaymentWithDetails>(
+        const normalizedReceipts = (receiptsData || []).map(r => ({
+            ...r,
+            displayDate: r.payment_date,
+            displayAmount: r.amount_paid ?? r.total_amount,
+            displayTitle: r.receipt_number,
+            displayType: 'receipt',
+            owner_payment: r.owner_payment
+        }));
+
+        const normalizedModular = (modularData || [])
+            .filter(t => t.type === 'income' || t.type === 'credit')
+            .map(t => ({
+                id: t.id,
+                payment_date: t.transaction_date,
+                total_amount: Number(t.amount),
+                amount_paid: Number(t.amount),
+                payment_method: t.payment_method,
+                receipt_number: 'TXN-' + t.id.slice(0, 8).toUpperCase(),
+                notes: t.description,
+                period_month: new Date(t.transaction_date).getMonth() + 1,
+                period_year: new Date(t.transaction_date).getFullYear(),
+                displayDate: t.transaction_date,
+                displayAmount: Number(t.amount),
+                displayTitle: t.description,
+                displayType: 'transaction'
+            }));
+
+        return [...normalizedReceipts, ...normalizedModular] as any[];
+    }, [tenantId, propertyId, ownerId, agencyId]);
+
+    const { data: payments = [], initialLoading } = useRealtimeData<any>(
         fetchPayments,
-        'rent_receipts',
+        'rent_receipts', // Note: This only listens to one table, might need manual refetch for modular
         { tenant_id: tenantId, property_id: propertyId, owner_id: ownerId }
     );
 
@@ -241,6 +282,7 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                 {!propertyId && (
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Propriété</th>
                                 )}
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Proprio</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mode</th>
@@ -259,9 +301,9 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">{payment.receipt_number}</div>
+                                        <div className="text-sm font-medium text-gray-900">{payment.displayTitle}</div>
                                         <div className="text-xs text-gray-500">
-                                            Période: {MONTHS_FR[payment.period_month] || payment.period_month} {payment.period_year}
+                                            {payment.displayType === 'receipt' ? `Période: ${MONTHS_FR[payment.period_month] || payment.period_month} ${payment.period_year}` : 'Transaction de Caisse'}
                                         </div>
                                     </td>
                                     {!tenantId && payment.tenant && (
@@ -278,6 +320,11 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                             <div className="text-xs text-gray-500">{payment.property.business_id}</div>
                                         </td>
                                     )}
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="text-sm font-medium text-indigo-600">
+                                            {payment.owner_payment ? formatCurrency(payment.owner_payment) : '-'}
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm font-semibold text-gray-900">
                                             {formatCurrency(payment.amount_paid ?? payment.total_amount)}
@@ -387,7 +434,11 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                 ) : null}
                                 <div className="flex justify-between text-sm border-t border-gray-100 pt-2">
                                     <span className="text-gray-500">Loyer total dû</span>
-                                    <span className="font-medium">{selectedPayment.total_amount.toLocaleString('fr-FR')} FCFA</span>
+                                    <span className="font-medium text-gray-900">{selectedPayment.total_amount.toLocaleString('fr-FR')} FCFA</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Part Propriétaire (Net)</span>
+                                    <span className="font-medium text-indigo-600">{selectedPayment.owner_payment?.toLocaleString('fr-FR')} FCFA</span>
                                 </div>
                                 <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2">
                                     <span>MONTANT VERSÉ</span>

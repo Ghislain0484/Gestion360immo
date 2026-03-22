@@ -3,13 +3,16 @@ import { Palette, Monitor, Sun, Moon, Smartphone, Layout, Type, Eye } from 'luci
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export const AppearanceSettings: React.FC = () => {
   const { user } = useAuth();
+  const { theme, setTheme: setGlobalTheme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({
-    theme: 'light',
+    theme: theme,
     fontSize: 'medium',
     density: 'comfortable',
     language: 'fr',
@@ -31,30 +34,23 @@ export const AppearanceSettings: React.FC = () => {
   const applySettings = (newSettings: typeof settings) => {
     const root = document.documentElement;
     
-    // Appliquer le thème
-    if (newSettings.theme === 'dark') {
-      root.classList.add('dark');
-      document.body.style.background = 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)';
-    } else {
-      root.classList.remove('dark');
-      document.body.style.background = 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)';
-    }
+    // Note: Theme is now handled by ThemeProvider
     
     // Appliquer la taille de police
-    const fontSizes = {
+    const fontSizesArr = {
       small: '14px',
       medium: '16px',
       large: '18px'
     };
-    root.style.fontSize = fontSizes[newSettings.fontSize as keyof typeof fontSizes];
+    root.style.fontSize = fontSizesArr[newSettings.fontSize as keyof typeof fontSizesArr];
     
     // Appliquer la densité
-    const densities = {
+    const densitiesArr = {
       compact: '0.75rem',
       comfortable: '1rem',
       spacious: '1.5rem'
     };
-    root.style.setProperty('--spacing-unit', densities[newSettings.density as keyof typeof densities]);
+    root.style.setProperty('--spacing-unit', densitiesArr[newSettings.density as keyof typeof densitiesArr]);
     
     // Appliquer les animations
     if (!newSettings.animations) {
@@ -62,8 +58,6 @@ export const AppearanceSettings: React.FC = () => {
     } else {
       root.style.setProperty('--animation-duration', '0.3s');
     }
-    
-    console.log('✅ Paramètres d\'apparence appliqués:', newSettings);
   };
 
   const themes = [
@@ -93,28 +87,31 @@ export const AppearanceSettings: React.FC = () => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     
-    // Appliquer immédiatement les changements
-    applySettings(newSettings);
+    if (key === 'theme') {
+      setGlobalTheme(value);
+    } else {
+      applySettings(newSettings);
+    }
     
     // Sauvegarder automatiquement pour cette agence
     const settingsKey = `appearance_settings_${user?.agency_id}`;
     localStorage.setItem(settingsKey, JSON.stringify(newSettings));
-    
-    console.log('✅ Paramètres sauvegardés pour agence:', user?.agency_id);
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      // Sauvegarder les paramètres d'apparence pour cette agence
       const settingsKey = `appearance_settings_${user?.agency_id}`;
       localStorage.setItem(settingsKey, JSON.stringify(settings));
+      
+      if (settings.theme !== theme) {
+        setGlobalTheme(settings.theme as any);
+      }
       applySettings(settings);
       
-      alert('✅ Paramètres d\'apparence appliqués et sauvegardés !');
+      toast.success('✅ Paramètres d\'apparence appliqués et sauvegardés !');
     } catch (error) {
-      console.error('❌ Erreur sauvegarde paramètres:', error);
-      alert('❌ Erreur lors de la sauvegarde des paramètres');
+      toast.error('❌ Erreur lors de la sauvegarde des paramètres');
     } finally {
       setLoading(false);
     }
@@ -127,27 +124,27 @@ export const AppearanceSettings: React.FC = () => {
         <div className="p-6">
           <div className="flex items-center mb-4">
             <Palette className="h-5 w-5 text-purple-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Thème</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Thème</h3>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {themes.map((theme) => (
+            {themes.map((t) => (
               <button
-                key={theme.id}
-                onClick={() => updateSetting('theme', theme.id)}
+                key={t.id}
+                onClick={() => updateSetting('theme', t.id)}
                 className={`p-4 rounded-lg border-2 transition-all ${
-                  settings.theme === theme.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                  settings.theme === t.id
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
               >
-                <div className={`w-full h-20 rounded-lg mb-3 ${theme.preview}`}></div>
+                <div className={`w-full h-20 rounded-lg mb-3 ${t.preview}`}></div>
                 <div className="flex items-center justify-center space-x-2">
-                  <theme.icon className="h-4 w-4" />
-                  <span className="font-medium">{theme.name}</span>
+                  <t.icon className="h-4 w-4 dark:text-gray-300" />
+                  <span className="font-medium dark:text-gray-200">{t.name}</span>
                 </div>
-                {settings.theme === theme.id && (
-                  <Badge variant="info" size="sm" className="mt-2">
+                {settings.theme === t.id && (
+                  <Badge variant="info" className="mt-2">
                     Sélectionné
                   </Badge>
                 )}
@@ -162,12 +159,12 @@ export const AppearanceSettings: React.FC = () => {
         <div className="p-6">
           <div className="flex items-center mb-4">
             <Type className="h-5 w-5 text-blue-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Typographie</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Typographie</h3>
           </div>
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                 Taille de police
               </label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -177,8 +174,8 @@ export const AppearanceSettings: React.FC = () => {
                     onClick={() => updateSetting('fontSize', size.id)}
                     className={`p-3 rounded-lg border text-center transition-all ${
                       settings.fontSize === size.id
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                     }`}
                   >
                     <div className={`font-medium ${size.size}`}>Aa</div>
@@ -196,7 +193,7 @@ export const AppearanceSettings: React.FC = () => {
         <div className="p-6">
           <div className="flex items-center mb-4">
             <Layout className="h-5 w-5 text-green-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Densité d'affichage</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Densité d'affichage</h3>
           </div>
           
           <div className="space-y-3">
@@ -205,8 +202,8 @@ export const AppearanceSettings: React.FC = () => {
                 key={density.id}
                 className={`flex items-center p-4 rounded-lg border cursor-pointer transition-all ${
                   settings.density === density.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
               >
                 <input
@@ -218,8 +215,8 @@ export const AppearanceSettings: React.FC = () => {
                   className="sr-only"
                 />
                 <div className="flex-1">
-                  <div className="font-medium text-gray-900">{density.name}</div>
-                  <div className="text-sm text-gray-500">{density.description}</div>
+                  <div className="font-medium text-gray-900 dark:text-white">{density.name}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{density.description}</div>
                 </div>
                 {settings.density === density.id && (
                   <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
@@ -235,7 +232,7 @@ export const AppearanceSettings: React.FC = () => {
         <div className="p-6">
           <div className="flex items-center mb-4">
             <Eye className="h-5 w-5 text-orange-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Langue</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Langue</h3>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -245,14 +242,14 @@ export const AppearanceSettings: React.FC = () => {
                 onClick={() => updateSetting('language', language.id)}
                 className={`flex items-center p-4 rounded-lg border transition-all ${
                   settings.language === language.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
               >
                 <span className="text-2xl mr-3">{language.flag}</span>
-                <span className="font-medium">{language.name}</span>
+                <span className="font-medium dark:text-gray-200">{language.name}</span>
                 {settings.language === language.id && (
-                  <Badge variant="info" size="sm" className="ml-auto">
+                  <Badge variant="info" className="ml-auto">
                     Actuel
                   </Badge>
                 )}
@@ -267,14 +264,14 @@ export const AppearanceSettings: React.FC = () => {
         <div className="p-6">
           <div className="flex items-center mb-4">
             <Smartphone className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Options d'interface</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Options d'interface</h3>
           </div>
           
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
               <div>
-                <h4 className="font-medium text-gray-900">Barre latérale réduite</h4>
-                <p className="text-sm text-gray-500">Réduire la barre latérale par défaut</p>
+                <h4 className="font-medium text-gray-900 dark:text-white">Barre latérale réduite</h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Réduire la barre latérale par défaut</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -287,10 +284,10 @@ export const AppearanceSettings: React.FC = () => {
               </label>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
               <div>
-                <h4 className="font-medium text-gray-900">Animations</h4>
-                <p className="text-sm text-gray-500">Activer les animations et transitions</p>
+                <h4 className="font-medium text-gray-900 dark:text-white">Animations</h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Activer les animations et transitions</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -306,35 +303,13 @@ export const AppearanceSettings: React.FC = () => {
         </div>
       </Card>
 
-      {/* Preview */}
-      <Card>
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Aperçu
-          </h3>
-          
-          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <div className={`${settings.fontSize === 'small' ? 'text-sm' : settings.fontSize === 'large' ? 'text-lg' : 'text-base'}`}>
-              <h4 className="font-semibold mb-2">Exemple de contenu</h4>
-              <p className="text-gray-600 mb-3">
-                Ceci est un aperçu de l'apparence de l'interface avec vos paramètres actuels.
-              </p>
-              <div className="flex space-x-2">
-                <Badge variant="info" size="sm">Étiquette</Badge>
-                <Badge variant="success" size="sm">Succès</Badge>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-
       {/* Action Buttons */}
       <div className="flex items-center justify-end space-x-3">
         <Button 
           variant="ghost"
           onClick={() => {
             const defaultSettings = {
-              theme: 'light',
+              theme: 'light' as const,
               fontSize: 'medium',
               density: 'comfortable',
               language: 'fr',
@@ -342,9 +317,8 @@ export const AppearanceSettings: React.FC = () => {
               animations: true,
             };
             setSettings(defaultSettings);
+            setGlobalTheme('light');
             applySettings(defaultSettings);
-            const settingsKey = `appearance_settings_${user?.agency_id}`;
-            localStorage.setItem(settingsKey, JSON.stringify(defaultSettings));
           }}
         >
           Réinitialiser

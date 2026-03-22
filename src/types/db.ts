@@ -22,6 +22,7 @@ import {
   ContractVersion,
   ManagedContract,
   PropertyTenantAssignment,
+  PropertyExpense,
 } from './contracts';
 import { FinancialStatement, FinancialTransaction } from './financials';
 import { Message, Notification, EmailNotification, NotificationSettings, NotificationSettingsUpsert } from './messages';
@@ -98,6 +99,7 @@ export type {
   ContractVersion,
   ManagedContract,
   PropertyTenantAssignment,
+  PropertyExpense,
   // Financials
   FinancialStatement,
   FinancialTransaction,

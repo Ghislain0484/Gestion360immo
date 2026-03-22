@@ -47,49 +47,30 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
     const calculateOwnerBalance = async () => {
         setCalculatingBalance(true);
         try {
-            // 1. Get total active rent receipts (CREDITS linked to this owner's properties) (simplified logic)
-            // Ideally we would double entry, but here we can sum rent_receipts for owner's properties
-            const { data: properties } = await supabase
-                .from('properties')
-                .select('id')
-                .eq('owner_id', ownerId);
-
-            const propertyIds = properties?.map(p => p.id) || [];
-
-            if (propertyIds.length === 0) {
-                setBalance(0);
-                return;
-            }
-
+            // 1. Get total expected owner payments from rent receipts
             const { data: rentReceipts } = await supabase
                 .from('rent_receipts')
-                .select('total_amount, agency_commission') // Assuming agency_commission exists on receipt or we calculate it. 
-                // Note: DB schema for rent_receipts wasn't fully visible but assuming standard structure. 
-                // If agency commission isn't stored there, we might need to rely on generic %. 
-                // For now, let's just sum distinct generic amounts.
-                .in('property_id', propertyIds);
+                .select('owner_payment')
+                .eq('owner_id', ownerId);
 
-            const totalRent = rentReceipts?.reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0;
+            const totalEarned = rentReceipts?.reduce((sum, r) => sum + (Number(r.owner_payment) || 0), 0) || 0;
 
-            // 2. Get past payouts/expenses (DEBITS linked to this owner)
+            // 2. Get past payouts (DEBITS of type 'owner_payout')
             const { data: transactions } = await supabase
-                .from('cash_transactions')
-                .select('amount, type')
-                .eq('related_owner_id', ownerId);
+                .from('modular_transactions')
+                .select('amount')
+                .eq('related_owner_id', ownerId)
+                .eq('category', 'owner_payout')
+                .eq('type', 'debit');
 
-            const totalDebits = transactions?.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0) || 0;
-            const totalCredits = transactions?.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0) || 0;
+            const totalPaidOut = transactions?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
-            // Simple Balance = (Rents + Other Credits) - (Payouts + Other Debits)
-            // Agency Commission handling is tricky without a dedicated ledger. 
-            // For now, we will assume net rent is passed or commission is a debit.
-            // Let's assume commission is NOT deducted yet in total_amount.
-            // NOTE: This is a simplification. Real accounting needs strict double entry.
-
-            setBalance(totalRent + totalCredits - totalDebits);
+            // Current Balance = Total Earned - Total Paid Out
+            setBalance(totalEarned - totalPaidOut);
 
         } catch (error) {
             console.error("Error calculating balance", error);
+            setBalance(0);
         } finally {
             setCalculatingBalance(false);
         }
@@ -99,14 +80,17 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
         setIsLoading(true);
         try {
             const { error } = await supabase
-                .from('cash_transactions')
+                .from('modular_transactions')
                 .insert([{
-                    ...data,
-                    type: 'debit',
-                    category: 'owner_payout',
-                    related_owner_id: ownerId,
                     agency_id: user?.agency_id,
-                    created_by: user?.id
+                    created_by: user?.id,
+                    type: 'debit',
+                    amount: data.amount,
+                    category: 'owner_payout',
+                    description: data.description,
+                    transaction_date: data.transaction_date,
+                    payment_method: data.payment_method,
+                    related_owner_id: ownerId
                 }]);
 
             if (error) throw error;

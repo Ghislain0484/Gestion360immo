@@ -48,6 +48,7 @@ export const AssignTenantModal: React.FC<AssignTenantModalProps> = ({
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [entryType, setEntryType] = useState<'new' | 'transfer'>('new');
     // Track if selected property already has an active tenant
     const [propertyOccupied, setPropertyOccupied] = useState(false);
     const [checkingProperty, setCheckingProperty] = useState(false);
@@ -180,6 +181,8 @@ export const AssignTenantModal: React.FC<AssignTenantModalProps> = ({
                 start_date: startDate,
                 monthly_rent: parseFloat(monthlyRent),
                 deposit: parseFloat(deposit) || 0,
+                deposit_provenance: (entryType === 'new' ? 'new_payment' : 'transferred') as 'new_payment' | 'transferred',
+                deposit_status: (entryType === 'new' ? 'pending' : 'paid') as 'pending' | 'paid',
                 commission_rate: 10,
                 commission_amount: (parseFloat(monthlyRent) * 10) / 100,
                 terms: `Contrat de bail — ${tenant.first_name} ${tenant.last_name} — ${property.title}`,
@@ -214,6 +217,7 @@ export const AssignTenantModal: React.FC<AssignTenantModalProps> = ({
             setMonthlyRent(preSelectedProperty?.monthly_rent ? String(preSelectedProperty.monthly_rent) : '');
             setDeposit(preSelectedProperty?.monthly_rent ? String(preSelectedProperty.monthly_rent * 2) : '');
             setStartDate(new Date().toISOString().split('T')[0]);
+            setEntryType('new');
             setError(null);
             setPropertyOccupied(false);
 
@@ -310,6 +314,36 @@ export const AssignTenantModal: React.FC<AssignTenantModalProps> = ({
                         <UserPlus className="w-4 h-4" />
                         Nouveau locataire
                     </button>
+                </div>
+
+                {/* Phase 10: Type d'entrée / Provenance Caution */}
+                <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-gray-700">Type d'entrée (Gestion)</label>
+                    <div className="flex gap-3 p-1 bg-gray-50 rounded-xl border border-gray-100">
+                        <button
+                            type="button"
+                            onClick={() => setEntryType('new')}
+                            className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all ${entryType === 'new' 
+                                ? 'bg-white text-blue-600 shadow-sm border border-blue-100' 
+                                : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            NOUVEAU BAIL
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setEntryType('transfer')}
+                            className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all ${entryType === 'transfer' 
+                                ? 'bg-white text-amber-600 shadow-sm border border-amber-100' 
+                                : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            REPRISE DE GESTION
+                        </button>
+                    </div>
+                    {entryType === 'transfer' && (
+                        <p className="text-[10px] text-amber-600 italic px-1">
+                            * La caution sera marquée comme déjà encaissée (pas de mouvement de caisse aujourd'hui).
+                        </p>
+                    )}
                 </div>
 
                 {/* Existing tenant selection */}

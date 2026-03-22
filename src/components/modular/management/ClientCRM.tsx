@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-    Plus, Users, Search, Star, Coffee, 
+    Plus, Users, Star, Coffee, 
     ShieldCheck, Mail, Phone, ChevronRight, Loader2,
     Edit3, Trash2
 } from 'lucide-react';
 import { Card } from '../../ui/Card';
 import { Button } from '../../ui/Button';
 import { Modal } from '../../ui/Modal';
+import { FilterBar } from '../../shared/FilterBar';
 import { useAuth } from '../../../contexts/AuthContext';
 import { dbService } from '../../../lib/supabase';
 import { ModularClient, ModuleType } from '../../../types/modular';
@@ -26,7 +27,19 @@ export const ClientCRM: React.FC<ClientCRMProps> = ({ moduleType }) => {
     const [editingClient, setEditingClient] = useState<ModularClient | null>(null);
     const [selectedFinancialClient, setSelectedFinancialClient] = useState<ModularClient | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [filters, setFilters] = useState({
+        clientType: 'all',
+    });
     const [isSaving, setIsSaving] = useState(false);
+
+    const handleFilterChange = (id: string, value: any) => {
+        setFilters(prev => ({ ...prev, [id]: value }));
+    };
+
+    const clearFilters = () => {
+        setFilters({ clientType: 'all' });
+        setSearchQuery('');
+    };
 
     useEffect(() => {
         if (agencyId) {
@@ -88,12 +101,26 @@ export const ClientCRM: React.FC<ClientCRMProps> = ({ moduleType }) => {
     };
 
     const filteredClients = useMemo(() => {
-        return clients.filter(c => 
-            `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.phone.includes(searchQuery) ||
-            c.email?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [clients, searchQuery]);
+        return clients.filter(c => {
+            const matchesSearch = 
+                `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                c.phone.includes(searchQuery) ||
+                c.email?.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            const matchesType = filters.clientType === 'all' || c.client_type === filters.clientType;
+
+            return matchesSearch && matchesType;
+        });
+    }, [clients, searchQuery, filters]);
+
+    const statsByType = useMemo(() => {
+        return {
+            total: clients.length,
+            vip: clients.filter(c => c.client_type === 'vip').length,
+            corporate: clients.filter(c => c.client_type === 'corporate').length,
+            regular: clients.filter(c => c.client_type === 'regular').length,
+        };
+    }, [clients]);
 
     const getStatusStyle = (status: ModularClient['client_type']) => {
         switch (status) {
@@ -113,9 +140,23 @@ export const ClientCRM: React.FC<ClientCRMProps> = ({ moduleType }) => {
         );
     }
 
+    const handleSyncAll = async () => {
+        try {
+            setIsLoading(true);
+            await dbService.modular.syncAllClientsStats(agencyId!, moduleType);
+            toast.success('Statistiques synchronisées');
+            fetchClients();
+        } catch (error) {
+            console.error('Error syncing clients:', error);
+            toast.error('Erreur lors de la synchronisation');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
                 <div>
                     <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 italic uppercase tracking-tighter">
                         <Users className="text-indigo-600" />
@@ -124,21 +165,67 @@ export const ClientCRM: React.FC<ClientCRMProps> = ({ moduleType }) => {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Base de données clients et fidélisation</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                        <input 
-                            type="text" 
-                            placeholder="RECHERCHER UN CLIENT..." 
-                            className="bg-white border-2 border-slate-100 rounded-xl pl-9 pr-4 py-2 text-[10px] font-black uppercase outline-none focus:border-indigo-500 transition-all w-64 shadow-sm"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleSyncAll}
+                        leftIcon={<Loader2 className={isLoading ? 'animate-spin' : ''} size={14} />}
+                        className="font-black italic text-[10px] uppercase border-2"
+                    >
+                        Synchroniser tout
+                    </Button>
                     <Button variant="primary" size="sm" onClick={() => { setEditingClient(null); setIsModalOpen(true); }} leftIcon={<Plus size={16} />}>
                         {moduleType === 'hotel' ? 'NOUVEAU CLIENT' : 'NOUVEAU RÉSIDENT'}
                     </Button>
                 </div>
             </div>
+
+            <Card className="p-4 border-2 border-slate-100 shadow-sm border-none bg-white/90">
+                <FilterBar
+                    fields={[
+                        {
+                            id: 'clientType',
+                            label: 'Catégorie',
+                            type: 'select',
+                            options: [
+                                { value: 'vip', label: 'VIP' },
+                                { value: 'corporate', label: 'Corporate' },
+                                { value: 'regular', label: 'Régulier' },
+                            ]
+                        }
+                    ]}
+                    values={filters}
+                    onChange={handleFilterChange}
+                    onClear={clearFilters}
+                    searchTerm={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    searchPlaceholder="RECHERCHER UN CLIENT..."
+                    stats={[
+                        {
+                            label: 'Tous',
+                            count: statsByType.total,
+                            active: filters.clientType === 'all',
+                            onClick: () => handleFilterChange('clientType', 'all')
+                        },
+                        {
+                            label: 'VIP',
+                            count: statsByType.vip,
+                            active: filters.clientType === 'vip',
+                            onClick: () => handleFilterChange('clientType', 'vip'),
+                            activeColorClass: 'text-amber-600',
+                            colorClass: 'bg-amber-100'
+                        },
+                        {
+                            label: 'Corporate',
+                            count: statsByType.corporate,
+                            active: filters.clientType === 'corporate',
+                            onClick: () => handleFilterChange('clientType', 'corporate'),
+                            activeColorClass: 'text-indigo-600',
+                            colorClass: 'bg-indigo-100'
+                        }
+                    ]}
+                />
+            </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {filteredClients.map((res) => (
@@ -177,13 +264,18 @@ export const ClientCRM: React.FC<ClientCRMProps> = ({ moduleType }) => {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 relative">
+                                {res.total_engaged && res.total_spent !== undefined && (res.total_engaged - res.total_spent) > 0 && (
+                                    <div className="absolute -top-2 -right-2 px-2 py-1 bg-rose-500 text-white text-[8px] font-black rounded-lg shadow-lg animate-bounce">
+                                        SOLDE: -{(res.total_engaged - res.total_spent).toLocaleString()} FCFA
+                                    </div>
+                                )}
                                 <div>
                                     <p className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Total Séjours</p>
                                     <p className="text-sm font-black text-slate-800">{res.total_stays || 0}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Dépensé (FCFA)</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Total Payé (FCFA)</p>
                                     <p className="text-sm font-black text-emerald-600">{res.total_spent?.toLocaleString() || 0}</p>
                                 </div>
                             </div>

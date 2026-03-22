@@ -4,17 +4,41 @@ import { formatSbError } from '../helpers';
 import { AuditLog } from "../../types/db";
 
 export const auditLogsService = {
-    async getAll(limit?: number): Promise<AuditLog[]> {
+    async getAll({ table_name, record_id, limit = 50 }: { 
+        table_name?: string; 
+        record_id?: string; 
+        limit?: number;
+    } = {}): Promise<AuditLog[]> {
         let query = supabase
             .from('audit_logs')
             .select('*')
             .order('created_at', { ascending: false });
-        if (limit && limit > 0) {
+        
+        if (table_name) query = query.eq('table_name', table_name);
+        if (record_id) query = query.eq('record_id', record_id);
+        // Note: audit_logs doesn't have agency_id in current schema, we might need it or rely on record_id
+        
+        if (limit > 0) {
             query = query.limit(limit);
         }
 
         const { data, error } = await query;
         if (error) throw new Error(formatSbError('❌ audit_logs.select', error));
+        return data ?? [];
+    },
+    async getByRecordId(recordId: string, tableName?: string): Promise<AuditLog[]> {
+        let query = supabase
+            .from('audit_logs')
+            .select('*')
+            .eq('record_id', recordId)
+            .order('created_at', { ascending: false });
+            
+        if (tableName) {
+            query = query.eq('table_name', tableName);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw new Error(formatSbError('❌ audit_logs.getByRecordId', error));
         return data ?? [];
     },
     async insert(log: Partial<AuditLog>): Promise<Partial<AuditLog>> {

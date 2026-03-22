@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, DollarSign, Download, Calendar, FileText, Users, Building2, PieChart } from 'lucide-react';
+import { BarChart3, TrendingUp, DollarSign, Download, Calendar, FileText, Building2, PieChart } from 'lucide-react';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
@@ -186,7 +186,9 @@ export const FinancialReports: React.FC = () => {
                 doc.setFont('helvetica', 'bold');
                 doc.text(label + ' :', 20, yPos);
                 doc.setFont('helvetica', 'normal');
-                doc.text(value, 100, yPos);
+                // Sanitize currency to avoid spacing issues in PDF
+                const sanitizedValue = typeof value === 'string' ? value.replace(/[\u00A0\u202F]/g, ' ') : value;
+                doc.text(sanitizedValue, 100, yPos);
                 yPos += 10;
             });
 

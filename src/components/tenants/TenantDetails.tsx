@@ -62,6 +62,40 @@ export const TenantDetails: React.FC = () => {
     const [showEditForm, setShowEditForm] = useState(false);
     const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
     const [showLinkModal, setShowLinkModal] = useState(false);
+    
+    // Expert Financial Data
+    const [receipts, setReceipts] = useState<any[]>([]);
+    const [financialData, setFinancialData] = useState<any>(null);
+
+    React.useEffect(() => {
+        if (!activeContract?.id) return;
+        const loadFinance = async () => {
+            const { data } = await dbService.receipts.getAll({ contract_id: activeContract.id });
+            if (data) {
+                const sorted = data.sort((a,b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
+                setReceipts(sorted);
+                
+                // Calcul pro: On ne compte que la part LOYER + CHARGES pour la couverture
+                const totalPaidRent = data.reduce((sum, r: any) => sum + (r.rent_amount || 0) + (r.charges || 0), 0);
+                const totalCaution = data.reduce((sum, r: any) => sum + (r.deposit_amount || 0), 0);
+                
+                const monthlyTotal = (activeContract.monthly_rent || 0) + (activeContract.charges || 0);
+                const monthsCovered = monthlyTotal > 0 ? totalPaidRent / monthlyTotal : 0;
+                
+                const start = new Date(activeContract.start_date);
+                const now = new Date();
+                const elapsedMonths = (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+                const balance = monthsCovered - elapsedMonths;
+                
+                const isVeryNew = elapsedMonths < 0.25;
+                const isLate = balance < -0.5 || (balance < -0.16 && !isVeryNew);
+                const status = balance >= 0.1 ? 'advance' : isLate ? 'late' : 'ok';
+                
+                setFinancialData({ totalPaid: totalPaidRent, totalCaution, monthsCovered, elapsedMonths, balance, status });
+            }
+        };
+        loadFinance();
+    }, [activeContract?.id]);
 
     if (loadingTenant) {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
@@ -256,12 +290,38 @@ export const TenantDetails: React.FC = () => {
 
                         {activeTab === 'financials' && (
                             <div className="space-y-6">
+                                {financialData && (
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                        <Card className="p-4 bg-slate-50 border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Loyers Perçus</p>
+                                            <p className="text-xl font-black text-slate-900">{financialData.totalPaid.toLocaleString('fr-FR')} FCFA</p>
+                                        </Card>
+                                        <Card className="p-4 bg-amber-50 border-amber-100">
+                                            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">Caution Détenue</p>
+                                            <p className="text-xl font-black text-amber-700">{financialData.totalCaution.toLocaleString('fr-FR')} FCFA</p>
+                                        </Card>
+                                        <Card className="p-4 bg-slate-50 border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Couverture</p>
+                                            <p className="text-xl font-black text-emerald-600">{financialData.monthsCovered.toFixed(1)} mois</p>
+                                        </Card>
+                                        <Card className={`p-4 border-slate-100 ${
+                                            financialData.status === 'late' ? 'bg-rose-50 text-rose-600' : 
+                                            financialData.status === 'advance' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'
+                                        }`}>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider mb-1">Statut Solvabilité</p>
+                                            <p className="text-xl font-black">
+                                                {financialData.status === 'late' ? 'En Retard' : 
+                                                 financialData.status === 'advance' ? `Avance +${financialData.balance.toFixed(1)}m` : 'À Jour'}
+                                            </p>
+                                        </Card>
+                                    </div>
+                                )}
                                 <Card>
                                     <div className="p-6">
                                         <div className="flex items-center justify-between mb-6">
                                             <div>
-                                                <h3 className="text-lg font-semibold text-gray-900">Paiements de loyer</h3>
-                                                <p className="text-sm text-gray-600 mt-1">Historique des paiements de ce locataire</p>
+                                                <h3 className="text-lg font-semibold text-gray-900">Paiements de loyer (Expert)</h3>
+                                                <p className="text-sm text-gray-600 mt-1">Livre de caisse détaillé pour ce locataire</p>
                                             </div>
                                             {activeContract && (
                                                 <Button
@@ -274,9 +334,51 @@ export const TenantDetails: React.FC = () => {
                                             )}
                                         </div>
 
-                                        {tenant && (
-                                            <PaymentsList tenantId={tenant.id} limit={10} showActions={true} />
-                                        )}
+                                        <div className="border rounded-lg overflow-hidden">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                                                    <tr>
+                                                        <th className="px-6 py-3 text-left">Période</th>
+                                                        <th className="px-6 py-3 text-left">Date</th>
+                                                        <th className="px-6 py-3 text-left">Montant</th>
+                                                        <th className="px-6 py-3 text-left">Statut</th>
+                                                        <th className="px-6 py-3 text-right">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="bg-white divide-y divide-gray-100">
+                                                    {receipts.map((r: any) => (
+                                                        <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                                                                {r.period_month}/{r.period_year}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                {new Date(r.payment_date).toLocaleDateString('fr-FR')}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900">
+                                                                {(r.amount_paid || r.total_amount).toLocaleString('fr-FR')}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <Badge variant={r.payment_status === 'partial' ? 'warning' : 'success'}>
+                                                                    {r.payment_status === 'partial' ? 'Partiel' : 'Complet'}
+                                                                </Badge>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                                <Button variant="ghost" size="sm" className="text-primary-600">
+                                                                    <FileText className="w-4 h-4" />
+                                                                </Button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {receipts.length === 0 && (
+                                                        <tr>
+                                                            <td colSpan={5} className="px-6 py-12 text-center text-gray-400 italic">
+                                                                Aucun paiement enregistré.
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </Card>
                             </div>

@@ -99,6 +99,7 @@ export interface ModularClient {
     id_card_url?: string;
     total_stays: number;
     total_spent: number;
+    total_engaged?: number;
     last_stay_at?: string;
     module_type: ModuleType;
     created_at: string;
@@ -111,7 +112,7 @@ export interface ModularTransaction {
     id: string;
     agency_id: string;
     site_id?: string;
-    type: 'income' | 'expense' | 'deposit' | 'transfer' | 'salary';
+    type: 'income' | 'expense' | 'deposit' | 'transfer' | 'salary' | 'credit' | 'debit';
     category: string;
     amount: number;
     description?: string;

@@ -10,6 +10,11 @@ import { toast } from 'react-hot-toast';
 export const SecuritySettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   const { updatePassword } = useAuth();
 
   const handlePasswordChange = async (e: React.FormEvent) => {
