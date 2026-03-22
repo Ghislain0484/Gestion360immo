@@ -51,7 +51,16 @@ export const OwnersList: React.FC = () => {
   const getPropertyStats = (ownerId: string) => {
     const ownerProperties = properties?.filter(p => p.owner_id === ownerId) || [];
     const total = ownerProperties.length;
-    const occupied = ownerProperties.filter(p => !p.is_available).length;
+    
+    // Calculate occupied by checking active contracts for each property
+    const occupied = ownerProperties.filter(p => 
+      contracts?.some(c => 
+        c.property_id === p.id && 
+        c.status === 'active' && 
+        c.type === 'location'
+      )
+    ).length;
+    
     const vacant = total - occupied;
     return { total, occupied, vacant };
   };

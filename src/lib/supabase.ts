@@ -49,7 +49,6 @@ export const dbService = {
         { count: totalContracts, error: contractsError },
         { data: rentReceipts, error: receiptsError },
         { data: activeContractsData, count: activeContractsCount, error: activeContractsError },
-        { count: occupiedProperties, error: occupiedPropertiesError },
         modularTransactions,
       ] = await Promise.all([
         supabase
@@ -76,15 +75,10 @@ export const dbService = {
         }),
         supabase
           .from('contracts')
-          .select('monthly_rent', { count: 'exact' })
+          .select('property_id, monthly_rent', { count: 'exact' })
           .eq('agency_id', agencyId)
           .in('status', ['active', 'renewed'])
           .eq('type', 'location'),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('agency_id', agencyId)
-          .eq('is_available', false),
         modularService.getAgencyTransactions(
           agencyId,
           startDate.toISOString(),
@@ -98,7 +92,6 @@ export const dbService = {
       if (contractsError) throw new Error(formatSbError('❌ contracts.count', contractsError));
       if (receiptsError) throw new Error(formatSbError('❌ rent_receipts.rpc', receiptsError));
       if (activeContractsError) throw new Error(formatSbError('❌ contracts.select (active)', activeContractsError));
-      if (occupiedPropertiesError) throw new Error(formatSbError('❌ properties.count (occupied)', occupiedPropertiesError));
 
       // CALCUL COMPTABILITÉ PROFESSIONNELLE (Logic Expert)
       // 1. Revenu Locatif (Loyer + Charges + Honoraires)
@@ -143,7 +136,10 @@ export const dbService = {
       const remainingRevenue = Math.max(0, expectedRevenue - rentRevenue);
 
       const safeTotalProperties = totalProperties ?? 0;
-      const safeOccupiedProperties = occupiedProperties ?? 0;
+      // Unique properties from active contracts
+      const safeOccupiedProperties = Array.isArray(activeContractsData) 
+        ? new Set(activeContractsData.map((c: any) => c.property_id)).size
+        : 0;
 
       const occupancyRate =
         safeTotalProperties > 0
