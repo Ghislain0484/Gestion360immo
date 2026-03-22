@@ -40,7 +40,10 @@ export const contractsService = {
       query = query.eq('agency_id', agency_id);
     }
     if (search) {
-      query = query.or(`terms.ilike.%${search}%`);
+      // Improved search: contracts terms or ID.
+      // Note: searching tenant names usually requires a separate lookup or an RPC.
+      // But adding ID search helps a lot.
+      query = query.or(`terms.ilike.%${search}%,id.ilike.%${search}%`);
     }
     if (status) {
       query = query.eq('status', status);

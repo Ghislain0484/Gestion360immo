@@ -140,11 +140,11 @@ export const ContractsList: React.FC = () => {
       agency_id: user?.agency_id,
       limit: pageSize,
       offset: (page - 1) * pageSize,
-      search: searchTerm,
+      // We perform search client-side only below to allow searching across joined data (tenants/properties)
       status: filterStatus !== 'all' ? filterStatus : undefined,
     }),
     'contracts',
-    { agency_id: user?.agency_id, limit: pageSize, offset: (page - 1) * pageSize, search: searchTerm, status: filterStatus !== 'all' ? filterStatus : undefined }
+    { agency_id: user?.agency_id, limit: pageSize, offset: (page - 1) * pageSize, status: filterStatus !== 'all' ? filterStatus : undefined }
   );
 
   // Fetch related data for enhanced search
