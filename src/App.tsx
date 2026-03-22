@@ -30,6 +30,7 @@ import { InventoryList } from './components/inventory/InventoryList';
 import { AgencyPicker } from './components/layout/AgencyPicker';
 import { HotelDashboard } from './components/hotel/HotelDashboard';
 import { ResidencesDashboard } from './components/residences/ResidencesDashboard';
+import { DemoProvider } from './contexts/DemoContext';
 
 import { OwnerLayout } from './components/owner-portal/OwnerLayout';
 import { OwnerDashboard } from './components/owner-portal/OwnerDashboard';
@@ -38,6 +39,7 @@ import { OwnerTenants } from './components/owner-portal/OwnerTenants';
 import { OwnerFinances } from './components/owner-portal/OwnerFinances';
 import { OwnerMaintenance } from './components/owner-portal/OwnerMaintenance';
 import { OwnerDocuments } from './components/owner-portal/OwnerDocuments';
+import { OwnerSecurity } from './components/owner-portal/OwnerSecurity';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -214,6 +216,7 @@ const AppContent: React.FC = () => {
           <Route path="finances" element={<OwnerFinances />} />
           <Route path="documents" element={<OwnerDocuments />} />
           <Route path="travaux" element={<OwnerMaintenance />} />
+          <Route path="securite" element={<OwnerSecurity />} />
         </Route>
 
         {/* Redirect default */}
@@ -229,11 +232,13 @@ function App() {
     <ThemeProvider>
       <LoadingProvider>
         <AuthProvider>
-          <AdminProvider>
-            <ErrorBoundary>
-              <AppContent />
-            </ErrorBoundary>
-          </AdminProvider>
+          <DemoProvider>
+            <AdminProvider>
+              <ErrorBoundary>
+                <AppContent />
+              </ErrorBoundary>
+            </AdminProvider>
+          </DemoProvider>
         </AuthProvider>
       </LoadingProvider>
     </ThemeProvider>

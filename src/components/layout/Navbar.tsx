@@ -15,9 +15,12 @@ import {
   Sun,
   Moon,
   ClipboardCheck,
-  FileText
+  FileText,
+  Zap,
+  ZapOff
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { clsx } from 'clsx';
 import toast from 'react-hot-toast';
 import { APP_NAME, IS_STANDALONE, FORCED_STANDALONE_MODULES, APP_EDITION } from '../../lib/constants';
@@ -26,6 +29,7 @@ export const Navbar: React.FC = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { logout, user, agencyId, agencies, switchAgency } = useAuth();
+  const { isDemoMode, isDemoUser, toggleDemoMode } = useDemoMode();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showAgencyMenu, setShowAgencyMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -66,20 +70,39 @@ export const Navbar: React.FC = () => {
     return true;
   });
 
+  useEffect(() => {
+    console.log('🐞 Navbar: currentAgency:', currentAgency?.name, 'enabledModules:', enabledModules);
+  }, [currentAgency, enabledModules]);
+
+  const checkModule = (mod?: string) => {
+    if (!mod) return true;
+    if (IS_STANDALONE) return true;
+    if (enabledModules.includes(mod)) return true;
+    
+    // Fallback pour la compatibilité avec le bundle 'base'
+    if (enabledModules.includes('base')) {
+      const coreModules = ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux', 'documents'];
+      return coreModules.includes(mod);
+    }
+    
+    return false;
+  };
+
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Caisse', href: '/caisse', icon: Wallet },
-    { name: 'Propriétaires', href: '/proprietaires', icon: Building, module: 'base' },
-    { name: 'Propriétés', href: '/proprietes', icon: Building2, module: 'base' },
-    { name: 'Locataires', href: '/locataires', icon: Key, module: 'base' },
-    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'base' },
-    { name: 'Contrats', href: '/contrats', icon: FileText, module: 'base' },
-    ...(enabledModules.includes('hotel') ? [{ name: 'Hôtel', href: '/hotel', icon: Building }] : []),
-    ...(enabledModules.includes('residences') ? [{ name: 'Résidences', href: '/residences', icon: Building2 }] : []),
+    { name: 'Caisse', href: '/caisse', icon: Wallet, module: 'caisse' },
+    { name: 'Propriétaires', href: '/proprietaires', icon: Building, module: 'owners' },
+    { name: 'Propriétés', href: '/proprietes', icon: Building2, module: 'properties' },
+    { name: 'Locataires', href: '/locataires', icon: Key, module: 'tenants' },
+    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'etats-des-lieux' },
+    { name: 'Contrats', href: '/contrats', icon: FileText, module: 'contracts' },
+    ...(checkModule('hotel') ? [{ name: 'Hôtel', href: '/hotel', icon: Building }] : []),
+    ...(checkModule('residences') ? [{ name: 'Résidences', href: '/residences', icon: Building2 }] : []),
+    ...(checkModule('travaux') ? [{ name: 'Travaux', href: '/travaux', icon: Settings }] : []),
   ];
 
   const moreNavigation = [
-    ...(enabledModules.includes('collaboration') && !enabledModules.includes('internal_mode') 
+    ...(checkModule('collaboration') && !checkModule('internal_mode') 
       ? [{ name: 'Collaboration', href: '/collaboration', icon: Users }] 
       : []),
     { name: 'Rapports', href: '/rapports', icon: BarChart3 },
@@ -185,7 +208,7 @@ export const Navbar: React.FC = () => {
 
             {/* Main Nav */}
             <div className="flex items-center gap-1">
-              {navigation.filter(item => !item.module || enabledModules.includes(item.module)).map(item => {
+              {navigation.filter(item => !item.module || checkModule(item.module)).map(item => {
                 return (
                   <NavLink
                     key={item.name}
@@ -221,9 +244,28 @@ export const Navbar: React.FC = () => {
             <button 
               onClick={toggleDarkMode}
               className="p-2 text-slate-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all"
+              title={isDarkMode ? 'Mode clair' : 'Mode sombre'}
             >
               {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+
+            {isDemoUser && (
+              <button 
+                onClick={() => {
+                  toggleDemoMode();
+                  toast.success(!isDemoMode ? '🚀 Mode Démo activé (Données fictives)' : '🏢 Retour au mode réel');
+                }}
+                className={clsx(
+                  "p-2 rounded-lg transition-all flex items-center gap-2",
+                  isDemoMode 
+                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 ring-2 ring-amber-500/20" 
+                    : "text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/10"
+                )}
+                title="Activer le mode présentation (données fictives)"
+              >
+                {isDemoMode ? <Zap className="w-5 h-5 animate-pulse" /> : <ZapOff className="w-5 h-5" />}
+              </button>
+            )}
 
             <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 

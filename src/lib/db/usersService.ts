@@ -88,6 +88,32 @@ export const usersService = {
         return true;
     },
     async getByAgency(agencyId: string): Promise<(User & { role: AgencyUserRole; agency_id: string | null })[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+            return [{
+                id: '5a677978-6bbe-4392-b3f9-73abadaaecec',
+                first_name: 'Admin',
+                last_name: 'Démo',
+                email: 'demo.agence@gestion360immo.com',
+                role: 'director' as AgencyUserRole,
+                agency_id: '00000000-0000-0000-0000-000000000000',
+                is_active: true,
+                permissions: { 
+                    dashboard: true,
+                    properties: true,
+                    owners: true,
+                    tenants: true,
+                    contracts: true,
+                    collaboration: true,
+                    caisse: true,
+                    reports: true,
+                    notifications: true,
+                    settings: true,
+                    userManagement: true
+                },
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }];
+        }
         const { data, error } = await supabase
             .from('agency_users')
             .select('*, users!inner(*)')

@@ -7,6 +7,7 @@ import {
   Droplets, Zap, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { supabase } from '../../lib/config';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,6 +29,18 @@ export const OwnerProperties: React.FC = () => {
     const load = async () => {
       setLoading(true);
       try {
+        if (isDemoMode) {
+          const { MOCK_PROPERTIES, MOCK_CONTRACTS } = await import('../../lib/mockData');
+          const demoOwnerId = 'demo-owner-1';
+          
+          const profileProps = MOCK_PROPERTIES.filter(p => p.owner_id === demoOwnerId);
+          const profileContracts = MOCK_CONTRACTS.filter(c => (c.owner_id === demoOwnerId) && (c.status === 'active' || c.status === 'renewed'));
+
+          setProperties(profileProps);
+          setContracts(profileContracts);
+          setLoading(false);
+          return;
+        }
         const { data: props } = await supabase
           .from('properties')
           .select('*')

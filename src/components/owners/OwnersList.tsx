@@ -65,10 +65,11 @@ export const OwnersList: React.FC = () => {
     return { total, occupied, vacant };
   };
 
-  const getTenantCount = (ownerId: string) => {
-    if (!contracts) return 0;
+  // Returns the number of active rental contracts (= occupied properties) AND distinct tenant count
+  const getOccupancyInfo = (ownerId: string) => {
+    if (!contracts) return { contractCount: 0, tenantCount: 0 };
 
-    // Filter active contracts for this owner (only rental contracts with a tenant)
+    // Filter active rental contracts for this owner (with a tenant_id)
     const ownerContracts = contracts.filter(c =>
       c.owner_id === ownerId &&
       c.status === 'active' &&
@@ -77,15 +78,16 @@ export const OwnersList: React.FC = () => {
     );
 
     // Cross-reference with properties to ensure data integrity
-    // If we have properties loaded, we should only count tenants in properties that actually exist
     const validContracts = properties
       ? ownerContracts.filter(c => properties.some(p => p.id === c.property_id))
       : ownerContracts;
 
-    // Get unique tenant IDs from VALID contracts
-    const tenantIds = new Set(validContracts.map(c => c.tenant_id));
+    // Count active contracts (= occupied properties, not deduplicated by tenant)
+    const contractCount = validContracts.length;
+    // Count distinct tenants (a tenant occupying 2 properties counts as 1)
+    const tenantCount = new Set(validContracts.map(c => c.tenant_id)).size;
 
-    return tenantIds.size;
+    return { contractCount, tenantCount };
   };
 
   const debouncedSetSearchTerm = debounce((value: string) => setSearchTerm(value), 300);
@@ -99,10 +101,10 @@ export const OwnersList: React.FC = () => {
         owner.phone.includes(lower) ||
         owner.city.toLowerCase().includes(lower);
 
-      const tenantCount = getTenantCount(owner.id);
+      const { contractCount } = getOccupancyInfo(owner.id);
       const matchesOccupancy = filterOccupancy === 'all' ||
-        (filterOccupancy === 'active' && tenantCount > 0) ||
-        (filterOccupancy === 'free' && tenantCount === 0);
+        (filterOccupancy === 'active' && contractCount > 0) ||
+        (filterOccupancy === 'free' && contractCount === 0);
 
       return matchesSearch && matchesOccupancy;
     });
@@ -282,34 +284,45 @@ export const OwnersList: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-slate-200">
-                          {getPropertyStats(owner.id).total}
-                        </Badge>
-                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-tighter">Biens</span>
-                        <div className="flex items-center gap-1.5 ml-1">
-                          {getPropertyStats(owner.id).occupied > 0 && (
-                            <span className="flex items-center text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100" title="Occupés">
-                              {getPropertyStats(owner.id).occupied} O
+                    {(() => {
+                      const stats = getPropertyStats(owner.id);
+                      const { contractCount, tenantCount } = getOccupancyInfo(owner.id);
+                      return (
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-slate-200">
+                              {stats.total}
+                            </Badge>
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-tighter">Biens</span>
+                            <div className="flex items-center gap-1.5 ml-1">
+                              {stats.occupied > 0 && (
+                                <span className="flex items-center text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100" title="Biens occupés">
+                                  {stats.occupied} occupé{stats.occupied > 1 ? 's' : ''}
+                                </span>
+                              )}
+                              {stats.vacant > 0 && (
+                                <span className="flex items-center text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100" title="Biens vacants">
+                                  {stats.vacant} vacant{stats.vacant > 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="primary" className="h-5 min-w-[20px] flex items-center justify-center">
+                              {tenantCount}
+                            </Badge>
+                            <span className="text-xs text-slate-500 font-medium tracking-tight">
+                              locataire{tenantCount > 1 ? 's' : ''} distinct{tenantCount > 1 ? 's' : ''}
                             </span>
-                          )}
-                          {getPropertyStats(owner.id).vacant > 0 && (
-                            <span className="flex items-center text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100" title="Vacants">
-                              {getPropertyStats(owner.id).vacant} V
-                            </span>
-                          )}
+                            {contractCount !== tenantCount && (
+                              <span className="text-[10px] text-slate-400 italic" title="Un locataire occupe plusieurs biens">
+                                ({contractCount} contrats)
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center">
-                        <Badge variant="primary" className="mr-2 h-5 min-w-[20px] flex items-center justify-center">
-                          {getTenantCount(owner.id)}
-                        </Badge>
-                        <span className="text-xs text-slate-500 font-medium tracking-tight">
-                          locataire{getTenantCount(owner.id) > 1 ? 's' : ''} actif{getTenantCount(owner.id) > 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2">

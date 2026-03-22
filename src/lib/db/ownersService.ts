@@ -13,6 +13,11 @@ interface GetAllParams {
 
 export const ownersService = {
   async findOne(id: string, agencyId?: string): Promise<Owner | null> {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+      const { MOCK_OWNERS } = await import('../mockData');
+      return MOCK_OWNERS.find(o => o.id === id) || null;
+    }
+
     let query = supabase
       .from('owners')
       .select('*')
@@ -35,6 +40,19 @@ export const ownersService = {
     limit = 100,
     offset = 0,
   }: GetAllParams = {}): Promise<Owner[]> {
+    if (agency_id === '00000000-0000-0000-0000-000000000000') {
+      const { MOCK_OWNERS } = await import('../mockData');
+      let result = [...MOCK_OWNERS];
+      if (search) {
+        const s = search.toLowerCase();
+        result = result.filter(o => 
+          o.first_name.toLowerCase().includes(s) || 
+          o.last_name.toLowerCase().includes(s)
+        );
+      }
+      return result;
+    }
+
     let query = supabase
       .from('owners')
       .select('*')
@@ -55,6 +73,12 @@ export const ownersService = {
     return data ?? [];
   },
   async getById(id: string, agencyId?: string): Promise<Owner> {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+      const { MOCK_OWNERS } = await import('../mockData');
+      const owner = MOCK_OWNERS.find(o => o.id === id);
+      if (owner) return owner;
+    }
+
     let query = supabase
       .from('owners')
       .select('*')
@@ -69,6 +93,11 @@ export const ownersService = {
     return data;
   },
   async getBySlugId(id: string, agencyId?: string): Promise<Owner | null> {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+      const { MOCK_OWNERS } = await import('../mockData');
+      return MOCK_OWNERS.find(o => o.id === id || o.business_id === id) || null;
+    }
+
     // Check if ID is UUID
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 

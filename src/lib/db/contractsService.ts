@@ -26,6 +26,33 @@ export const contractsService = {
     property_id?: string;
     owner_id?: string;
   } = {}): Promise<Contract[]> {
+    if (agency_id === '00000000-0000-0000-0000-000000000000') {
+      const { MOCK_CONTRACTS, MOCK_PROPERTIES, MOCK_TENANTS, MOCK_OWNERS } = await import('../mockData');
+      let result = [...MOCK_CONTRACTS];
+      
+      if (status) result = result.filter(c => c.status === status);
+      if (type) result = result.filter(c => c.type === type);
+      if (tenant_id) result = result.filter(c => c.tenant_id === tenant_id);
+      if (property_id) result = result.filter(c => c.property_id === property_id);
+      if (owner_id) result = result.filter(c => c.owner_id === owner_id);
+      
+      if (search) {
+        const s = search.toLowerCase();
+        result = result.filter(c => 
+            c.terms.toLowerCase().includes(s) || 
+            c.id.toLowerCase().includes(s)
+        );
+      }
+
+      // Simuler les jointures attendues par les composants
+      return result.map(c => ({
+        ...c,
+        property: MOCK_PROPERTIES.find(p => p.id === c.property_id),
+        tenant: MOCK_TENANTS.find(t => t.id === c.tenant_id),
+        owner: MOCK_OWNERS.find(o => o.id === c.owner_id)
+      })) as any[];
+    }
+
     let query = supabase
       .from('contracts')
       .select(`
@@ -36,30 +63,14 @@ export const contractsService = {
       `)
       .order('created_at', { ascending: false });
 
-    if (agency_id) {
-      query = query.eq('agency_id', agency_id);
-    }
-    if (search) {
-      // Improved search: contracts terms or ID.
-      // Note: searching tenant names usually requires a separate lookup or an RPC.
-      // But adding ID search helps a lot.
-      query = query.or(`terms.ilike.%${search}%,id.ilike.%${search}%`);
-    }
-    if (status) {
-      query = query.eq('status', status);
-    }
-    if (type) {
-      query = query.eq('type', type);
-    }
-    if (tenant_id) {
-      query = query.eq('tenant_id', tenant_id);
-    }
-    if (property_id) {
-      query = query.eq('property_id', property_id);
-    }
-    if (owner_id) {
-      query = query.eq('owner_id', owner_id);
-    }
+    if (agency_id) query = query.eq('agency_id', agency_id);
+    if (search) query = query.or(`terms.ilike.%${search}%,id.ilike.%${search}%`);
+    if (status) query = query.eq('status', status);
+    if (type) query = query.eq('type', type);
+    if (tenant_id) query = query.eq('tenant_id', tenant_id);
+    if (property_id) query = query.eq('property_id', property_id);
+    if (owner_id) query = query.eq('owner_id', owner_id);
+    
     const limitVal = limit ?? 100;
     const offsetVal = offset ?? 0;
     query = query.range(offsetVal, offsetVal + limitVal - 1);
@@ -115,6 +126,19 @@ export const contractsService = {
     if (error) throw new Error(formatSbError('❌ contracts.deleteAllByAgency', error));
   },
   async findOne(id: string): Promise<Contract | null> {
+    if (id.startsWith('demo-')) {
+      const { MOCK_CONTRACTS, MOCK_PROPERTIES, MOCK_TENANTS, MOCK_OWNERS } = await import('../mockData');
+      const contract = MOCK_CONTRACTS.find(c => c.id === id);
+      if (!contract) return null;
+      
+      return {
+        ...contract,
+        property: MOCK_PROPERTIES.find(p => p.id === contract.property_id),
+        tenant: MOCK_TENANTS.find(t => t.id === contract.tenant_id),
+        owner: MOCK_OWNERS.find(o => o.id === contract.owner_id)
+      } as any;
+    }
+
     const { data, error } = await supabase
       .from('contracts')
       .select('*')

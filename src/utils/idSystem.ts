@@ -52,6 +52,12 @@ export const extractIdFromSlug = (slug: string): string => {
 
     // Check for Custom Business ID (e.g., PROP260130-00001)
     const parts = slug.split('-');
+    
+    // Handle demo- entities (demo-type-id: 3 parts)
+    if (slug.startsWith('demo-') && parts.length >= 3) {
+        return `${parts[0]}-${parts[1]}-${parts[2]}`;
+    }
+
     if (parts.length >= 2) {
         const potentialId = `${parts[0]}-${parts[1]}`;
         if (/^[A-Z]{4}\d{6}-\d{5}$/.test(potentialId)) {

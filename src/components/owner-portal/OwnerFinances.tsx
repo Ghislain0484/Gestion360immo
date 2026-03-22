@@ -4,6 +4,7 @@ import {
   FileText, Calendar, ArrowUpRight, DollarSign, Receipt
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { supabase } from '../../lib/config';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -29,6 +30,7 @@ interface OwnerTransaction {
 
 export const OwnerFinances: React.FC = () => {
   const { owner } = useAuth();
+  const { isDemoMode } = useDemoMode();
     const [receipts, setReceipts] = useState<any[]>([]);
     const [payouts, setPayouts] = useState<any[]>([]);
     const [contracts, setContracts] = useState<any[]>([]);
@@ -41,6 +43,21 @@ export const OwnerFinances: React.FC = () => {
     const load = async () => {
       setLoading(true);
       try {
+        if (isDemoMode) {
+          const { MOCK_CONTRACTS, MOCK_RECEIPTS, MOCK_TRANSACTIONS } = await import('../../lib/mockData');
+          const demoOwnerId = 'demo-owner-1';
+          
+          const profileContracts = MOCK_CONTRACTS.filter(c => c.owner_id === demoOwnerId);
+          const profileReceipts = MOCK_RECEIPTS.filter(r => r.owner_id === demoOwnerId);
+          const profilePayouts = MOCK_TRANSACTIONS.filter(t => t.related_owner_id === demoOwnerId && t.category === 'owner_payout');
+
+          setContracts(profileContracts);
+          setReceipts(profileReceipts);
+          setPayouts(profilePayouts);
+          setLoading(false);
+          return;
+        }
+
         const { data: props } = await supabase.from('properties').select('id').eq('owner_id', owner.id);
         const propIds = (props || []).map((p: any) => p.id);
 

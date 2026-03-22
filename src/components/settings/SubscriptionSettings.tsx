@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
 import { useQuotaManager } from '../../hooks/useQuotaManager';
 import { usePlatformSettings } from '../../hooks/useAdminQueries';
+import { dbService } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 export const SubscriptionSettings: React.FC = () => {
@@ -43,6 +44,26 @@ export const SubscriptionSettings: React.FC = () => {
     const handleUpgrade = async (plan: 'premium' | 'enterprise') => {
         if (!agencyId) return;
         
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+            setUpgrading(true);
+            try {
+                const price = plan === 'premium' ? 
+                    (settings?.subscription_premium_price || 50000) : 
+                    (settings?.subscription_enterprise_price || 100000);
+                
+                localStorage.setItem('demo_agency_plan', plan);
+                localStorage.setItem('demo_agency_fee', price.toString());
+                localStorage.setItem('demo_agency_status', 'active');
+                
+                if (refreshAuth) await refreshAuth();
+                toast.success(`Mode Démo : Votre pack a été mis à jour vers ${plan.toUpperCase()} !`);
+                setSubscription((prev: any) => ({ ...prev, plan_type: plan, status: 'active', monthly_fee: price }));
+            } finally {
+                setUpgrading(false);
+            }
+            return;
+        }
+
         setUpgrading(true);
         try {
             const price = plan === 'premium' ? 
@@ -114,8 +135,6 @@ export const SubscriptionSettings: React.FC = () => {
             features: ['Propriétés illimitées', 'Utilisateurs illimités', 'Support 24/7']
         }
     ];
-
-    const currentModules = subscription?.agency?.enabled_modules || ['base'];
 
     return (
         <div className="space-y-6">

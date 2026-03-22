@@ -1,0 +1,4 @@
+Count: 216
+Data Length: 216
+Error: null
+Types: {"location":102,"gestion":114}

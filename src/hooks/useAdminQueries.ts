@@ -9,8 +9,31 @@ export const useAgencies = () => {
     return useQuery({
         queryKey: ['agencies'],
         queryFn: async () => {
-            const agencies = await dbService.agencies.getAll();
-            return agencies || [];
+            const rawAgencies = await dbService.agencies.getAll() || [];
+            
+            // Éviter les doublons si l'agence démo existe déjà en base ou a été créée par erreur
+            const dbAgencies = rawAgencies.filter(a => a.id !== '00000000-0000-0000-0000-000000000000');
+            
+            // Injection de l'agence de démo pour l'admin
+            const demoStatus = localStorage.getItem('demo_agency_status') || 'active';
+            const demoModules = JSON.parse(localStorage.getItem('demo_agency_modules') || '["dashboard", "properties", "owners", "tenants", "contracts", "caisse"]');
+            
+            const demoAgency: any = {
+                id: '00000000-0000-0000-0000-000000000000',
+                name: 'Agence de Démonstration Expert',
+                city: 'Conakry',
+                email: 'demo.agence@gestion360immo.com',
+                phone: '+224 000 00 00 00',
+                commercial_register: 'RCCM/GC/DEMO/2024',
+                subscription_status: demoStatus,
+                status: demoStatus === 'active' ? 'approved' : 'suspended',
+                plan_type: 'premium',
+                monthly_fee: 50000,
+                enabled_modules: demoModules,
+                created_at: '2024-01-01T00:00:00Z'
+            };
+
+            return [demoAgency, ...dbAgencies];
         },
         staleTime: 30 * 1000, // Réduit à 30 secondes pour plus de réactivité dans l'admin
         gcTime: 10 * 60 * 1000, // Cache conservé pendant 10 minutes
@@ -38,14 +61,25 @@ export const useToggleAgencyStatus = () => {
 
     return useMutation({
         mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: string | null | undefined }) => {
-            const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+            // Résolution robuste du statut actuel pour éviter les toggles à vide
+            const actualCurrentStatus = currentStatus || (id === '00000000-0000-0000-0000-000000000000' ? (localStorage.getItem('demo_agency_status') || 'active') : 'active');
+            const newStatus = actualCurrentStatus === 'active' ? 'suspended' : 'active';
 
             console.log('🔄 Toggle Agency Status - Début', {
                 agencyId: id,
-                currentStatus,
+                currentStatusProvided: currentStatus,
+                actualCurrentStatus,
                 newStatus,
                 timestamp: new Date().toISOString()
             });
+
+            // Demo Guard
+            if (id === '00000000-0000-0000-0000-000000000000') {
+                console.log('🛡️ useToggleAgencyStatus: Demo agency status handling (localStorage)', { newStatus });
+                localStorage.setItem('demo_agency_status', newStatus);
+                // On met aussi à jour le statut platform_status pour la cohérence
+                return { id, newStatus, result: { success: true } };
+            }
 
             try {
                 // Mettre à jour le statut dans la table agencies
@@ -92,11 +126,14 @@ export const useToggleAgencyStatus = () => {
             // Mise à jour optimiste
             if (previousAgencies) {
                 queryClient.setQueryData<Agency[]>(['agencies'], (old) =>
-                    old?.map((agency) =>
-                        agency.id === id
-                            ? { ...agency, subscription_status: currentStatus === 'active' ? 'suspended' : 'active' }
-                            : agency
-                    ) || []
+                    old?.map((agency) => {
+                        if (agency.id === id) {
+                            const actualCurr = currentStatus || agency.subscription_status || (id === '00000000-0000-0000-0000-000000000000' ? (localStorage.getItem('demo_agency_status') || 'active') : 'active');
+                            const nextS = actualCurr === 'active' ? 'suspended' : 'active';
+                            return { ...agency, subscription_status: nextS };
+                        }
+                        return agency;
+                    }) || []
                 );
             }
 
@@ -243,10 +280,19 @@ export const useUpdateAgencyPlan = () => {
         }) => {
             console.log('🔄 Update Agency Plan - Début', { agencyId, planType, monthlyFee });
 
+            if (agencyId === '00000000-0000-0000-0000-000000000000') {
+                console.log('🛡️ useUpdateAgencyPlan: Demo agency plan handling (localStorage)', { planType, monthlyFee });
+                localStorage.setItem('demo_agency_plan', planType);
+                localStorage.setItem('demo_agency_fee', String(monthlyFee));
+                return { agencyId, planType, monthlyFee, result: { success: true } };
+            }
+
             // 1. Mettre à jour la table agencies
             const result = await dbService.agencies.update(agencyId, {
                 plan_type: planType,
                 monthly_fee: monthlyFee,
+                subscription_status: 'active',
+                updated_at: new Date().toISOString()
             } as any);
 
             // 2. Synchroniser avec agency_subscriptions

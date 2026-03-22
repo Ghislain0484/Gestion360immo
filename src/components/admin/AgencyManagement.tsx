@@ -11,12 +11,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Agency, AgencyRegistrationRequest } from '../../types/db';
 import { BadgeVariant, SubscriptionStatus, PlanType } from '../../types/enums';
 import { dbService } from '../../lib/supabase';
-
-// Interface pour les notifications toast
-interface Toast {
-  message: string;
-  type: 'success' | 'error';
-}
+import { agenciesService } from '../../lib/db/agenciesService';
+import toast from 'react-hot-toast';
 
 export const AgencyManagement: React.FC = () => {
   const { admin, isLoading } = useAuth();
@@ -29,14 +25,8 @@ export const AgencyManagement: React.FC = () => {
   const [agencies, setAgencies] = useState<(Agency & { subscription_status?: SubscriptionStatus; plan_type?: PlanType; monthly_fee?: number })[]>([]);
   const [registrationRequests, setRegistrationRequests] = useState<AgencyRegistrationRequest[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
-
-  // Fonction pour afficher les notifications toast
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000); // Auto-dismiss après 3 secondes
-  }, []);
 
   // Rediriger si non authentifié ou non admin
   useEffect(() => {
@@ -67,7 +57,6 @@ export const AgencyManagement: React.FC = () => {
         dbService.agencyRegistrationRequests.getAll()
       ]);
 
-      // Plus besoin de fetcher les subscriptions séparément car le service le fait maintenant via un join
       const enrichedAgencies = (agenciesData || []).map(agency => {
         const sub = (agency as any).subscription;
         return {
@@ -84,11 +73,11 @@ export const AgencyManagement: React.FC = () => {
       console.error('❌ Erreur chargement:', err);
       const errorMessage = err.message || 'Erreur lors du chargement des données';
       setError(errorMessage);
-      showToast(errorMessage, 'error');
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [admin, showToast]);
+  }, [admin]);
 
   useEffect(() => {
     if (admin && (admin.role === 'admin' || admin.role === 'super_admin')) {
@@ -99,29 +88,26 @@ export const AgencyManagement: React.FC = () => {
   // Approuver une demande
   const approveRegistration = useCallback(async (requestId: string) => {
     if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-      setError('Vous devez être connecté en tant qu’administrateur pour approuver une demande.');
-      showToast('Accès non autorisé', 'error');
+      toast.error('Accès non autorisé');
       return;
     }
 
     try {
       await dbService.agencyRegistrationRequests.approve(requestId);
       setError(null);
-      showToast('Agence approuvée avec succès !', 'success');
+      toast.success('Agence approuvée avec succès !');
       fetchData();
-    } catch (error: any) {
-      console.error('❌ Erreur approbation:', error);
-      const errorMessage = error.message || 'Erreur inconnue lors de l’approbation';
-      setError(errorMessage);
-      showToast(`Erreur: ${errorMessage}`, 'error');
+    } catch (err: any) {
+      console.error('❌ Erreur approbation:', err);
+      const errorMessage = err.message || 'Erreur inconnue lors de l’approbation';
+      toast.error(`Erreur: ${errorMessage}`);
     }
-  }, [admin, showToast, fetchData]);
+  }, [admin, fetchData]);
 
   // Rejeter une demande
   const rejectRegistration = useCallback(async (requestId: string) => {
     if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-      setError('Vous devez être connecté en tant qu’administrateur pour rejeter une demande.');
-      showToast('Accès non autorisé', 'error');
+      toast.error('Accès non autorisé');
       return;
     }
 
@@ -129,57 +115,57 @@ export const AgencyManagement: React.FC = () => {
     try {
       await dbService.agencyRegistrationRequests.reject(requestId, reason || undefined);
       setError(null);
-      showToast(`Demande rejetée${reason ? ` : ${reason}` : ''}`, 'success');
+      toast.success(`Demande rejetée${reason ? ` : ${reason}` : ''}`);
       fetchData();
-    } catch (error: any) {
-      console.error('❌ Erreur rejet:', error);
-      const errorMessage = error.message || 'Erreur inconnue lors du rejet';
-      setError(errorMessage);
-      showToast(`Erreur: ${errorMessage}`, 'error');
+    } catch (err: any) {
+      console.error('❌ Erreur rejet:', err);
+      const errorMessage = err.message || 'Erreur inconnue lors du rejet';
+      toast.error(`Erreur: ${errorMessage}`);
     }
-  }, [admin, showToast, fetchData]);
+  }, [admin, fetchData]);
+
+  // Mettre à jour une agence (Modules, Statut)
+  const handleUpdateAgency = useCallback(async (id: string, updates: Partial<Agency>) => {
+    setIsUpdating(true);
+    try {
+      await agenciesService.update(id, updates);
+      toast.success('Agence mise à jour avec succès');
+      fetchData();
+    } catch (err: any) {
+      console.error('❌ Erreur mise à jour:', err);
+      toast.error('Erreur lors de la mise à jour');
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [fetchData]);
 
   // Helpers UI
   const getStatusColor = (status: SubscriptionStatus): BadgeVariant => {
     switch (status) {
-      case 'active':
-        return 'success';
-      case 'suspended':
-        return 'danger';
-      case 'trial':
-        return 'warning';
-      case 'cancelled':
-        return 'secondary';
-      default:
-        return 'secondary';
+      case 'active': return 'success';
+      case 'suspended': return 'danger';
+      case 'trial': return 'warning';
+      case 'cancelled': return 'secondary';
+      default: return 'secondary';
     }
   };
 
   const getStatusLabel = (status: SubscriptionStatus): string => {
     switch (status) {
-      case 'active':
-        return 'Actif';
-      case 'suspended':
-        return 'Suspendu';
-      case 'trial':
-        return 'Essai';
-      case 'cancelled':
-        return 'Annulé';
-      default:
-        return status;
+      case 'active': return 'Actif';
+      case 'suspended': return 'Suspendu';
+      case 'trial': return 'Essai';
+      case 'cancelled': return 'Annulé';
+      default: return status;
     }
   };
 
   const getPlanLabel = (plan: PlanType): string => {
     switch (plan) {
-      case 'basic':
-        return 'Basique';
-      case 'premium':
-        return 'Premium';
-      case 'enterprise':
-        return 'Entreprise';
-      default:
-        return plan;
+      case 'basic': return 'Basique';
+      case 'premium': return 'Premium';
+      case 'enterprise': return 'Entreprise';
+      default: return plan;
     }
   };
 
@@ -234,18 +220,6 @@ export const AgencyManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`fixed bottom-4 right-4 p-4 rounded-lg text-white ${
-            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
-
-      {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
@@ -273,7 +247,6 @@ export const AgencyManagement: React.FC = () => {
         </nav>
       </div>
 
-      {/* Registration Requests Tab */}
       {activeTab === 'requests' && (
         <div className="space-y-4">
           {pendingRequests.length > 0 ? (
@@ -300,7 +273,6 @@ export const AgencyManagement: React.FC = () => {
             </Card>
           )}
 
-          {/* Processed Requests */}
           {processedRequests.length > 0 && (
             <div className="mt-8">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Demandes traitées récemment</h3>
@@ -342,10 +314,8 @@ export const AgencyManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Agencies Tab */}
       {activeTab === 'agencies' && (
         <div className="space-y-6">
-          {/* Filters */}
           <Card>
             <div className="flex flex-col md:flex-row gap-4 p-4">
               <div className="flex-1">
@@ -424,6 +394,8 @@ export const AgencyManagement: React.FC = () => {
         getStatusLabel={getStatusLabel}
         getPlanLabel={getPlanLabel}
         formatCurrency={formatCurrency}
+        onUpdate={handleUpdateAgency}
+        isUpdating={isUpdating}
       />
     </div>
   );

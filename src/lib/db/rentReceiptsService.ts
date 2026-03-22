@@ -11,6 +11,14 @@ interface GetAllParams {
 
 export const rentReceiptsService = {
   async getAll(params?: GetAllParams): Promise<RentReceipt[]> {
+    if (params?.agency_id === '00000000-0000-0000-0000-000000000000') {
+      const { MOCK_RECEIPTS, MOCK_PROPERTIES, MOCK_TENANTS } = await import('../mockData');
+      return MOCK_RECEIPTS.map((r: any) => ({
+        ...r,
+        property: MOCK_PROPERTIES.find(p => p.id === r.property_id),
+        tenant: MOCK_TENANTS.find(t => t.id === r.tenant_id)
+      }));
+    }
     let query = supabase
       .from('rent_receipts')
       .select(`
@@ -45,6 +53,17 @@ export const rentReceiptsService = {
     }));
   },
   async findOne(id: string): Promise<RentReceipt | null> {
+    if (id.startsWith('demo-')) {
+      const { MOCK_RECEIPTS, MOCK_PROPERTIES, MOCK_TENANTS } = await import('../mockData');
+      const receipt = MOCK_RECEIPTS.find(r => r.id === id);
+      if (!receipt) return null;
+      return {
+        ...receipt,
+        property: MOCK_PROPERTIES.find(p => p.id === receipt.property_id),
+        tenant: MOCK_TENANTS.find(t => t.id === receipt.tenant_id)
+      } as any;
+    }
+
     const { data, error } = await supabase
       .from('rent_receipts')
       .select('*')

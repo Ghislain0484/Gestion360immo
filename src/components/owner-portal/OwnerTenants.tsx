@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Users, Search, MapPin, AlertTriangle, 
-  CheckCircle2, Mail, MessageSquare,
-  TrendingUp, Calendar, ShieldCheck, X, FileText,
-  MapPin as Pin, Info, Phone, Mail as MailIcon, 
+  CheckCircle2, MessageSquare,
+  TrendingUp, Calendar, ShieldCheck, X,
   CreditCard, Clock
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { supabase } from '../../lib/config';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -18,6 +18,7 @@ const formatDate = (d: string | null | undefined) =>
 
 export const OwnerTenants: React.FC = () => {
   const { owner } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -29,6 +30,42 @@ export const OwnerTenants: React.FC = () => {
     const load = async () => {
       setLoading(true);
       try {
+        if (isDemoMode) {
+          const { MOCK_CONTRACTS, MOCK_RECEIPTS } = await import('../../lib/mockData');
+          const demoOwnerId = 'demo-owner-1';
+          
+          const profileContracts = MOCK_CONTRACTS.filter(c => (c.owner_id === demoOwnerId) && (c.status === 'active' || c.status === 'renewed'));
+          const contractIds = profileContracts.map(c => c.id);
+          const profileReceipts = MOCK_RECEIPTS.filter(r => contractIds.includes(r.contract_id));
+
+          const enriched = profileContracts.map(c => {
+            const relReceipts = profileReceipts.filter(r => r.contract_id === c.id);
+            const totalPaidRent = relReceipts.reduce((sum, r) => sum + (r.rent_amount || r.total_amount || 0), 0);
+            const totalCaution = relReceipts.reduce((sum, r) => sum + (r.deposit_amount || 0), 0);
+            const monthlyTotal = (c.monthly_rent || 0) + (c.charges || 0);
+            const monthsCovered = monthlyTotal > 0 ? totalPaidRent / monthlyTotal : 0;
+            const start = new Date(c.start_date);
+            const now = new Date();
+            const elapsedMonths = (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+            const financialBalance = monthsCovered - elapsedMonths;
+            const status = financialBalance >= 0.1 ? 'advance' : (financialBalance < -0.33 ? 'late' : 'ok');
+
+            return { 
+              ...c, 
+              receipts: relReceipts, 
+              totalPaid: totalPaidRent, 
+              totalCaution,
+              monthsCovered, 
+              elapsedMonths,
+              financialBalance,
+              financialStatus: status
+            };
+          });
+
+          setData(enriched);
+          setLoading(false);
+          return;
+        }
         const { data: props } = await supabase.from('properties').select('id').eq('owner_id', owner.id);
         const propIds = (props || []).map((p: any) => p.id);
 

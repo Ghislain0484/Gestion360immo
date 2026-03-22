@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Building2, MapPin, CheckCircle, AlertCircle, LogOut, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import toast from 'react-hot-toast';
 
 interface AgencyOption {
@@ -13,6 +14,7 @@ interface AgencyOption {
 
 export const AgencyPicker: React.FC = () => {
     const { user, logout } = useAuth();
+    const { isDemoMode } = useDemoMode();
     const [agencies, setAgencies] = useState<AgencyOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [linking, setLinking] = useState<string | null>(null); // agencyId en cours
@@ -27,6 +29,16 @@ export const AgencyPicker: React.FC = () => {
         if (!user) return;
         setLoading(true);
         try {
+            if (isDemoMode) {
+                setAgencies([{
+                    id: '00000000-0000-0000-0000-000000000000',
+                    name: 'Agence de Démonstration Expert',
+                    city: 'Conakry',
+                    commercial_register: 'RCCM-DEMO-2024'
+                }]);
+                return;
+            }
+
             // Passe l'ID utilisateur pour filtrer par RCCM en base
             const { data, error } = await supabase.rpc('get_approved_agencies', {
                 p_user_id: user.id,
@@ -45,6 +57,13 @@ export const AgencyPicker: React.FC = () => {
         if (!user || linking) return;
         setLinking(agency.id);
         try {
+            if (isDemoMode) {
+                toast.success(`✅ Mode Démo activé : ${agency.name}`);
+                localStorage.setItem('gestion360_active_agency', agency.id);
+                setTimeout(() => window.location.reload(), 800);
+                return;
+            }
+
             // Utilise la fonction RPC SECURITY DEFINER pour lier le directeur
             const { data, error } = await supabase.rpc('link_director_to_agency', {
                 p_agency_id: agency.id,

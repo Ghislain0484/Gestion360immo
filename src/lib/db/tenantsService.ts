@@ -5,6 +5,23 @@ import { Tenant, TenantFilters } from "../../types/db";
 
 export const tenantsService = {
     async getAll(filters: TenantFilters = {}): Promise<Tenant[]> {
+        if (filters.agency_id === '00000000-0000-0000-0000-000000000000') {
+            const { MOCK_TENANTS } = await import('../mockData');
+            let result = [...MOCK_TENANTS];
+            if (filters.search) {
+                const s = filters.search.toLowerCase();
+                result = result.filter(t => 
+                    t.first_name.toLowerCase().includes(s) || 
+                    t.last_name.toLowerCase().includes(s) ||
+                    t.phone.toLowerCase().includes(s)
+                );
+            }
+            if (filters.marital_status) result = result.filter(t => t.marital_status === filters.marital_status);
+            if (filters.payment_status) result = result.filter(t => t.payment_status === filters.payment_status);
+            
+            // Note: On pourrait aussi simuler active_contracts ici si besoin
+            return result;
+        }
         let query = supabase
             .from('tenants')
             .select('*, active_contracts:contracts(id, status, property:properties(title))')
@@ -60,6 +77,10 @@ export const tenantsService = {
         return true;
     },
     async findOne(id: string, agencyId?: string): Promise<Tenant | null> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-tenant-')) {
+            const { MOCK_TENANTS } = await import('../mockData');
+            return MOCK_TENANTS.find(t => t.id === id) || null;
+        }
         let query = supabase
             .from('tenants')
             .select('*')
@@ -77,6 +98,10 @@ export const tenantsService = {
         return data;
     },
     async getBySlugId(id: string, agencyId?: string): Promise<Tenant | null> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-tenant-')) {
+            const { MOCK_TENANTS } = await import('../mockData');
+            return MOCK_TENANTS.find(t => t.id === id) || null;
+        }
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
         let query = supabase.from('tenants').select('*');
         if (isUuid) {
