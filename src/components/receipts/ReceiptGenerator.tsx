@@ -91,10 +91,12 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
             const prop = await dbService.properties.findOne(propertyId);
             setPropertyInfo(prop);
             // Phase 9: Récupération des dépenses en attente
-            const expenses = await dbService.propertyExpenses.getAll({ 
-              property_id: propertyId, 
-              status: 'pending_deduction' 
-            });
+            const expenses = dbService.propertyExpenses 
+              ? await dbService.propertyExpenses.getAll({ 
+                  property_id: propertyId, 
+                  status: 'pending_deduction' 
+                })
+              : [];
             setPendingExpenses(expenses);
             setTotalExpenses(expenses.reduce((sum, e) => sum + (e.amount || 0), 0));
           }
