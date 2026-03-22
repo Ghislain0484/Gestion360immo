@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, Search, User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2, Edit, MoreVertical, Home, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
+import { User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2, Edit, MoreVertical, Home, CheckCircle2, AlertCircle, XCircle, Plus } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
+import { FilterBar } from '../shared/FilterBar';
 import { TenantForm } from './TenantForm';
 import { LinkTenantToPropertyModal } from './LinkTenantToPropertyModal';
 import ReceiptGenerator from '../receipts/ReceiptGenerator';
@@ -15,7 +16,6 @@ import { dbService } from '../../lib/supabase';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { generateSlug } from '../../utils/idSystem';
 import { useAuth } from '../../contexts/AuthContext';
-import debounce from 'lodash/debounce';
 import { SuccessModal } from '../ui/SuccessModal';
 import { toast } from 'react-hot-toast';
 import { clsx } from 'clsx';
@@ -236,9 +236,20 @@ export const TenantsList: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [tenantToLink, setTenantToLink] = useState<TenantWithRental | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterPaymentStatus, setFilterPaymentStatus] = useState<'all' | 'bon' | 'irregulier' | 'mauvais'>('all');
-  const [filterMaritalStatus, setFilterMaritalStatus] = useState<'all' | 'celibataire' | 'marie' | 'divorce' | 'veuf'>('all');
+  const [filters, setFilters] = useState({
+    maritalStatus: 'all',
+    paymentStatus: 'all',
+  });
   const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'active' | 'free'>('all');
+
+  const handleFilterChange = (id: string, value: any) => {
+    setFilters(prev => ({ ...prev, [id]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({ maritalStatus: 'all', paymentStatus: 'all' });
+    setSearchTerm('');
+  };
   const [currentPage, setCurrentPage] = useState(0);
   const [searchParams] = useSearchParams();
   const action = searchParams.get('action');
@@ -258,10 +269,10 @@ export const TenantsList: React.FC = () => {
       limit: PAGE_SIZE,
       offset: currentPage * PAGE_SIZE,
       search: searchTerm,
-      marital_status: filterMaritalStatus === 'all' ? undefined : filterMaritalStatus,
-      payment_status: filterPaymentStatus === 'all' ? undefined : filterPaymentStatus
+      marital_status: filters.maritalStatus === 'all' ? undefined : filters.maritalStatus as Tenant['marital_status'],
+      payment_status: filters.paymentStatus === 'all' ? undefined : filters.paymentStatus as Tenant['payment_status']
     }),
-    [user?.agency_id, currentPage, searchTerm, filterMaritalStatus, filterPaymentStatus]
+    [user?.agency_id, currentPage, searchTerm, filters]
   );
 
   const { data: tenants, initialLoading, error, setData, refetch } = useRealtimeData<Tenant>(
@@ -453,8 +464,8 @@ export const TenantsList: React.FC = () => {
         normalize(statusLabel).includes(ns) ||
         normalize(alternateStatusLabel).includes(ns);
 
-      const matchesMarital = filterMaritalStatus === 'all' || tenant.marital_status === filterMaritalStatus;
-      const matchesPayment = filterPaymentStatus === 'all' || tenant.payment_status === filterPaymentStatus;
+      const matchesMarital = filters.maritalStatus === 'all' || tenant.marital_status === filters.maritalStatus;
+      const matchesPayment = filters.paymentStatus === 'all' || tenant.payment_status === filters.paymentStatus;
 
       const matchesOccupancy = filterOccupancy === 'all' ||
         (filterOccupancy === 'active' && isOccupying) ||
@@ -462,10 +473,9 @@ export const TenantsList: React.FC = () => {
 
       return matchesSearch && matchesMarital && matchesPayment && matchesOccupancy;
     });
-  }, [tenants, searchTerm, filterMaritalStatus, filterPaymentStatus, filterOccupancy]);
+  }, [tenants, searchTerm, filters, filterOccupancy]);
 
-  const debouncedRefetch = useCallback(debounce(() => refetch(), 500), [refetch]);
-  useEffect(() => { debouncedRefetch(); return () => debouncedRefetch.cancel(); }, [searchTerm, filterPaymentStatus, filterMaritalStatus, currentPage, debouncedRefetch]);
+  useEffect(() => { refetch(); }, [searchTerm, filters, currentPage, refetch]);
   useEffect(() => { if (action === 'new') handleCreateClick(); }, [action, handleCreateClick]);
 
   const totalPages = Math.ceil((tenants?.length || 0) / PAGE_SIZE);
@@ -498,86 +508,62 @@ export const TenantsList: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <Card>
-        <div className="flex gap-3 flex-col md:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Rechercher par nom, téléphone, ville…"
-              className="pl-10 pr-4 py-2.5 w-full border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              aria-label="Rechercher un locataire"
-            />
-          </div>
-          <select
-            value={filterPaymentStatus}
-            onChange={e => setFilterPaymentStatus(e.target.value as Tenant['payment_status'] | 'all')}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
-            aria-label="Filtrer par statut de paiement"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="bon">Bon payeur</option>
-            <option value="irregulier">Payeur irrégulier</option>
-            <option value="mauvais">Mauvais payeur</option>
-          </select>
-          <select
-            value={filterMaritalStatus}
-            onChange={e => setFilterMaritalStatus(e.target.value as Tenant['marital_status'] | 'all')}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
-            aria-label="Filtrer par statut matrimonial"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="celibataire">Célibataire</option>
-            <option value="marie">Marié(e)</option>
-            <option value="divorce">Divorcé(e)</option>
-            <option value="veuf">Veuf/Veuve</option>
-          </select>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="flex p-1 bg-gray-100 rounded-xl">
-              <button
-                onClick={() => setFilterOccupancy('all')}
-                className={clsx(
-                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                  filterOccupancy === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                )}
-              >
-                Tous
-                <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterOccupancy === 'all' ? "bg-blue-100" : "bg-gray-200")}>
-                  {stats.total}
-                </span>
-              </button>
-              <button
-                onClick={() => setFilterOccupancy('active')}
-                className={clsx(
-                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                  filterOccupancy === 'active' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                )}
-              >
-                Actifs
-                <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterOccupancy === 'active' ? "bg-emerald-100" : "bg-gray-200")}>
-                  {stats.active}
-                </span>
-              </button>
-              <button
-                onClick={() => setFilterOccupancy('free')}
-                className={clsx(
-                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                  filterOccupancy === 'free' ? "bg-white text-amber-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                )}
-              >
-                Libres
-                <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterOccupancy === 'free' ? "bg-amber-100" : "bg-gray-200")}>
-                  {stats.free}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
+      <Card className="p-4">
+        <FilterBar
+          fields={[
+            {
+              id: 'paymentStatus',
+              label: 'Statut Paiement',
+              type: 'select',
+              options: [
+                { value: 'bon', label: 'Bon payeur' },
+                { value: 'irregulier', label: 'Payeur irrégulier' },
+                { value: 'mauvais', label: 'Mauvais payeur' },
+              ]
+            },
+            {
+              id: 'maritalStatus',
+              label: 'Statut Matrimonial',
+              type: 'select',
+              options: [
+                { value: 'celibataire', label: 'Célibataire' },
+                { value: 'marie', label: 'Marié(e)' },
+                { value: 'divorce', label: 'Divorcé(e)' },
+                { value: 'veuf', label: 'Veuf/Veuve' },
+              ]
+            }
+          ]}
+          values={filters}
+          onChange={handleFilterChange}
+          onClear={clearFilters}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Rechercher par nom, téléphone, ville…"
+          stats={[
+            {
+              label: 'Tous',
+              count: stats.total,
+              active: filterOccupancy === 'all',
+              onClick: () => setFilterOccupancy('all')
+            },
+            {
+              label: 'Actifs',
+              count: stats.active,
+              active: filterOccupancy === 'active',
+              onClick: () => setFilterOccupancy('active'),
+              activeColorClass: 'text-emerald-600',
+              colorClass: 'bg-emerald-100'
+            },
+            {
+              label: 'Libres',
+              count: stats.free,
+              active: filterOccupancy === 'free',
+              onClick: () => setFilterOccupancy('free'),
+              activeColorClass: 'text-amber-600',
+              colorClass: 'bg-amber-100'
+            }
+          ]}
+        />
       </Card>
       {/* Results Count Badge */}
       <div className="flex items-center gap-2 mb-2">

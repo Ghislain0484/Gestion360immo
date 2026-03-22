@@ -55,4 +55,6 @@ export interface DashboardStats {
   remainingRevenue: number;
   activeContracts: number;
   occupancyRate: number;
+  totalDeposits?: number;
+  agencyEarnings?: number;
 }

@@ -323,6 +323,10 @@ export const normalizeRentReceipt = (rr: Partial<RentReceipt>) => {
         payment_method: nilIfEmpty(rr.payment_method) ?? "especes",
         notes: nilIfEmpty(rr.notes) ?? undefined,
         issued_by: nilIfEmpty(rr.issued_by) ?? undefined,
+        // Nouveaux champs pro
+        deposit_amount: rr.deposit_amount ?? 0,
+        agency_fees: rr.agency_fees ?? 0,
+        expenses_deducted: rr.expenses_deducted ?? 0,
         // Paiements partiels — passés seulement si fournis (colonnes optionnelles en base)
         ...(rr.amount_paid !== undefined && { amount_paid: rr.amount_paid }),
         ...(rr.balance_due !== undefined && { balance_due: rr.balance_due }),
@@ -412,14 +416,14 @@ export const normalizeAuditLog = (al: Partial<AuditLog>) => {
     const ip_address = al.ip_address && ipRegex.test(al.ip_address) ? al.ip_address : '0.0.0.0';
     return {
         user_id: nilIfEmpty(al.user_id),
-        action: nilIfEmpty(al.action),
-        table_name: nilIfEmpty(al.table_name),
+        action: al.action || 'Unknown Action',
+        table_name: al.table_name || 'unknown_table',
         record_id: nilIfEmpty(al.record_id),
         old_values: al.old_values ?? null,
         new_values: al.new_values ?? null,
         ip_address,
         user_agent: nilIfEmpty(al.user_agent),
-        created_at: nilIfEmpty(al.created_at) ?? new Date().toISOString(),
+        created_at: al.created_at ?? new Date().toISOString(),
     };
 };
 

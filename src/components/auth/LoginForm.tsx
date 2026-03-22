@@ -249,7 +249,7 @@ export const LoginForm: React.FC = () => {
                   label={userType === 'agency' ? "Email professionnel" : "Email propriétaire"}
                   type="email"
                   value={email}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value.trim())}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value.trim().toLowerCase())}
                   required
                   placeholder="contact@agence.ci"
                   autoComplete="email"

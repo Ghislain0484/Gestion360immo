@@ -315,31 +315,39 @@ export const modularService = {
         // Fetch all bookings for this client
         const { data: bookings } = await supabase
             .from('modular_bookings')
-            .select('id, total_amount')
+            .select('id, total_amount, amount_paid, residence_id, room_id')
             .eq('client_id', clientId);
         
-        if (!bookings || bookings.length === 0) return;
+        if (!bookings || bookings.length === 0) {
+            await supabase.from('modular_clients').update({
+                total_stays: 0,
+                total_spent: 0,
+                last_stay_at: null,
+                updated_at: new Date().toISOString()
+            }).eq('id', clientId);
+            return;
+        }
 
-        const bookingIds = bookings.map(b => b.id);
         const totalStays = bookings.length;
+        const bookingIds = bookings.map(b => b.id);
 
-        // Fetch all income transactions for these bookings
-        const { data: transactions } = await supabase
+        // Fetch all transactions for these bookings to get REAL total spent
+        const { data: txs } = await supabase
             .from('modular_transactions')
             .select('amount')
             .in('related_id', bookingIds)
             .eq('type', 'income');
         
-        const totalSpent = (transactions || []).reduce((sum, t) => sum + Number(t.amount), 0);
+        const totalSpent = (txs || []).reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 
         // Get last stay date
         const { data: lastBooking } = await supabase
             .from('modular_bookings')
-            .select('check_in')
+            .select('book_id, check_in')
             .eq('client_id', clientId)
             .order('check_in', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
         const updates: any = {
             total_stays: totalStays,
@@ -347,13 +355,45 @@ export const modularService = {
             last_stay_at: lastBooking?.check_in || null,
             updated_at: new Date().toISOString()
         };
+        
+        
+        // Also update EACH booking's amount_paid to be sure they are synced
+        for (const bookingId of bookingIds) {
+            await this.syncBookingPaymentStatus(bookingId);
+        }
+
+        // Determine module_type based on bookings if not explicitly provided
+        if (!moduleTag) {
+            const hasResidences = bookings.some(b => b.residence_id !== null);
+            const hasHotel = bookings.some(b => b.room_id !== null);
+            
+            if (hasResidences && !hasHotel) moduleTag = 'residences';
+            else if (hasHotel && !hasResidences) moduleTag = 'hotel';
+            // If both or neither, keep existing or leave as is
+        }
 
         if (moduleTag) updates.module_type = moduleTag;
 
-        await supabase
+        const { error } = await supabase
             .from('modular_clients')
             .update(updates)
             .eq('id', clientId);
+        
+        if (error) console.error('Error updating client stats:', error);
+    },
+
+    async syncAllClientsStats(agencyId: string, _moduleType?: ModuleType): Promise<void> {
+        const { data: clients } = await supabase
+            .from('modular_clients')
+            .select('id')
+            .eq('agency_id', agencyId);
+        
+        if (!clients) return;
+
+        for (const client of clients) {
+            // We pass undefined as moduleTag so it gets detected from bookings
+            await this.updateClientStats(client.id);
+        }
     },
 
     async deleteClient(clientId: string): Promise<void> {
@@ -401,28 +441,88 @@ export const modularService = {
     },
 
     async createTransaction(transaction: Partial<ModularTransaction>): Promise<ModularTransaction | null> {
-        return await this.performMutation('modular_transactions', 'insert', transaction);
+        const data = await this.performMutation('modular_transactions', 'insert', transaction);
+        if (!data) return null;
+
+        // If it's an income related to a booking, sync the booking and client stats
+        if (transaction.type === 'income' && transaction.related_id) {
+            await this.syncBookingPaymentStatus(transaction.related_id);
+            
+            // Get the client ID from the booking to update client stats
+            const { data: booking } = await supabase
+                .from('modular_bookings')
+                .select('client_id, residence_id')
+                .eq('id', transaction.related_id)
+                .single();
+            
+            if (booking?.client_id) {
+                const moduleTag = booking.residence_id ? 'residences' : 'hotel';
+                await this.updateClientStats(booking.client_id, undefined, moduleTag);
+            }
+        }
+
+        return data;
     },
 
-    async getClientTransactions(clientId: string): Promise<ModularTransaction[]> {
+    async getClientFinancialRecord(clientId: string): Promise<{
+        transactions: ModularTransaction[],
+        totalBooked: number,
+        totalPaid: number,
+        staysCount: number
+    }> {
         // Fetch all bookings for this client
-        const { data: bookings } = await supabase
+        const { data: bookings, error: bError } = await supabase
             .from('modular_bookings')
-            .select('id')
+            .select('id, total_amount, amount_paid')
             .eq('client_id', clientId);
         
-        if (!bookings || bookings.length === 0) return [];
-
-        const bookingIds = bookings.map(b => b.id);
+        if (bError) throw new Error(formatSbError('getClientFinancialRecord:bookings', bError));
+        
+        const bookingIds = (bookings || []).map(b => b.id);
+        const totalBooked = (bookings || []).reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
+        const staysCount = (bookings || []).length;
 
         // Fetch all transactions related to these bookings
+        let transactions: ModularTransaction[] = [];
+        if (bookingIds.length > 0) {
+            const { data, error } = await supabase
+                .from('modular_transactions')
+                .select('*')
+                .in('related_id', bookingIds)
+                .order('transaction_date', { ascending: false });
+
+            if (error) throw new Error(formatSbError('getClientFinancialRecord:transactions', error));
+            transactions = data || [];
+        }
+
+        const totalPaid = transactions
+            .filter(tx => tx.type === 'income')
+            .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+
+        return { transactions, totalBooked, totalPaid, staysCount };
+    },
+
+    async getTenantTransactions(tenantId: string): Promise<ModularTransaction[]> {
         const { data, error } = await supabase
             .from('modular_transactions')
             .select('*')
-            .in('related_id', bookingIds)
+            .eq('related_tenant_id', tenantId)
             .order('transaction_date', { ascending: false });
 
-        if (error) throw new Error(formatSbError('getClientTransactions', error));
+        if (error) throw new Error(formatSbError('getTenantTransactions', error));
+        return data || [];
+    },
+
+    async getAgencyTransactions(agencyId: string, startDate: string, endDate: string): Promise<ModularTransaction[]> {
+        const { data, error } = await supabase
+            .from('modular_transactions')
+            .select('*')
+            .eq('agency_id', agencyId)
+            .gte('transaction_date', startDate)
+            .lte('transaction_date', endDate)
+            .order('transaction_date', { ascending: false });
+
+        if (error) throw new Error(formatSbError('getAgencyTransactions', error));
         return data || [];
     },
 

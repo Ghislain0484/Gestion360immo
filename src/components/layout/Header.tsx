@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { AgencySwitcher } from './AgencySwitcher';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -12,22 +13,11 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { user, logout, switchAgency, agencies } = useAuth();
+  const { theme, setTheme, isDark } = useTheme();
   const navigate = useNavigate();
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem(`theme_${user?.agency_id}`);
-    return saved === 'dark';
-  });
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
-  // Apply dark mode on mount
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -42,11 +32,9 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   }, []);
 
   const toggleDarkMode = () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-    document.documentElement.classList.toggle('dark', newMode);
-    localStorage.setItem(`theme_${user?.agency_id}`, newMode ? 'dark' : 'light');
-    toast.success(newMode ? '🌙 Mode sombre activé' : '☀️ Mode clair activé');
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    toast.success(newTheme === 'dark' ? '🌙 Mode sombre activé' : '☀️ Mode clair activé');
   };
 
   const handleSignOut = async () => {
@@ -108,9 +96,9 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <button
             onClick={toggleDarkMode}
             className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            title={isDarkMode ? 'Mode clair' : 'Mode sombre'}
+            title={isDark ? 'Mode clair' : 'Mode sombre'}
           >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
 
           {/* Notifications */}

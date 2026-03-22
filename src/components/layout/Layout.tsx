@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { Navbar } from './Navbar';
 import { QuotaBanner } from '../shared/QuotaBanner';
+import { LoadingBar } from '../shared/LoadingBar';
 import { WifiOff } from 'lucide-react';
 
 const NetworkStatus: React.FC = () => {
@@ -41,6 +42,7 @@ export const Layout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-mesh font-sans text-gray-900 dark:text-slate-100 transition-colors duration-500 overflow-x-hidden text-sm uppercase font-bold">
+      <LoadingBar />
       <Navbar />
       <QuotaBanner />
       <NetworkStatus />

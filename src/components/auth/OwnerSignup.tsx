@@ -23,7 +23,7 @@ export const OwnerSignup: React.FC = () => {
     setLoading(true);
 
     try {
-      const status = await ownersService.checkEmailStatus(email);
+      const status = await ownersService.checkEmailStatus(email.trim().toLowerCase());
       
       if (!status.exists) {
         setError("Cette adresse email n'est pas reconnue par notre système. Veuillez contacter votre agence pour qu'elle enregistre votre email.");
@@ -64,9 +64,8 @@ export const OwnerSignup: React.FC = () => {
     setLoading(true);
 
     try {
-      // Create auth user
       const { error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
           data: {

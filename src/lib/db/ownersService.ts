@@ -161,11 +161,7 @@ export const ownersService = {
     await this.delete(ownerId);
   },
   async checkEmailStatus(email: string): Promise<{ exists: boolean; activated: boolean; ownerName?: string }> {
-    const { data, error } = await supabase
-      .from('owners')
-      .select('first_name, last_name, user_id')
-      .eq('email', email)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('check_owner_activation', { p_email: email.trim() });
 
     if (error) throw new Error(formatSbError('❌ owners.checkEmailStatus', error));
     

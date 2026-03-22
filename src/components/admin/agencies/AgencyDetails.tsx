@@ -154,11 +154,17 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
         const variants: Record<string, any> = {
             active: { variant: 'success', label: 'Active' },
             suspended: { variant: 'warning', label: 'Suspendue' },
-            trial: { variant: 'secondary', label: 'Essai' },
+            trial: { variant: 'secondary', label: 'Essai (60j)' },
             cancelled: { variant: 'danger', label: 'Annulée' },
         };
         const config = variants[status] || { variant: 'secondary', label: status };
         return <Badge variant={config.variant}>{config.label}</Badge>;
+    };
+
+    const getTrialEndDate = (startDate: string) => {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + 60);
+        return date.toLocaleDateString('fr-FR');
     };
 
     return (
@@ -288,6 +294,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                                 value={formData.plan_type}
                                                 onChange={(e) => {
                                                     const plan = e.target.value as 'basic' | 'premium' | 'enterprise';
+                                                    // Montants par défaut si settings non dispo
                                                     const fees = {
                                                         basic: settings?.subscription_basic_price || 25000,
                                                         premium: settings?.subscription_premium_price || 50000,
@@ -348,6 +355,15 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                             <p className="text-gray-500">Date d'inscription</p>
                                             <p className="font-medium text-gray-900">
                                                 {new Date(agency.created_at).toLocaleDateString('fr-FR')}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="h-4 w-4 text-gray-400" />
+                                        <div>
+                                            <p className="text-gray-500">Fin essai gratuit (60j)</p>
+                                            <p className="font-medium text-blue-600">
+                                                {getTrialEndDate(agency.created_at)}
                                             </p>
                                         </div>
                                     </div>

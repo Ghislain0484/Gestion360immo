@@ -16,7 +16,7 @@ interface TransactionFormProps {
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, moduleType, onClose, onSuccess }) => {
-    const { agencyId } = useAuth();
+    const { agencyId, user } = useAuth();
     const [isSaving, setIsSaving] = useState(false);
     const [sites, setSites] = useState<ResidenceSite[]>([]);
 
@@ -58,6 +58,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, m
             const payload = {
                 ...formData,
                 agency_id: agencyId,
+                created_by: user?.id,
                 site_id: formData.site_id || undefined,
                 module_type: moduleType,
                 transaction_date: new Date(formData.transaction_date).toISOString()

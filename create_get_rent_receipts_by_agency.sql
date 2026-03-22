@@ -9,13 +9,25 @@ CREATE OR REPLACE FUNCTION get_rent_receipts_by_agency(
 )
 RETURNS TABLE (
   total_amount numeric,
+  rent_amount numeric,
+  charges numeric,
+  commission_amount numeric,
+  agency_fees numeric,
   period_month int,
   period_year int,
   contract_id uuid
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT rr.total_amount, rr.period_month, rr.period_year, rr.contract_id
+  SELECT 
+    rr.total_amount, 
+    rr.rent_amount, 
+    rr.charges, 
+    rr.commission_amount, 
+    rr.agency_fees,
+    rr.period_month, 
+    rr.period_year, 
+    rr.contract_id
   FROM rent_receipts rr
   INNER JOIN contracts c ON rr.contract_id = c.id
   WHERE c.agency_id = p_agency_id

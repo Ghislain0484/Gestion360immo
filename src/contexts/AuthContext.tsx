@@ -243,7 +243,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Si ce n'est pas un admin, essayer en tant qu'utilisateur normal
+        // IMPORTANT: Check owner FIRST before regular agency users.
+        // The handle_new_auth_user trigger creates a public.users entry for owners too,
+        // which would cause checkSession to mistake an owner for an agency user.
+        const { data: ownerArray, error: ownerError } = await supabase
+          .from('owners')
+          .select('*')
+          .eq('user_id', currentUserId)
+          .limit(1);
+
+        const ownerData = ownerArray?.[0];
+        if (!ownerError && ownerData) {
+          console.log('✅ AuthContext: checkSession - Owner trouvé:', ownerData.first_name);
+          setOwner((prev) => {
+            const prevData = prev ? omit(prev, ['updated_at']) : null;
+            const newData = omit(ownerData as Owner, ['updated_at']);
+            if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
+              return ownerData as Owner;
+            }
+            return prev;
+          });
+          setUser(null);
+          setAdmin(null);
+          return;
+        }
+
+        // Si ce n'est pas un owner ni un admin, essayer en tant qu'utilisateur agence
         const u = await fetchUserWithAgency(currentUserId);
         if (u) {
           // 1. Déterminer l'agence active (localStorage ou auto-sélection si unique)
@@ -285,29 +310,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           setAdmin(null);
           setOwner(null);
-          return;
-        }
-
-        // Si ce n'est pas un agency_user, vérifier si c'est un owner
-        const { data: ownerArray, error: ownerError } = await supabase
-          .from('owners')
-          .select('*')
-          .eq('user_id', currentUserId)
-          .limit(1);
-
-        const ownerData = ownerArray?.[0];
-        if (!ownerError && ownerData) {
-          setOwner((prev) => {
-            const prevData = prev ? omit(prev, ['updated_at']) : null;
-            const newData = omit(ownerData as Owner, ['updated_at']);
-            if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
-              console.log('🔄 AuthContext: Mise à jour owner:', ownerData);
-              return ownerData as Owner;
-            }
-            return prev;
-          });
-          setUser(null);
-          setAdmin(null);
           return;
         }
 
@@ -394,7 +396,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password.trim(),
       });
       if (error) {
@@ -444,7 +446,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password.trim(),
       });
       if (error) {
@@ -455,17 +457,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (!data.user) throw new Error('Utilisateur non trouvé');
 
-      const { data: ownerArray, error: ownerError } = await supabase
+      // 1. Try to find owner by user_id (optimal path)
+      let { data: ownerArray } = await supabase
         .from('owners')
         .select('*')
         .eq('user_id', data.user.id)
         .limit(1);
 
+      // 2. Fallback: search by email (in case user_id was never linked)
+      if (!ownerArray || ownerArray.length === 0) {
+        console.warn('⚠️ AuthContext: loginOwner - user_id lookup failed, trying email fallback...');
+        const { data: emailFallback } = await supabase
+          .from('owners')
+          .select('*')
+          .ilike('email', email.trim().toLowerCase())
+          .limit(1);
+
+        if (emailFallback && emailFallback.length > 0) {
+          ownerArray = emailFallback;
+          // Auto-link user_id so future logins work via user_id
+          await supabase
+            .from('owners')
+            .update({ user_id: data.user.id })
+            .eq('id', emailFallback[0].id);
+          console.log('✅ AuthContext: loginOwner - user_id auto-linked for owner:', emailFallback[0].id);
+        }
+      }
+
       const ownerData = ownerArray?.[0];
 
-      if (ownerError || !ownerData) {
-        console.error('❌ AuthContext: Erreur loginOwner, compte propriétaire non trouvé:', ownerError);
-        throw new Error('Compte propriétaire non trouvé');
+      if (!ownerData) {
+        console.error('❌ AuthContext: Erreur loginOwner, compte propriétaire non trouvé:', email);
+        throw new Error('Compte propriétaire non trouvé. Vérifiez que votre email est bien enregistré par votre agence.');
       }
 
       const o = ownerData as Owner;
@@ -488,7 +511,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password.trim(),
       });
       if (error) {

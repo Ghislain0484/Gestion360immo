@@ -2,6 +2,7 @@ import { supabase } from '../config';
 import { normalizeContract } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { Contract } from "../../types/db";
+import { auditLogsService } from './auditLogsService';
 
 export const contractsService = {
   async getAll({
@@ -68,6 +69,15 @@ export const contractsService = {
     const clean = normalizeContract(contract);
     const { data, error } = await supabase.from('contracts').insert(clean).select('*').single();
     if (error) throw new Error(formatSbError('❌ contracts.insert', error));
+    
+    // Log action
+    await auditLogsService.insert({
+      action: `Nouveau contrat: ${data.type}`,
+      table_name: 'properties', // We log on the property record for the history view
+      record_id: data.property_id,
+      new_values: data,
+    });
+    
     return data;
   },
   async update(id: string, updates: Partial<Contract>): Promise<Contract> {
@@ -77,9 +87,18 @@ export const contractsService = {
       .from('contracts')
       .update(clean)
       .eq('id', id)
-      .select('*')
+      .select('*, property_id')
       .single();
     if (error) throw new Error(formatSbError('❌ contracts.update', error));
+    
+    // Log action
+    await auditLogsService.insert({
+      action: `MAJ Contrat: ${data.status}`,
+      table_name: 'properties',
+      record_id: data.property_id,
+      new_values: data,
+    });
+    
     return data;
   },
 

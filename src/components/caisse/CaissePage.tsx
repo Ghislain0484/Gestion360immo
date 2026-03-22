@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, Filter, Calendar, TrendingUp, Wallet, ArrowRightLeft, Eye, X } from 'lucide-react';
+import { Download, Filter, Calendar, TrendingUp, Wallet, ArrowRightLeft, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
 import { Tabs } from '../ui/Tabs';
+import { FilterBar } from '../shared/FilterBar';
 import { NewTransactionModal } from './NewTransactionModal';
 import { PayoutModal } from './PayoutModal';
+import { TenantCollectionModal } from './TenantCollectionModal';
 import { clsx } from 'clsx';
 import { toast } from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
@@ -29,7 +31,7 @@ interface Transaction {
     category: string;
     description: string;
     payment_method: string;
-    source: 'rent_receipt' | 'cash_transaction';
+    source: 'rent_receipt' | 'modular_transaction';
     reference_id: string;
     details?: any;
 }
@@ -42,18 +44,76 @@ export const CaissePage: React.FC = () => {
     const [owners, setOwners] = useState<Owner[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-    // Filters
-    const [selectedOwnerId, setSelectedOwnerId] = useState<string>(searchParams.get('proprietaire') || '');
-    const [selectedPeriod, setSelectedPeriod] = useState<string>(
-        searchParams.get('periode') || new Date().toISOString().slice(0, 7)
-    );
+    // Owner Balance Component
+    const OwnerBalanceBadge: React.FC<{ ownerId: string }> = ({ ownerId }) => {
+        const [balance, setBalance] = useState<number>(0);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+            const fetchBalance = async () => {
+                const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment').eq('owner_id', ownerId);
+                const { data: payouts } = await supabase.from('modular_transactions').select('amount').eq('related_owner_id', ownerId).eq('category', 'owner_payout').eq('type', 'debit');
+                
+                const earned = receipts?.reduce((s, r) => s + (Number(r.owner_payment) || 0), 0) || 0;
+                const paid = payouts?.reduce((s, p) => s + (Number(p.amount) || 0), 0) || 0;
+                setBalance(earned - paid);
+                setLoading(false);
+            };
+            fetchBalance();
+        }, [ownerId]);
+
+        if (loading) return <div className="h-4 w-12 bg-gray-100 animate-pulse rounded"></div>;
+        return (
+            <span className={clsx(
+                "font-bold",
+                balance > 0 ? "text-indigo-600" : "text-gray-400"
+            )}>
+                {balance.toLocaleString('fr-FR')} FCFA
+            </span>
+        );
+    };
+
+    const [filters, setFilters] = useState({
+        ownerId: searchParams.get('proprietaire') || 'all',
+        period: searchParams.get('periode') || new Date().toISOString().slice(0, 7),
+        type: 'all',
+        category: 'all',
+    });
+
+    const handleFilterChange = (id: string, value: any) => {
+        setFilters(prev => ({ ...prev, [id]: value }));
+        if (id === 'ownerId') {
+            if (value !== 'all') searchParams.set('proprietaire', value);
+            else searchParams.delete('proprietaire');
+            setSearchParams(searchParams);
+        }
+        if (id === 'period') {
+            if (value) searchParams.set('periode', value);
+            else searchParams.delete('periode');
+            setSearchParams(searchParams);
+        }
+    };
+
+    const clearFilters = () => {
+        setFilters({
+            ownerId: 'all',
+            period: new Date().toISOString().slice(0, 7),
+            type: 'all',
+            category: 'all',
+        });
+        searchParams.delete('proprietaire');
+        searchParams.delete('periode');
+        setSearchParams(searchParams);
+    };
 
     const [isLoading, setIsLoading] = useState(true);
 
     // Modals
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+    const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
     const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
     const [selectedOwnerForPayout, setSelectedOwnerForPayout] = useState<Owner | null>(null);
+    const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
 
     // Fetch owners
     useEffect(() => {
@@ -81,6 +141,8 @@ export const CaissePage: React.FC = () => {
                     id,
                     receipt_number,
                     total_amount,
+                    owner_payment,
+                    commission_amount,
                     payment_date,
                     payment_method,
                     property:properties!inner(title, business_id, owner_id),
@@ -88,11 +150,11 @@ export const CaissePage: React.FC = () => {
                 `)
                 .eq('agency_id', user?.agency_id);
 
-            if (selectedOwnerId) {
-                receiptsQuery = receiptsQuery.eq('property.owner_id', selectedOwnerId);
+            if (filters.ownerId !== 'all') {
+                receiptsQuery = receiptsQuery.eq('property.owner_id', filters.ownerId);
             }
-            if (selectedPeriod) {
-                const [year, month] = selectedPeriod.split('-');
+            if (filters.period) {
+                const [year, month] = filters.period.split('-');
                 const startDate = `${year}-${month}-01`;
                 const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
                 receiptsQuery = receiptsQuery.gte('payment_date', startDate).lte('payment_date', endDate);
@@ -102,15 +164,15 @@ export const CaissePage: React.FC = () => {
 
             // 2. Fetch Manual Transactions
             let cashQuery = supabase
-                .from('cash_transactions')
+                .from('modular_transactions')
                 .select('*')
                 .eq('agency_id', user?.agency_id);
 
-            if (selectedOwnerId) {
-                cashQuery = cashQuery.eq('related_owner_id', selectedOwnerId);
+            if (filters.ownerId !== 'all') {
+                cashQuery = cashQuery.eq('related_owner_id', filters.ownerId);
             }
-            if (selectedPeriod) {
-                const [year, month] = selectedPeriod.split('-');
+            if (filters.period) {
+                const [year, month] = filters.period.split('-');
                 const startDate = `${year}-${month}-01`;
                 const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
                 cashQuery = cashQuery.gte('transaction_date', startDate).lte('transaction_date', endDate);
@@ -129,21 +191,32 @@ export const CaissePage: React.FC = () => {
                 payment_method: r.payment_method,
                 source: 'rent_receipt',
                 reference_id: r.receipt_number,
-                details: r
+                details: {
+                    ...r,
+                    owner_share: r.owner_payment,
+                    agency_share: (r.total_amount || 0) - (r.owner_payment || 0)
+                }
             }));
 
-            const manualTrans: Transaction[] = (cashTrans || []).map((t: any) => ({
-                id: t.id,
-                date: t.transaction_date,
-                type: t.type,
-                amount: t.amount,
-                category: t.category,
-                description: t.description || 'N/A',
-                payment_method: t.payment_method,
-                source: 'cash_transaction',
-                reference_id: '',
-                details: t
-            }));
+            const manualTrans: Transaction[] = (cashTrans || []).map((t: any) => {
+                // Map modular types to Caisse types
+                let displayType: 'credit' | 'debit' = t.type as any;
+                if (t.type === 'income' || t.type === 'deposit') displayType = 'credit';
+                if (t.type === 'expense' || t.type === 'salary' || t.type === 'transfer') displayType = 'debit';
+                
+                return {
+                    id: t.id,
+                    date: t.transaction_date,
+                    type: displayType,
+                    amount: t.amount,
+                    category: t.category,
+                    description: t.description || 'N/A',
+                    payment_method: t.payment_method,
+                    source: 'modular_transaction',
+                    reference_id: '',
+                    details: t
+                };
+            });
 
             const allTrans = [...receiptTrans, ...manualTrans].sort((a, b) =>
                 new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -161,15 +234,21 @@ export const CaissePage: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, [selectedOwnerId, selectedPeriod, user]);
+    }, [filters.ownerId, filters.period, user]);
 
     // Financial Summary
     const summary = useMemo(() => {
-        const totalCredit = transactions
+        const filteredTrans = transactions.filter(t => {
+            const matchesType = filters.type === 'all' || t.type === filters.type;
+            const matchesCategory = filters.category === 'all' || t.category === filters.category;
+            return matchesType && matchesCategory;
+        });
+
+        const totalCredit = filteredTrans
             .filter(t => t.type === 'credit')
             .reduce((sum, t) => sum + t.amount, 0);
 
-        const totalDebit = transactions
+        const totalDebit = filteredTrans
             .filter(t => t.type === 'debit')
             .reduce((sum, t) => sum + t.amount, 0);
 
@@ -177,24 +256,12 @@ export const CaissePage: React.FC = () => {
             totalCredit,
             totalDebit,
             balance: totalCredit - totalDebit,
-            count: transactions.length
+            count: filteredTrans.length,
+            filteredTransactions: filteredTrans
         };
-    }, [transactions]);
+    }, [transactions, filters.type, filters.category]);
 
 
-    const handleOwnerChange = (ownerId: string) => {
-        setSelectedOwnerId(ownerId);
-        if (ownerId) searchParams.set('proprietaire', ownerId);
-        else searchParams.delete('proprietaire');
-        setSearchParams(searchParams);
-    };
-
-    const handlePeriodChange = (period: string) => {
-        setSelectedPeriod(period);
-        if (period) searchParams.set('periode', period);
-        else searchParams.delete('periode');
-        setSearchParams(searchParams);
-    };
 
     const openPayoutModal = (owner: Owner) => {
         setSelectedOwnerForPayout(owner);
@@ -205,21 +272,23 @@ export const CaissePage: React.FC = () => {
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
     const handleViewReceipt = (t: Transaction) => {
-        if (t.source === 'rent_receipt') setSelectedTransaction(t);
+        setSelectedTransaction(t);
     };
 
-    const handleDownloadReceiptFromTransaction = async (t: Transaction) => {
-        if (t.source !== 'rent_receipt') return;
+    const handleDownloadReceiptFromTransaction = async (t: Transaction, autoPrint = false) => {
         try {
             const branding = await getAgencyBranding(user?.agency_id ?? undefined);
             const doc = new jsPDF();
             const pageWidth = doc.internal.pageSize.width;
             let y = renderPDFHeader(doc, branding, 15);
 
+            const title = t.source === 'rent_receipt' ? 'QUITTANCE DE LOYER' : 'RECU D\'OPERATION';
             doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-            doc.text('QUITTANCE DE LOYER', pageWidth / 2, y, { align: 'center' }); y += 10;
+            doc.text(title, pageWidth / 2, y, { align: 'center' }); y += 10;
             doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-            doc.text(`Date : ${new Date(t.date).toLocaleDateString('fr-FR')}`, pageWidth / 2, y, { align: 'center' }); y += 12;
+            doc.text(`Date : ${new Date(t.date).toLocaleDateString('fr-FR')}`, pageWidth / 2, y, { align: 'center' }); y += 6;
+            const ref = t.source === 'rent_receipt' ? t.reference_id : `REF-${t.id.slice(0, 8).toUpperCase()}`;
+            doc.text(`Référence : ${ref}`, pageWidth / 2, y, { align: 'center' }); y += 12;
             doc.setDrawColor(220, 220, 220); doc.line(20, y, pageWidth - 20, y); y += 8;
 
             const writeRow = (label: string, value: string) => {
@@ -230,14 +299,54 @@ export const CaissePage: React.FC = () => {
             writeRow('Catégorie :', t.category === 'rent_payment' ? 'Loyer' : t.category);
             writeRow('Mode de paiement :', t.payment_method);
             y += 4;
-            doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(22, 163, 74);
-            doc.text(`MONTANT TOTAL : ${t.amount.toLocaleString('fr-FR')} FCFA`, pageWidth / 2, y, { align: 'center' }); y += 12;
+            doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(t.type === 'credit' ? 22 : 220, t.type === 'credit' ? 163 : 38, t.type === 'credit' ? 74 : 38);
+            doc.text(`${t.type === 'credit' ? 'MONTANT RECU' : 'MONTANT PAYE'} : ${t.amount.toLocaleString('fr-FR')} FCFA`, pageWidth / 2, y, { align: 'center' }); y += 12;
 
             renderPDFFooter(doc, branding);
-            doc.save(`quittance-${new Date(t.date).toLocaleDateString('fr-FR').replace(/\//g, '-')}.pdf`);
-            toast.success('Quittance téléchargée !');
+            
+            if (autoPrint) {
+                doc.autoPrint();
+                window.open(doc.output('bloburl'), '_blank');
+            } else {
+                doc.save(`recu-${ref}-${new Date(t.date).toLocaleDateString('fr-FR').replace(/\//g, '-')}.pdf`);
+                toast.success('Reçu téléchargé !');
+            }
         } catch (err: any) {
             toast.error('Erreur PDF : ' + err.message);
+        }
+    };
+
+    const handleEditTransaction = (t: Transaction) => {
+        if (t.source === 'modular_transaction') {
+            setTransactionToEdit(t.details);
+            setIsTransactionModalOpen(true);
+        } else {
+            toast.error("Les quittances de loyer doivent être modifiées depuis le menu Locations");
+        }
+    };
+
+    const handleDeleteTransaction = async (t: Transaction) => {
+        if (t.source !== 'modular_transaction') {
+            toast.error("Les quittances de loyer ne peuvent pas être supprimées ici");
+            return;
+        }
+
+        if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette opération ? Cette action est irréversible.")) {
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('modular_transactions')
+                .delete()
+                .eq('id', t.id);
+            
+            if (error) throw error;
+            toast.success("Opération supprimée");
+            fetchData();
+        } catch (error) {
+            console.error(error);
+            toast.error("Erreur lors de la suppression");
         }
     };
 
@@ -251,7 +360,7 @@ export const CaissePage: React.FC = () => {
             doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
             doc.text('RAPPORT DE CAISSE & TRÉSORERIE', pageWidth / 2, y, { align: 'center' }); y += 8;
             doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
-            doc.text(`Période : ${selectedPeriod} | Généré le : ${new Date().toLocaleDateString('fr-FR')}`, pageWidth / 2, y, { align: 'center' }); y += 12;
+            doc.text(`Période : ${filters.period} | Généré le : ${new Date().toLocaleDateString('fr-FR')}`, pageWidth / 2, y, { align: 'center' }); y += 12;
             doc.setDrawColor(200, 200, 200); doc.line(20, y, pageWidth - 20, y); y += 8;
 
             // Résumé financier
@@ -284,7 +393,7 @@ export const CaissePage: React.FC = () => {
 
             // Lignes
             doc.setFont('helvetica', 'normal');
-            transactions.forEach((t, i) => {
+            summary.filteredTransactions.forEach((t, i) => {
                 if (y > 265) { doc.addPage(); y = 20; }
                 if (i % 2 === 0) { doc.setFillColor(245, 247, 250); doc.rect(20, y - 4, pageWidth - 40, 6, 'F'); }
                 doc.setTextColor(t.type === 'credit' ? 22 : 220, t.type === 'credit' ? 163 : 38, t.type === 'credit' ? 74 : 38);
@@ -300,7 +409,7 @@ export const CaissePage: React.FC = () => {
             });
 
             renderPDFFooter(doc, branding);
-            doc.save(`caisse-${selectedPeriod}.pdf`);
+            doc.save(`caisse-${filters.period}.pdf`);
             toast.success('Rapport de caisse exporté !');
         } catch (err: any) {
             toast.error('Erreur export PDF : ' + err.message);
@@ -322,6 +431,13 @@ export const CaissePage: React.FC = () => {
                     >
                         <ArrowRightLeft className="w-4 h-4" />
                         <span>Mouvement</span>
+                    </button>
+                    <button
+                        onClick={() => setIsCollectionModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md hover:shadow-lg"
+                    >
+                        <Wallet className="w-4 h-4" />
+                        <span>Encaissement Locataire</span>
                     </button>
                     <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg">
                         <Download className="w-4 h-4" />
@@ -367,36 +483,61 @@ export const CaissePage: React.FC = () => {
             {activeTab === 'journal' && (
                 <div className="space-y-6">
                     {/* Filters */}
-                    <Card className="p-6">
-                        <div className="flex items-center gap-4 flex-wrap">
-                            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                <Filter className="w-4 h-4" />
-                                <span>Filtres:</span>
-                            </div>
-
-                            <select
-                                value={selectedOwnerId}
-                                onChange={(e) => handleOwnerChange(e.target.value)}
-                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            >
-                                <option value="">Tous les propriétaires</option>
-                                {owners.map((owner) => (
-                                    <option key={owner.id} value={owner.id}>
-                                        {owner.first_name} {owner.last_name}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-gray-500" />
-                                <input
-                                    type="month"
-                                    value={selectedPeriod}
-                                    onChange={(e) => handlePeriodChange(e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                />
-                            </div>
-                        </div>
+                    <Card className="p-4">
+                        <FilterBar
+                            fields={[
+                                {
+                                    id: 'ownerId',
+                                    label: 'Propriétaire',
+                                    type: 'select',
+                                    options: [
+                                        { value: 'all', label: 'Tous les propriétaires' },
+                                        ...owners.map(o => ({ value: o.id, label: `${o.first_name} ${o.last_name}` }))
+                                    ]
+                                },
+                                {
+                                    id: 'period',
+                                    label: 'Période',
+                                    type: 'date',
+                                    dateType: 'month'
+                                },
+                                {
+                                    id: 'type',
+                                    label: 'Type',
+                                    type: 'select',
+                                    options: [
+                                        { value: 'all', label: 'Tous les types' },
+                                        { value: 'credit', label: 'Credits (+)' },
+                                        { value: 'debit', label: 'Debits (-)' },
+                                    ]
+                                },
+                                {
+                                    id: 'category',
+                                    label: 'Catégorie',
+                                    type: 'select',
+                                    options: [
+                                        { value: 'all', label: 'Toutes les catégories' },
+                                        { value: 'rent_payment', label: 'Loyer' },
+                                        { value: 'owner_payout', label: 'Reversement' },
+                                        { value: 'caution', label: 'Caution' },
+                                        { value: 'agency_fees', label: 'Honoraires' },
+                                        { value: 'expense', label: 'Dépense' },
+                                        { value: 'income', label: 'Revenu' },
+                                    ]
+                                }
+                            ]}
+                            values={filters}
+                            onChange={handleFilterChange}
+                            onClear={clearFilters}
+                            stats={[
+                                {
+                                    label: 'Total Opérations',
+                                    count: summary.count,
+                                    active: true,
+                                    onClick: () => {}
+                                }
+                            ]}
+                        />
                     </Card>
 
                     {/* Table */}
@@ -405,11 +546,11 @@ export const CaissePage: React.FC = () => {
                             <div className="p-12 flex justify-center">
                                 <LoadingSpinner size="lg" label="Chargement..." />
                             </div>
-                        ) : transactions.length === 0 ? (
+                        ) : summary.filteredTransactions.length === 0 ? (
                             <EmptyState
                                 icon="banknote"
                                 title="Aucune transaction"
-                                description="Aucun mouvement de caisse trouvé pour cette période."
+                                description="Aucun mouvement de caisse trouvé pour cette sélection."
                             />
                         ) : (
                             <div className="overflow-x-auto">
@@ -421,12 +562,13 @@ export const CaissePage: React.FC = () => {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Moyen</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Part Proprio</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant Total</th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {transactions.map((t) => (
+                                        {summary.filteredTransactions.map((t) => (
                                             <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                     {new Date(t.date).toLocaleDateString('fr-FR')}
@@ -442,13 +584,18 @@ export const CaissePage: React.FC = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {t.category === 'rent_payment' ? 'Loyer' :
                                                         t.category === 'owner_payout' ? 'Reversement' :
-                                                            t.category}
+                                                            t.category === 'caution' ? 'Caution' :
+                                                                t.category === 'agency_fees' ? 'Honoraires Agence' :
+                                                                    t.category}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                                                     {t.description}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {t.payment_method}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium text-right">
+                                                    {t.source === 'rent_receipt' ? `${(t.details?.owner_share || 0).toLocaleString('fr-FR')}` : '-'}
                                                 </td>
                                                 <td className={clsx(
                                                     "px-6 py-4 whitespace-nowrap text-sm font-semibold text-right",
@@ -457,16 +604,27 @@ export const CaissePage: React.FC = () => {
                                                     {t.type === 'credit' ? '+' : '-'}{t.amount.toLocaleString('fr-FR')}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    {t.source === 'rent_receipt' && (
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            <button title="Voir la quittance" onClick={() => handleViewReceipt(t)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
-                                                                <Eye className="w-4 h-4" />
-                                                            </button>
-                                                            <button title="Télécharger PDF" onClick={() => handleDownloadReceiptFromTransaction(t)} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors">
-                                                                <Download className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <button title="Voir détail" onClick={() => handleViewReceipt(t)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
+                                                            <Eye className="w-4 h-4" />
+                                                        </button>
+                                                        <button title="Télécharger PDF" onClick={() => handleDownloadReceiptFromTransaction(t)} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors">
+                                                            <Download className="w-4 h-4" />
+                                                        </button>
+                                                        <button title="Imprimer" onClick={() => handleDownloadReceiptFromTransaction(t, true)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors">
+                                                            <Printer className="w-4 h-4" />
+                                                        </button>
+                                                        {t.source === 'modular_transaction' && (
+                                                            <>
+                                                                <button title="Modifier" onClick={() => handleEditTransaction(t)} className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 transition-colors">
+                                                                    <Edit className="w-4 h-4" />
+                                                                </button>
+                                                                <button title="Supprimer" onClick={() => handleDeleteTransaction(t)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors">
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -490,6 +648,11 @@ export const CaissePage: React.FC = () => {
                                 <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold">
                                     {owner.first_name[0]}{owner.last_name[0]}
                                 </div>
+                            </div>
+
+                            <div className="mt-4 flex justify-between items-center text-sm">
+                                <span className="text-gray-500">Solde à reverser :</span>
+                                <OwnerBalanceBadge ownerId={owner.id} />
                             </div>
 
                             <div className="border-t border-gray-100 pt-4 mt-4">
@@ -516,7 +679,17 @@ export const CaissePage: React.FC = () => {
 
             <NewTransactionModal
                 isOpen={isTransactionModalOpen}
-                onClose={() => setIsTransactionModalOpen(false)}
+                onClose={() => {
+                    setIsTransactionModalOpen(false);
+                    setTransactionToEdit(null);
+                }}
+                onSuccess={fetchData}
+                transaction={transactionToEdit}
+            />
+
+            <TenantCollectionModal
+                isOpen={isCollectionModalOpen}
+                onClose={() => setIsCollectionModalOpen(false)}
                 onSuccess={fetchData}
             />
 

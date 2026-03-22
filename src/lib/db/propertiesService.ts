@@ -2,6 +2,7 @@ import { supabase } from '../config';
 import { normalizeProperty } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { Property, Contract, Tenant } from "../../types/db";
+import { auditLogsService } from './auditLogsService';
 
 interface GetAllParams {
   agency_id?: string;
@@ -52,12 +53,35 @@ export const propertiesService = {
     const clean = normalizeProperty(property);
     const { data, error } = await supabase.from('properties').insert(clean).select('*').single();
     if (error) throw new Error(formatSbError('❌ properties.insert', error));
+    
+    // Log action
+    await auditLogsService.insert({
+      action: 'Création du bien',
+      table_name: 'properties',
+      record_id: data.id,
+      new_values: data,
+    });
+    
     return data;
   },
   async update(id: string, updates: Partial<Property>): Promise<Property> {
     const clean = normalizeProperty(updates);
+    
+    // Fetch old values for audit
+    const oldData = await this.getById(id);
+    
     const { data, error } = await supabase.from('properties').update(clean).eq('id', id).select('*').single();
     if (error) throw new Error(formatSbError('❌ properties.update', error));
+    
+    // Log action
+    await auditLogsService.insert({
+      action: 'Mise à jour du bien',
+      table_name: 'properties',
+      record_id: id,
+      old_values: oldData,
+      new_values: data,
+    });
+    
     return data;
   },
   async delete(id: string): Promise<boolean> {

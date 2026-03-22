@@ -1,18 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Plus, Search, LayoutGrid, List as ListIcon, Trash2 } from 'lucide-react';
+import { Plus, LayoutGrid, List as ListIcon, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { clsx } from 'clsx';
-import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { Input } from '../ui/Input';
+import { FilterBar } from '../shared/FilterBar';
 import { Property } from '../../types/db';
 import { PropertyForm } from './PropertyForm';
 import { PropertyCard } from './PropertyCard';
 import { useRealtimeData, useSupabaseCreate } from '../../hooks/useSupabaseData';
 import { dbService } from '../../lib/supabase';
 import { generateSlug } from '../../utils/idSystem';
-import debounce from 'lodash/debounce';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
@@ -26,8 +23,21 @@ export const PropertiesList: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [filterStanding, setFilterStanding] = useState<string>('all');
+  const [filters, setFilters] = useState({
+    standing: 'all',
+    type: 'all',
+    commune: 'all',
+  });
   const [filterStatus, setFilterStatus] = useState<'all' | 'vacant' | 'occupied'>('all');
+
+  const handleFilterChange = (id: string, value: any) => {
+    setFilters(prev => ({ ...prev, [id]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({ standing: 'all', type: 'all', commune: 'all' });
+    setSearchTerm('');
+  };
   const fetchProperties = useCallback(() => dbService.properties.getAll({
     agency_id: authAgencyId || undefined,
     limit: 1000,
@@ -127,7 +137,6 @@ export const PropertiesList: React.FC = () => {
     }
   );
 
-  const debouncedSetSearchTerm = debounce((value: string) => setSearchTerm(value), 300);
 
   const filteredProperties = useMemo(() => {
     return properties.filter((property) => {
@@ -149,16 +158,18 @@ export const PropertiesList: React.FC = () => {
         normalize(statusLabel).includes(ns) ||
         (alternateStatusLabel && normalize(alternateStatusLabel).includes(ns));
 
-      const matchesStanding = filterStanding === 'all' || property.standing === filterStanding;
+      const matchesStanding = filters.standing === 'all' || property.standing === filters.standing;
+      const matchesType = filters.type === 'all' || property.details.type === filters.type;
+      const matchesCommune = filters.commune === 'all' || property.location.commune === filters.commune;
 
       const matchesStatus =
         filterStatus === 'all' ||
         (filterStatus === 'vacant' && isAvailable) ||
         (filterStatus === 'occupied' && isOccupied);
 
-      return matchesSearch && matchesStanding && matchesStatus;
+      return matchesSearch && matchesStanding && matchesType && matchesCommune && matchesStatus;
     });
-  }, [properties, searchTerm, filterStanding, contracts, tenants, filterStatus]);
+  }, [properties, searchTerm, filters, contracts, tenants, filterStatus]);
 
   const handlePropertyClick = (property: Property) => {
     const slug = generateSlug(property.id, property.title);
@@ -274,83 +285,70 @@ export const PropertiesList: React.FC = () => {
 
       {/* Filters */}
       <Card className="p-4 shadow-md border-none bg-white/90 backdrop-blur-sm">
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Rechercher par titre, quartier..."
-                className="pl-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
-                onChange={(e) => debouncedSetSearchTerm(e.target.value)}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <select
-                value={filterStanding}
-                onChange={(e) => setFilterStanding(e.target.value)}
-                className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-medium text-slate-700"
-              >
-                <option value="all">Tous standings</option>
-                <option value="economique">Économique</option>
-                <option value="moyen">Moyen</option>
-                <option value="haut">Haut</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100">
-            <div className="flex items-center gap-2">
-              <div className="flex p-1 bg-slate-100 rounded-xl">
-                <button
-                  onClick={() => setFilterStatus('all')}
-                  className={clsx(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                    filterStatus === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  Tous
-                  <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterStatus === 'all' ? "bg-blue-100" : "bg-slate-200")}>
-                    {stats.total}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setFilterStatus('vacant')}
-                  className={clsx(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                    filterStatus === 'vacant' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  Vacants
-                  <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterStatus === 'vacant' ? "bg-emerald-100" : "bg-slate-200")}>
-                    {stats.vacant}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setFilterStatus('occupied')}
-                  className={clsx(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                    filterStatus === 'occupied' ? "bg-white text-amber-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  Occupés
-                  <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px]", filterStatus === 'occupied' ? "bg-amber-100" : "bg-slate-200")}>
-                    {stats.occupied}
-                  </span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 ml-2">
-                <Badge variant="primary" className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md border-none">
-                  {filteredProperties.length}
-                </Badge>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  {filterStatus === 'vacant' ? 'Biens Vacants' : filterStatus === 'occupied' ? 'Biens Occupés' : 'Biens'} trouvé{filteredProperties.length > 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FilterBar
+          fields={[
+            {
+              id: 'standing',
+              label: 'Standing',
+              type: 'select',
+              options: [
+                { value: 'economique', label: 'Économique' },
+                { value: 'moyen', label: 'Moyen' },
+                { value: 'haut', label: 'Haut' },
+              ]
+            },
+            {
+              id: 'type',
+              label: 'Type',
+              type: 'select',
+              options: [
+                { value: 'villa', label: 'Villa' },
+                { value: 'appartement', label: 'Appartement' },
+                { value: 'immeuble', label: 'Immeuble' },
+                { value: 'terrain_nu', label: 'Terrain Nu' },
+                { value: 'autres', label: 'Autres' },
+              ]
+            },
+            {
+              id: 'commune',
+              label: 'Commune',
+              type: 'select',
+              options: Array.from(new Set(properties.map(p => p.location.commune)))
+                .filter(Boolean)
+                .map(c => ({ value: c, label: c }))
+            }
+          ]}
+          values={filters}
+          onChange={handleFilterChange}
+          onClear={clearFilters}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Rechercher par titre, quartier..."
+          stats={[
+            {
+              label: 'Tous',
+              count: stats.total,
+              active: filterStatus === 'all',
+              onClick: () => setFilterStatus('all')
+            },
+            {
+              label: 'Vacants',
+              count: stats.vacant,
+              active: filterStatus === 'vacant',
+              onClick: () => setFilterStatus('vacant'),
+              activeColorClass: 'text-emerald-600',
+              colorClass: 'bg-emerald-100'
+            },
+            {
+              label: 'Occupés',
+              count: stats.occupied,
+              active: filterStatus === 'occupied',
+              onClick: () => setFilterStatus('occupied'),
+              activeColorClass: 'text-amber-600',
+              colorClass: 'bg-amber-100'
+            }
+          ]}
+        />
       </Card>
 
       {/* Grid Content */}
@@ -365,7 +363,7 @@ export const PropertiesList: React.FC = () => {
         </div>
       ) : (
         <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
-          {filteredProperties.map(property => (
+          {filteredProperties.map((property: Property) => (
             viewMode === 'grid' ? (
               <PropertyCard
                 key={property.id}

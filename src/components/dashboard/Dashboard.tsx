@@ -28,6 +28,9 @@ import { Contract, RentReceipt, User, Property } from '../../types/db';
 import { PropertyMapCard } from './PropertyMapCard';
 import { AuditLog } from '../../types/platform';
 import { AgencyUserRole } from '../../types/enums';
+import { AgencySubscriptionStatus } from './AgencySubscriptionStatus';
+import { DashboardCharts } from './DashboardCharts';
+import { MonthlyRevenueItem } from '../../types/contracts';
 
 interface DashboardRental {
   id: string;
@@ -131,6 +134,8 @@ export const Dashboard: React.FC = () => {
   const [recentReceipts, setRecentReceipts] = useState<RentReceipt[]>([]);
   const [receiptsLoading, setReceiptsLoading] = useState(true);
   const [receiptsError, setReceiptsError] = useState<string | null>(null);
+  const [recentModularTxs, setRecentModularTxs] = useState<any[]>([]);
+  const [monthlyRevenueData, setMonthlyRevenueData] = useState<MonthlyRevenueItem[]>([]);
   const agencyId = realtimeFilters.agency_id;
 
   useEffect(() => {
@@ -146,15 +151,28 @@ export const Dashboard: React.FC = () => {
       try {
         setReceiptsLoading(true);
         setReceiptsError(null);
-        const receipts = await dbService.rentReceipts.getAll({ agency_id: agencyId });
+        
+        const [receipts, modularTxs, chartData] = await Promise.all([
+          dbService.rentReceipts.getAll({ agency_id: agencyId }),
+          dbService.modular.getAgencyTransactions(
+            agencyId, 
+            new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString(),
+            new Date().toISOString()
+          ),
+          dbService.getMonthlyRevenue(agencyId, 6)
+        ]);
+        
         if (!abortController.signal.aborted) {
           setRecentReceipts(receipts);
+          setRecentModularTxs(modularTxs);
+          setMonthlyRevenueData(chartData);
         }
       } catch (err) {
         if (abortController.signal.aborted) return;
-        const errMsg = mapSupabaseError(err, 'Erreur chargement rent_receipts');
+        const errMsg = mapSupabaseError(err, 'Erreur chargement donnees financieres');
         setReceiptsError(errMsg);
         setRecentReceipts([]);
+        setRecentModularTxs([]);
       } finally {
         if (!abortController.signal.aborted) {
           setReceiptsLoading(false);
@@ -333,16 +351,20 @@ export const Dashboard: React.FC = () => {
         let isFirstPayment = false;
 
         const latestReceipt = receiptsByContract.get(contract.id);
-        if (latestReceipt) {
+        
+        if (contract.next_payment_date) {
+            const nextP = new Date(contract.next_payment_date);
+            baseYear = nextP.getFullYear();
+            baseMonth = nextP.getMonth();
+            offset = 0; // Date is already the next target
+            isFirstPayment = false;
+        } else if (latestReceipt) {
           baseYear = latestReceipt.period_year ?? start.getFullYear();
           baseMonth = Number(latestReceipt.period_month ?? (start.getMonth() + 1)) - 1;
           offset = 1; // next cycle after last receipt
         } else {
           // No receipt found -> First Payment
           isFirstPayment = true;
-          // logic for new tenants: due date IS start date (or next occurrence)
-          // If start date is in future, that's the due date.
-          // If start date is past (and no receipt), they are overdue for first payment?
         }
 
         let nextDue = createDueDate(baseYear, baseMonth, dueDay, offset);
@@ -430,6 +452,23 @@ export const Dashboard: React.FC = () => {
           ...baseDescriptor,
         });
       }
+    });
+
+    // Add modular transactions
+    recentModularTxs.forEach((tx) => {
+      if (tx.type !== 'income' && tx.type !== 'credit') return;
+
+      entries.push({
+        id: tx.id,
+        type: 'received',
+        amount: Number(tx.amount),
+        date: tx.transaction_date.split('T')[0],
+        status: 'completed',
+        tenant: tx.description || 'Transaction Caisse',
+        owner: '-',
+        property: tx.module_type || 'Immobilier',
+        receiptNumber: 'TXN-' + tx.id.slice(0, 8).toUpperCase(),
+      });
     });
 
     return entries
@@ -619,7 +658,9 @@ export const Dashboard: React.FC = () => {
           </Card>
         )}
 
-        <div className="grid items-stretch gap-8 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <AgencySubscriptionStatus />
+
+        <div className="grid items-stretch gap-8 grid-cols-1">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -682,22 +723,37 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
           </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="h-full"
-          >
-            <BibleVerseCard
-              compact
-              showRefresh
-              className="h-full card-glass border-none shadow-premium transition-transform hover:scale-[1.01]"
-            />
-          </motion.div>
         </div>
 
-        <section className="space-y-6">
+        <section className="space-y-10">
+          <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
+            <DashboardCharts data={monthlyRevenueData} />
+            <div className="flex flex-col gap-8">
+                {dashboardStats && (
+                    <Card className="relative overflow-hidden border-none bg-slate-900 text-slate-100 shadow-2xl p-8 flex-1">
+                        <div className="relative z-10 flex flex-col justify-between h-full">
+                            <header className="mb-6">
+                                <h3 className="text-xl font-black uppercase tracking-widest text-white/50">Synthèse Agence</h3>
+                                <p className="text-4xl font-black text-white mt-4">{formatCurrency(dashboardStats.agencyEarnings)}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Revenus réels ce mois</p>
+                            </header>
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center py-3 border-t border-white/10">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Taux Occupation</span>
+                                    <span className="text-sm font-black text-emerald-400">{(dashboardStats.occupancyRate || 0).toFixed(1)}%</span>
+                                </div>
+                                <div className="flex justify-between items-center py-3 border-t border-white/10">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cautions</span>
+                                    <span className="text-sm font-black text-sky-400">{formatCurrency(dashboardStats.totalDeposits)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                )}
+                <BibleVerseCard compact showRefresh className="card-glass border-none shadow-premium flex-1" />
+            </div>
+          </div>
+
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {statsLoading && !stats.length
               ? Array.from({ length: 4 }).map((_, index) => (
@@ -711,53 +767,6 @@ export const Dashboard: React.FC = () => {
                   </Card>
                 )}
           </div>
-
-          {dashboardStats && (
-            <Card className="relative overflow-hidden border-none bg-slate-900 text-slate-100 shadow-2xl">
-              <div
-                className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 opacity-90"
-                aria-hidden="true"
-              />
-              <div className="relative z-10 flex flex-col gap-6">
-                <header className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-xl font-semibold tracking-tight">Resume financier</h3>
-                    <p className="text-sm text-slate-300">Analyse synthetique de vos performances du mois.</p>
-                  </div>
-                  <Badge variant="primary" className="bg-blue-500/20 text-blue-100">
-                    Donnees en direct
-                  </Badge>
-                </header>
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                  <div>
-                    <p className="text-sm uppercase tracking-wide text-slate-400">Loyers attendus</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{formatCurrency(dashboardStats.expectedRevenue)}</p>
-                    <p className="mt-1 text-xs text-slate-400">Total des loyers actifs</p>
-                  </div>
-                  <div>
-                    <p className="text-sm uppercase tracking-wide text-slate-400">Loyers encaisses</p>
-                    <p className="mt-2 text-2xl font-semibold text-emerald-400">{formatCurrency(dashboardStats.monthlyRevenue)}</p>
-                    <p className="mt-1 text-xs text-slate-400">Quittances validees</p>
-                  </div>
-                  <div>
-                    <p className="text-sm uppercase tracking-wide text-slate-400">Reste a encaisser</p>
-                    <p className="mt-2 text-2xl font-semibold text-amber-400">{formatCurrency(dashboardStats.remainingRevenue)}</p>
-                    <p className="mt-1 text-xs text-slate-400">Montant non encore percu</p>
-                  </div>
-                  <div>
-                    <p className="text-sm uppercase tracking-wide text-slate-400">Taux d'occupation</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.occupancyRate}%</p>
-                    <p className="mt-1 text-xs text-slate-400">Biens occupes / Total</p>
-                  </div>
-                  <div>
-                    <p className="text-sm uppercase tracking-wide text-slate-400">Commissions (10%)</p>
-                    <p className="mt-2 text-2xl font-semibold text-blue-400">{formatCurrency(dashboardStats.monthlyRevenue * 0.1)}</p>
-                    <p className="mt-1 text-xs text-slate-400">Projection honoraires</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
         </section>
 
         {/* Map Card */}

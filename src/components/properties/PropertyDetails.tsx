@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapPin, Building, Users, Wallet, Edit, ArrowLeft, BedDouble, Bath, Square, CheckCircle, AlertCircle } from 'lucide-react';
+import { MapPin, Building, Users, Wallet, Edit, ArrowLeft, BedDouble, Bath, Square, CheckCircle, AlertCircle, Wrench, AlertTriangle } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { Property, RoomDetails } from '../../types/db';
-import { extractIdFromSlug } from '../../utils/idSystem';
+import { Property, RoomDetails, Owner } from '../../types/db';
+import { extractIdFromSlug, generateSlug } from '../../utils/idSystem';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Tabs } from '../ui/Tabs';
@@ -14,9 +14,11 @@ import { Badge } from '../ui/Badge';
 import { PropertyForm } from './PropertyForm';
 import { PaymentsList } from '../payments/PaymentsList';
 import { ImageGallery } from '../ui/ImageGallery';
-import { generateSlug } from '../../utils/idSystem';
-import { Owner } from '../../types/db';
 import { AssignTenantModal } from '../tenants/AssignTenantModal';
+import { ExpenseLogger } from './ExpenseLogger';
+import { LeaseTerminationModal } from '../contracts/LeaseTerminationModal';
+import { PropertyHistory } from './PropertyHistory';
+import { History } from 'lucide-react';
 
 const OwnerInfoDisplay: React.FC<{ ownerId: string; agencyId?: string }> = ({ ownerId, agencyId }) => {
     const navigate = useNavigate();
@@ -66,6 +68,7 @@ export const PropertyDetails: React.FC = () => {
     const [activeTab, setActiveTab] = useState('details');
     const [showEditForm, setShowEditForm] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
+    const [showTerminationModal, setShowTerminationModal] = useState(false);
 
     // Fetch Specific Property Data
     const fetchProperty = React.useCallback(async () => {
@@ -185,8 +188,10 @@ export const PropertyDetails: React.FC = () => {
 
     const tabs = [
         { id: 'details', label: 'Détails & Pièces', icon: Building },
+        { id: 'expenses', label: 'Dépenses & Travaux', icon: Wrench },
         { id: 'tenants', label: `Locataires (${activeContract ? '1' : '0'})`, icon: Users },
-        { id: 'financials', label: 'Historique Caisse', icon: Wallet },
+        { id: 'financials', label: 'Caisse', icon: Wallet },
+        { id: 'history', label: 'Historique', icon: History },
     ];
 
     const getPrimaryImage = () => {
@@ -331,6 +336,10 @@ export const PropertyDetails: React.FC = () => {
                             </div>
                         )}
 
+                        {activeTab === 'expenses' && (
+                            <ExpenseLogger propertyId={property.id} />
+                        )}
+
                         {activeTab === 'tenants' && (
                             <div className="space-y-6">
                                 {isOccupied && currentTenant ? (
@@ -345,12 +354,22 @@ export const PropertyDetails: React.FC = () => {
                                                     <p className="text-blue-600 font-medium">Locataire actuel</p>
                                                 </div>
                                             </div>
-                                            <Button variant="outline" onClick={() => {
-                                                const slug = generateSlug(currentTenant.id, `${currentTenant.first_name} ${currentTenant.last_name}`);
-                                                navigate(`/locataires/${slug}`)
-                                            }}>
-                                                Voir le dossier
-                                            </Button>
+                                            <div className="flex flex-col gap-2">
+                                                <Button variant="outline" onClick={() => {
+                                                    const slug = generateSlug(currentTenant.id, `${currentTenant.first_name} ${currentTenant.last_name}`);
+                                                    navigate(`/locataires/${slug}`)
+                                                }}>
+                                                    Voir le dossier
+                                                </Button>
+                                                <Button 
+                                                  variant="outline" 
+                                                  className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                                  onClick={() => setShowTerminationModal(true)}
+                                                >
+                                                    <AlertTriangle className="w-4 h-4 mr-2" />
+                                                    Terminer le bail
+                                                </Button>
+                                            </div>
                                         </div>
 
                                         {activeContract && (
@@ -405,6 +424,10 @@ export const PropertyDetails: React.FC = () => {
                                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Historique des paiements</h3>
                                 <PaymentsList propertyId={property.id} limit={20} showActions={true} />
                             </div>
+                        )}
+
+                        {activeTab === 'history' && (
+                            <PropertyHistory propertyId={property.id} />
                         )}
                     </div>
                 </div>
@@ -484,6 +507,18 @@ export const PropertyDetails: React.FC = () => {
                     onClose={() => setShowAssignModal(false)}
                     preSelectedProperty={property}
                     onSuccess={() => setShowAssignModal(false)}
+                />
+            )}
+
+            {/* Lease Termination Modal */}
+            {showTerminationModal && activeContract && (
+                <LeaseTerminationModal 
+                    isOpen={showTerminationModal}
+                    onClose={() => setShowTerminationModal(false)}
+                    contract={activeContract}
+                    onSuccess={() => {
+                        setShowTerminationModal(false);
+                    }}
                 />
             )}
         </div>

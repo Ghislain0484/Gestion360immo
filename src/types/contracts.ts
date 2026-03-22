@@ -16,11 +16,16 @@ export interface Contract extends AgencyEntity {
   commission_rate: number;
   commission_amount: number;
   status: ContractStatus;
+  next_payment_date?: string | null; // Date du prochain paiement attendu
   terms: string;
   documents: string[]; // Updated to string[] for document URLs
   extra_data?: Record<string, any>; // For transition info and metadata
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
+  
+  // Phase 10: Gestion raffinée des cautions
+  deposit_provenance?: 'new_payment' | 'transferred';
+  deposit_status?: 'pending' | 'paid' | 'absorbed' | 'refunded';
 
   // Relations (optional as they depend on the query)
   property?: { id: string; title?: string; business_id?: string };
@@ -56,6 +61,25 @@ export interface RentReceipt extends AgencyEntity {
   amount_paid?: number;         // Montant réellement versé ce jour (peut être < total_amount)
   balance_due?: number;         // Solde restant pour solder le mois (total_amount - amount_paid)
   payment_status?: 'full' | 'partial'; // 'full' = soldé, 'partial' = paiement partiel
+
+  // Nouveaux champs pour comptabilité professionnelle
+  deposit_amount?: number;      // Montant de la caution (séquestre)
+  agency_fees?: number;         // Frais de dossier / Honoraires fixes
+  expenses_deducted?: number;   // Dépenses propriétaires déduites
+}
+
+export interface PropertyExpense {
+  id: string;
+  agency_id: string;
+  property_id: string;
+  contract_id?: string;
+  description: string;
+  amount: number;
+  category: 'maintenance' | 'utilities' | 'legal' | 'tax' | 'other';
+  expense_date: string;
+  status: 'pending_deduction' | 'deducted';
+  receipt_id?: string;
+  created_at: string;
 }
 
 export interface RentReceiptWithContract extends RentReceipt {
@@ -86,8 +110,13 @@ export interface DashboardStats {
   totalTenants: number;
   totalContracts: number;
   monthlyRevenue: number;
+  expectedRevenue: number;
+  remainingRevenue: number;
   activeContracts: number;
   occupancyRate: number;
+  // Nouveaux champs pour dashboard pro
+  totalDeposits?: number;
+  agencyEarnings?: number;
 }
 
 export type ContractTemplateType = 'gestion' | 'bail_habitation' | 'bail_professionnel' | 'bail_commercial';

@@ -25,7 +25,7 @@ export const HotelRoomDetailsModal: React.FC<HotelRoomDetailsModalProps> = ({ ro
     const [isSavingPayment, setIsSavingPayment] = useState(false);
 
     const { formatPrice } = usePriceCalculator(null);
-    const { agencyId, agencies } = useAuth();
+    const { agencyId, agencies, user } = useAuth();
     const currentAgency = agencies.find(a => a.agency_id === agencyId);
     const agencyName = currentAgency?.name;
 
@@ -76,6 +76,7 @@ export const HotelRoomDetailsModal: React.FC<HotelRoomDetailsModalProps> = ({ ro
             setIsSavingPayment(true);
             const transaction: any = {
                 agency_id: details.booking.agency_id,
+                created_by: user?.id,
                 amount: paymentAmount,
                 type: 'income',
                 category: 'stay_payment',

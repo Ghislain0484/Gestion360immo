@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { dbService } from "../../lib/supabase";
-import { Contract, Tenant, Owner, Property, RentReceipt } from "../../types/db";
+import { Contract, Tenant, Owner, Property, RentReceipt, PropertyExpense } from "../../types/db";
 import { PayMethod } from "../../types/enums";
 import toast from "react-hot-toast";
 import { Button } from "../ui/Button";
@@ -47,9 +47,13 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState<PayMethod>("especes");
+  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [agencyFees, setAgencyFees] = useState<number>(0);
   const [notes, setNotes] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [pendingExpenses, setPendingExpenses] = useState<PropertyExpense[]>([]);
+  const [totalExpenses, setTotalExpenses] = useState<number>(0);
 
   const [receipt, setReceipt] = useState<RentReceipt | null>(null);
 
@@ -63,11 +67,28 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
             if (contract?.monthly_rent) {
               setRentAmount(contract.monthly_rent);
               setAmountPaid(contract.monthly_rent + (contract.charges || 0));
+              // Si c'est un nouveau contrat (pas encore de quittances), on peut pré-remplir la caution
+              if (contract.deposit) setDepositAmount(contract.deposit);
             }
             if (contract?.charges) setCharges(contract.charges);
+            
+            // Phase 10: Ajustement automatique de la caution si transfert
+            if (contract?.deposit_provenance === 'transferred') {
+              setDepositAmount(0);
+            }
           }
           if (tenantId) setTenantInfo(await dbService.tenants.findOne(tenantId));
-          if (propertyId) setPropertyInfo(await dbService.properties.findOne(propertyId));
+          if (propertyId) {
+            const prop = await dbService.properties.findOne(propertyId);
+            setPropertyInfo(prop);
+            // Phase 9: Récupération des dépenses en attente
+            const expenses = await dbService.propertyExpenses.getAll({ 
+              property_id: propertyId, 
+              status: 'pending_deduction' 
+            });
+            setPendingExpenses(expenses);
+            setTotalExpenses(expenses.reduce((sum, e) => sum + (e.amount || 0), 0));
+          }
           if (ownerId) setOwnerInfo(await dbService.owners.findOne(ownerId));
         } catch (error: any) {
           toast.error("Erreur récupération des informations: " + error.message);
@@ -81,6 +102,8 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
       setOwnerInfo(null);
       setReceipt(null);
       setAmountPaid(0);
+      setDepositAmount(0);
+      setAgencyFees(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, contractId, tenantId, propertyId, ownerId]);
@@ -108,14 +131,31 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     const year = new Date(paymentDate).getFullYear();
 
     try {
-      const totalAmount = rentAmount + (charges || 0);
-      const paidAmount = amountPaid > 0 ? amountPaid : totalAmount;
-      const balanceDue = Math.max(0, totalAmount - paidAmount);
-      const isPartial = paidAmount < totalAmount;
+      // LOGIQUE COMPTABILITÉ PROFESSIONNELLE
+      // 1. Le Total Encaissé est la somme de TOUT (Loyer + Charges + Caution + Frais)
+      const rentWithCharges = rentAmount + (charges || 0);
+      const totalToPay = rentWithCharges + depositAmount + agencyFees;
+      
+      // On considère que le "amountPaid" saisi par l'utilisateur est le global
+      const paidAmount = amountPaid > 0 ? amountPaid : totalToPay;
+      
+      // 2. Calcul des Commissions : Frais de dossier (100% agence) + % sur le loyer encaissé
       const commissionRate = contractInfo.commission_rate || 10;
-      // Commission calculée uniquement sur le montant réellement payé
-      const commissionAmount = (paidAmount * commissionRate) / 100;
-      const ownerPayment = paidAmount - commissionAmount;
+      
+      // Ratio de paiement appliqué au loyer (si paiement partiel)
+      // Note: On assume que les frais et la caution sont payés en priorité ou inclus dans le global
+      const rentPaidPart = Math.max(0, Math.min(rentWithCharges, paidAmount - depositAmount - agencyFees));
+      const commissionOnRent = (rentPaidPart * commissionRate) / 100;
+      
+      // Commission Totale Agence = Part du loyer + Frais de dossier
+      const commissionAmount = commissionOnRent + agencyFees;
+      
+      // 3. Reversement Propriétaire = Loyer encaissé - Commission sur loyer - Dépenses/Travaux
+      const ownerPayment = rentPaidPart - commissionOnRent - totalExpenses;
+
+      const balanceDue = Math.max(0, totalToPay - paidAmount);
+      const isPartial = paidAmount < totalToPay;
+      
       const receiptNumber = `REC-${year}${String(month).padStart(2, '0')}-${Date.now()}`;
 
       const newReceipt: Partial<RentReceipt> = {
@@ -129,7 +169,9 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
         period_year: year,
         rent_amount: rentAmount,
         charges: charges || 0,
-        total_amount: totalAmount,
+        deposit_amount: depositAmount,
+        agency_fees: agencyFees,
+        total_amount: totalToPay,
         amount_paid: paidAmount,
         balance_due: balanceDue,
         payment_status: isPartial ? 'partial' : 'full',
@@ -140,9 +182,19 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
         created_at: new Date().toISOString(),
         commission_amount: commissionAmount,
         owner_payment: ownerPayment,
+        expenses_deducted: totalExpenses,
       };
 
       const saved = await dbService.rentReceipts.create(newReceipt);
+      
+      // Phase 9: Marquer les dépenses comme déduites
+      if (pendingExpenses.length > 0) {
+        await dbService.propertyExpenses.markAsDeducted(
+          pendingExpenses.map(e => e.id),
+          saved.id
+        );
+      }
+      
       setReceipt(saved);
       toast.success("✅ Quittance générée avec succès");
 
@@ -188,6 +240,14 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     { value: 'cheque', label: 'Chèque', icon: ReceiptIcon },
     { value: 'mobile_money', label: 'Mobile Money', icon: DollarSign },
   ];
+
+  // Calcul du net propriétaire estimé pour affichage
+  const commissionRate = contractInfo?.commission_rate || 10;
+  const rentWithCharges = rentAmount + charges;
+  const paidAmount = amountPaid > 0 ? amountPaid : (rentWithCharges + depositAmount + agencyFees);
+  const rentPaidPart = Math.max(0, Math.min(rentWithCharges, paidAmount - depositAmount - agencyFees));
+  const commissionOnRent = (rentPaidPart * commissionRate) / 100;
+  const estimatedOwnerPayment = rentPaidPart - commissionOnRent - totalExpenses;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
@@ -283,10 +343,61 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       setCharges(val);
-                      setAmountPaid(rentAmount + val);
+                      setAmountPaid(rentAmount + val + depositAmount + agencyFees);
                     }}
                     placeholder="0"
                   />
+                </div>
+              </div>
+
+              {/* Dépôt & Frais (Nouveau) */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Caution / Dépôt (FCFA)
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <CreditCard className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      type="number"
+                      className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={depositAmount}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setDepositAmount(val);
+                        setAmountPaid(rentAmount + charges + val + agencyFees);
+                      }}
+                      placeholder="0"
+                    />
+                  </div>
+                  {contractInfo?.deposit_provenance === 'transferred' && (
+                    <p className="text-[10px] text-amber-600 mt-1 italic">
+                      * Reprise de gestion : Caution déjà versée au préalable.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Frais de dossier (FCFA)
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <ReceiptIcon className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      type="number"
+                      className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={agencyFees}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setAgencyFees(val);
+                        setAmountPaid(rentAmount + charges + depositAmount + val);
+                      }}
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -403,19 +514,44 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
               {/* Summary */}
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-2">
                 <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span>Loyer total dû :</span>
+                  <span>Loyer + Charges :</span>
                   <span className="font-medium">{(rentAmount + charges).toLocaleString('fr-FR')} FCFA</span>
                 </div>
-                <div className="flex items-center justify-between text-lg font-semibold border-t border-gray-200 pt-2">
-                  <span className="text-gray-700">Montant encaissé :</span>
-                  <span className="text-blue-600">{amountPaid.toLocaleString('fr-FR')} FCFA</span>
-                </div>
-                {amountPaid < (rentAmount + charges) && amountPaid > 0 && (
-                  <div className="flex items-center justify-between text-base font-semibold text-red-600">
-                    <span>Solde restant :</span>
-                    <span>{(rentAmount + charges - amountPaid).toLocaleString('fr-FR')} FCFA</span>
+                {(depositAmount > 0 || agencyFees > 0) && (
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>Caution + Frais :</span>
+                    <span className="font-medium">{(depositAmount + agencyFees).toLocaleString('fr-FR')} FCFA</span>
                   </div>
                 )}
+                <div className="flex items-center justify-between text-lg font-semibold border-t border-gray-200 pt-2">
+                  <span className="text-gray-700">TOTAL À PERCEVOIR :</span>
+                  <span className="text-blue-600">{(rentAmount + charges + depositAmount + agencyFees).toLocaleString('fr-FR')} FCFA</span>
+                </div>
+                
+                {/* Phase 9: Affichage des déductions travaux */}
+                {totalExpenses > 0 && (
+                  <div className="bg-amber-50 rounded p-2 border border-amber-100 mt-2">
+                    <p className="text-[10px] font-bold text-amber-600 uppercase mb-1">Déductions Propriétaire (Travaux)</p>
+                    {pendingExpenses.map(e => (
+                      <div key={e.id} className="flex justify-between text-xs text-amber-700">
+                        <span>• {e.description}</span>
+                        <span>-{e.amount.toLocaleString('fr-FR')}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-bold text-amber-800 border-t border-amber-200 mt-1 pt-1">
+                      <span>Total Déductions</span>
+                      <span>-{totalExpenses.toLocaleString('fr-FR')} FCFA</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-base font-bold text-gray-800 bg-gray-100 p-2 rounded mt-2">
+                  <div className="flex flex-col">
+                    <span>Montant encaissé :</span>
+                    <span className="text-[10px] font-normal text-gray-500 italic">Net Propriétaire estimé: {estimatedOwnerPayment.toLocaleString('fr-FR')} FCFA</span>
+                  </div>
+                  <span className="text-indigo-700">{amountPaid.toLocaleString('fr-FR')} FCFA</span>
+                </div>
               </div>
 
               {/* Actions */}
