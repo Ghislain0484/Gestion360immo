@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Download, Filter, Calendar, TrendingUp, Wallet, ArrowRightLeft, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
@@ -39,6 +40,7 @@ interface Transaction {
 export const CaissePage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const { user } = useAuth();
+    const { isDemoMode } = useDemoMode();
 
     const [activeTab, setActiveTab] = useState('journal');
     const [owners, setOwners] = useState<Owner[]>([]);
@@ -51,6 +53,11 @@ export const CaissePage: React.FC = () => {
 
         useEffect(() => {
             const fetchBalance = async () => {
+                if (isDemoMode) {
+                    setBalance(Math.floor(Math.random() * 5000000) + 1000000);
+                    setLoading(false);
+                    return;
+                }
                 const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment').eq('owner_id', ownerId);
                 const { data: payouts } = await supabase.from('modular_transactions').select('amount').eq('related_owner_id', ownerId).eq('category', 'owner_payout').eq('type', 'debit');
                 
@@ -118,6 +125,11 @@ export const CaissePage: React.FC = () => {
     // Fetch owners
     useEffect(() => {
         const fetchOwners = async () => {
+            if (isDemoMode) {
+                const { MOCK_OWNERS } = await import('../../lib/mockData');
+                setOwners(MOCK_OWNERS);
+                return;
+            }
             const { data } = await supabase
                 .from('owners')
                 .select('id, business_id, first_name, last_name')
@@ -135,6 +147,48 @@ export const CaissePage: React.FC = () => {
         setIsLoading(true);
         try {
             // 1. Fetch Rent Receipts (Credits)
+            if (isDemoMode) {
+                const { MOCK_RECEIPTS, MOCK_TRANSACTIONS } = await import('../../lib/mockData');
+                const { MOCK_PROPERTIES, MOCK_TENANTS } = await import('../../lib/mockData');
+                
+                const receiptTrans: Transaction[] = MOCK_RECEIPTS.map((r: any) => {
+                    const prop = MOCK_PROPERTIES.find(p => p.id === r.property_id);
+                    const tenant = MOCK_TENANTS.find(t => t.id === r.tenant_id);
+                    return {
+                        id: r.id,
+                        date: r.payment_date,
+                        type: 'credit',
+                        amount: r.total_amount,
+                        category: 'rent_payment',
+                        description: `Loyer - ${prop?.title || 'N/A'} (${tenant?.first_name} ${tenant?.last_name})`,
+                        payment_method: r.payment_method,
+                        source: 'rent_receipt',
+                        reference_id: r.receipt_number,
+                        details: r
+                    };
+                });
+
+                const manualTrans: Transaction[] = MOCK_TRANSACTIONS.map((t: any) => ({
+                    id: t.id,
+                    date: t.transaction_date,
+                    type: (t.type === 'income' || t.type === 'deposit') ? 'credit' : 'debit',
+                    amount: t.amount,
+                    category: t.category,
+                    description: t.description || 'N/A',
+                    payment_method: t.payment_method,
+                    source: 'modular_transaction',
+                    reference_id: '',
+                    details: t
+                }));
+
+                const allTrans = [...receiptTrans, ...manualTrans].sort((a, b) =>
+                    new Date(b.date).getTime() - new Date(a.date).getTime()
+                );
+                setTransactions(allTrans);
+                setIsLoading(false);
+                return;
+            }
+
             let receiptsQuery = supabase
                 .from('rent_receipts')
                 .select(`

@@ -6,6 +6,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { ImageCarousel } from '../ui/ImageCarousel';
+import { PropertyYield } from './PropertyYield';
 
 interface PropertyCardProps {
     property: Property;
@@ -65,6 +66,13 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, tenantName
                     <MapPin className="w-4 h-4 mr-2 text-gray-400" />
                     <span className="truncate">{property.location.quartier}, {property.location.commune}</span>
                 </div>
+
+                {property.monthly_rent && property.sale_price && (
+                  <PropertyYield 
+                    monthlyRent={property.monthly_rent} 
+                    propertyValue={property.sale_price} 
+                  />
+                )}
 
                 {/* Owner Info */}
                 <div className="flex items-center text-gray-600 text-sm">

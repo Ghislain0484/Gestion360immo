@@ -143,6 +143,12 @@ export const agencySubscriptionsService = {
     async syncSubscription(agencyId: string, planType: string, monthlyFee: number, status: string = 'active'): Promise<boolean> {
         console.log('🔄 agencySubscriptionsService.syncSubscription', { agencyId, planType, monthlyFee, status });
         
+        // Demo Guard: Skip database sync for virtual agency
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+            console.log('🛡️ agencySubscriptionsService: Demo agency sync skipped (virtual agency)');
+            return true;
+        }
+
         // 1. Calculer la prochaine date de paiement
         const now = new Date();
         let nextPaymentDate = new Date();

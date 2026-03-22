@@ -6,3 +6,6 @@ export const DISABLE_SUBSCRIPTIONS = import.meta.env.VITE_DISABLE_SUBSCRIPTIONS 
 export const HIDE_PLATFORM_ADMIN = import.meta.env.VITE_HIDE_PLATFORM_ADMIN === 'true' || IS_STANDALONE;
 
 export const FORCED_STANDALONE_MODULES = ['base', 'hotel', 'residences', 'internal_mode'];
+
+// ID unique pour le mode démo (UUID valide pour éviter les erreurs SQL)
+export const DEMO_AGENCY_ID = '00000000-0000-0000-0000-000000000000';

@@ -17,6 +17,7 @@ export interface AgencyInfo {
   city: string;
   logo_url?: string | null;
   enabled_modules?: string[];
+  status?: string;
 }
 
 export interface AuthUser extends User {
@@ -40,6 +41,7 @@ interface AuthContextType {
   loginOwner: (email: string, password: string) => Promise<Owner>;
   loginAdmin: (email: string, password: string) => Promise<PlatformAdmin>;
   updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  updatePasswordWithSession: (newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -118,36 +120,74 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
     // 4. FALLBACK : Si agency_users est vide, chercher via agencies.director_id
     //    (au cas où agency_users n'a pas encore été alimenté en base)
     if (agenciesInfo.length === 0) {
-      console.warn('⚠️ AuthContext: agency_users vide, tentative via agencies.director_id...');
-      const { data: directorAgencies, error: directorError } = await supabase
-        .from('agencies')
-        .select('id, name, city, logo_url, enabled_modules') // Ajout de enabled_modules ici aussi
-        .eq('director_id', userId)
-        .eq('status', 'approved');
-
-      if (!directorError && directorAgencies && directorAgencies.length > 0) {
-        agenciesInfo = directorAgencies.map((a: any) => ({
-          agency_id: a.id,
-          role: 'director' as AgencyUserRole,
-          name: a.name,
-          city: a.city,
-          logo_url: a.logo_url,
-          enabled_modules: a.enabled_modules || ['base'], // Fallback module
-        }));
-        console.log('✅ AuthContext: Agences trouvées via director_id:', agenciesInfo.length);
-
-        // Auto-corriger agency_users en base pour les prochaines connexions
-        for (const ag of agenciesInfo) {
-          await supabase
-            .from('agency_users')
-            .upsert({ user_id: userId, agency_id: ag.agency_id, role: 'director' }, { onConflict: 'user_id,agency_id' });
-        }
-        console.log('✅ AuthContext: agency_users auto-corrigé en base');
+      // Détection email de démo pour bypasser le bloqueur d'agence
+      const lowerEmail = data.email?.toLowerCase();
+      if (lowerEmail && (
+        lowerEmail === 'demo@gestion360immo.com' || 
+        lowerEmail === 'demo.agence@gestion360immo.com' || 
+        lowerEmail === 'demo.proprio@gestion360immo.com'
+      )) {
+        const savedModules = localStorage.getItem('demo_agency_modules');
+        const enabled_modules = savedModules ? JSON.parse(savedModules) : ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'];
+        const demoStatus = localStorage.getItem('demo_agency_status') || 'active';
+        const demoPlan = localStorage.getItem('demo_agency_plan') || 'premium';
+        
+        agenciesInfo = [{
+          agency_id: '00000000-0000-0000-0000-000000000000',
+          role: 'director',
+          name: 'Agence de Démonstration Expert',
+          city: 'Conakry',
+          enabled_modules,
+          status: demoStatus,
+          plan_type: demoPlan
+        } as any];
+        console.log("🚀 AuthContext: Injection d'une agence fictive pour le compte démo", { enabled_modules });
       } else {
-        console.error('❌ AuthContext: Aucune agence trouvée ni via agency_users ni via director_id');
-        // Ne pas bloquer ici, retourner l'utilisateur sans agence pour éviter les boucles infinies de rechargement
+        console.warn('⚠️ AuthContext: agency_users vide, tentative via agencies.director_id...');
+        const { data: directorAgencies, error: directorError } = await supabase
+          .from('agencies')
+          .select('id, name, city, logo_url, enabled_modules')
+          .eq('director_id', userId)
+          .eq('status', 'approved');
+
+        if (!directorError && directorAgencies && directorAgencies.length > 0) {
+          agenciesInfo = directorAgencies.map((a: any) => ({
+            agency_id: a.id,
+            role: 'director' as AgencyUserRole,
+            name: a.name,
+            city: a.city,
+            logo_url: a.logo_url,
+            enabled_modules: a.enabled_modules || ['base'],
+          }));
+          console.log('✅ AuthContext: Agences trouvées via director_id:', agenciesInfo.length);
+
+          for (const ag of agenciesInfo) {
+            await supabase
+              .from('agency_users')
+              .upsert({ user_id: userId, agency_id: ag.agency_id, role: 'director' }, { onConflict: 'user_id,agency_id' });
+          }
+        } else {
+          console.error('❌ AuthContext: Aucune agence trouvée ni via agency_users ni via director_id');
+        }
       }
     }
+
+    // ALWAYS apply Demo Agency overrides if present in the list
+    agenciesInfo = agenciesInfo.map(ag => {
+      if (ag.agency_id === '00000000-0000-0000-0000-000000000000') {
+        const savedModules = localStorage.getItem('demo_agency_modules');
+        const savedStatus = localStorage.getItem('demo_agency_status');
+        const savedPlan = localStorage.getItem('demo_agency_plan');
+        
+        return {
+          ...ag,
+          enabled_modules: savedModules ? JSON.parse(savedModules) : ag.enabled_modules || ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'],
+          status: savedStatus || ag.status || 'active',
+          plan_type: savedPlan || (ag as any).plan_type || 'premium'
+        } as any;
+      }
+      return ag;
+    });
 
     // 5. Gestion de l'agence par défaut
     // On ne définit agency_id/role ici que s'il y a EXACTEMENT une agence.
@@ -591,6 +631,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('❌ AuthContext: Erreur updatePassword:', err);
       toast.error(err.message || 'Erreur lors de la mise à jour du mot de passe');
       throw err;
+    }
+  }, []);
+
+  const updatePasswordWithSession = useCallback(async (newPassword: string) => {
+    console.log('🔄 AuthContext: updatePasswordWithSession');
+    setIsLoading(true);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) throw updateError;
+
+      toast.success('Mot de passe mis à jour avec succès');
+    } catch (err: any) {
+      console.error('❌ AuthContext: Erreur updatePasswordWithSession:', err);
+      toast.error(err.message || 'Erreur lors de la mise à jour du mot de passe');
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -638,6 +696,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loginOwner,
       loginAdmin,
       updatePassword,
+      updatePasswordWithSession,
       logout,
     }),
     [user, admin, owner, isLoading, resolvedAgencyId, switchAgency, refreshAuth, login, loginOwner, loginAdmin, updatePassword, logout]

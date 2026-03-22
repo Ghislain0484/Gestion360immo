@@ -6,6 +6,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { supabase } from '../../lib/config';
 import { Link } from 'react-router-dom';
 import {
@@ -21,6 +22,7 @@ const formatDate = (d: string | null | undefined) =>
 
 export const OwnerDashboard: React.FC = () => {
   const { owner } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorInfo, setErrorInfo] = useState<string | null>(null);
@@ -31,6 +33,46 @@ export const OwnerDashboard: React.FC = () => {
       setLoading(true);
       setErrorInfo(null);
       try {
+        if (isDemoMode) {
+          const { MOCK_PROPERTIES, MOCK_CONTRACTS, MOCK_RECEIPTS, MOCK_TRANSACTIONS } = await import('../../lib/mockData');
+          const demoOwnerId = 'demo-owner-1';
+          
+          const profileProps = MOCK_PROPERTIES.filter(p => p.owner_id === demoOwnerId);
+          const profileContracts = MOCK_CONTRACTS.filter(c => c.owner_id === demoOwnerId);
+          const profileReceipts = MOCK_RECEIPTS.filter(r => r.owner_id === demoOwnerId);
+          const profilePayouts = MOCK_TRANSACTIONS.filter(t => t.related_owner_id === demoOwnerId && t.category === 'owner_payout');          const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+          const chartData = Array.from({ length: 6 }).map((_, i) => {
+            const d = new Date();
+            d.setMonth(d.getMonth() - (5 - i));
+            const month = d.getMonth();
+            const year = d.getFullYear();
+            const monthReceipts = profileReceipts.filter((r: any) => {
+              const rd = new Date(r.payment_date);
+              return rd.getMonth() === month && rd.getFullYear() === year;
+            });
+            const total = monthReceipts.reduce((sum: number, r: any) => sum + (r.owner_payment || r.total_amount * 0.9), 0);
+            return { name: monthNames[month], revenue: total };
+          });
+          const now = new Date();
+
+          setData({
+            properties: profileProps,
+            contracts: profileContracts,
+            recentReceipts: profileReceipts.slice(-5).reverse(),
+            chartData,
+            monthlyRevenue: profileReceipts.filter(r => {
+              const rd = new Date(r.payment_date);
+              return rd.getMonth() === now.getMonth() && rd.getFullYear() === now.getFullYear();
+            }).reduce((s, r) => s + (r.owner_payment || 0), 0),
+            overdueContracts: [],
+            totalReversements: profilePayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0),
+            occupancy: profileProps.length > 0 ? Math.round((profileContracts.length / profileProps.length) * 100) : 0,
+            agencyPhone: '+224 620 00 00 00'
+          });
+          setLoading(false);
+          return;
+        }
+
         // Fetch properties belonging to this owner
         const { data: properties, error: pError } = await supabase
           .from('properties')

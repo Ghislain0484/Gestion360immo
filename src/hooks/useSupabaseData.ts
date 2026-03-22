@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { dbService } from '../lib/supabase';
 import { AgencyEntity, Entity } from '../types/db';
@@ -7,6 +7,8 @@ import debounce from 'lodash/debounce';
 import { RealtimePostgresChangesPayload, RealtimeChannel } from '@supabase/supabase-js';
 import { formatSbError, isRlsDenied } from '../lib/helpers';
 import { supabase } from '../lib/config';
+import { useDemoMode } from '../contexts/DemoContext';
+import { MOCK_STATS } from '../lib/mockData';
 
 // Logging conditionnel (DEV uniquement)
 const log = (...args: any[]) => {
@@ -89,6 +91,7 @@ export function useRealtimeData<T extends AgencyEntity>(
   options?: UseRealtimeDataOptions
 ): UseRealtimeDataResult<T> {
   const { user, isLoading: authLoading } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const [data, setData] = useState<T[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
@@ -118,8 +121,102 @@ export function useRealtimeData<T extends AgencyEntity>(
       setInitialLoading(false);
       setFetching(false);
       setData([]);
-      // Pas de toast : l'alerte rouge dans le Dashboard est suffisante
       log(`⚠️ Ignorer fetch ${tableName}: agency_id manquant`);
+      return;
+    }
+
+    if (isDemoMode) {
+      log(`🛠️ Mode Démo : Injection de mock data filtrée pour table ${tableName}`, params);
+      const { 
+        MOCK_PROPERTIES, 
+        MOCK_OWNERS, 
+        MOCK_TENANTS, 
+        MOCK_CONTRACTS, 
+        MOCK_RECEIPTS, 
+        MOCK_TRANSACTIONS,
+        MOCK_MANAGED_CONTRACTS 
+      } = await import('../lib/mockData');
+      
+      const mockMap: Record<string, any[]> = {
+        'properties': MOCK_PROPERTIES,
+        'owners': MOCK_OWNERS || [],
+        'tenants': MOCK_TENANTS || [],
+        'contracts': MOCK_CONTRACTS || [],
+        'managed_contracts': MOCK_MANAGED_CONTRACTS || [],
+        'rent_receipts': MOCK_RECEIPTS || [],
+        'modular_transactions': MOCK_TRANSACTIONS || [],
+        'transactions': MOCK_TRANSACTIONS || []
+      };
+      
+      let mockResult = [...(mockMap[tableName] || [])];
+
+      // --- FILTRAGE AVANCÉ DES MOCK DATA ---
+
+      // 1. Filtrage par ID unique (ex: findOne/getById)
+      if (params.id) {
+        mockResult = mockResult.filter(item => item.id === params.id);
+      }
+
+      // 2. Filtrage par owner_id
+      if (params.owner_id) {
+        mockResult = mockResult.filter(item => item.owner_id === params.owner_id);
+      }
+
+      // 3. Filtrage par property_id
+      if (params.property_id) {
+        mockResult = mockResult.filter(item => item.property_id === params.property_id);
+      }
+
+      // 4. Filtrage par tenant_id
+      if (params.tenant_id) {
+        mockResult = mockResult.filter(item => item.tenant_id === params.tenant_id);
+      }
+
+      // 5. Filtrage par contract_id
+      if (params.contract_id) {
+        mockResult = mockResult.filter(item => item.contract_id === params.contract_id);
+      }
+
+      // 6. Filtrage par search
+      if (params.search) {
+        const s = params.search.toLowerCase();
+        mockResult = mockResult.filter(item => 
+          (item.first_name && item.first_name.toLowerCase().includes(s)) ||
+          (item.last_name && item.last_name.toLowerCase().includes(s)) ||
+          (item.title && item.title.toLowerCase().includes(s)) ||
+          (item.name && item.name.toLowerCase().includes(s))
+        );
+      }
+
+      // 3. Simuler les JOINS (très basique pour les besoins de la démo)
+      if (tableName === 'properties') {
+        mockResult = mockResult.map(prop => {
+          const property_contracts = MOCK_CONTRACTS.filter(c => c.property_id === prop.id).map(c => ({
+            ...c,
+            tenant: MOCK_TENANTS.find(t => t.id === c.tenant_id),
+            owner: MOCK_OWNERS.find(o => o.id === c.owner_id)
+          }));
+          const owner = MOCK_OWNERS.find(o => o.id === prop.owner_id);
+          return { ...prop, contracts: property_contracts, owner };
+        });
+      }
+
+      if (tableName === 'contracts') {
+        mockResult = mockResult.map(c => ({
+          ...c,
+          tenant: MOCK_TENANTS.find(t => t.id === c.tenant_id),
+          property: MOCK_PROPERTIES.find(p => p.id === c.property_id),
+          owner: MOCK_OWNERS.find(o => o.id === c.owner_id)
+        }));
+      }
+
+      if (tableName === 'owners' && params.includeStats) {
+        // Optionnel: calcul de stats à la volée
+      }
+      
+      setData(mockResult as T[]);
+      setInitialLoading(false);
+      setFetching(false);
       return;
     }
 
@@ -153,7 +250,16 @@ export function useRealtimeData<T extends AgencyEntity>(
       setFetching(false);
       log(`[info] Fetch ${tableName} termine`);
     }
-  }, [fetchFunction, tableName, options]);
+  }, [fetchFunction, tableName, options, isDemoMode]); // Added isDemoMode to deps
+
+  // ---------------------------------------
+  // Inteception pour le mode démo (Sync simple)
+  // ---------------------------------------
+  useEffect(() => {
+    if (isDemoMode) {
+      fetchData(fetchParams);
+    }
+  }, [isDemoMode, tableName, fetchParams, fetchData]);
 
   // ---------------------------------------
   // Gestion des abonnements en temps reel
@@ -184,6 +290,11 @@ export function useRealtimeData<T extends AgencyEntity>(
       setInitialLoading(false);
       setData([]);
       // Pas de toast : l'alerte rouge dans le Dashboard est suffisante
+      return;
+    }
+
+    if (isDemoMode) {
+      log(`🛠️ Mode Démo : Bypass total DB pour ${tableName}`);
       return;
     }
 
@@ -239,6 +350,7 @@ import { DashboardStats } from '../types/platform';
 // ... (vers ligne 237)
 export function useDashboardStats() {
   const { user } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -263,6 +375,18 @@ export function useDashboardStats() {
     try {
       setLoading(true);
       setError(null);
+
+      if (isDemoMode) {
+        log('🛠️ Mode Démo actif pour Stats, injection des données fictives');
+        setTimeout(() => {
+          if (!signal.aborted) {
+            setStats(MOCK_STATS);
+            setLoading(false);
+          }
+        }, 300);
+        return;
+      }
+
       const result = await dbService.getDashboardStats(user.agency_id);
       if (!signal.aborted) setStats(result);
     } catch (err) {

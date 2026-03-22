@@ -20,9 +20,56 @@ export const agenciesService = {
 
     const { data, error } = await query;
     if (error) throw new Error(formatSbError('❌ agencies.select', error));
-    return (data as any) ?? [];
+    let result = (data as any) ?? [];
+    
+    // Inject Demo Agency for Admin visibility
+    if (!agency_id || agency_id === '00000000-0000-0000-0000-000000000000') {
+      const demoExists = result.some((a: any) => a.id === '00000000-0000-0000-0000-000000000000');
+      if (!demoExists) {
+        // Read from localStorage for persistence
+        const savedModules = localStorage.getItem('demo_agency_modules');
+        const enabled_modules = savedModules ? JSON.parse(savedModules) : ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'];
+        const savedStatus = localStorage.getItem('demo_agency_status');
+        const status = savedStatus || 'approved';
+        const plan_type = localStorage.getItem('demo_agency_plan') || 'premium';
+        const monthly_fee = Number(localStorage.getItem('demo_agency_fee')) || 0;
+        
+        result.push({
+          id: '00000000-0000-0000-0000-000000000000',
+          name: 'Agence de Démonstration Expert',
+          city: 'Conakry',
+          commercial_register: 'RCCM-DEMO-2024',
+          status,
+          plan_type,
+          monthly_fee,
+          created_at: new Date().toISOString(),
+          enabled_modules
+        });
+      }
+    }
+    
+    return result;
   },
   async getById(id: string): Promise<Agency | null> {
+    if (id === '00000000-0000-0000-0000-000000000000') {
+      const savedModules = localStorage.getItem('demo_agency_modules');
+      const enabled_modules = savedModules ? JSON.parse(savedModules) : ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'];
+      const savedStatus = localStorage.getItem('demo_agency_status');
+      const status = savedStatus || 'approved';
+      const plan_type = localStorage.getItem('demo_agency_plan') || 'premium';
+      const monthly_fee = Number(localStorage.getItem('demo_agency_fee')) || 0;
+      
+      return {
+        id: '00000000-0000-0000-0000-000000000000',
+        name: 'Agence de Démonstration Expert',
+        city: 'Conakry',
+        commercial_register: 'RCCM-DEMO-2024',
+        status,
+        plan_type,
+        monthly_fee,
+        enabled_modules
+      } as any;
+    }
     const { data, error } = await supabase
       .from('agencies')
       .select('*, subscription:agency_subscriptions(*)')
@@ -38,6 +85,34 @@ export const agenciesService = {
     return data;
   },
   async update(id: string, updates: Partial<Agency>): Promise<Agency> {
+    if (id === '00000000-0000-0000-0000-000000000000') {
+      console.log('🛡️ agenciesService: Demo agency update intercepted (localStorage)', updates);
+      if (updates.enabled_modules) {
+        localStorage.setItem('demo_agency_modules', JSON.stringify(updates.enabled_modules));
+      }
+      if (updates.plan_type) {
+        localStorage.setItem('demo_agency_plan', updates.plan_type);
+      }
+      if (updates.monthly_fee !== undefined) {
+        localStorage.setItem('demo_agency_fee', String(updates.monthly_fee));
+      }
+      if ((updates as any).subscription_status) {
+        localStorage.setItem('demo_agency_status', (updates as any).subscription_status);
+      } else if (updates.status) {
+        localStorage.setItem('demo_agency_status', updates.status);
+      }
+      
+      return {
+        id: '00000000-0000-0000-0000-000000000000',
+        name: 'Agence de Démonstration Expert',
+        city: 'Conakry',
+        commercial_register: 'RCCM-DEMO-2024',
+        status: (updates as any).subscription_status || updates.status || localStorage.getItem('demo_agency_status') || 'approved',
+        plan_type: updates.plan_type || localStorage.getItem('demo_agency_plan') || 'premium',
+        monthly_fee: updates.monthly_fee !== undefined ? updates.monthly_fee : Number(localStorage.getItem('demo_agency_fee')) || 0,
+        enabled_modules: updates.enabled_modules || JSON.parse(localStorage.getItem('demo_agency_modules') || '[]')
+      } as any;
+    }
     console.log('🔧 agenciesService.update - Début', {
       id,
       updates,

@@ -44,6 +44,7 @@ export const modularService = {
 
     // --- HOTEL ROOMS ---
     async getHotelRooms(agencyId: string): Promise<HotelRoom[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') return [];
         const { data, error } = await supabase
             .from('hotel_rooms')
             .select('*, current_booking:modular_bookings(check_out, booking_status)')
@@ -89,6 +90,7 @@ export const modularService = {
 
     // --- SITES ---
     async getSites(agencyId: string): Promise<ResidenceSite[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') return [];
         const { data, error } = await supabase
             .from('residence_sites')
             .select('*')
@@ -113,6 +115,7 @@ export const modularService = {
 
     // --- UNITS ---
     async getUnits(agencyId: string, siteId?: string): Promise<ResidenceUnit[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') return [];
         let query = supabase
             .from('residence_units')
             .select('*, site:residence_sites(*), current_booking:modular_bookings(check_out, booking_status)')
@@ -238,6 +241,7 @@ export const modularService = {
     },
 
     async getRecentBookings(agencyId: string, limit = 10): Promise<ModularBooking[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') return [];
         const { data, error } = await supabase
             .from('modular_bookings')
             .select('*, residence:residence_units(*), room:hotel_rooms(*), client:modular_clients(*)')
@@ -251,6 +255,7 @@ export const modularService = {
 
     // --- EXPENSES ---
     async getExpenses(agencyId: string, siteId?: string): Promise<ResidenceExpense[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') return [];
         let query = supabase
             .from('residence_expenses')
             .select('*')
@@ -288,6 +293,7 @@ export const modularService = {
 
     // --- CRM / CLIENTS ---
     async getClients(agencyId: string, moduleType?: ModuleType): Promise<ModularClient[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') return [];
         let query = supabase
             .from('modular_clients')
             .select('*')
@@ -402,6 +408,7 @@ export const modularService = {
 
     // --- Transactions & Finance ---
     async getTransactions(agencyId: string, filters?: { site_id?: string; type?: string; module_type?: ModuleType }): Promise<ModularTransaction[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') return [];
         let query = supabase
             .from('modular_transactions')
             .select('*')
@@ -514,6 +521,10 @@ export const modularService = {
     },
 
     async getAgencyTransactions(agencyId: string, startDate: string, endDate: string): Promise<ModularTransaction[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+            const { MOCK_TRANSACTIONS } = await import('../mockData');
+            return MOCK_TRANSACTIONS;
+        }
         const { data, error } = await supabase
             .from('modular_transactions')
             .select('*')
@@ -527,6 +538,15 @@ export const modularService = {
     },
 
     async getFinanceStats(agencyId: string, moduleType?: ModuleType): Promise<FinanceStats> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+            return {
+                total_income: 185000000,
+                total_expenses: 45000000,
+                net_balance: 140000000,
+                occupancy_rate: 92.5,
+                revenue_by_site: {}
+            };
+        }
         // Aggregate income and expenses
         let incomeQuery = supabase
             .from('modular_transactions')

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, MapPin, Phone, Mail, Calendar, Users, Home, FileText, DollarSign, X, Edit, Save, CheckCircle, Building } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, Calendar, Users, Home, FileText, DollarSign, X, Edit, Save, CheckCircle, Building, ClipboardCheck, Settings as SettingsIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
@@ -42,7 +42,8 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
         commercial_register: agency.commercial_register || '',
         plan_type: agency.plan_type || 'basic',
         monthly_fee: agency.monthly_fee || 25000,
-        enabled_modules: agency.enabled_modules || ['base'],
+        enabled_modules: agency.enabled_modules || ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'],
+        subscription_status: (agency as any).subscription_status || 'active',
     });
 
     // Mettre à jour le formulaire si les props changent (ex: après un refresh)
@@ -56,16 +57,23 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
             commercial_register: agency.commercial_register || '',
             plan_type: agency.plan_type || 'basic',
             monthly_fee: agency.monthly_fee || 25000,
-            enabled_modules: agency.enabled_modules || ['base'],
+            enabled_modules: agency.enabled_modules || ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'],
+            subscription_status: (agency as any).subscription_status || 'active',
         });
     }, [agency]);
 
     const availableModules = [
-        { id: 'base', name: 'Gestion Immobilière (Base)', icon: Home, description: 'Module standard de location et vente' },
+        { id: 'dashboard', name: 'Tableau de bord', icon: Home, description: 'Statistiques et vue d\'ensemble' },
+        { id: 'properties', name: 'Propriétés', icon: Home, description: 'Gestion du parc immobilier' },
+        { id: 'owners', name: 'Propriétaires', icon: Users, description: 'Gestion des bailleurs' },
+        { id: 'tenants', name: 'Locataires', icon: Users, description: 'Gestion des preneurs' },
+        { id: 'contracts', name: 'Contrats', icon: FileText, description: 'Baux et mandats de gestion' },
+        { id: 'caisse', name: 'Caisse', icon: DollarSign, description: 'Gestion des paiements et dépenses' },
         { id: 'hotel', name: 'Gestion Hôtelière', icon: Building, description: 'Chambres et réservations hôtelières' },
         { id: 'residences', name: 'Résidences Meublées', icon: Building2, description: 'Appartements meublés et courts séjours' },
         { id: 'collaboration', name: 'Hub Collaboration', icon: Users, description: 'Messagerie et partage inter-agences' },
-        { id: 'internal_mode', name: 'Mode Interne (Privé)', icon: FileText, description: 'Masque les fonctions collaboratives' },
+        { id: 'etats-des-lieux', name: 'États des lieux', icon: ClipboardCheck, description: 'Gestion des visites et constats' },
+        { id: 'travaux', name: 'Travaux & Maintenance', icon: SettingsIcon, description: 'Suivi des interventions techniques' },
     ];
 
     useEffect(() => {
@@ -112,7 +120,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                 plan_type: formData.plan_type,
                 monthly_fee: formData.monthly_fee,
                 enabled_modules: formData.enabled_modules,
-                subscription_status: 'active',
+                subscription_status: formData.subscription_status,
                 updated_at: new Date().toISOString()
             };
 
@@ -120,12 +128,16 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
             console.log('✅ agencies table updated');
 
             // 2. Synchroniser avec la table agency_subscriptions
-            await agencySubscriptionsService.syncSubscription(
-                agency.id,
-                formData.plan_type,
-                formData.monthly_fee
-            );
-            console.log('✅ agency_subscriptions table synced');
+            if (agency.id === '00000000-0000-0000-0000-000000000000') {
+                console.log('🛡️ AgencyDetails: Demo agency sync skipped (handled via agenciesService update)');
+            } else {
+                await agencySubscriptionsService.syncSubscription(
+                    agency.id,
+                    formData.plan_type,
+                    formData.monthly_fee
+                );
+                console.log('✅ agency_subscriptions table synced');
+            }
 
             // 3. Notification et rafraîchissement
             toast.success('Agence et abonnement mis à jour avec succès');
@@ -324,6 +336,21 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             />
                                         </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Statut de l'agence
+                                            </label>
+                                            <select
+                                                value={formData.subscription_status}
+                                                onChange={(e) => setFormData({ ...formData, subscription_status: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            >
+                                                <option value="active">Active / Approuvée</option>
+                                                <option value="suspended">Suspendue</option>
+                                                <option value="trial">Essai (Phase de test)</option>
+                                                <option value="cancelled">Annulée / Refusée</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -504,7 +531,8 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                             commercial_register: agency.commercial_register || '',
                                             plan_type: agency.plan_type || 'basic',
                                             monthly_fee: agency.monthly_fee || 25000,
-                                            enabled_modules: agency.enabled_modules || ['base'],
+                                            enabled_modules: agency.enabled_modules || ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'],
+                                            subscription_status: (agency as any).subscription_status || 'active',
                                         });
                                     }}
                                     className="flex-1"

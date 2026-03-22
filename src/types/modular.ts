@@ -119,6 +119,7 @@ export interface ModularTransaction {
     transaction_date: string;
     payment_method: string;
     related_id?: string;
+    related_owner_id?: string;
     module_type?: ModuleType;
     created_at: string;
     updated_at: string;

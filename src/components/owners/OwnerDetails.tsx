@@ -89,26 +89,30 @@ export const OwnerDetails: React.FC = () => {
     }, [showPropertyForm]);
 
     // 6. Memoized Data
+    // Build one entry PER OCCUPIED PROPERTY (not deduplicated by tenant.id).
+    // A tenant occupying 2 properties will appear 2 times, each linked to their respective property.
     const ownerTenants = React.useMemo(() => {
-        const tenantMap = new Map();
+        const entries: Array<typeof tenants[0] & { propertyTitle: string; contractId: string }> = [];
         contracts?.forEach(c => {
             const prop = ownerProperties?.find(p => p.id === c.property_id);
             if (prop && c.status === 'active' && c.type === 'location') {
                 const tenant = tenants?.find(t => t.id === c.tenant_id);
                 if (tenant) {
-                    tenantMap.set(tenant.id, {
+                    entries.push({
                         ...tenant,
-                        propertyTitle: prop.title
+                        propertyTitle: prop.title,
+                        contractId: c.id,
                     });
                 }
             }
         });
-        return Array.from(tenantMap.values());
+        return entries;
     }, [contracts, ownerProperties, tenants]);
 
     const tabs = [
         { id: 'properties', label: `Biens (${ownerProperties?.length || 0})`, icon: Building2 },
-        { id: 'tenants', label: `Locataires (${ownerTenants.length})`, icon: Users },
+        // ownerTenants.length = biens occupés (1 entrée par propriété occupée)
+        { id: 'tenants', label: `Locataires (${ownerTenants.length} biens occupés)`, icon: Users },
         { id: 'financials', label: 'Caisse & Paiements', icon: Wallet },
         { id: 'info', label: 'Informations', icon: User },
     ];
@@ -248,8 +252,9 @@ export const OwnerDetails: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {ownerTenants.map(tenant => (
-                                            <Card key={tenant.id} className="p-4 hover:shadow-md transition-shadow">
+                                        {ownerTenants.map((tenant, idx) => (
+                                            // Key uses contractId so a tenant with 2 properties shows twice (once per property)
+                                            <Card key={tenant.contractId ?? `${tenant.id}-${idx}`} className="p-4 hover:shadow-md transition-shadow">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
                                                         {tenant.first_name[0]}{tenant.last_name[0]}

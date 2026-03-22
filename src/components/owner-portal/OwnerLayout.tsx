@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Building2, Key, Wallet, ClipboardCheck, 
   Menu, Bell, LogOut, X, User, ChevronRight, Settings,
-  Database, Info, AlertCircle, FileText
+  Database, Info, AlertCircle, FileText, Shield
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
@@ -34,6 +34,7 @@ export const OwnerLayout: React.FC = () => {
     { name: 'États Financiers', href: '/espace-proprietaire/finances', icon: Wallet },
     { name: 'Documents', href: '/espace-proprietaire/documents', icon: FileText },
     { name: 'Maintenance & Travaux', href: '/espace-proprietaire/travaux', icon: ClipboardCheck },
+    { name: 'Sécurité', href: '/espace-proprietaire/securite', icon: Shield },
   ];
 
   const handleSignOut = async () => {

@@ -9,6 +9,12 @@ export const auditLogsService = {
         record_id?: string; 
         limit?: number;
     } = {}): Promise<AuditLog[]> {
+        // Simple Demo Guard: if no explicit record_id or specifically for demo
+        // Since audit logs don't always have agency_id, we just return mock logs if we're feeling "demo-y"
+        // Actually, we can check a global state or just ignore for now if not critical.
+        // But let's add it for completeness if we can detect the agency.
+        // For now, let's just return [] to avoid errors, or mock data if we want.
+        
         let query = supabase
             .from('audit_logs')
             .select('*')

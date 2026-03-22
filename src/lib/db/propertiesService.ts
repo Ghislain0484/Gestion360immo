@@ -24,6 +24,36 @@ export const propertiesService = {
     offset = 0,
     includeOwner = false,
   }: GetAllParams = {}): Promise<Property[]> {
+    if (agency_id === '00000000-0000-0000-0000-000000000000') {
+      const { MOCK_PROPERTIES, MOCK_OWNERS, MOCK_CONTRACTS, MOCK_TENANTS } = await import('../mockData');
+      let result = [...MOCK_PROPERTIES];
+      if (owner_id) result = result.filter(p => p.owner_id === owner_id);
+      if (search) {
+        const s = search.toLowerCase();
+        result = result.filter(p => p.title.toLowerCase().includes(s));
+      }
+      if (standing) result = result.filter(p => p.standing === standing);
+
+      // Join owner if requested
+      if (includeOwner) {
+        result = result.map(p => ({
+          ...p,
+          owner: MOCK_OWNERS.find(o => o.id === p.owner_id)
+        }));
+      }
+
+      // Add basic contracts/tenants join as seen in useSupabaseData
+      result = result.map(p => {
+        const property_contracts = MOCK_CONTRACTS.filter(c => c.property_id === p.id).map(c => ({
+          ...c,
+          tenant: MOCK_TENANTS.find(t => t.id === c.tenant_id)
+        }));
+        return { ...p, contracts: property_contracts };
+      });
+
+      return result as any[];
+    }
+
     let query = supabase
       .from('properties')
       .select(includeOwner ? '*, owner:owners(first_name, last_name)' : '*')
@@ -90,6 +120,11 @@ export const propertiesService = {
     return true;
   },
   async findOne(id: string, agencyId?: string): Promise<Property | null> {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+      const { MOCK_PROPERTIES } = await import('../mockData');
+      return MOCK_PROPERTIES.find(p => p.id === id) || null;
+    }
+
     let query = supabase
       .from('properties')
       .select('*')
@@ -113,6 +148,11 @@ export const propertiesService = {
     data: (Property & { contracts: (Contract & { tenants: Tenant })[] })[] | null;
     error: any;
   }> {
+    if (agencyId === '00000000-0000-0000-0000-000000000000') {
+      const data = await this.getAll({ agency_id: agencyId, owner_id: ownerId });
+      return { data: data as any[], error: null };
+    }
+
     const { data, error } = await supabase
       .from('properties')
       .select('*, contracts(*, tenants(*))')
@@ -122,6 +162,19 @@ export const propertiesService = {
     return { data: data ?? [], error: null };
   },
   async getById(id: string, agencyId?: string): Promise<Property> {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+      const { MOCK_PROPERTIES, MOCK_CONTRACTS, MOCK_TENANTS } = await import('../mockData');
+      const property = MOCK_PROPERTIES.find(p => p.id === id);
+      if (property) {
+        // Enforce join for getById consistency
+        const property_contracts = MOCK_CONTRACTS.filter(c => c.property_id === property.id).map(c => ({
+          ...c,
+          tenant: MOCK_TENANTS.find(t => t.id === c.tenant_id)
+        }));
+        return { ...property, contracts: property_contracts } as any;
+      }
+    }
+
     let query = supabase
       .from('properties')
       .select('*, owner_id, agency_id')

@@ -14,8 +14,11 @@ import {
   BarChart3,
   Bell,
   ClipboardCheck,
+  Zap,
+  ZapOff,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { clsx } from 'clsx';
 import { APP_NAME, IS_STANDALONE, FORCED_STANDALONE_MODULES } from '../../lib/constants';
 
@@ -27,23 +30,24 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { pathname } = useLocation();
   const { logout, user, agencyId, agencies, switchAgency } = useAuth();
+  const { isDemoMode, isDemoUser, toggleDemoMode } = useDemoMode();
 
   const currentAgency = agencies.find(a => a.agency_id === agencyId);
   console.log('🐞 Sidebar: user role:', user?.role, 'agencies count:', agencies.length, 'agencyId:', agencyId);
 
   // Updated navigation structure matching redesign
   const navigation = [
-    { name: 'Tableau de bord', href: '/', icon: LayoutDashboard },
-    { name: 'Caisse', href: '/caisse', icon: Wallet },
-    { name: 'Propriétaires', href: '/proprietaires', icon: Building, module: 'base' },
-    { name: 'Propriétés', href: '/proprietes', icon: Building2, module: 'base' },
-    { name: 'Locataires', href: '/locataires', icon: Key, module: 'base' },
-    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'base' },
-    { name: 'Travaux', href: '/travaux', icon: LayoutDashboard, module: 'base' },
+    { name: 'Tableau de bord', href: '/', icon: LayoutDashboard, module: 'dashboard' },
+    { name: 'Caisse', href: '/caisse', icon: Wallet, module: 'caisse' },
+    { name: 'Propriétaires', href: '/proprietaires', icon: Building, module: 'owners' },
+    { name: 'Propriétés', href: '/proprietes', icon: Building2, module: 'properties' },
+    { name: 'Locataires', href: '/locataires', icon: Key, module: 'tenants' },
+    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'etats-des-lieux' },
+    { name: 'Travaux', href: '/travaux', icon: LayoutDashboard, module: 'travaux' },
   ];
 
   const secondaryNavigation = [
-    { name: 'Contrats', href: '/contrats', icon: FileText, module: 'base' },
+    { name: 'Contrats', href: '/contrats', icon: FileText, module: 'contracts' },
     { 
       name: 'G. Hôtelière', 
       href: '/hotel', 
@@ -66,13 +70,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     },
   ];
 
+  const checkModule = (mod?: string) => {
+    if (!mod) return true;
+    if (enabledModules.includes(mod)) return true;
+    if (enabledModules.includes('base')) {
+      // Compatibility mapping: if 'base' is present, it covers core modules
+      const coreModules = ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'];
+      return coreModules.includes(mod);
+    }
+    return false;
+  };
+
   const enabledModules = IS_STANDALONE 
     ? FORCED_STANDALONE_MODULES 
     : (currentAgency?.enabled_modules || ['base']);
   
   const filteredSecondaryNav = secondaryNavigation.filter(item => 
     !item.module || 
-    enabledModules.includes(item.module) || 
+    checkModule(item.module) || 
     (item.module === 'collaboration' && !enabledModules.includes('internal_mode'))
   );
 
@@ -82,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   };
 
   const filteredNavigation = navigation.filter(item => 
-    !item.module || enabledModules.includes(item.module)
+    !item.module || checkModule(item.module)
   );
 
   return (
@@ -231,6 +246,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <p className="text-xs text-gray-500 dark:text-slate-300 truncate">{user?.email}</p>
             </div>
           </div>
+          
+          {isDemoUser && (
+            <div className="px-3 mt-3">
+              <button
+                onClick={() => {
+                  toggleDemoMode();
+                  // Manually trigger toast since logout is nearby and toast might be imported in parents
+                  import('react-hot-toast').then(m => m.default.success(!isDemoMode ? '🚀 Mode Démo activé' : '🏢 Mode Réel'));
+                }}
+                className={clsx(
+                  "w-full flex items-center justify-between px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300",
+                  isDemoMode 
+                    ? "bg-amber-100 text-amber-700 shadow-inner border-amber-200" 
+                    : "bg-white dark:bg-slate-800 text-slate-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 border border-gray-200 dark:border-slate-700"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  {isDemoMode ? <Zap size={14} className="animate-pulse" /> : <ZapOff size={14} />}
+                  <span>Mode Démo</span>
+                </div>
+                <div className={clsx(
+                  "w-8 h-4 rounded-full relative transition-colors duration-300",
+                  isDemoMode ? "bg-amber-500" : "bg-slate-300 dark:bg-slate-600"
+                )}>
+                  <div className={clsx(
+                    "absolute top-1 w-2 h-2 bg-white rounded-full transition-all duration-300 shadow-sm",
+                    isDemoMode ? "left-5" : "left-1"
+                  )} />
+                </div>
+              </button>
+            </div>
+          )}
+
           <button
             onClick={logout}
             className="w-full flex items-center gap-3 px-4 py-3 mt-3 text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-danger-600 dark:hover:text-white hover:bg-danger-50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 group hover:scale-[1.02]"

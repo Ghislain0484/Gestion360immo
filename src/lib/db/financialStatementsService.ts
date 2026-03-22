@@ -5,7 +5,10 @@ import { FinancialStatement } from "../../types/db";
 import { v4 as uuidv4 } from 'uuid';
 
 export const financialStatementsService = {
-    async getAll(): Promise<FinancialStatement[]> {
+    async getAll(agencyId?: string): Promise<FinancialStatement[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+            return []; // On pourrait renvoyer des mock statements si on en avait
+        }
         const { data, error } = await supabase
             .from("financial_statements")
             .select(`
@@ -45,8 +48,12 @@ export const financialStatementsService = {
     async getByEntity(
         entityId: string,
         entityType: "owner" | "tenant",
-        period: string
+        period: string,
+        agencyId?: string
     ): Promise<FinancialStatement[]> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+            return [];
+        }
         const [year, month] = period.split("-").map(Number);
         const startDate = new Date(year, month - 1, 1).toISOString();
         const endDate = new Date(year, month, 0).toISOString();
@@ -207,7 +214,12 @@ export const financialStatementsService = {
     },
 
     // Specific methods for property and transaction cleanup
-    async getTransactionsByProperty(propertyId: string): Promise<{ data: any[] | null; error: any }> {
+    async getTransactionsByProperty(propertyId: string, agencyId?: string): Promise<{ data: any[] | null; error: any }> {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' || propertyId.startsWith('demo-')) {
+            const { MOCK_TRANSACTIONS } = await import('../mockData');
+            const filtered = MOCK_TRANSACTIONS.filter(tx => tx.related_id === propertyId || (tx as any).property_id === propertyId);
+            return { data: filtered, error: null };
+        }
         const { data, error } = await supabase
             .from("financial_transactions")
             .select("*")
