@@ -11,9 +11,7 @@ export const tenantsService = {
             .order('created_at', { ascending: false });
 
         // Note: Joining with contracts might return multiple rows if not filtered properly.
-        // But since we want "occupancy status", we can filter active contracts in selection if supported,
-        // or filter client-side. Supabase allows filtering joined tables.
-        query = query.eq('active_contracts.status', 'active');
+        // Supabase allows filtering joined tables, but here we want the nested data, not top-level filtering.
 
         if (filters.agency_id) {
             query = query.eq('agency_id', filters.agency_id);

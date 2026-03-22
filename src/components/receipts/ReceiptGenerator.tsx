@@ -56,11 +56,20 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   const [totalExpenses, setTotalExpenses] = useState<number>(0);
 
   const [receipt, setReceipt] = useState<RentReceipt | null>(null);
+  
+  // States for period selection (Phase 19)
+  const [periodMonth, setPeriodMonth] = useState<number>(new Date().getMonth() + 1);
+  const [periodYear, setPeriodYear] = useState<number>(new Date().getFullYear());
 
   useEffect(() => {
     if (isOpen) {
       const fetchData = async () => {
         try {
+          // Initialize period based on current or previous month
+          const now = new Date();
+          setPeriodMonth(now.getMonth() + 1);
+          setPeriodYear(now.getFullYear());
+          
           if (contractId) {
             const contract = await dbService.contracts.findOne(contractId);
             setContractInfo(contract);
@@ -127,8 +136,8 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     }
 
     setIsProcessing(true);
-    const month = new Date(paymentDate).getMonth() + 1;
-    const year = new Date(paymentDate).getFullYear();
+    const month = periodMonth;
+    const year = periodYear;
 
     try {
       // LOGIQUE COMPTABILITÉ PROFESSIONNELLE
@@ -464,6 +473,40 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                     onChange={(e) => setPaymentDate(e.target.value)}
                   />
                 </div>
+              </div>
+
+              {/* Période du loyer (Phase 19) */}
+              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                <label className="block text-sm font-bold text-blue-900 mb-3 uppercase tracking-wider">
+                  Période du loyer
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <select
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      value={periodMonth}
+                      onChange={(e) => setPeriodMonth(Number(e.target.value))}
+                    >
+                      {MONTHS_FR.map((name, i) => i > 0 && (
+                        <option key={i} value={i}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <select
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      value={periodYear}
+                      onChange={(e) => setPeriodYear(Number(e.target.value))}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[10px] text-blue-600 mt-2 italic">
+                  * Indiquez le mois et l'année auxquels correspond ce paiement.
+                </p>
               </div>
 
               {/* Payment Method */}
