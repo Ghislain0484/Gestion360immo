@@ -68,34 +68,42 @@ export const TenantDetails: React.FC = () => {
     const [financialData, setFinancialData] = useState<any>(null);
 
     React.useEffect(() => {
-        if (!activeContract?.id) return;
+        if (!tenant?.id) return;
         const loadFinance = async () => {
-            const { data } = await dbService.receipts.getAll({ contract_id: activeContract.id });
-            if (data) {
-                const sorted = data.sort((a,b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
+            // Fetch all receipts for this tenant (not just active contract)
+            const receipts = await dbService.rentReceipts.getAll({ tenant_id: tenant.id });
+            const { data: receiptsData } = { data: receipts };
+            
+            if (receiptsData) {
+                const sorted = receiptsData.sort((a: any, b: any) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
                 setReceipts(sorted);
                 
                 // Calcul pro: On ne compte que la part LOYER + CHARGES pour la couverture
-                const totalPaidRent = data.reduce((sum, r: any) => sum + (r.rent_amount || 0) + (r.charges || 0), 0);
-                const totalCaution = data.reduce((sum, r: any) => sum + (r.deposit_amount || 0), 0);
+                const totalPaidRent = receiptsData.reduce((sum: any, r: any) => sum + (r.rent_amount || 0) + (r.charges || 0), 0);
+                const totalCaution = receiptsData.reduce((sum: any, r: any) => sum + (r.deposit_amount || 0), 0);
                 
-                const monthlyTotal = (activeContract.monthly_rent || 0) + (activeContract.charges || 0);
-                const monthsCovered = monthlyTotal > 0 ? totalPaidRent / monthlyTotal : 0;
-                
-                const start = new Date(activeContract.start_date);
-                const now = new Date();
-                const elapsedMonths = (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
-                const balance = monthsCovered - elapsedMonths;
-                
-                const isVeryNew = elapsedMonths < 0.25;
-                const isLate = balance < -0.5 || (balance < -0.16 && !isVeryNew);
-                const status = balance >= 0.1 ? 'advance' : isLate ? 'late' : 'ok';
-                
-                setFinancialData({ totalPaid: totalPaidRent, totalCaution, monthsCovered, elapsedMonths, balance, status });
+                // Coverage calculation based on active contract if available
+                if (activeContract) {
+                    const monthlyTotal = (activeContract.monthly_rent || 0) + (activeContract.charges || 0);
+                    const monthsCovered = monthlyTotal > 0 ? totalPaidRent / monthlyTotal : 0;
+                    
+                    const start = new Date(activeContract.start_date);
+                    const now = new Date();
+                    const elapsedMonths = Math.max(0, (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+                    const balance = monthsCovered - elapsedMonths;
+                    
+                    const isVeryNew = elapsedMonths < 0.25;
+                    const isLate = balance < -0.5 || (balance < -0.16 && !isVeryNew);
+                    const status = balance >= 0.1 ? 'advance' : isLate ? 'late' : 'ok';
+                    
+                    setFinancialData({ totalPaid: totalPaidRent, totalCaution, monthsCovered, elapsedMonths, balance, status });
+                } else {
+                    setFinancialData({ totalPaid: totalPaidRent, totalCaution, monthsCovered: 0, elapsedMonths: 0, balance: 0, status: 'ok' });
+                }
             }
         };
         loadFinance();
-    }, [activeContract?.id]);
+    }, [tenant?.id, activeContract?.id]);
 
     if (loadingTenant) {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
@@ -334,51 +342,7 @@ export const TenantDetails: React.FC = () => {
                                             )}
                                         </div>
 
-                                        <div className="border rounded-lg overflow-hidden">
-                                            <table className="min-w-full divide-y divide-gray-200">
-                                                <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                                    <tr>
-                                                        <th className="px-6 py-3 text-left">Période</th>
-                                                        <th className="px-6 py-3 text-left">Date</th>
-                                                        <th className="px-6 py-3 text-left">Montant</th>
-                                                        <th className="px-6 py-3 text-left">Statut</th>
-                                                        <th className="px-6 py-3 text-right">Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="bg-white divide-y divide-gray-100">
-                                                    {receipts.map((r: any) => (
-                                                        <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                                                                {r.period_month}/{r.period_year}
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                {new Date(r.payment_date).toLocaleDateString('fr-FR')}
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900">
-                                                                {(r.amount_paid || r.total_amount).toLocaleString('fr-FR')}
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                                <Badge variant={r.payment_status === 'partial' ? 'warning' : 'success'}>
-                                                                    {r.payment_status === 'partial' ? 'Partiel' : 'Complet'}
-                                                                </Badge>
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                                <Button variant="ghost" size="sm" className="text-primary-600">
-                                                                    <FileText className="w-4 h-4" />
-                                                                </Button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                    {receipts.length === 0 && (
-                                                        <tr>
-                                                            <td colSpan={5} className="px-6 py-12 text-center text-gray-400 italic">
-                                                                Aucun paiement enregistré.
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                        <PaymentsList tenantId={tenant.id} limit={20} showActions={true} />
                                     </div>
                                 </Card>
                             </div>
