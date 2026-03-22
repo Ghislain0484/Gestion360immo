@@ -180,29 +180,45 @@ export const ReceiptsList: React.FC = () => {
 
       {/* Liste */}
       <div className="space-y-4">
-        {filteredReceipts.map(receipt => (
-          <Card key={receipt.id} className="hover:shadow-lg transition-shadow">
-            <div className="p-6 flex justify-between items-center">
-              <div>
-                <h3 className="font-semibold text-gray-900">Quittance #{receipt.receipt_number}</h3>
-                <p className="text-sm text-gray-500">
-                  {MONTHS_FR[receipt.period_month] || receipt.period_month} {receipt.period_year} &bull; {receipt.total_amount.toLocaleString('fr-FR')} FCFA
-                </p>
+        {filteredReceipts.map(receipt => {
+          const isPartialReceipt =
+            receipt.payment_status === 'partial' ||
+            (receipt.balance_due ?? 0) > 0 ||
+            (receipt.amount_paid != null && receipt.amount_paid < receipt.total_amount);
+          return (
+            <Card key={receipt.id} className="hover:shadow-lg transition-shadow">
+              <div className="p-6 flex justify-between items-center">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-900">Quittance #{receipt.receipt_number}</h3>
+                    {isPartialReceipt ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">PARTIEL</span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">PAYÉ</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {MONTHS_FR[receipt.period_month] || receipt.period_month} {receipt.period_year} &bull; {(receipt.amount_paid ?? receipt.total_amount).toLocaleString('fr-FR')} FCFA versé
+                    {isPartialReceipt && (receipt.balance_due ?? 0) > 0 && (
+                      <span className="ml-1 text-orange-600 font-medium">/ Solde : {(receipt.balance_due ?? 0).toLocaleString('fr-FR')} FCFA</span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex space-x-2">
+                  <Button variant="ghost" size="sm" title="Voir détails" onClick={() => { setSelectedReceipt(receipt); setShowDetails(true); }}>
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" title="Imprimer" onClick={() => printReceipt(receipt)}>
+                    <Printer className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" title="Télécharger PDF" onClick={() => downloadReceipt(receipt)}>
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex space-x-2">
-                <Button variant="ghost" size="sm" title="Voir détails" onClick={() => { setSelectedReceipt(receipt); setShowDetails(true); }}>
-                  <Eye className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" title="Imprimer" onClick={() => printReceipt(receipt)}>
-                  <Printer className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" title="Télécharger PDF" onClick={() => downloadReceipt(receipt)}>
-                  <Download className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
       {/* Générateur */}
@@ -224,16 +240,36 @@ export const ReceiptsList: React.FC = () => {
         title="Détails de la quittance"
         size="lg"
       >
-        {selectedReceipt && (
+        {selectedReceipt && (() => {
+          const isPartialSel =
+            selectedReceipt.payment_status === 'partial' ||
+            (selectedReceipt.balance_due ?? 0) > 0 ||
+            (selectedReceipt.amount_paid != null && selectedReceipt.amount_paid < selectedReceipt.total_amount);
+          const paidAmt = selectedReceipt.amount_paid ?? selectedReceipt.total_amount;
+          const balAmt = selectedReceipt.balance_due ?? (isPartialSel ? selectedReceipt.total_amount - paidAmt : 0);
+          return (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">QUITTANCE DE LOYER</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900">QUITTANCE DE LOYER</h2>
+                {isPartialSel ? (
+                  <span className="px-3 py-1 rounded-full bg-orange-100 text-orange-700 border border-orange-300 font-bold text-sm">⚠ PAIEMENT PARTIEL</span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 border border-green-300 font-bold text-sm">✓ SOLDÉ</span>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-500">Numéro :</span><p className="font-semibold">{selectedReceipt.receipt_number}</p></div>
                 <div><span className="text-gray-500">Période :</span><p className="font-semibold">{MONTHS_FR[selectedReceipt.period_month] || selectedReceipt.period_month} {selectedReceipt.period_year}</p></div>
                 <div><span className="text-gray-500">Loyer :</span><p className="font-semibold">{formatCurrency(selectedReceipt.rent_amount)}</p></div>
                 <div><span className="text-gray-500">Charges :</span><p className="font-semibold">{formatCurrency(selectedReceipt.charges || 0)}</p></div>
-                <div><span className="text-gray-500">Total payé :</span><p className="font-bold text-blue-700 text-base">{formatCurrency(selectedReceipt.total_amount)}</p></div>
+                <div><span className="text-gray-500">Total dû :</span><p className="font-semibold">{formatCurrency(selectedReceipt.total_amount)}</p></div>
+                <div><span className="text-gray-500">Montant versé :</span><p className={`font-bold text-base ${isPartialSel ? 'text-orange-600' : 'text-green-600'}`}>{formatCurrency(paidAmt)}</p></div>
+                {isPartialSel && balAmt > 0 && (
+                  <div className="col-span-2 bg-orange-50 border border-orange-200 rounded p-2">
+                    <span className="text-orange-600 font-bold">Solde restant : {formatCurrency(balAmt)}</span>
+                  </div>
+                )}
                 <div><span className="text-gray-500">Mode :</span><p className="font-semibold capitalize">{getPaymentMethodLabel(selectedReceipt.payment_method)}</p></div>
                 <div><span className="text-gray-500">Date paiement :</span><p className="font-semibold">{new Date(selectedReceipt.payment_date).toLocaleDateString('fr-FR')}</p></div>
                 {selectedReceipt.notes && <div className="col-span-2"><span className="text-gray-500">Notes :</span><p className="font-semibold">{selectedReceipt.notes}</p></div>}
@@ -248,7 +284,8 @@ export const ReceiptsList: React.FC = () => {
               </Button>
             </div>
           </div>
-        )}
+          );
+        })()}
       </Modal>
     </div>
   );

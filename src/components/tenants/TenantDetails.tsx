@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
 import { Tenant, Property } from '../../types/db';
 import { Contract } from '../../types/contracts';
-import { extractIdFromSlug } from '../../utils/idSystem';
+import { extractIdFromSlug, generateSlug } from '../../utils/idSystem';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Tabs } from '../ui/Tabs';
@@ -193,7 +193,16 @@ export const TenantDetails: React.FC = () => {
                                                                 <p className="font-medium text-gray-900">{property.title}</p>
                                                                 <p className="text-sm text-gray-600">{property.location.commune}, {property.location.quartier}</p>
                                                             </div>
-                                                            <Button variant="ghost" size="sm" onClick={() => navigate(`/proprietes/${property.id}`)} className="text-primary-600 hover:text-primary-700 hover:bg-primary-50">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    const slugId = property.business_id || property.id;
+                                                                    const slug = generateSlug(slugId, property.title);
+                                                                    navigate(`/proprietes/${slug}`);
+                                                                }}
+                                                                className="text-primary-600 hover:text-primary-700 hover:bg-primary-50"
+                                                            >
                                                                 Voir
                                                             </Button>
                                                         </div>
@@ -234,7 +243,17 @@ export const TenantDetails: React.FC = () => {
                                                                 </p>
                                                                 <p className="text-xs text-gray-500">{(activeContract.owner as any).business_id}</p>
                                                             </div>
-                                                            <Button variant="ghost" size="sm" onClick={() => navigate(`/proprietaires/${(activeContract.owner as any).id}`)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    const owner = activeContract.owner as any;
+                                                                    const slugId = owner.business_id || owner.id;
+                                                                    const slug = generateSlug(slugId, `${owner.first_name} ${owner.last_name}`);
+                                                                    navigate(`/proprietaires/${slug}`);
+                                                                }}
+                                                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                            >
                                                                 Contact
                                                             </Button>
                                                         </div>

@@ -73,7 +73,7 @@ export const PropertyDetails: React.FC = () => {
     // Fetch Specific Property Data
     const fetchProperty = React.useCallback(async () => {
         if (!authAgencyId) return [];
-        const data = await dbService.properties.getById(propertyId, authAgencyId);
+        const data = await dbService.properties.getBySlugId(propertyId, authAgencyId);
         return data ? [data] : [];
     }, [propertyId, authAgencyId]);
 
@@ -356,7 +356,8 @@ export const PropertyDetails: React.FC = () => {
                                             </div>
                                             <div className="flex flex-col gap-2">
                                                 <Button variant="outline" onClick={() => {
-                                                    const slug = generateSlug(currentTenant.id, `${currentTenant.first_name} ${currentTenant.last_name}`);
+                                                    const slugId = currentTenant.business_id || currentTenant.id;
+                                                    const slug = generateSlug(slugId, `${currentTenant.first_name} ${currentTenant.last_name}`);
                                                     navigate(`/locataires/${slug}`)
                                                 }}>
                                                     Voir le dossier
