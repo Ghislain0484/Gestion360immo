@@ -32,6 +32,36 @@ import { inventoriesService } from './db/inventoriesService';
 import { modularService } from './db/modularService';
 import { MonthlyRevenueItem } from '../types/contracts';
 
+// Property Expenses Service (Phase 9)
+export const propertyExpensesService = {
+  async getAll(filters?: { property_id?: string; agency_id?: string; status?: string }) {
+    let query = supabase.from('property_expenses').select('*');
+    if (filters?.property_id) query = query.eq('property_id', filters.property_id);
+    if (filters?.agency_id) query = query.eq('agency_id', filters.agency_id);
+    if (filters?.status) query = query.eq('status', filters.status);
+    const { data, error } = await query.order('expense_date', { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+  async create(expense: Partial<PropertyExpense>) {
+    const { data, error } = await supabase.from('property_expenses').insert([expense]).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async update(id: string, updates: Partial<PropertyExpense>) {
+    const { data, error } = await supabase.from('property_expenses').update(updates).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async markAsDeducted(expenseIds: string[], receiptId: string) {
+    const { error } = await supabase
+      .from('property_expenses')
+      .update({ status: 'deducted', receipt_id: receiptId })
+      .in('id', expenseIds);
+    if (error) throw error;
+  }
+};
+
 export const dbService = {
   async getDashboardStats(agencyId: string): Promise<DashboardStats> {
     try {
@@ -248,36 +278,6 @@ export const dbService = {
     }
   },
 
-  // Property Expenses (Phase 9)
-  propertyExpenses: {
-    async getAll(filters?: { property_id?: string; agency_id?: string; status?: string }) {
-      let query = supabase.from('property_expenses').select('*');
-      if (filters?.property_id) query = query.eq('property_id', filters.property_id);
-      if (filters?.agency_id) query = query.eq('agency_id', filters.agency_id);
-      if (filters?.status) query = query.eq('status', filters.status);
-      const { data, error } = await query.order('expense_date', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    async create(expense: Partial<PropertyExpense>) {
-      const { data, error } = await supabase.from('property_expenses').insert([expense]).select().single();
-      if (error) throw error;
-      return data;
-    },
-    async update(id: string, updates: Partial<PropertyExpense>) {
-      const { data, error } = await supabase.from('property_expenses').update(updates).eq('id', id).select().single();
-      if (error) throw error;
-      return data;
-    },
-    async markAsDeducted(expenseIds: string[], receiptId: string) {
-      const { error } = await supabase
-        .from('property_expenses')
-        .update({ status: 'deducted', receipt_id: receiptId })
-        .in('id', expenseIds);
-      if (error) throw error;
-    }
-  },
-
   users: usersService,
   platformAdmins: platformAdminsService,
   platformSettings: platformSettingsService,
@@ -298,6 +298,7 @@ export const dbService = {
   announcementInterests: announcementInterestsService,
   contracts: contractsService,
   rentReceipts: rentReceiptsService,
+  propertyExpenses: propertyExpensesService,
   financials: financialStatementsService,
   messages: messagesService,
   auditLogs: auditLogsService,
