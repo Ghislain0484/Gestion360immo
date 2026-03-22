@@ -16,6 +16,7 @@ import { clsx } from 'clsx';
 import { toast } from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from '../../utils/agencyBranding';
+import { printReceiptHTML, downloadReceiptPDF } from '../../utils/receiptActions';
 
 interface Owner {
     id: string;
@@ -330,7 +331,24 @@ export const CaissePage: React.FC = () => {
     };
 
     const handleDownloadReceiptFromTransaction = async (t: Transaction, autoPrint = false) => {
+        if (t.source === 'rent_receipt' && t.details) {
+            if (autoPrint) {
+                await printReceiptHTML(t.details, user?.agency_id ?? '', {
+                    tenantName: t.details.tenant ? `${t.details.tenant.first_name} ${t.details.tenant.last_name}` : undefined,
+                    propertyTitle: t.details.property?.title,
+                });
+            } else {
+                await downloadReceiptPDF(t.details, user?.agency_id ?? '', {
+                    tenantName: t.details.tenant ? `${t.details.tenant.first_name} ${t.details.tenant.last_name}` : undefined,
+                    propertyTitle: t.details.property?.title,
+                });
+            }
+            return;
+        }
+
+        // For other transactions, use the existing basic template
         try {
+            const { jsPDF } = await import('jspdf');
             const branding = await getAgencyBranding(user?.agency_id ?? undefined);
             const doc = new jsPDF();
             const pageWidth = doc.internal.pageSize.width;

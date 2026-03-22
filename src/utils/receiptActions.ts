@@ -27,7 +27,11 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
 
-    const isPartial = (receipt.payment_status === 'partial') || ((receipt.balance_due ?? 0) > 0);
+    // Détection paiement partiel : 3 critères pour couvrir les anciennes quittances
+    const isPartial =
+      receipt.payment_status === 'partial' ||
+      (receipt.balance_due ?? 0) > 0 ||
+      (receipt.amount_paid != null && receipt.amount_paid < receipt.total_amount);
 
     // En-tête avec logo
     let y = renderPDFHeader(doc, branding, 15);
@@ -90,7 +94,7 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
       y += 4;
     };
 
-    drawSection("BAILLEUR (Propriétaire)", [
+    drawSection("BAILLEUR / PROPRIÉTAIRE", [
       extraInfo.ownerName || "N/A",
       branding.name + " (Agence Gestionnaire)",
       branding.address || "",
@@ -130,15 +134,24 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
       y += 8;
     };
 
-    drawRow("Loyer mensuel :", `${receipt.rent_amount.toLocaleString('fr-FR')} FCFA`);
     drawRow("Charges :", `${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA`);
     drawRow("Loyer total dû :", `${receipt.total_amount.toLocaleString('fr-FR')} FCFA`);
+
+    // Nous utilisons isPartial déjà déclaré en haut de la fonction
+    const amountPaid = receipt.amount_paid ?? receipt.total_amount;
+
+    if (receipt.owner_payment != null || isPartial) {
+      const ownerShare = receipt.owner_payment ?? (amountPaid * 0.9); // Default to 10% commission if null
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(79, 70, 229); // indigo-600
+      drawRow("Part Propriétaire (Net) :", `${ownerShare.toLocaleString('fr-FR')} FCFA`);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 30, 30);
+    }
 
     doc.setDrawColor(59, 130, 246);
     doc.line(col1, y, pageWidth - 20, y);
     y += 6;
-
-    const amountPaid = receipt.amount_paid ?? receipt.total_amount;
     const balanceDue = receipt.balance_due ?? 0;
 
     // Montant versé : vert si complet, orange si partiel
@@ -219,9 +232,13 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     const periodStr = `${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}`;
     const pmLabel = getPaymentMethodLabel(receipt.payment_method);
 
-    const isPartial = (receipt.payment_status === 'partial') || ((receipt.balance_due ?? 0) > 0);
+    // Détection paiement partiel : 3 critères pour couvrir les anciennes quittances
+    const isPartial =
+      receipt.payment_status === 'partial' ||
+      (receipt.balance_due ?? 0) > 0 ||
+      (receipt.amount_paid != null && receipt.amount_paid < receipt.total_amount);
     const amountPaid = receipt.amount_paid ?? receipt.total_amount;
-    const balanceDue = receipt.balance_due ?? 0;
+    const balanceDue = receipt.balance_due ?? (isPartial ? receipt.total_amount - amountPaid : 0);
 
     // Colors and labels based on payment status
     const statusBanner = isPartial
@@ -315,6 +332,7 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     <tr><td>Loyer mensuel</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>Loyer total dû</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    ${receipt.owner_payment != null || isPartial ? `<tr><td style="color:#4f46e5;font-weight:bold">Part Propriétaire (Net)</td><td style="text-align:right;color:#4f46e5;font-weight:bold">${(receipt.owner_payment ?? (amountPaid * 0.9)).toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
     <tr class="total-row"><td>MONTANT VERSÉ</td><td style="text-align:right;color:${amountPaidColor};">${amountPaid.toLocaleString('fr-FR')} FCFA</td></tr>
     ${balanceDueRow}
     <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>

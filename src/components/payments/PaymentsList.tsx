@@ -8,10 +8,9 @@ import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
 import { Button } from '../ui/Button';
-import { jsPDF } from 'jspdf';
-import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from '../../utils/agencyBranding';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
+import { printReceiptHTML, downloadReceiptPDF } from '../../utils/receiptActions';
 
 interface PaymentsListProps {
     tenantId?: string;
@@ -126,106 +125,22 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
 
     // Télécharger la quittance en PDF
     const handleDownloadPDF = async (payment: PaymentWithDetails) => {
-        try {
-            const branding = await getAgencyBranding(user?.agency_id ?? undefined);
-            const doc = new jsPDF();
-            const pageWidth = doc.internal.pageSize.width;
-            let y = renderPDFHeader(doc, branding, 15);
-
-            // Titre
-            doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-            doc.text('QUITTANCE DE LOYER', pageWidth / 2, y, { align: 'center' }); y += 7;
-            doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-            doc.text(`N° ${payment.receipt_number}`, pageWidth / 2, y, { align: 'center' }); y += 14;
-            doc.setDrawColor(220, 220, 220); doc.line(20, y, pageWidth - 20, y); y += 10;
-
-            const drawRow = (label: string, value: string, bold = false) => {
-                doc.setFontSize(10);
-                doc.setFont('helvetica', bold ? 'bold' : 'normal');
-                doc.setTextColor(100, 100, 100);
-                doc.text(label, 22, y);
-                doc.setTextColor(30, 30, 30);
-                doc.text(value, pageWidth / 2, y);
-                y += 8;
-            };
-
-            // Période
-            const periodStr = `${MONTHS_FR[payment.period_month] || payment.period_month} ${payment.period_year}`;
-            const pmLabel = ({ especes: 'Espèces', cheque: 'Chèque', virement: 'Virement bancaire', mobile_money: 'Mobile Money', bank_transfer: 'Virement bancaire', cash: 'Espèces', check: 'Chèque' } as Record<string, string>)[payment.payment_method] || payment.payment_method;
-
-            doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(59, 130, 246);
-            doc.text('INFORMATIONS DU PAIEMENT', 22, y); y += 8;
-            doc.setDrawColor(59, 130, 246); doc.setLineWidth(0.5); doc.line(22, y, pageWidth - 22, y); doc.setLineWidth(0.2); y += 6;
-
-            drawRow('Période :', periodStr);
-            drawRow('Date de paiement :', new Date(payment.payment_date).toLocaleDateString('fr-FR'));
-            drawRow('Mode de paiement :', pmLabel);
-            if (payment.notes) drawRow('Notes :', payment.notes);
-
-            y += 4;
-            // Totaux
-            doc.setFillColor(246, 250, 255);
-            doc.rect(20, y - 3, pageWidth - 40, 30, 'F');
-            doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-            if (payment.rent_amount) { doc.text('Loyer :', 22, y); doc.setTextColor(30, 30, 30); doc.text(`${payment.rent_amount.toLocaleString('fr-FR')} FCFA`, pageWidth - 22, y, { align: 'right' }); y += 8; }
-            if (payment.charges) { doc.text('Charges :', 22, y); doc.setTextColor(30, 30, 30); doc.text(`${payment.charges.toLocaleString('fr-FR')} FCFA`, pageWidth - 22, y, { align: 'right' }); y += 8; }
-            doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-            doc.text('TOTAL PAYÉ :', 22, y);
-            doc.setTextColor(22, 163, 74);
-            doc.text(`${payment.total_amount.toLocaleString('fr-FR')} FCFA`, pageWidth - 22, y, { align: 'right' }); y += 14;
-
-            // Mention légale
-            doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(140, 140, 140);
-            doc.text('Ce document atteste du paiement du loyer pour la période mentionnée ci-dessus.', pageWidth / 2, y, { align: 'center' });
-
-            renderPDFFooter(doc, branding);
-            doc.save(`quittance-${payment.receipt_number}.pdf`);
-            toast.success('Quittance téléchargée !');
-        } catch (err: any) {
-            toast.error('Erreur PDF : ' + err.message);
-        }
+        if (!user?.agency_id) return;
+        await downloadReceiptPDF(payment, user.agency_id, {
+            tenantName: payment.tenant ? `${payment.tenant.first_name} ${payment.tenant.last_name}` : undefined,
+            propertyTitle: payment.property?.title,
+            ownerName: undefined // Would need a separate fetch or join
+        });
     };
 
     // Imprimer la quittance
     const handlePrint = async (payment: PaymentWithDetails) => {
-        try {
-            const branding = await getAgencyBranding(user?.agency_id ?? undefined);
-            const logoHtml = branding.logo ? `<img src="${branding.logo}" alt="Logo" style="max-height:60px;object-fit:contain;">` : '';
-            const periodStr = `${MONTHS_FR[payment.period_month] || payment.period_month} ${payment.period_year}`;
-            const pmLabel = ({ especes: 'Espèces', cheque: 'Chèque', virement: 'Virement bancaire', mobile_money: 'Mobile Money', bank_transfer: 'Virement bancaire', cash: 'Espèces', check: 'Chèque' } as Record<string, string>)[payment.payment_method] || payment.payment_method;
-            const win = window.open('', '_blank');
-            if (!win) { toast.error("Fenêtre bloquée"); return; }
-            win.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Quittance ${payment.receipt_number}</title>
-            <style>
-              body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111;font-size:13px}
-              .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #3B82F6;padding-bottom:14px;margin-bottom:16px}
-              .agency-name{font-size:18px;font-weight:bold;color:#3B82F6}
-              .agency-contact{font-size:10px;color:#666;margin-top:4px}
-              h1{text-align:center;font-size:20px;margin:10px 0 4px}
-              .receipt-num{text-align:center;color:#666;margin-bottom:16px;font-size:12px}
-              table{width:100%;border-collapse:collapse;margin:12px 0}
-              tr:nth-child(even){background:#f8faff}
-              td{padding:7px 10px}td:first-child{color:#555;width:45%}
-              .total{background:#f0f9ff;border-top:2px solid #3B82F6;font-weight:bold;font-size:15px}
-              .footer{text-align:center;margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-size:10px;color:#888;font-style:italic}
-            </style></head><body>
-            <div class="header"><div>${logoHtml}</div><div style="text-align:right"><div class="agency-name">${branding.name}</div><div class="agency-contact">${branding.address}<br>${branding.phone}<br>${branding.email}</div></div></div>
-            <h1>QUITTANCE DE LOYER</h1><div class="receipt-num">N° ${payment.receipt_number}</div>
-            <table>
-              <tr><td>Période</td><td>${periodStr}</td></tr>
-              <tr><td>Date de paiement</td><td>${new Date(payment.payment_date).toLocaleDateString('fr-FR')}</td></tr>
-              <tr><td>Mode de paiement</td><td>${pmLabel}</td></tr>
-              ${payment.rent_amount ? `<tr><td>Loyer</td><td>${payment.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
-              ${payment.charges ? `<tr><td>Charges</td><td>${payment.charges.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
-              <tr class="total"><td>TOTAL PAYÉ</td><td style="color:#16a34a">${payment.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
-            </table>
-            ${payment.notes ? `<p><strong>Notes :</strong> ${payment.notes}</p>` : ''}
-            <div class="footer">Ce document atteste du paiement du loyer pour la période mentionnée ci-dessus.</div>
-            <script>window.onload=function(){window.print()}<\/script></body></html>`);
-            win.document.close();
-        } catch (err: any) {
-            toast.error('Erreur impression : ' + err.message);
-        }
+        if (!user?.agency_id) return;
+        await printReceiptHTML(payment, user.agency_id, {
+            tenantName: payment.tenant ? `${payment.tenant.first_name} ${payment.tenant.last_name}` : undefined,
+            propertyTitle: payment.property?.title,
+            ownerName: undefined
+        });
     };
 
     if (initialLoading) {
@@ -442,12 +357,14 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                 </div>
                                 <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2">
                                     <span>MONTANT VERSÉ</span>
-                                    <span className="text-green-600">{(selectedPayment.amount_paid ?? selectedPayment.total_amount).toLocaleString('fr-FR')} FCFA</span>
+                                    <span className={((selectedPayment.amount_paid ?? selectedPayment.total_amount) < selectedPayment.total_amount) ? "text-orange-600" : "text-green-600"}>
+                                        {(selectedPayment.amount_paid ?? selectedPayment.total_amount).toLocaleString('fr-FR')} FCFA
+                                    </span>
                                 </div>
-                                {(selectedPayment.balance_due ?? 0) > 0 && (
+                                {((selectedPayment.amount_paid ?? selectedPayment.total_amount) < selectedPayment.total_amount || (selectedPayment.balance_due ?? 0) > 0) && (
                                     <div className="flex justify-between font-bold text-base bg-red-50 rounded-lg px-3 py-2">
                                         <span className="text-red-600">SOLDE RESTANT</span>
-                                        <span className="text-red-600">{(selectedPayment.balance_due ?? 0).toLocaleString('fr-FR')} FCFA</span>
+                                        <span className="text-red-600">{(selectedPayment.balance_due ?? (selectedPayment.total_amount - (selectedPayment.amount_paid ?? selectedPayment.total_amount))).toLocaleString('fr-FR')} FCFA</span>
                                     </div>
                                 )}
                             </div>

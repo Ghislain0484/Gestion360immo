@@ -220,7 +220,8 @@ export const OwnerDetails: React.FC = () => {
                                                         tenantName={activeContract ? `${activeContract.tenant?.first_name} ${activeContract.tenant?.last_name}` : undefined}
                                                         rentAmount={activeContract?.monthly_rent}
                                                         onClick={() => {
-                                                            const slug = generateSlug(property.id, property.title);
+                                                            const slugId = property.business_id || property.id;
+                                                            const slug = generateSlug(slugId, property.title);
                                                             navigate(`/proprietes/${slug}`);
                                                         }}
                                                     />
@@ -267,7 +268,8 @@ export const OwnerDetails: React.FC = () => {
                                                         </div>
                                                     </div>
                                                     <Button variant="ghost" size="sm" onClick={() => {
-                                                        const slug = generateSlug(tenant.id, `${tenant.first_name} ${tenant.last_name}`);
+                                                        const slugId = tenant.business_id || tenant.id;
+                                                        const slug = generateSlug(slugId, `${tenant.first_name} ${tenant.last_name}`);
                                                         navigate(`/locataires/${slug}`);
                                                     }}>
                                                         Dossier

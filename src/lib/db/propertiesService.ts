@@ -189,6 +189,32 @@ export const propertiesService = {
     return (data as any) as Property;
   },
 
+  async getBySlugId(id: string, agencyId?: string): Promise<Property | null> {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+      const { MOCK_PROPERTIES } = await import('../mockData');
+      return MOCK_PROPERTIES.find(p => p.id === id || p.business_id === id) || null;
+    }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    let query = supabase.from('properties').select('*');
+    if (isUuid) {
+      query = query.eq('id', id);
+    } else {
+      query = query.eq('business_id', id);
+    }
+
+    if (agencyId) {
+      query = query.eq('agency_id', agencyId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(formatSbError('❌ properties.getBySlugId', error));
+    }
+    return data as Property;
+  },
+
   /**
    * Upload une image de propriété vers Supabase Storage
    * @param file - Fichier image à uploader

@@ -111,8 +111,7 @@ export const OwnersList: React.FC = () => {
   }, [owners, searchTerm, filterOccupancy, properties, contracts]);
 
   const handleRowClick = (owner: Owner) => {
-    console.log('Row clicked:', owner);
-    // Use business_id (e.g. PROP...) for prettier URLs if available, otherwise UUID
+    // Generate human-readable slug using business_id if available, otherwise fallback to id
     const slugId = owner.business_id || owner.id;
     const slug = generateSlug(slugId, `${owner.first_name} ${owner.last_name}`);
     navigate(`/proprietaires/${slug}`);

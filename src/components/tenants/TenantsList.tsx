@@ -615,7 +615,9 @@ export const TenantsList: React.FC = () => {
               tenant={tenant}
               deleting={deleting}
               onNavigate={() => {
-                const slug = generateSlug(tenant.id, `${tenant.first_name} ${tenant.last_name}`);
+                // Generate human-readable slug using business_id if available, otherwise fallback to id
+                const slugId = tenant.business_id || tenant.id;
+                const slug = generateSlug(slugId, `${tenant.first_name} ${tenant.last_name}`);
                 navigate(`/locataires/${slug}`);
               }}
               onReceipt={() => { setSelectedTenant(tenant); setShowReceiptGenerator(true); }}

@@ -172,7 +172,9 @@ export const PropertiesList: React.FC = () => {
   }, [properties, searchTerm, filters, contracts, tenants, filterStatus]);
 
   const handlePropertyClick = (property: Property) => {
-    const slug = generateSlug(property.id, property.title);
+    // Generate human-readable slug using business_id if available, otherwise fallback to id
+    const slugId = property.business_id || property.id;
+    const slug = generateSlug(slugId, property.title);
     navigate(`/proprietes/${slug}`); // Using generic slug route
   };
 

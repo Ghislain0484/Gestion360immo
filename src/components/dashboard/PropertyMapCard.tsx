@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin, Building2, TrendingUp, Info, AlertCircle } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
 import { Property } from '../../types/db';
+import { generateSlug } from '../../utils/idSystem';
 
 interface PropertyMapCardProps {
     properties: Property[];
@@ -259,7 +260,11 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
                                             {activeContractsByProperty.get(selectedProperty.id) ? 'Occupé' : 'Disponible'}
                                         </span>
                                         <button
-                                            onClick={() => navigate(`/proprietes/${selectedProperty.id}`)}
+                                            onClick={() => {
+                                                const slugId = selectedProperty.business_id || selectedProperty.id;
+                                                const slug = generateSlug(slugId, selectedProperty.title);
+                                                navigate(`/proprietes/${slug}`);
+                                            }}
                                             className="text-[10px] text-blue-600 font-bold hover:underline transition-all"
                                         >
                                             Voir détails
