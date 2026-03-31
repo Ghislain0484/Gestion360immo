@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, CheckCircle2, AlertCircle, XCircle, Plus, Edit, Trash2 } from 'lucide-react';
+import { User, CheckCircle2, AlertCircle, XCircle, Plus, Edit, Trash2, Download } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -21,6 +21,7 @@ import { toast } from 'react-hot-toast';
 import { clsx } from 'clsx';
 import { ViewToggle } from '../shared/ViewToggle';
 import { TenantCard } from './TenantCard';
+import { exportToExcel, formatTenantsForExport } from '../../utils/exportUtils';
 
 const PAGE_SIZE = 100;
 
@@ -115,7 +116,7 @@ export const TenantsList: React.FC = () => {
     };
   }, [tenants, searchTerm]);
 
-  const { deleteItem: deleteTenant, loading: deletingTenant } = useSupabaseDelete(
+  const { deleteItem: deleteTenant } = useSupabaseDelete(
     dbService.tenants.delete,
     {
       onSuccess: () => { refetch(); toast.success('Locataire supprimé avec succès'); },
@@ -258,6 +259,16 @@ export const TenantsList: React.FC = () => {
     }
   }, [deleteTenant, user?.agency_id]);
 
+  const handleExport = () => {
+    try {
+      const dataToExport = formatTenantsForExport(filteredTenants);
+      exportToExcel(dataToExport, 'Locataires_Gestion360', 'Locataires');
+      toast.success('Export Excel réussi !');
+    } catch (error) {
+      toast.error('Erreur lors de l’export');
+    }
+  };
+
   const filteredTenants = useMemo(() => {
     if (!tenants) return [];
     return tenants.filter(t => {
@@ -316,11 +327,21 @@ export const TenantsList: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Locataires</h1>
           <p className="text-sm text-gray-500 mt-0.5">{filteredTenants.length} locataire{filteredTenants.length !== 1 ? 's' : ''} trouvé{filteredTenants.length !== 1 ? 's' : ''}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <ViewToggle view={viewMode} onChange={setViewMode} />
-          <Button onClick={handleCreateClick} aria-label="Ajouter un locataire">
+          
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            className="flex items-center space-x-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Exporter</span>
+          </Button>
+
+          <Button onClick={handleCreateClick} aria-label="Ajouter un locataire" className="shadow-md hover:shadow-lg transition-all">
             <Plus className="h-4 w-4 mr-2" />
-            Ajouter un locataire
+            <span>Nouveau Locataire</span>
           </Button>
         </div>
       </div>
