@@ -77,7 +77,7 @@ export interface PropertyExpense {
   amount: number;
   category: 'maintenance' | 'utilities' | 'legal' | 'tax' | 'other';
   expense_date: string;
-  status: 'pending_deduction' | 'deducted';
+  status: 'pending_validation' | 'approved' | 'rejected' | 'pending_deduction' | 'deducted';
   receipt_id?: string;
   created_at: string;
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, Plus, ArrowLeft, Users, Trash2 } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, Plus, ArrowLeft, Users, Trash2, Hammer, LineChart } from 'lucide-react';
 import { useRealtimeData, useSupabaseCreate } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
@@ -20,6 +20,8 @@ import { PaymentsList } from '../payments/PaymentsList';
 import { OwnerReversalCalculator, ReversalDetails } from './OwnerReversalCalculator';
 import { OwnerRentSummary } from './OwnerRentSummary';
 import { AssignTenantModal } from '../tenants/AssignTenantModal';
+import { MaintenanceManager } from './MaintenanceManager';
+import { OwnerPortfolioInsights } from './OwnerPortfolioInsights';
 
 export const OwnerDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
@@ -111,9 +113,10 @@ export const OwnerDetails: React.FC = () => {
 
     const tabs = [
         { id: 'properties', label: `Biens (${ownerProperties?.length || 0})`, icon: Building2 },
-        // ownerTenants.length = biens occupés (1 entrée par propriété occupée)
-        { id: 'tenants', label: `Locataires (${ownerTenants.length} biens occupés)`, icon: Users },
+        { id: 'tenants', label: `Locataires (${ownerTenants.length})`, icon: Users },
         { id: 'financials', label: 'Caisse & Paiements', icon: Wallet },
+        { id: 'maintenance', label: 'Travaux & Entretien', icon: Hammer },
+        { id: 'portfolio', label: 'Patrimoine', icon: LineChart },
         { id: 'info', label: 'Informations', icon: User },
     ];
 
@@ -315,6 +318,20 @@ export const OwnerDetails: React.FC = () => {
                                     <PaymentsList ownerId={owner.id} limit={20} showActions={true} />
                                 </div>
                             </div>
+                        )}
+
+                        {activeTab === 'maintenance' && (
+                            <MaintenanceManager 
+                                ownerId={owner.id} 
+                                properties={ownerProperties} 
+                            />
+                        )}
+
+                        {activeTab === 'portfolio' && (
+                            <OwnerPortfolioInsights 
+                                properties={ownerProperties} 
+                                contracts={contracts} 
+                            />
                         )}
 
                         {activeTab === 'info' && (
