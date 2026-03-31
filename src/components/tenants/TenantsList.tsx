@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { SuccessModal } from '../ui/SuccessModal';
 import { toast } from 'react-hot-toast';
 import { clsx } from 'clsx';
+import { ViewToggle } from '../shared/ViewToggle';
 
 const PAGE_SIZE = 100;
 
@@ -241,6 +242,7 @@ export const TenantsList: React.FC = () => {
     paymentStatus: 'all',
   });
   const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'active' | 'free'>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const handleFilterChange = (id: string, value: any) => {
     setFilters(prev => ({ ...prev, [id]: value }));
@@ -501,10 +503,13 @@ export const TenantsList: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Locataires</h1>
           <p className="text-sm text-gray-500 mt-0.5">{filteredTenants.length} locataire{filteredTenants.length !== 1 ? 's' : ''} trouvé{filteredTenants.length !== 1 ? 's' : ''}</p>
         </div>
-        <Button onClick={handleCreateClick} aria-label="Ajouter un locataire">
-          <Plus className="h-4 w-4 mr-2" />
-          Ajouter un locataire
-        </Button>
+        <div className="flex items-center gap-3">
+          <ViewToggle view={viewMode} onChange={setViewMode} />
+          <Button onClick={handleCreateClick} aria-label="Ajouter un locataire">
+            <Plus className="h-4 w-4 mr-2" />
+            Ajouter un locataire
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -575,8 +580,10 @@ export const TenantsList: React.FC = () => {
         </span>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* Content */}
+      <div className={clsx(
+        viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" : "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+      )}>
         {initialLoading ? (
           // Skeleton loaders
           Array.from({ length: 6 }).map((_, i) => (
@@ -608,14 +615,13 @@ export const TenantsList: React.FC = () => {
               Ajouter un locataire
             </Button>
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
           filteredTenants.map(tenant => (
             <TenantCard
               key={tenant.id}
               tenant={tenant}
               deleting={deleting}
               onNavigate={() => {
-                // Generate human-readable slug using business_id if available, otherwise fallback to id
                 const slugId = tenant.business_id || tenant.id;
                 const slug = generateSlug(slugId, `${tenant.first_name} ${tenant.last_name}`);
                 navigate(`/locataires/${slug}`);
@@ -627,6 +633,53 @@ export const TenantsList: React.FC = () => {
               onDelete={() => handleDeleteTenant(tenant.id)}
             />
           ))
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Identité</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profession</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredTenants.map(tenant => {
+                  const pCfg = paymentConfig[tenant.payment_status] ?? paymentConfig.bon;
+                  return (
+                    <tr key={tenant.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/locataires/${generateSlug(tenant.business_id || tenant.id, `${tenant.first_name} ${tenant.last_name}`)}`)}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getAvatarColor(`${tenant.first_name} ${tenant.last_name}`)} flex items-center justify-center text-white font-bold text-xs`}>
+                            {tenant.first_name[0]}{tenant.last_name[0]}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{tenant.first_name} {tenant.last_name}</div>
+                            <div className="text-[10px] text-gray-400 font-mono">{tenant.business_id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tenant.phone}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tenant.profession || '—'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={clsx("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", pCfg.bg, pCfg.color)}>
+                          {pCfg.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
+                          <button onClick={() => handleEditClick(tenant)} className="text-indigo-600 hover:text-indigo-900"><Edit className="h-4 w-4" /></button>
+                          <button onClick={() => handleDeleteTenant(tenant.id)} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

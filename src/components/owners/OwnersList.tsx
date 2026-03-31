@@ -15,6 +15,7 @@ import { generateSlug } from '../../utils/idSystem';
 import debounce from 'lodash/debounce';
 import toast from 'react-hot-toast';
 import { clsx } from 'clsx';
+import { ViewToggle } from '../shared/ViewToggle';
 
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export const OwnersList: React.FC = () => {
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'active' | 'free'>('all');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   const fetchOwners = useCallback(() => dbService.owners.getAll({
     agency_id: authAgencyId || undefined,
@@ -169,39 +171,43 @@ export const OwnersList: React.FC = () => {
               onChange={(e) => debouncedSetSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-2">
-              <div className="flex p-1 bg-gray-100 rounded-xl">
-                <button
-                  onClick={() => setFilterOccupancy('all')}
-                  className={clsx(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                    filterOccupancy === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  )}
-                >
-                  Tous
-                </button>
-                <button
-                  onClick={() => setFilterOccupancy('active')}
-                  className={clsx(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                    filterOccupancy === 'active' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  )}
-                >
-                  Actifs
-                </button>
-                <button
-                  onClick={() => setFilterOccupancy('free')}
-                  className={clsx(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                    filterOccupancy === 'free' ? "bg-white text-amber-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  )}
-                >
-                  Sans locataire
-                </button>
+            <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="flex p-1 bg-gray-100 rounded-xl">
+                  <button
+                    onClick={() => setFilterOccupancy('all')}
+                    className={clsx(
+                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                      filterOccupancy === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    Tous
+                  </button>
+                  <button
+                    onClick={() => setFilterOccupancy('active')}
+                    className={clsx(
+                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                      filterOccupancy === 'active' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    Actifs
+                  </button>
+                  <button
+                    onClick={() => setFilterOccupancy('free')}
+                    className={clsx(
+                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                      filterOccupancy === 'free' ? "bg-white text-amber-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    Sans locataire
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-400 mr-2 uppercase tracking-tight">Vue</span>
+                <ViewToggle view={viewMode} onChange={setViewMode} />
               </div>
             </div>
-          </div>
         </div>
       </Card>
 
@@ -215,7 +221,6 @@ export const OwnersList: React.FC = () => {
         </span>
       </div>
 
-      {/* List Content */}
       {filteredOwners.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-lg border border-gray-200 border-dashed">
           <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -225,7 +230,7 @@ export const OwnersList: React.FC = () => {
           <p className="text-gray-500 mt-1 mb-4">Ajoutez votre premier propriétaire pour commencer la gestion.</p>
           <Button onClick={() => setShowForm(true)}>Ajouter un propriétaire</Button>
         </div>
-      ) : (
+      ) : viewMode === 'list' ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -263,8 +268,7 @@ export const OwnersList: React.FC = () => {
                           {owner.first_name} {owner.last_name}
                         </div>
                         <div className="text-xs text-gray-500 font-mono">
-                          {/* Simulated ID for display */}
-                          PROP{new Date(owner.created_at).getFullYear().toString().substr(2)}...
+                          {owner.business_id || `PROP-${owner.id.slice(0, 8)}`}
                         </div>
                         <div className="text-sm text-gray-500 sm:hidden">
                           {owner.phone}
@@ -385,6 +389,89 @@ export const OwnersList: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredOwners.map((owner) => {
+            const stats = getPropertyStats(owner.id);
+            const { tenantCount } = getOccupancyInfo(owner.id);
+            return (
+              <Card key={owner.id} className="p-0 overflow-hidden hover:shadow-lg transition-all cursor-pointer group" onClick={() => handleRowClick(owner)}>
+                <div className="relative h-32 bg-gradient-to-r from-primary-600 to-indigo-600">
+                  <div className="absolute -bottom-6 left-6">
+                    <div className="h-20 w-20 rounded-2xl bg-white p-1 shadow-md">
+                      <div className="h-full w-full rounded-xl bg-gray-100 flex items-center justify-center text-2xl font-bold text-primary-600">
+                        {owner.first_name[0]}{owner.last_name[0]}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 pt-10">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 leading-tight">
+                        {owner.first_name} {owner.last_name}
+                      </h3>
+                      <p className="text-sm font-mono text-gray-400 mt-1">
+                        {owner.business_id || `PROP-${owner.id.slice(0, 8)}`}
+                      </p>
+                    </div>
+                    <div className="flex p-1 bg-gray-50 rounded-lg group-hover:bg-primary-50 transition-colors">
+                      <Eye className="w-4 h-4 text-gray-400 group-hover:text-primary-600" />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-2 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Biens</span>
+                      <p className="text-xl font-black text-gray-800">{stats.total}</p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Locataires</span>
+                      <p className="text-xl font-black text-gray-800">{tenantCount}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 space-y-3">
+                    <div className="flex items-center text-sm text-gray-600">
+                      <MapPin className="h-4 w-4 mr-2 text-gray-400" />
+                      {owner.city}
+                    </div>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                      {owner.phone}
+                    </div>
+                  </div>
+
+                  <div className="mt-8 flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRowClick(owner);
+                      }}
+                    >
+                      Détails
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-primary-600 hover:bg-primary-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const phone = owner.phone.replace(/\s+/g, '');
+                        window.open(`https://wa.me/${phone.startsWith('+') ? phone.slice(1) : (phone.startsWith('00') ? phone.slice(2) : `225${phone}`)}`, '_blank');
+                      }}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
 

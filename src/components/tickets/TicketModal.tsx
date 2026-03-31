@@ -22,7 +22,8 @@ interface TicketModalProps {
 interface TicketFormData {
     title: string;
     description: string;
-    property_id: string;
+    property_id?: string;
+    owner_id: string;
     priority: 'low' | 'medium' | 'high' | 'urgent';
     cost: number;
     charge_to: 'owner' | 'agency' | 'tenant';
@@ -32,6 +33,7 @@ interface TicketFormData {
 export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, onSuccess, ticket }) => {
     const { user } = useAuth();
     const [properties, setProperties] = React.useState<Property[]>([]);
+    const [owners, setOwners] = React.useState<any[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
 
     const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<TicketFormData>({
@@ -46,11 +48,13 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, onSuc
     useEffect(() => {
         if (isOpen) {
             fetchProperties();
+            fetchOwners();
             if (ticket) {
                 // Populate form if editing
                 setValue('title', ticket.title);
                 setValue('description', ticket.description);
-                setValue('property_id', ticket.property_id);
+                setValue('property_id', ticket.property_id || '');
+                setValue('owner_id', ticket.owner_id);
                 setValue('priority', ticket.priority);
                 setValue('cost', ticket.cost);
                 setValue('charge_to', ticket.charge_to);
@@ -76,15 +80,23 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, onSuc
         if (data) setProperties(data);
     };
 
+    const fetchOwners = async () => {
+        const { data } = await supabase
+            .from('owners')
+            .select('id, first_name, last_name, business_id')
+            .eq('agency_id', user?.agency_id)
+            .order('first_name');
+
+        if (data) setOwners(data);
+    };
+
     const onSubmit = async (data: TicketFormData) => {
         setIsLoading(true);
         try {
-            const property = properties.find(p => p.id === data.property_id);
-
             const payload = {
                 ...data,
+                property_id: data.property_id || null,
                 agency_id: user?.agency_id,
-                owner_id: property?.owner_id, // Auto-link owner
                 // If creating, set status open/created_by
                 ...(ticket ? {} : {
                     status: 'open',
@@ -133,18 +145,37 @@ export const TicketModal: React.FC<TicketModalProps> = ({ isOpen, onClose, onSuc
                 </div>
 
                 {/* Property */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Propriété concernée</label>
-                    <select
-                        {...register('property_id', { required: 'La propriété est requise' })}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                    >
-                        <option value="">Sélectionner une propriété</option>
-                        {properties.map(p => (
-                            <option key={p.id} value={p.id}>{p.title}</option>
-                        ))}
-                    </select>
-                    {errors.property_id && <span className="text-red-500 text-xs">{errors.property_id.message}</span>}
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Propriété (Optionnel)</label>
+                        <select
+                            {...register('property_id')}
+                            onChange={(e) => {
+                                const prop = properties.find(p => p.id === e.target.value);
+                                if (prop) setValue('owner_id', prop.owner_id);
+                            }}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                        >
+                            <option value="">Indépendant d'un bien</option>
+                            {properties.map(p => (
+                                <option key={p.id} value={p.id}>{p.title}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Propriétaire concerné</label>
+                        <select
+                            {...register('owner_id', { required: 'Le propriétaire est requis' })}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                        >
+                            <option value="">Choisir un propriétaire</option>
+                            {owners.map(o => (
+                                <option key={o.id} value={o.id}>{o.first_name} {o.last_name}</option>
+                            ))}
+                        </select>
+                        {errors.owner_id && <span className="text-red-500 text-xs">{errors.owner_id.message}</span>}
+                    </div>
                 </div>
 
                 {/* Description */}

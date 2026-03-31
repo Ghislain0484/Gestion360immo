@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Plus, LayoutGrid, List as ListIcon, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -13,6 +13,7 @@ import { generateSlug } from '../../utils/idSystem';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
+import { ViewToggle } from '../shared/ViewToggle';
 
 export const PropertiesList: React.FC = () => {
   const navigate = useNavigate();
@@ -264,20 +265,7 @@ export const PropertiesList: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="bg-white border p-1 rounded-lg flex items-center hidden sm:flex">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded ${viewMode === 'grid' ? 'bg-gray-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded ${viewMode === 'list' ? 'bg-gray-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              <ListIcon className="w-4 h-4" />
-            </button>
-          </div>
+          <ViewToggle view={viewMode} onChange={setViewMode} />
           <Button onClick={() => setShowForm(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nouveau Bien
@@ -364,9 +352,9 @@ export const PropertiesList: React.FC = () => {
           <Button onClick={() => setShowForm(true)}>Ajouter un bien</Button>
         </div>
       ) : (
-        <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
-          {filteredProperties.map((property: Property) => (
-            viewMode === 'grid' ? (
+        <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"}>
+          {viewMode === 'grid' ? (
+            filteredProperties.map((property: Property) => (
               <PropertyCard
                 key={property.id}
                 property={property}
@@ -374,52 +362,65 @@ export const PropertiesList: React.FC = () => {
                 onClick={() => handlePropertyClick(property)}
                 onDelete={isDirectorOrManager ? () => handleDeleteProperty(property) : undefined}
               />
-            ) : (
-              <Card
-                key={property.id}
-                className="p-4 flex items-center justify-between hover:shadow-md cursor-pointer transition-shadow"
-                onClick={() => handlePropertyClick(property)}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gray-200 rounded-lg object-cover overflow-hidden">
-                    {property.images?.[0] && <img src={property.images[0].url} className="w-full h-full object-cover" />}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{property.title}</h3>
-                    <p className="text-sm text-gray-500">{property.location.quartier}, {property.location.commune}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  {(() => {
+            ))
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bien</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Localisation</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loyer</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredProperties.map((property: Property) => {
                     const info = getRentalInfo(property.id);
                     const isOccupied = info.isOccupied;
                     const isAvailable = property.is_available && !isOccupied;
                     return (
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${isOccupied ? 'bg-yellow-100 text-yellow-700' :
-                        (isAvailable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700')
-                        }`}>
-                        {isOccupied ? 'Occupé' : (isAvailable ? 'Disponible' : 'Indisponible')}
-                      </span>
+                      <tr key={property.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handlePropertyClick(property)}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                              {property.images?.[0] && <img src={property.images[0].url} className="w-full h-full object-cover" />}
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{property.title}</div>
+                              <div className="text-[10px] text-gray-400 font-mono">{property.business_id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {property.location.quartier}, {property.location.commune}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                          {property.monthly_rent?.toLocaleString('fr-FR')} FCFA
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${isOccupied ? 'bg-blue-100 text-blue-700' :
+                              (isAvailable ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700')
+                            }`}>
+                            {isOccupied ? 'Occupé' : (isAvailable ? 'Vacant' : 'Indisponible')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => handlePropertyClick(property)} className="text-blue-600 hover:text-blue-900" title="Voir"><Eye className="h-4 w-4" /></button>
+                            {isDirectorOrManager && (
+                              <button onClick={() => handleDeleteProperty(property)} className="text-red-600 hover:text-red-900" title="Supprimer"><Trash2 className="h-4 w-4" /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     );
-                  })()}
-                  {isDirectorOrManager && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 h-auto"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteProperty(property);
-                      }}
-                      title="Supprimer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            )
-          ))}
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

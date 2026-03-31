@@ -64,9 +64,19 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 .eq('type', 'debit');
 
             const totalPaidOut = transactions?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+            
+            // 3. Get Maintenance costs (resolved tickets charged to owner)
+            const { data: maintenance } = await supabase
+                .from('tickets')
+                .select('cost')
+                .eq('owner_id', ownerId)
+                .eq('charge_to', 'owner')
+                .eq('status', 'resolved');
 
-            // Current Balance = Total Earned - Total Paid Out
-            setBalance(totalEarned - totalPaidOut);
+            const totalMaintenance = maintenance?.reduce((sum, m) => sum + (Number(m.cost) || 0), 0) || 0;
+
+            // Current Balance = Total Earned - Total Paid Out - Total Maintenance
+            setBalance(totalEarned - totalPaidOut - totalMaintenance);
 
         } catch (error) {
             console.error("Error calculating balance", error);
