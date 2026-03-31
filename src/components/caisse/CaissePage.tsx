@@ -61,10 +61,13 @@ export const CaissePage: React.FC = () => {
                 }
                 const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment').eq('owner_id', ownerId);
                 const { data: payouts } = await supabase.from('modular_transactions').select('amount').eq('related_owner_id', ownerId).eq('category', 'owner_payout').eq('type', 'debit');
+                const { data: maintenance } = await supabase.from('tickets').select('cost').eq('owner_id', ownerId).eq('charge_to', 'owner').eq('status', 'resolved');
                 
                 const earned = receipts?.reduce((s, r) => s + (Number(r.owner_payment) || 0), 0) || 0;
                 const paid = payouts?.reduce((s, p) => s + (Number(p.amount) || 0), 0) || 0;
-                setBalance(earned - paid);
+                const repairs = maintenance?.reduce((s, m) => s + (Number(m.cost) || 0), 0) || 0;
+                
+                setBalance(earned - paid - repairs);
                 setLoading(false);
             };
             fetchBalance();
@@ -122,6 +125,13 @@ export const CaissePage: React.FC = () => {
     const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
     const [selectedOwnerForPayout, setSelectedOwnerForPayout] = useState<Owner | null>(null);
     const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
+
+    const [metrics, setMetrics] = useState({
+        potential: 0,
+        expected: 0,
+        collected: 0,
+        remaining: 0
+    });
 
     // Fetch owners
     useEffect(() => {
@@ -278,6 +288,34 @@ export const CaissePage: React.FC = () => {
             );
 
             setTransactions(allTrans);
+
+            // Calculate Metrics
+            if (isDemoMode) {
+                const { MOCK_PROPERTIES, MOCK_CONTRACTS } = await import('../../lib/mockData');
+                const potential = MOCK_PROPERTIES.reduce((s: number, p: any) => s + (p.monthly_rent || 0), 0);
+                const expected = MOCK_CONTRACTS.filter((c: any) => c.status === 'active').reduce((s: number, c: any) => s + (c.monthly_rent || 0), 0);
+                const collected = allTrans.filter(t => t.category === 'rent_payment').reduce((s, t) => s + t.amount, 0);
+                setMetrics({
+                    potential,
+                    expected,
+                    collected,
+                    remaining: Math.max(0, expected - collected)
+                });
+            } else {
+                const { data: props } = await supabase.from('properties').select('monthly_rent').eq('agency_id', user?.agency_id);
+                const { data: contracts } = await supabase.from('contracts').select('monthly_rent').eq('agency_id', user?.agency_id).eq('status', 'active');
+                
+                const potential = props?.reduce((s, p) => s + (Number(p.monthly_rent) || 0), 0) || 0;
+                const expected = contracts?.reduce((s, c) => s + (Number(c.monthly_rent) || 0), 0) || 0;
+                const collected = receiptTrans.reduce((s, t) => s + t.amount, 0);
+
+                setMetrics({
+                    potential,
+                    expected,
+                    collected,
+                    remaining: Math.max(0, expected - collected)
+                });
+            }
 
         } catch (error) {
             console.error(error);
@@ -519,27 +557,34 @@ export const CaissePage: React.FC = () => {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="p-4 bg-gradient-to-br from-indigo-50 to-blue-50 border-indigo-100">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-indigo-800">Potentiel Mensuel</span>
+                        <TrendingUp className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <p className="text-2xl font-bold text-indigo-700">{metrics.potential.toLocaleString('fr-FR')} FCFA</p>
+                </Card>
+                <Card className="p-4 bg-gradient-to-br from-blue-50 to-sky-50 border-blue-100">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-blue-800">Loyers Attendus</span>
+                        <Calendar className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <p className="text-2xl font-bold text-blue-700">{metrics.expected.toLocaleString('fr-FR')} FCFA</p>
+                </Card>
                 <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-100">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-green-800">Total Encaissé</span>
+                        <span className="text-sm font-medium text-green-800">Encaissés Réels</span>
                         <TrendingUp className="w-4 h-4 text-green-600" />
                     </div>
-                    <p className="text-2xl font-bold text-green-700">{summary.totalCredit.toLocaleString('fr-FR')} FCFA</p>
+                    <p className="text-2xl font-bold text-green-700">{metrics.collected.toLocaleString('fr-FR')} FCFA</p>
                 </Card>
-                <Card className="p-4 bg-gradient-to-br from-red-50 to-rose-50 border-red-100">
+                <Card className="p-4 bg-gradient-to-br from-orange-50 to-amber-50 border-orange-100">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-red-800">Total Décaissé</span>
-                        <TrendingUp className="w-4 h-4 text-red-600 transform rotate-180" />
+                        <span className="text-sm font-medium text-orange-800">Restes à Percevoir</span>
+                        <Wallet className="w-4 h-4 text-orange-600" />
                     </div>
-                    <p className="text-2xl font-bold text-red-700">{summary.totalDebit.toLocaleString('fr-FR')} FCFA</p>
-                </Card>
-                <Card className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-blue-800">Solde Période</span>
-                        <Wallet className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-blue-700">{summary.balance.toLocaleString('fr-FR')} FCFA</p>
+                    <p className="text-2xl font-bold text-orange-700">{metrics.remaining.toLocaleString('fr-FR')} FCFA</p>
                 </Card>
             </div>
 
