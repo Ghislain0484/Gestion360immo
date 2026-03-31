@@ -34,10 +34,16 @@ import { MonthlyRevenueItem } from '../types/contracts';
 
 // Property Expenses Service (Phase 9)
 export const propertyExpensesService = {
-  async getAll(filters?: { property_id?: string; agency_id?: string; status?: string }) {
+  async getAll(filters?: { property_id?: string; agency_id?: string; owner_id?: string; status?: string }) {
     let query = supabase.from('property_expenses').select('*');
     if (filters?.property_id) query = query.eq('property_id', filters.property_id);
     if (filters?.agency_id) query = query.eq('agency_id', filters.agency_id);
+    if (filters?.owner_id) {
+      // Need a join or filtering by property_id list if owner_id is not directly in table
+      // Actually, let's assume we fetch properties first, then pass ids.
+      // Or better, if the table has owner_id (let's check).
+      query = query.eq('owner_id', filters.owner_id);
+    }
     if (filters?.status) query = query.eq('status', filters.status);
     const { data, error } = await query.order('expense_date', { ascending: false });
     if (error) throw error;
@@ -58,6 +64,10 @@ export const propertyExpensesService = {
       .from('property_expenses')
       .update({ status: 'deducted', receipt_id: receiptId })
       .in('id', expenseIds);
+    if (error) throw error;
+  },
+  async delete(id: string) {
+    const { error } = await supabase.from('property_expenses').delete().eq('id', id);
     if (error) throw error;
   }
 };
