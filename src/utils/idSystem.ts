@@ -58,11 +58,21 @@ export const extractIdFromSlug = (slug: string): string => {
         return `${parts[0]}-${parts[1]}-${parts[2]}`;
     }
 
-    // New logic: Look for the pattern [A-Z]{3,4}-\d{6}-\d{5} anywhere in the parts
-    // Usually it's the first 3 parts: TYPE-AAMMJJ-NNNNN
+    // New logic: Look for the pattern [A-Z]{3,4}\d{6}-\d{5} or [A-Z]{3,4}-\d{6}-\d{5}
+    // TYPEAAMMJJ-NNNNN (2 parts) or TYPE-AAMMJJ-NNNNN (3 parts)
+    
+    // Case 1: 3 parts (e.g. PROP-260302-00001)
     if (parts.length >= 3) {
         const potentialId = `${parts[0]}-${parts[1]}-${parts[2]}`;
         if (/^[A-Z]{3,4}-\d{6}-\d{5}$/.test(potentialId)) {
+            return potentialId;
+        }
+    }
+
+    // Case 2: 2 parts (e.g. PROP260302-00001)
+    if (parts.length >= 2) {
+        const potentialId = `${parts[0]}-${parts[1]}`;
+        if (/^[A-Z]{3,4}\d{6}-\d{5}$/.test(potentialId)) {
             return potentialId;
         }
     }
