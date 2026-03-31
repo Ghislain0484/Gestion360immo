@@ -133,8 +133,20 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
     const isPartial = amountPaid < receipt.total_amount;
     doc.text(isPartial ? "MONTANT PERÇU (ACOMPTE) :" : "MONTANT VERSÉ :", col1, y);
     doc.text(`${amountPaid.toLocaleString('fr-FR')} FCFA`, col2, y);
-    y += 12;
-    doc.setTextColor(30, 30, 30);
+    y += 8;
+
+    if (isPartial) {
+      const balanceDue = receipt.total_amount - amountPaid;
+      doc.setTextColor(220, 38, 38); // red-600
+      doc.setFont('helvetica', 'bold');
+      doc.text("SOLDE RESTANT À PAYER :", col1, y);
+      doc.text(`${balanceDue.toLocaleString('fr-FR')} FCFA`, col2, y);
+      y += 8;
+      doc.setTextColor(30, 30, 30);
+      doc.setFont('helvetica', 'normal');
+    }
+    
+    y += 4;
 
     drawRow("Date de paiement :", new Date(receipt.payment_date).toLocaleDateString('fr-FR'));
     drawRow("Mode de paiement :", getPaymentMethodLabel(receipt.payment_method));
@@ -259,6 +271,7 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>Loyer total dû</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
     <tr class="total-row"><td>${amountPaid < receipt.total_amount ? 'MONTANT PER&Ccedil;U (ACOMPTE)' : 'MONTANT VERS&Eacute;'}</td><td style="text-align:right;color:${amountPaidColor};">${amountPaid.toLocaleString('fr-FR')} FCFA</td></tr>
+    ${amountPaid < receipt.total_amount ? `<tr><td style="color:#dc2626;font-weight:bold">Solde restant &agrave; payer</td><td style="text-align:right;color:#dc2626;font-weight:bold">${(receipt.total_amount - amountPaid).toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
     <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>
     <tr><td>Mode de paiement</td><td style="text-align:right">${pmLabel}</td></tr>
   </table>
