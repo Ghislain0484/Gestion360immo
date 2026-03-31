@@ -32,14 +32,11 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
     // En-tête avec logo
     let y = renderPDFHeader(doc, branding, 15);
 
-    const isPartial = amountPaid < receipt.total_amount;
-    const documentTitle = isPartial ? "REÇU DE PAIEMENT DE LOYER" : "QUITTANCE DE LOYER";
-
     // Titre
     doc.setFontSize(16);
-    doc.setTextColor(isPartial ? 217 : 30, isPartial ? 119 : 30, isPartial ? 6 : 30); // Orange if partial
+    doc.setTextColor(30, 30, 30);
     doc.setFont('helvetica', 'bold');
-    doc.text(documentTitle, pageWidth / 2, y, { align: 'center' });
+    doc.text("QUITTANCE DE LOYER", pageWidth / 2, y, { align: 'center' });
     y += 8;
 
     doc.setFontSize(11);
@@ -120,8 +117,10 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
       y += 8;
     };
 
-    drawRow("Loyer :", `${receipt.rent_amount.toLocaleString('fr-FR')} FCFA`);
     drawRow("Charges :", `${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA`);
+    drawRow("Loyer total dû :", `${receipt.total_amount.toLocaleString('fr-FR')} FCFA`);
+
+    // On ne montre PAS la part propriétaire sur la quittance remise au locataire
 
     doc.setDrawColor(59, 130, 246);
     doc.line(col1, y, pageWidth - 20, y);
@@ -131,7 +130,8 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
     doc.setTextColor(22, 163, 74); // green-600
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text("MONTANT VERSÉ :", col1, y);
+    const isPartial = amountPaid < receipt.total_amount;
+    doc.text(isPartial ? "MONTANT PERÇU (ACOMPTE) :" : "MONTANT VERSÉ :", col1, y);
     doc.text(`${amountPaid.toLocaleString('fr-FR')} FCFA`, col2, y);
     y += 12;
     doc.setTextColor(30, 30, 30);
@@ -147,7 +147,7 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
 
     // Mention légale (Simple)
     doc.setFillColor(248, 250, 252);
-    doc.roundedRect(18, y, pageWidth - 36, 26, 2, 2, 'F');
+    doc.roundedRect(18, y, pageWidth - 36, 22, 2, 2, 'F');
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(100, 100, 100);
@@ -159,15 +159,7 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
       `à titre de loyer pour le mois de ${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}.`,
       pageWidth / 2, y + 15, { align: 'center' }
     );
-    if (isPartial) {
-      doc.setFont('helvetica', 'bolditalic');
-      doc.setTextColor(180, 83, 9); // dark amber
-      doc.text(
-        "Ce reçu ne vaut pas quittance pour le solde de la période indiquée.",
-        pageWidth / 2, y + 22, { align: 'center' }
-      );
-    }
-    y += 36;
+    y += 32;
 
     // Signature
     doc.setFont('helvetica', 'normal');
@@ -191,12 +183,9 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     const periodStr = `${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}`;
     const pmLabel = getPaymentMethodLabel(receipt.payment_method);
     const amountPaid = receipt.amount_paid ?? receipt.total_amount;
-    const isPartial = amountPaid < receipt.total_amount;
-    const documentTitle = isPartial ? "REÇU DE PAIEMENT DE LOYER" : "QUITTANCE DE LOYER";
 
     const amountPaidColor = '#16a34a'; // always green
     const legalMention = `Je soussign&eacute;(e), agence gestionnaire, certifie avoir re&ccedil;u la somme ci-dessus indiqu&eacute;e<br>à titre de loyer pour le mois de ${periodStr}.`;
-    const expertWarning = isPartial ? `<div style="color:#b45309; font-weight:bold; margin-top:5px; font-size:10px;">Ce reçu ne vaut pas quittance pour le solde de la période indiquée.</div>` : '';
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -240,7 +229,7 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     </div>
   </div>
 
-  <h1>${documentTitle}</h1>
+  <h1>QUITTANCE DE LOYER</h1>
   <div class="receipt-num">N° ${receipt.receipt_number}</div>
 
   <div class="period-row">
@@ -266,16 +255,16 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
 
   <div class="section-title">DÉTAIL DU PAIEMENT</div>
   <table class="payment-table">
-    <tr><td>Loyer</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr><td>Loyer mensuel</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
-    <tr class="total-row"><td>MONTANT VERSÉ</td><td style="text-align:right;color:${amountPaidColor};">${amountPaid.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr><td>Loyer total dû</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr class="total-row"><td>${amountPaid < receipt.total_amount ? 'MONTANT PER&Ccedil;U (ACOMPTE)' : 'MONTANT VERS&Eacute;'}</td><td style="text-align:right;color:${amountPaidColor};">${amountPaid.toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>
     <tr><td>Mode de paiement</td><td style="text-align:right">${pmLabel}</td></tr>
   </table>
 
   <div class="mention">
     ${legalMention}
-    ${expertWarning}
   </div>
 
   <div class="signature-row">

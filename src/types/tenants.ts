@@ -81,6 +81,7 @@ export interface TenantWithRental extends Tenant {
   active_contracts?: {
     id: string;
     status: string;
+    monthly_rent?: number;
     property?: {
       title: string;
     };

@@ -138,7 +138,7 @@ export const CaissePage: React.FC = () => {
         const fetchOwners = async () => {
             if (isDemoMode) {
                 const { MOCK_OWNERS } = await import('../../lib/mockData');
-                setOwners(MOCK_OWNERS as any);
+                setOwners(MOCK_OWNERS);
                 return;
             }
             const { data } = await supabase
@@ -147,7 +147,7 @@ export const CaissePage: React.FC = () => {
                 .eq('agency_id', user?.agency_id)
                 .order('first_name');
 
-            if (data) setOwners(data as any);
+            if (data) setOwners(data);
         };
 
         fetchOwners();
@@ -242,14 +242,7 @@ export const CaissePage: React.FC = () => {
             // Merge and Normalize
             const mappedReceipts: Transaction[] = (receipts || []).map(r => {
                 const amountPaid = r.amount_paid ?? r.total_amount;
-                const rent = r.contract?.monthly_rent || 0;
-                const charges = r.contract?.charges || 0;
-                const rentExpected = rent + charges;
-                
-                // Absolute truth: if less than contract rent, it's partial
-                const isPartial = (r.payment_status === 'partial') || 
-                                 (r.balance_due != null && r.balance_due > 0) ||
-                                 (rentExpected > 0 && amountPaid < rentExpected);
+                const isPartial = (r.amount_paid != null && r.amount_paid < r.total_amount) || (r.balance_due && r.balance_due > 0);
                 
                 return {
                     id: `receipt-${r.id}`,
@@ -262,18 +255,16 @@ export const CaissePage: React.FC = () => {
                     source: 'rent_receipt',
                     reference_id: r.receipt_number,
                     details: {
-                        ...r,
                         receipt_id: r.id,
                         owner_id: r.property?.owner_id,
                         owner_share: r.owner_payment,
-                        total_amount: Math.max(r.total_amount || 0, rentExpected),
+                        total_amount: r.total_amount,
                         amount_paid: amountPaid,
-                        balance_due: r.balance_due || (rentExpected > 0 ? Math.max(0, rentExpected - amountPaid) : 0),
+                        balance_due: r.balance_due,
                         is_partial: isPartial,
                         receipt_number: r.receipt_number,
                         property: r.property,
-                        tenant: r.tenant,
-                        contract: r.contract
+                        tenant: r.tenant
                     }
                 };
             });
@@ -405,17 +396,9 @@ export const CaissePage: React.FC = () => {
             const doc = new jsPDF();
             const pageWidth = doc.internal.pageSize.width;
             let y = renderPDFHeader(doc, branding, 15);
-            const amountPaid = t.amount;
-            const totalExpected = t.details?.total_amount || amountPaid;
-            const isPartial = t.details?.is_partial || amountPaid < totalExpected;
-            
-            const title = t.source === 'rent_receipt' 
-                ? (isPartial ? 'REÇU DE PAIEMENT DE LOYER' : 'QUITTANCE DE LOYER')
-                : 'RECU D\'OPERATION';
 
-            doc.setFontSize(18); 
-            doc.setFont('helvetica', 'bold'); 
-            doc.setTextColor(isPartial ? 180 : 30, isPartial ? 83 : 30, isPartial ? 9 : 30);
+            const title = t.source === 'rent_receipt' ? 'QUITTANCE DE LOYER' : 'RECU D\'OPERATION';
+            doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
             doc.text(title, pageWidth / 2, y, { align: 'center' }); y += 10;
             doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
             doc.text(`Date : ${new Date(t.date).toLocaleDateString('fr-FR')}`, pageWidth / 2, y, { align: 'center' }); y += 6;
@@ -700,7 +683,6 @@ export const CaissePage: React.FC = () => {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Moyen</th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Part Proprio</th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant Total</th>
@@ -731,21 +713,6 @@ export const CaissePage: React.FC = () => {
                                                 <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                                                     {t.description}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    {t.source === 'rent_receipt' ? (
-                                                        t.details?.is_partial ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
-                                                                ⚠ PARTIEL
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
-                                                                ✓ SOLDÉ
-                                                            </span>
-                                                        )
-                                                    ) : (
-                                                        <span className="text-gray-300">—</span>
-                                                    )}
-                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {t.payment_method}
                                                 </td>
@@ -758,10 +725,11 @@ export const CaissePage: React.FC = () => {
                                                 )}>
                                                     <div className="flex flex-col items-end">
                                                         <span>{t.type === 'credit' ? '+' : '-'}{t.amount.toLocaleString('fr-FR')}</span>
-                                                        {t.details?.is_partial && t.details.balance_due > 0 && (
-                                                            <span className="text-[10px] text-rose-500 font-bold mt-0.5">
-                                                                Reliquat : {t.details.balance_due.toLocaleString('fr-FR')}
-                                                            </span>
+                                                        {t.details?.is_partial && (
+                                                            <div className="flex flex-col items-end mt-1">
+                                                                <span className="text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 rounded border border-orange-100 mb-0.5">PARTIEL</span>
+                                                                <span className="text-[10px] text-gray-400 font-normal">sur {t.details.total_amount.toLocaleString('fr-FR')}</span>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </td>

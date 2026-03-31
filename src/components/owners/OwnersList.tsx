@@ -16,6 +16,7 @@ import debounce from 'lodash/debounce';
 import toast from 'react-hot-toast';
 import { clsx } from 'clsx';
 import { ViewToggle } from '../shared/ViewToggle';
+import { OwnerCard } from './OwnerCard';
 
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
@@ -392,86 +393,32 @@ export const OwnersList: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredOwners.map((owner) => {
-            const stats = getPropertyStats(owner.id);
-            const { tenantCount } = getOccupancyInfo(owner.id);
-            return (
-              <Card key={owner.id} className="p-0 overflow-hidden hover:shadow-lg transition-all cursor-pointer group" onClick={() => handleRowClick(owner)}>
-                <div className="relative h-32 bg-gradient-to-r from-primary-600 to-indigo-600">
-                  <div className="absolute -bottom-6 left-6">
-                    <div className="h-20 w-20 rounded-2xl bg-white p-1 shadow-md">
-                      <div className="h-full w-full rounded-xl bg-gray-100 flex items-center justify-center text-2xl font-bold text-primary-600">
-                        {owner.first_name[0]}{owner.last_name[0]}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6 pt-10">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 leading-tight">
-                        {owner.first_name} {owner.last_name}
-                      </h3>
-                      <p className="text-sm font-mono text-gray-400 mt-1">
-                        {owner.business_id || `PROP-${owner.id.slice(0, 8)}`}
-                      </p>
-                    </div>
-                    <div className="flex p-1 bg-gray-50 rounded-lg group-hover:bg-primary-50 transition-colors">
-                      <Eye className="w-4 h-4 text-gray-400 group-hover:text-primary-600" />
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Biens</span>
-                      <p className="text-xl font-black text-gray-800">{stats.total}</p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Locataires</span>
-                      <p className="text-xl font-black text-gray-800">{tenantCount}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 space-y-3">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                      {owner.city}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                      {owner.phone}
-                    </div>
-                  </div>
-
-                  <div className="mt-8 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRowClick(owner);
-                      }}
-                    >
-                      Détails
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-primary-600 hover:bg-primary-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const phone = owner.phone.replace(/\s+/g, '');
-                        window.open(`https://wa.me/${phone.startsWith('+') ? phone.slice(1) : (phone.startsWith('00') ? phone.slice(2) : `225${phone}`)}`, '_blank');
-                      }}
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+          {filteredOwners.map((owner) => (
+            <OwnerCard
+              key={owner.id}
+              owner={owner}
+              stats={getPropertyStats(owner.id)}
+              tenantCount={getOccupancyInfo(owner.id).tenantCount}
+              onNavigate={() => handleRowClick(owner)}
+              onEdit={() => {
+                setSelectedOwner(owner);
+                setShowForm(true);
+              }}
+              onDelete={async () => {
+                if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
+                  const toastId = toast.loading('Suppression en cours...');
+                  try {
+                    await dbService.owners.safeDelete(owner.id, user?.agency_id || undefined);
+                    refetch();
+                    toast.success('Propriétaire supprimé avec succès', { id: toastId });
+                  } catch (err: any) {
+                    console.error(err);
+                    toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+                  }
+                }
+              }}
+            />
+          ))}
         </div>
       )}
 

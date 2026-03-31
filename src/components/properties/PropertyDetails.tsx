@@ -86,9 +86,18 @@ export const PropertyDetails: React.FC = () => {
 
     // Fetch Related Data (Contracts & Tenants)
     const { data: contracts = [] } = useRealtimeData(
-        dbService.contracts.getAll,
+        async (params) => {
+            if (!params?.property_id || String(params.property_id).startsWith('PROP-')) {
+                // Skip if we only have the business_id for now, wait for the UUID
+                return [];
+            }
+            return dbService.contracts.getAll(params);
+        },
         'contracts',
-        { agency_id: authAgencyId || undefined, property_id: propertyId }
+        { 
+            agency_id: authAgencyId || undefined, 
+            property_id: property?.id // Only fetch using UUID
+        }
     );
     const { data: tenants = [] } = useRealtimeData(
         dbService.tenants.getAll,
@@ -99,7 +108,7 @@ export const PropertyDetails: React.FC = () => {
     // Derived Data
     // Correction : Un bien est "loué" uniquement s'il y a un contrat de type 'location' actif
     const activeContract: any = contracts?.find(c =>
-        c.property_id === propertyId &&
+        (c.property_id === property?.id || c.property_id === propertyId) &&
         c.status === 'active' &&
         c.type === 'location'
     );
@@ -109,7 +118,7 @@ export const PropertyDetails: React.FC = () => {
 
     // Historique : Uniquement les contrats de location pour cet onglet
     const rentalHistory = contracts?.filter(c =>
-        c.property_id === propertyId &&
+        (c.property_id === property?.id) &&
         c.type === 'location'
     ) || [];
 

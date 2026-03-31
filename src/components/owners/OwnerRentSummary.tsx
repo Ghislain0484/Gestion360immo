@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Clock, Building2, Calendar, Users, Home, Target, FileText } from 'lucide-react';
+import { TrendingUp, CheckCircle, AlertTriangle, Clock, Building2, Calendar, Users, Home, Target, FileText } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
@@ -90,21 +90,30 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const monthlyRentTarget = prop.monthly_rent || 0;
             const monthlyRentContractVal = contract?.monthly_rent || 0;
 
-            const receipt = currentPeriodReceipts.find(r => r.property_id === prop.id);
+            const periodReceipts = currentPeriodReceipts.filter(r => r.property_id === prop.id);
+            const amountPaid = periodReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0);
 
             let status: 'paid' | 'partial' | 'unpaid' | 'no_contract';
-            let amountPaid = 0;
             let balanceDue = 0;
 
             if (!contract) {
                 status = 'no_contract';
-            } else if (!receipt) {
+            } else if (periodReceipts.length === 0) {
                 status = 'unpaid';
                 balanceDue = monthlyRentContractVal;
             } else {
-                amountPaid = receipt.amount_paid ?? receipt.total_amount;
-                balanceDue = receipt.balance_due ?? Math.max(0, monthlyRentContractVal - amountPaid);
-                status = receipt.payment_status === 'partial' || balanceDue > 0 ? 'partial' : 'paid';
+                // If there's an explicit balance_due on the latest receipt, we might use it,
+                // but for this report context, contract - sum(paid) is more robust.
+                balanceDue = Math.max(0, monthlyRentContractVal - amountPaid);
+                
+                // Status determined by total paid vs contract
+                if (amountPaid >= monthlyRentContractVal) {
+                    status = 'paid';
+                } else if (amountPaid > 0) {
+                    status = 'partial';
+                } else {
+                    status = 'unpaid';
+                }
             }
 
             return {
@@ -329,7 +338,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                                                 <div>
                                                     <div className="font-bold text-slate-900 mb-0.5">{prop.title}</div>
                                                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                        <span className="text-slate-300">•</span> {prop.property_type || 'Catégorie N/A'}
+                                                        <span className="text-slate-300">•</span> {prop.details?.type || 'Catégorie N/A'}
                                                         <span className="text-slate-300">•</span> {prop.location?.commune || 'Sans commune'}
                                                     </div>
                                                 </div>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { User, Phone, MapPin, Briefcase, FileText, DollarSign, Trash2, Edit, MoreVertical, Home, CheckCircle2, AlertCircle, XCircle, Plus } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { User, CheckCircle2, AlertCircle, XCircle, Plus, Edit, Trash2 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -20,88 +20,9 @@ import { SuccessModal } from '../ui/SuccessModal';
 import { toast } from 'react-hot-toast';
 import { clsx } from 'clsx';
 import { ViewToggle } from '../shared/ViewToggle';
+import { TenantCard } from './TenantCard';
 
 const PAGE_SIZE = 100;
-
-// ─── Action Menu Dropdown ────────────────────────────────────────────────────
-interface ActionMenuProps {
-  tenant: TenantWithRental;
-  deleting: boolean;
-  onReceipt: () => void;
-  onEdit: () => void;
-  onLink: () => void;
-  onFinancials: () => void;
-  onDelete: () => void;
-}
-
-const ActionMenu: React.FC<ActionMenuProps> = ({
-  deleting,
-  onReceipt, onEdit, onLink, onFinancials, onDelete
-}) => {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative" onClick={e => e.stopPropagation()}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
-        aria-label="Actions"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-8 z-50 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 animate-scaleIn">
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-            onClick={() => { onReceipt(); setOpen(false); }}
-          >
-            <FileText className="h-4 w-4 text-blue-500" />
-            Générer une quittance
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
-            onClick={() => { onEdit(); setOpen(false); }}
-          >
-            <Edit className="h-4 w-4 text-indigo-500" />
-            Modifier
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
-            onClick={() => { onLink(); setOpen(false); }}
-          >
-            <Home className="h-4 w-4 text-green-500" />
-            Attribuer un bien
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
-            onClick={() => { onFinancials(); setOpen(false); }}
-          >
-            <DollarSign className="h-4 w-4 text-orange-500" />
-            État financier
-          </button>
-          <div className="my-1 border-t border-gray-100" />
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-            onClick={() => { onDelete(); setOpen(false); }}
-            disabled={deleting}
-          >
-            <Trash2 className="h-4 w-4" />
-            Supprimer
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
 
 // ─── Payment status helpers ──────────────────────────────────────────────────
 const paymentConfig = {
@@ -117,114 +38,6 @@ const avatarColors = [
   'from-green-500 to-emerald-600', 'from-rose-500 to-red-600',
 ];
 const getAvatarColor = (name: string) => avatarColors[name.charCodeAt(0) % avatarColors.length];
-
-// ─── TenantCard ──────────────────────────────────────────────────────────────
-interface TenantCardProps {
-  tenant: TenantWithRental;
-  deleting: boolean;
-  onNavigate: () => void;
-  onReceipt: () => void;
-  onEdit: () => void;
-  onLink: () => void;
-  onFinancials: () => void;
-  onDelete: () => void;
-}
-
-const TenantCard: React.FC<TenantCardProps> = ({
-  tenant, deleting,
-  onNavigate, onReceipt, onEdit, onLink, onFinancials, onDelete
-}) => {
-  const pCfg = paymentConfig[tenant.payment_status] ?? paymentConfig.bon;
-  const StatusIcon = pCfg.icon;
-  const fullName = `${tenant.first_name} ${tenant.last_name}`;
-  const initials = `${tenant.first_name[0] ?? ''}${tenant.last_name[0] ?? ''}`.toUpperCase();
-
-  return (
-    <div
-      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
-      onClick={onNavigate}
-    >
-      {/* Card header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Avatar */}
-          {tenant.photo_url ? (
-            <img
-              src={tenant.photo_url}
-              alt={fullName}
-              className="w-11 h-11 rounded-xl object-cover ring-2 ring-white shadow-sm flex-shrink-0"
-            />
-          ) : (
-            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${getAvatarColor(fullName)} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-              <span className="text-white font-bold text-sm">{initials}</span>
-            </div>
-          )}
-          <div className="min-w-0">
-            <h3 className="font-semibold text-gray-900 text-sm leading-tight group-hover:text-blue-600 transition-colors truncate">
-              {fullName}
-            </h3>
-            {tenant.business_id && (
-              <span className="text-[10px] text-gray-400 font-mono">{tenant.business_id}</span>
-            )}
-            <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
-              <Phone className="h-3 w-3" />
-              <span>{tenant.phone}</span>
-            </div>
-          </div>
-        </div>
-        {/* Action menu — always right-aligned, never wraps */}
-        <div className="flex-shrink-0 ml-2">
-          <ActionMenu
-            tenant={tenant}
-            deleting={deleting}
-            onReceipt={onReceipt}
-            onEdit={onEdit}
-            onLink={onLink}
-            onFinancials={onFinancials}
-            onDelete={onDelete}
-          />
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div className="mx-4 border-t border-gray-50" />
-
-      {/* Card body */}
-      <div className="px-4 py-3 space-y-2">
-        <div className="flex items-center gap-2 text-xs text-gray-600">
-          <MapPin className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
-          <span className="truncate">{tenant.city || '—'}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-gray-600">
-          <Briefcase className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />
-          <span className="truncate">{tenant.profession || '—'}</span>
-        </div>
-      </div>
-
-      {/* Footer badge */}
-      <div className="mx-4 mb-4 flex flex-col gap-2">
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${pCfg.bg} border ${pCfg.border}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${pCfg.dot} flex-shrink-0`} />
-          <StatusIcon className={`h-3.5 w-3.5 ${pCfg.color} flex-shrink-0`} />
-          <span className={`text-xs font-medium ${pCfg.color}`}>{pCfg.label}</span>
-        </div>
-
-        {/* Occupancy Status */}
-        <div className={clsx(
-          "flex items-center gap-2 px-3 py-1.5 rounded-lg border",
-          tenant.active_contracts?.length ? "bg-blue-50 border-blue-100 text-blue-700" : "bg-gray-50 border-gray-100 text-gray-500"
-        )}>
-          <Home className="h-3.5 w-3.5 flex-shrink-0" />
-          <span className="text-xs font-medium truncate">
-            {tenant.active_contracts?.length
-              ? `Occupe : ${tenant.active_contracts[0].property?.title || 'Bien inconnu'}`
-              : "Aucun bien occupé"}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // ─── Main TenantsList ────────────────────────────────────────────────────────
 export const TenantsList: React.FC = () => {
@@ -302,11 +115,11 @@ export const TenantsList: React.FC = () => {
     };
   }, [tenants, searchTerm]);
 
-  const { deleteItem: deleteTenant, loading: deleting } = useSupabaseDelete(
+  const { deleteItem: deleteTenant, loading: deletingTenant } = useSupabaseDelete(
     dbService.tenants.delete,
     {
       onSuccess: () => { refetch(); toast.success('Locataire supprimé avec succès'); },
-      onError: (err) => toast.error(err)
+      onError: (err: any) => toast.error(err)
     }
   );
 
@@ -498,7 +311,7 @@ export const TenantsList: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Locataires</h1>
           <p className="text-sm text-gray-500 mt-0.5">{filteredTenants.length} locataire{filteredTenants.length !== 1 ? 's' : ''} trouvé{filteredTenants.length !== 1 ? 's' : ''}</p>
@@ -616,23 +429,19 @@ export const TenantsList: React.FC = () => {
             </Button>
           </div>
         ) : viewMode === 'grid' ? (
-          filteredTenants.map(tenant => (
-            <TenantCard
-              key={tenant.id}
-              tenant={tenant}
-              deleting={deleting}
-              onNavigate={() => {
-                const slugId = tenant.business_id || tenant.id;
-                const slug = generateSlug(slugId, `${tenant.first_name} ${tenant.last_name}`);
-                navigate(`/locataires/${slug}`);
-              }}
-              onReceipt={() => { setSelectedTenant(tenant); setShowReceiptGenerator(true); }}
-              onEdit={() => handleEditClick(tenant)}
-              onLink={() => setTenantToLink(tenant)}
-              onFinancials={() => { setSelectedTenant(tenant); setShowFinancialStatements(true); }}
-              onDelete={() => handleDeleteTenant(tenant.id)}
-            />
-          ))
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTenants.map((tenant) => (
+              <TenantCard
+                key={tenant.id}
+                tenant={tenant}
+                onNavigate={() => navigate(`/locataires/${generateSlug(tenant.business_id || tenant.id, `${tenant.first_name} ${tenant.last_name}`)}`)}
+                onEdit={() => handleEditClick(tenant)}
+                onLink={() => setTenantToLink(tenant)}
+                onFinancials={() => { setSelectedTenant(tenant); setShowFinancialStatements(true); }}
+                onReceipt={() => { setSelectedTenant(tenant); setShowReceiptGenerator(true); }}
+              />
+            ))}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">

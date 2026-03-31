@@ -332,14 +332,15 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                     </div>
                     <input
                       type="number"
-                      className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 focus:ring-0 focus:border-gray-300 font-semibold cursor-not-allowed"
+                      className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-semibold"
                       value={rentAmount}
-                      readOnly
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setRentAmount(val);
+                        setAmountPaid(val + charges);
+                      }}
                       placeholder="0"
                     />
-                    <div className="absolute inset-y-0 right-3 flex items-center">
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">FIXÉ</span>
-                    </div>
                   </div>
                 </div>
                 <div>
@@ -590,7 +591,10 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                 )}
 
                 <div className="flex items-center justify-between text-base font-bold text-gray-800 bg-gray-100 p-2 rounded mt-2">
-                  <span>Montant encaissé :</span>
+                  <div className="flex flex-col">
+                    <span>Montant encaissé :</span>
+                    <span className="text-[10px] font-normal text-gray-500 italic">Net Propriétaire estimé: {estimatedOwnerPayment.toLocaleString('fr-FR')} FCFA</span>
+                  </div>
                   <span className="text-indigo-700">{amountPaid.toLocaleString('fr-FR')} FCFA</span>
                 </div>
               </div>

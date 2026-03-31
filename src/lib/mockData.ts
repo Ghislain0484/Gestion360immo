@@ -161,20 +161,14 @@ const generateReceipts = (): any[] => {
       const rent = isC1 ? 12500000 : 28000000;
       const ownerNet = rent * 0.9;
       
-      const amountPaidVal = (m === 0 && cId === 'demo-contract-4') ? 20000000 : rent;
-      const isPartial = amountPaidVal < rent;
-      
       receipts.push({
         id: `r-demo-${cId}-${m}`,
         receipt_number: `REC-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}-${cId.slice(-1)}`,
         period_month: d.getMonth() + 1,
         period_year: d.getFullYear(),
         total_amount: rent,
-        amount_paid: amountPaidVal,
-        balance_due: rent - amountPaidVal,
-        payment_status: isPartial ? 'partial' : 'paid',
-        owner_payment: amountPaidVal * 0.9,
-        commission_amount: amountPaidVal * 0.1,
+        owner_payment: ownerNet,
+        commission_amount: rent * 0.1,
         payment_date: d.toISOString(),
         payment_method: 'bank_transfer',
         contract_id: cId,
