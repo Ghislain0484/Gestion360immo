@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, Filter, Calendar, TrendingUp, Wallet, ArrowRightLeft, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
+import { Download, Calendar, TrendingUp, Wallet, ArrowRightLeft, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
@@ -20,7 +20,7 @@ import { printReceiptHTML, downloadReceiptPDF } from '../../utils/receiptActions
 
 interface Owner {
     id: string;
-    business_id: string;
+    business_id?: string;
     first_name: string;
     last_name: string;
 }
@@ -255,6 +255,7 @@ export const CaissePage: React.FC = () => {
                     source: 'rent_receipt',
                     reference_id: r.receipt_number,
                     details: {
+                        ...r,
                         receipt_id: r.id,
                         owner_id: r.property?.owner_id,
                         owner_share: r.owner_payment,
