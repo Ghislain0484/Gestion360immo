@@ -3,7 +3,6 @@ import { User, CheckCircle2, AlertCircle, XCircle, Plus, Edit, Trash2, Download 
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { FilterBar } from '../shared/FilterBar';
 import { TenantForm } from './TenantForm';
@@ -404,19 +403,10 @@ export const TenantsList: React.FC = () => {
           ]}
         />
       </Card>
-      {/* Results Count Badge */}
-      <div className="flex items-center gap-2 mb-2">
-        <Badge variant="primary" className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm border-none">
-          {filteredTenants.length}
-        </Badge>
-        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-          locataire{filteredTenants.length > 1 ? 's' : ''} trouvé{filteredTenants.length > 1 ? 's' : ''}
-        </span>
-      </div>
 
       {/* Content */}
       <div className={clsx(
-        viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" : "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+        viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
       )}>
         {initialLoading ? (
           // Skeleton loaders
@@ -486,7 +476,7 @@ export const TenantsList: React.FC = () => {
                             {tenant.first_name[0]}{tenant.last_name[0]}
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-gray-900">{tenant.first_name} {tenant.last_name}</div>
+                            <div className="text-sm font-medium text-gray-900 group-hover:text-primary-600 transition-colors truncate">{tenant.first_name} {tenant.last_name}</div>
                             <div className="text-[10px] text-gray-400 font-mono">{tenant.business_id}</div>
                           </div>
                         </div>

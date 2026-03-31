@@ -49,10 +49,10 @@ export const TenantCard: React.FC<TenantCardProps> = ({
         </div>
       </div>
 
-      <div className="p-6 pt-10">
+      <div className="p-4 pt-8">
         <div className="flex justify-between items-start">
           <div className="min-w-0">
-            <h3 className="text-lg font-bold text-gray-900 group-hover:text-primary-600 transition-colors truncate">
+            <h3 className="text-base font-bold text-gray-900 group-hover:text-primary-600 transition-colors truncate">
               {fullName}
             </h3>
             <p className="text-[10px] font-mono text-gray-400 mt-0.5 uppercase tracking-wider">
@@ -65,7 +65,7 @@ export const TenantCard: React.FC<TenantCardProps> = ({
         </div>
 
         {/* Info Grid */}
-        <div className="mt-6 space-y-3">
+        <div className="mt-4 space-y-3">
           <div className="flex items-center text-sm text-gray-600 font-medium">
              <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center mr-3 group-hover:bg-primary-50 transition-colors">
                 <Phone className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary-600" />
@@ -81,7 +81,7 @@ export const TenantCard: React.FC<TenantCardProps> = ({
         </div>
 
         {/* Rental Status */}
-        <div className="mt-6 pt-4 border-t border-gray-50">
+        <div className="mt-4 pt-4 border-t border-gray-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className={clsx("w-2 h-2 rounded-full", tenant.propertyId ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
@@ -98,7 +98,7 @@ export const TenantCard: React.FC<TenantCardProps> = ({
         </div>
 
         {/* Actions Row */}
-        <div className="mt-6 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="mt-4 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
            <button 
              onClick={(e) => { e.stopPropagation(); onReceipt(); }}
              className="flex-1 h-9 flex items-center justify-center gap-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold"
