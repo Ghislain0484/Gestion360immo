@@ -251,21 +251,33 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                         )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        {payment.payment_status === 'partial' || ((payment.amount_paid ?? payment.total_amount) < payment.total_amount) ? (
-                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
-                                                ⚠ Partiel
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                                                ✓ Soldé
-                                            </span>
-                                        )}
-                                        {payment.balance_due != null && payment.balance_due > 0 && (
-                                            <div className="text-xs text-red-500 mt-1">
-                                                Reste : {formatCurrency(payment.balance_due)}
-                                            </div>
-                                        )}
-                                    </td>
+                                         {(() => {
+                                             const amountPaid = payment.amount_paid ?? payment.total_amount;
+                                             const rentExpected = (payment.contract?.monthly_rent || 0) + (payment.contract?.charges || 0);
+                                             const isPartialByContract = rentExpected > 0 && amountPaid < rentExpected;
+                                             const isPartialByReceipt = (payment.amount_paid != null && payment.amount_paid < payment.total_amount) || (payment.balance_due && payment.balance_due > 0);
+                                             const isPartial = isPartialByContract || isPartialByReceipt || payment.payment_status === 'partial';
+                                             const balanceDue = payment.balance_due || (rentExpected > 0 ? Math.max(0, rentExpected - amountPaid) : 0);
+
+                                             if (isPartial) {
+                                                 return <>
+                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                                                         ⚠ Partiel
+                                                     </span>
+                                                     {balanceDue > 0 && (
+                                                         <div className="text-[10px] text-red-500 mt-1 font-bold">
+                                                             Reste : {formatCurrency(balanceDue)}
+                                                         </div>
+                                                     )}
+                                                 </>;
+                                             }
+                                             return (
+                                                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                                     ✓ Soldé
+                                                 </span>
+                                             );
+                                         })()}
+                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <CreditCard className="w-4 h-4" />

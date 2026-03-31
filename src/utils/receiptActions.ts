@@ -27,40 +27,26 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
 
-    // Détection paiement partiel : 3 critères pour couvrir les anciennes quittances
-    const isPartial =
-      receipt.payment_status === 'partial' ||
-      (receipt.balance_due ?? 0) > 0 ||
-      (receipt.amount_paid != null && receipt.amount_paid < receipt.total_amount);
+    const amountPaid = receipt.amount_paid ?? receipt.total_amount;
 
     // En-tête avec logo
     let y = renderPDFHeader(doc, branding, 15);
 
+    const isPartial = amountPaid < receipt.total_amount;
+    const documentTitle = isPartial ? "REÇU DE PAIEMENT DE LOYER" : "QUITTANCE DE LOYER";
+
     // Titre
     doc.setFontSize(16);
-    doc.setTextColor(30, 30, 30);
+    doc.setTextColor(isPartial ? 217 : 30, isPartial ? 119 : 30, isPartial ? 6 : 30); // Orange if partial
     doc.setFont('helvetica', 'bold');
-    doc.text("QUITTANCE DE LOYER", pageWidth / 2, y, { align: 'center' });
+    doc.text(documentTitle, pageWidth / 2, y, { align: 'center' });
     y += 8;
 
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
     doc.text(`N° ${receipt.receipt_number}`, pageWidth / 2, y, { align: 'center' });
-    y += 8;
-
-    // Bandeau PAIEMENT PARTIEL si applicable
-    if (isPartial) {
-      doc.setFillColor(255, 237, 213); // orange-100
-      doc.setDrawColor(234, 88, 12);   // orange-600
-      doc.setLineWidth(0.5);
-      doc.roundedRect(18, y, pageWidth - 36, 10, 2, 2, 'FD');
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(194, 65, 12); // orange-700
-      doc.text('⚠  PAIEMENT PARTIEL - SOLDE RESTANT À PERCEVOIR', pageWidth / 2, y + 6.5, { align: 'center' });
-      y += 16;
-    }
+    y += 12;
 
     // Période et date
     doc.setFontSize(11);
@@ -134,45 +120,21 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
       y += 8;
     };
 
+    drawRow("Loyer :", `${receipt.rent_amount.toLocaleString('fr-FR')} FCFA`);
     drawRow("Charges :", `${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA`);
-    drawRow("Loyer total dû :", `${receipt.total_amount.toLocaleString('fr-FR')} FCFA`);
-
-    // Nous utilisons isPartial déjà déclaré en haut de la fonction
-    const amountPaid = receipt.amount_paid ?? receipt.total_amount;
-
-    if (receipt.owner_payment != null || isPartial) {
-      const ownerShare = receipt.owner_payment ?? (amountPaid * 0.9); // Default to 10% commission if null
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(79, 70, 229); // indigo-600
-      drawRow("Part Propriétaire (Net) :", `${ownerShare.toLocaleString('fr-FR')} FCFA`);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(30, 30, 30);
-    }
 
     doc.setDrawColor(59, 130, 246);
     doc.line(col1, y, pageWidth - 20, y);
     y += 6;
-    const balanceDue = receipt.balance_due ?? 0;
 
-    // Montant versé : vert si complet, orange si partiel
-    if (isPartial) {
-      doc.setTextColor(194, 65, 12); // orange-700
-    } else {
-      doc.setTextColor(22, 163, 74); // green-600
-    }
+    // Montant versé : vert
+    doc.setTextColor(22, 163, 74); // green-600
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text("MONTANT VERSÉ :", col1, y);
     doc.text(`${amountPaid.toLocaleString('fr-FR')} FCFA`, col2, y);
-    y += 8;
+    y += 12;
     doc.setTextColor(30, 30, 30);
-
-    if (balanceDue > 0) {
-      doc.setTextColor(220, 50, 50);
-      drawRow("SOLDE RESTANT :", `${balanceDue.toLocaleString('fr-FR')} FCFA`, true);
-      doc.setTextColor(30, 30, 30);
-    }
-    y += 4;
 
     drawRow("Date de paiement :", new Date(receipt.payment_date).toLocaleDateString('fr-FR'));
     drawRow("Mode de paiement :", getPaymentMethodLabel(receipt.payment_method));
@@ -183,32 +145,29 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
 
     y += 8;
 
-    // Mention légale adaptée selon statut
+    // Mention légale (Simple)
     doc.setFillColor(248, 250, 252);
-    doc.roundedRect(18, y, pageWidth - 36, 22, 2, 2, 'F');
+    doc.roundedRect(18, y, pageWidth - 36, 26, 2, 2, 'F');
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(100, 100, 100);
+    doc.text(
+      "Je soussigné(e), agence gestionnaire, certifie avoir reçu la somme ci-dessus indiquée",
+      pageWidth / 2, y + 8, { align: 'center' }
+    );
+    doc.text(
+      `à titre de loyer pour le mois de ${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}.`,
+      pageWidth / 2, y + 15, { align: 'center' }
+    );
     if (isPartial) {
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setTextColor(180, 83, 9); // dark amber
       doc.text(
-        `Je soussigné(e), agence gestionnaire, certifie avoir reçu un acompte de ${amountPaid.toLocaleString('fr-FR')} FCFA`,
-        pageWidth / 2, y + 8, { align: 'center' }
-      );
-      doc.text(
-        `au titre du loyer de ${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}. Solde restant : ${balanceDue.toLocaleString('fr-FR')} FCFA.`,
-        pageWidth / 2, y + 15, { align: 'center' }
-      );
-    } else {
-      doc.text(
-        "Je soussigné(e), agence gestionnaire, certifie avoir reçu la somme ci-dessus indiquée",
-        pageWidth / 2, y + 8, { align: 'center' }
-      );
-      doc.text(
-        `à titre de loyer pour le mois de ${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}.`,
-        pageWidth / 2, y + 15, { align: 'center' }
+        "Ce reçu ne vaut pas quittance pour le solde de la période indiquée.",
+        pageWidth / 2, y + 22, { align: 'center' }
       );
     }
-    y += 32;
+    y += 36;
 
     // Signature
     doc.setFont('helvetica', 'normal');
@@ -231,33 +190,13 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     const logoHtml = branding.logo ? `<img src="${branding.logo}" alt="Logo" style="max-height:70px; object-fit:contain;">` : '';
     const periodStr = `${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}`;
     const pmLabel = getPaymentMethodLabel(receipt.payment_method);
-
-    // Détection paiement partiel : 3 critères pour couvrir les anciennes quittances
-    const isPartial =
-      receipt.payment_status === 'partial' ||
-      (receipt.balance_due ?? 0) > 0 ||
-      (receipt.amount_paid != null && receipt.amount_paid < receipt.total_amount);
     const amountPaid = receipt.amount_paid ?? receipt.total_amount;
-    const balanceDue = receipt.balance_due ?? (isPartial ? receipt.total_amount - amountPaid : 0);
+    const isPartial = amountPaid < receipt.total_amount;
+    const documentTitle = isPartial ? "REÇU DE PAIEMENT DE LOYER" : "QUITTANCE DE LOYER";
 
-    // Colors and labels based on payment status
-    const statusBanner = isPartial
-      ? `<div style="background:#fff7ed;border:2px solid #ea580c;border-radius:6px;padding:10px 16px;margin:10px 0;text-align:center;">
-           <span style="color:#c2410c;font-weight:bold;font-size:14px;">&#9888; PAIEMENT PARTIEL &mdash; SOLDE RESTANT &Agrave; PERCEVOIR</span>
-         </div>`
-      : `<div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:6px;padding:8px 16px;margin:10px 0;text-align:center;">
-           <span style="color:#15803d;font-weight:bold;font-size:13px;">&#10003; LOYER SOLD&Eacute; INT&Eacute;GRALEMENT</span>
-         </div>`;
-
-    const amountPaidColor = isPartial ? '#c2410c' : '#16a34a'; // orange or green
-    const balanceDueRow = balanceDue > 0
-      ? `<tr><td style="color:#dc2626;font-weight:bold">SOLDE RESTANT</td><td style="text-align:right;color:#dc2626;font-weight:bold">${balanceDue.toLocaleString('fr-FR')} FCFA</td></tr>`
-      : '';
-
-    const legalMention = isPartial
-      ? `Je soussign&eacute;(e), agence gestionnaire, certifie avoir re&ccedil;u un acompte de <strong>${amountPaid.toLocaleString('fr-FR')} FCFA</strong><br>
-         au titre du loyer de ${periodStr}. &mdash; <span style="color:#dc2626;font-weight:bold;">Solde restant : ${balanceDue.toLocaleString('fr-FR')} FCFA</span>`
-      : `Je soussign&eacute;(e), agence gestionnaire, certifie avoir re&ccedil;u la somme ci-dessus indiqu&eacute;e<br>à titre de loyer pour le mois de ${periodStr}.`;
+    const amountPaidColor = '#16a34a'; // always green
+    const legalMention = `Je soussign&eacute;(e), agence gestionnaire, certifie avoir re&ccedil;u la somme ci-dessus indiqu&eacute;e<br>à titre de loyer pour le mois de ${periodStr}.`;
+    const expertWarning = isPartial ? `<div style="color:#b45309; font-weight:bold; margin-top:5px; font-size:10px;">Ce reçu ne vaut pas quittance pour le solde de la période indiquée.</div>` : '';
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -301,10 +240,8 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     </div>
   </div>
 
-  <h1>QUITTANCE DE LOYER</h1>
+  <h1>${documentTitle}</h1>
   <div class="receipt-num">N° ${receipt.receipt_number}</div>
-
-  ${statusBanner}
 
   <div class="period-row">
     <span>Période : ${periodStr}</span>
@@ -329,18 +266,16 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
 
   <div class="section-title">DÉTAIL DU PAIEMENT</div>
   <table class="payment-table">
-    <tr><td>Loyer mensuel</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr><td>Loyer</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
-    <tr><td>Loyer total dû</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
-    ${receipt.owner_payment != null || isPartial ? `<tr><td style="color:#4f46e5;font-weight:bold">Part Propriétaire (Net)</td><td style="text-align:right;color:#4f46e5;font-weight:bold">${(receipt.owner_payment ?? (amountPaid * 0.9)).toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
     <tr class="total-row"><td>MONTANT VERSÉ</td><td style="text-align:right;color:${amountPaidColor};">${amountPaid.toLocaleString('fr-FR')} FCFA</td></tr>
-    ${balanceDueRow}
     <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>
     <tr><td>Mode de paiement</td><td style="text-align:right">${pmLabel}</td></tr>
   </table>
 
   <div class="mention">
     ${legalMention}
+    ${expertWarning}
   </div>
 
   <div class="signature-row">

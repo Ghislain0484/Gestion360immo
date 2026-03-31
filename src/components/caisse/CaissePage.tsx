@@ -138,7 +138,7 @@ export const CaissePage: React.FC = () => {
         const fetchOwners = async () => {
             if (isDemoMode) {
                 const { MOCK_OWNERS } = await import('../../lib/mockData');
-                setOwners(MOCK_OWNERS);
+                setOwners(MOCK_OWNERS as any);
                 return;
             }
             const { data } = await supabase
@@ -147,7 +147,7 @@ export const CaissePage: React.FC = () => {
                 .eq('agency_id', user?.agency_id)
                 .order('first_name');
 
-            if (data) setOwners(data);
+            if (data) setOwners(data as any);
         };
 
         fetchOwners();
@@ -203,15 +203,9 @@ export const CaissePage: React.FC = () => {
             let receiptsQuery = supabase
                 .from('rent_receipts')
                 .select(`
-                    id,
-                    receipt_number,
-                    total_amount,
-                    owner_payment,
-                    commission_amount,
-                    payment_date,
-                    payment_method,
-                    property:properties!inner(title, business_id, owner_id),
-                    tenant:tenants(first_name, last_name)
+                    *,
+                    tenant:tenants(first_name, last_name, business_id),
+                    property:properties(title, business_id, owner_id)
                 `)
                 .eq('agency_id', user?.agency_id);
 
@@ -246,25 +240,45 @@ export const CaissePage: React.FC = () => {
             const { data: cashTrans } = await cashQuery;
 
             // Merge and Normalize
-            const receiptTrans: Transaction[] = (receipts || []).map((r: any) => ({
-                id: r.id,
-                date: r.payment_date,
-                type: 'credit',
-                amount: r.total_amount,
-                category: 'rent_payment',
-                description: `Loyer - ${r.property.title} (${r.tenant?.first_name} ${r.tenant?.last_name})`,
-                payment_method: r.payment_method,
-                source: 'rent_receipt',
-                reference_id: r.receipt_number,
-                details: {
-                    ...r,
-                    owner_share: r.owner_payment,
-                    agency_share: (r.total_amount || 0) - (r.owner_payment || 0)
-                }
-            }));
+            const mappedReceipts: Transaction[] = (receipts || []).map(r => {
+                const amountPaid = r.amount_paid ?? r.total_amount;
+                const rent = r.contract?.monthly_rent || 0;
+                const charges = r.contract?.charges || 0;
+                const rentExpected = rent + charges;
+                
+                // Absolute truth: if less than contract rent, it's partial
+                const isPartial = (r.payment_status === 'partial') || 
+                                 (r.balance_due != null && r.balance_due > 0) ||
+                                 (rentExpected > 0 && amountPaid < rentExpected);
+                
+                return {
+                    id: `receipt-${r.id}`,
+                    date: r.payment_date,
+                    type: 'credit',
+                    category: 'rent_payment',
+                    amount: amountPaid,
+                    description: `Loyer ${r.property?.title || 'Bien'} - ${r.tenant ? `${r.tenant.first_name} ${r.tenant.last_name}` : 'Locataire'}`,
+                    payment_method: r.payment_method,
+                    source: 'rent_receipt',
+                    reference_id: r.receipt_number,
+                    details: {
+                        ...r,
+                        receipt_id: r.id,
+                        owner_id: r.property?.owner_id,
+                        owner_share: r.owner_payment,
+                        total_amount: Math.max(r.total_amount || 0, rentExpected),
+                        amount_paid: amountPaid,
+                        balance_due: r.balance_due || (rentExpected > 0 ? Math.max(0, rentExpected - amountPaid) : 0),
+                        is_partial: isPartial,
+                        receipt_number: r.receipt_number,
+                        property: r.property,
+                        tenant: r.tenant,
+                        contract: r.contract
+                    }
+                };
+            });
 
             const manualTrans: Transaction[] = (cashTrans || []).map((t: any) => {
-                // Map modular types to Caisse types
                 let displayType: 'credit' | 'debit' = t.type as any;
                 if (t.type === 'income' || t.type === 'deposit') displayType = 'credit';
                 if (t.type === 'expense' || t.type === 'salary' || t.type === 'transfer') displayType = 'debit';
@@ -283,7 +297,7 @@ export const CaissePage: React.FC = () => {
                 };
             });
 
-            const allTrans = [...receiptTrans, ...manualTrans].sort((a, b) =>
+            const allTrans = [...mappedReceipts, ...manualTrans].sort((a, b) =>
                 new Date(b.date).getTime() - new Date(a.date).getTime()
             );
 
@@ -307,7 +321,7 @@ export const CaissePage: React.FC = () => {
                 
                 const potential = props?.reduce((s, p) => s + (Number(p.monthly_rent) || 0), 0) || 0;
                 const expected = contracts?.reduce((s, c) => s + (Number(c.monthly_rent) || 0), 0) || 0;
-                const collected = receiptTrans.reduce((s, t) => s + t.amount, 0);
+                const collected = mappedReceipts.reduce((s, t) => s + t.amount, 0);
 
                 setMetrics({
                     potential,
@@ -391,9 +405,17 @@ export const CaissePage: React.FC = () => {
             const doc = new jsPDF();
             const pageWidth = doc.internal.pageSize.width;
             let y = renderPDFHeader(doc, branding, 15);
+            const amountPaid = t.amount;
+            const totalExpected = t.details?.total_amount || amountPaid;
+            const isPartial = t.details?.is_partial || amountPaid < totalExpected;
+            
+            const title = t.source === 'rent_receipt' 
+                ? (isPartial ? 'REÇU DE PAIEMENT DE LOYER' : 'QUITTANCE DE LOYER')
+                : 'RECU D\'OPERATION';
 
-            const title = t.source === 'rent_receipt' ? 'QUITTANCE DE LOYER' : 'RECU D\'OPERATION';
-            doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+            doc.setFontSize(18); 
+            doc.setFont('helvetica', 'bold'); 
+            doc.setTextColor(isPartial ? 180 : 30, isPartial ? 83 : 30, isPartial ? 9 : 30);
             doc.text(title, pageWidth / 2, y, { align: 'center' }); y += 10;
             doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
             doc.text(`Date : ${new Date(t.date).toLocaleDateString('fr-FR')}`, pageWidth / 2, y, { align: 'center' }); y += 6;
@@ -678,6 +700,7 @@ export const CaissePage: React.FC = () => {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Moyen</th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Part Proprio</th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant Total</th>
@@ -708,6 +731,21 @@ export const CaissePage: React.FC = () => {
                                                 <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                                                     {t.description}
                                                 </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    {t.source === 'rent_receipt' ? (
+                                                        t.details?.is_partial ? (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                                                ⚠ PARTIEL
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
+                                                                ✓ SOLDÉ
+                                                            </span>
+                                                        )
+                                                    ) : (
+                                                        <span className="text-gray-300">—</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {t.payment_method}
                                                 </td>
@@ -718,7 +756,14 @@ export const CaissePage: React.FC = () => {
                                                     "px-6 py-4 whitespace-nowrap text-sm font-semibold text-right",
                                                     t.type === 'credit' ? "text-green-600" : "text-red-600"
                                                 )}>
-                                                    {t.type === 'credit' ? '+' : '-'}{t.amount.toLocaleString('fr-FR')}
+                                                    <div className="flex flex-col items-end">
+                                                        <span>{t.type === 'credit' ? '+' : '-'}{t.amount.toLocaleString('fr-FR')}</span>
+                                                        {t.details?.is_partial && t.details.balance_due > 0 && (
+                                                            <span className="text-[10px] text-rose-500 font-bold mt-0.5">
+                                                                Reliquat : {t.details.balance_due.toLocaleString('fr-FR')}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     <div className="flex items-center justify-end gap-1">
@@ -831,15 +876,36 @@ export const CaissePage: React.FC = () => {
                             <h2 className="text-lg font-bold text-gray-900">Détail de la transaction</h2>
                             <button onClick={() => setSelectedTransaction(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
                         </div>
-                        <div className="p-6 space-y-3">
+                        <div className="p-6 space-y-4">
                             <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">N° Quittance</span><span className="font-medium">{selectedTransaction.details?.receipt_number || '-'}</span></div>
                                 <div className="flex justify-between text-sm"><span className="text-gray-500">Date</span><span className="font-medium">{new Date(selectedTransaction.date).toLocaleDateString('fr-FR')}</span></div>
                                 <div className="flex justify-between text-sm"><span className="text-gray-500">Catégorie</span><span className="font-medium">{selectedTransaction.category === 'rent_payment' ? 'Loyer' : selectedTransaction.category}</span></div>
                                 <div className="flex justify-between text-sm"><span className="text-gray-500">Description</span><span className="font-medium">{selectedTransaction.description}</span></div>
                                 <div className="flex justify-between text-sm"><span className="text-gray-500">Mode de paiement</span><span className="font-medium">{selectedTransaction.payment_method}</span></div>
                             </div>
+
+                            {selectedTransaction.category === 'rent_payment' && selectedTransaction.details?.total_amount && (
+                                <div className="space-y-2 border-t border-gray-100 pt-3 text-sm">
+                                    <div className="flex justify-between text-gray-600">
+                                        <span>Loyer total dû</span>
+                                        <span>{selectedTransaction.details.total_amount.toLocaleString('fr-FR')} FCFA</span>
+                                    </div>
+                                    <div className="flex justify-between text-green-600 font-medium">
+                                        <span>Montant versé</span>
+                                        <span>{selectedTransaction.amount.toLocaleString('fr-FR')} FCFA</span>
+                                    </div>
+                                    {selectedTransaction.details.is_partial && (
+                                        <div className="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded-lg mt-2">
+                                            <span>SOLDE RESTANT</span>
+                                            <span>{(selectedTransaction.details.balance_due || (selectedTransaction.details.total_amount - selectedTransaction.amount)).toLocaleString('fr-FR')} FCFA</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="flex justify-between font-bold text-lg border-t border-gray-200 pt-3">
-                                <span>Montant</span>
+                                <span>{selectedTransaction.category === 'rent_payment' ? 'Total Encaissé' : 'Montant'}</span>
                                 <span className={selectedTransaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}>
                                     {selectedTransaction.type === 'credit' ? '+' : '-'}{selectedTransaction.amount.toLocaleString('fr-FR')} FCFA
                                 </span>
