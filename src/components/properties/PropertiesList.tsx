@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Plus, Trash2, Eye } from 'lucide-react';
+import { Plus, Trash2, Eye, Building2, TrendingUp, Home, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -14,6 +14,7 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { ViewToggle } from '../shared/ViewToggle';
+import { exportToExcel } from '../../utils/exportUtils';
 
 export const PropertiesList: React.FC = () => {
   const navigate = useNavigate();
@@ -45,11 +46,13 @@ export const PropertiesList: React.FC = () => {
     includeOwner: true
   }), [authAgencyId]);
 
-  const { data: properties, initialLoading, error, refetch } = useRealtimeData<Property>(
+  const { data: rawProperties = [], initialLoading, error, refetch } = useRealtimeData<Property>(
     fetchProperties,
     'properties',
     { limit: 1000 }
   );
+
+  const properties = rawProperties as (Property & { owner?: { first_name: string; last_name: string; business_id: string } })[];
 
   // Fetch contracts and tenants for display
   const { data: contracts } = useRealtimeData(
@@ -138,6 +141,26 @@ export const PropertiesList: React.FC = () => {
     }
   );
 
+
+  const handleExport = () => {
+    try {
+      const dataToExport = filteredProperties.map(p => ({
+        'ID Bien': p.business_id || p.id,
+        'Titre': p.title,
+        'Type': p.details.type,
+        'Standing': p.standing,
+        'Commune': p.location.commune,
+        'Quartier': p.location.quartier,
+        'Loyer Mensuel': p.monthly_rent,
+        'Propriétaire': p.owner?.first_name ? `${p.owner.first_name} ${p.owner.last_name}` : 'N/A',
+        'Disponibilité': p.is_available ? 'Disponible' : 'Indisponible'
+      }));
+      exportToExcel(dataToExport, 'Proprietes_Gestion360', 'Propriétés');
+      toast.success('Export Excel réussi !');
+    } catch (error) {
+      toast.error('Erreur lors de l’export');
+    }
+  };
 
   const filteredProperties = useMemo(() => {
     return properties.filter((property) => {
@@ -259,18 +282,78 @@ export const PropertiesList: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Propriétés</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {properties.length} bien{properties.length > 1 ? 's' : ''} en gestion
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+            <Building2 className="h-6 w-6 text-blue-600" />
+            Parc Immobilier
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {properties.length} bien{properties.length > 1 ? 's' : ''} enregistrés au catalogue
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <ViewToggle view={viewMode} onChange={setViewMode} />
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nouveau Bien
+          
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            className="flex items-center space-x-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Exporter</span>
+          </Button>
+
+          <Button onClick={() => setShowForm(true)} className="shadow-md hover:shadow-lg transition-all group">
+            <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
+            <span>Nouveau Bien</span>
           </Button>
         </div>
+      </div>
+
+      {/* Summary Cards - Logic Expert */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-gradient-to-br from-indigo-600 to-blue-700 text-white border-none relative overflow-hidden group">
+          <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <Home className="w-24 h-24" />
+          </div>
+          <div className="p-6">
+            <p className="text-blue-100 text-xs font-semibold uppercase tracking-wider mb-1">Total Propriétés</p>
+            <div className="text-3xl font-bold">{stats.total}</div>
+            <div className="mt-4 flex items-center text-xs text-blue-100">
+              <span className="inline-block w-2 h-2 rounded-full bg-blue-300 mr-2" />
+              Catalogue général
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-white border-slate-100 shadow-sm relative overflow-hidden group">
+          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500 text-emerald-600">
+            <TrendingUp className="w-24 h-24" />
+          </div>
+          <div className="p-6">
+            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Unités Vacantes</p>
+            <div className="text-3xl font-bold text-slate-900">{stats.vacant}</div>
+            <div className="mt-4 flex items-center text-xs text-emerald-600 font-medium">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse" />
+              Disponibles immédiatement
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-white border-slate-100 shadow-sm relative overflow-hidden group">
+          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500 text-blue-600">
+            <Building2 className="w-24 h-24" />
+          </div>
+          <div className="p-6">
+            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Taux d'Occupation</p>
+            <div className="text-3xl font-bold text-slate-900">
+              {stats.total > 0 ? Math.round((stats.occupied / stats.total) * 100) : 0}%
+            </div>
+            <div className="mt-4 flex items-center text-xs text-blue-600 font-medium">
+              <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-2" />
+              Performance du parc
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Filters */}

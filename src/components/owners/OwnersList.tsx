@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Trash2, Edit, Download } from 'lucide-react';
 import { useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { clsx } from 'clsx';
 import { ViewToggle } from '../shared/ViewToggle';
 import { OwnerCard } from './OwnerCard';
+import { exportToExcel, formatOwnersForExport } from '../../utils/exportUtils';
 
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
@@ -113,6 +114,16 @@ export const OwnersList: React.FC = () => {
     });
   }, [owners, searchTerm, filterOccupancy, properties, contracts]);
 
+  const handleExport = () => {
+    try {
+      const dataToExport = formatOwnersForExport(filteredOwners);
+      exportToExcel(dataToExport, 'Proprietaires_Gestion360', 'Propriétaires');
+      toast.success('Export Excel réussi !');
+    } catch (error) {
+      toast.error('Erreur lors de l’export');
+    }
+  };
+
   const handleRowClick = (owner: Owner) => {
     // Generate human-readable slug using business_id if available, otherwise fallback to id
     const slugId = owner.business_id || owner.id;
@@ -155,10 +166,27 @@ export const OwnersList: React.FC = () => {
             {owners.length} propriétaire{owners.length > 1 ? 's' : ''} enregistré{owners.length > 1 ? 's' : ''}
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nouveau Propriétaire
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            className="flex items-center space-x-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4" />
+            <span>Exporter Excel</span>
+          </Button>
+
+          <Button
+            onClick={() => {
+              setSelectedOwner(null);
+              setShowForm(true);
+            }}
+            className="flex items-center space-x-2 shadow-md hover:shadow-lg transition-all"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Nouveau Propriétaire</span>
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

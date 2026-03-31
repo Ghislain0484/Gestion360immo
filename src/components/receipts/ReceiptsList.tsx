@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Eye, Printer, Download, Plus, Search, FileText } from 'lucide-react';
+import { Eye, Printer, Download, Plus, Search, FileText, TrendingUp, AlertCircle } from 'lucide-react';
 import { debounce } from 'lodash';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -25,10 +25,17 @@ export const ReceiptsList: React.FC = () => {
   const [filterYear, setFilterYear] = useState<'all' | string>('all');
   const [filterMethod, setFilterMethod] = useState<'all' | PayMethod>('all');
 
-  const { data: receipts = [] } = useRealtimeData<RentReceipt>(
-    async () => dbService.rentReceipts.getAll(),
-    'rent_receipts'
+  const { data: receiptsData = [] } = useRealtimeData<RentReceipt>(
+    async () => dbService.rentReceipts.getAll({ agency_id: user?.agency_id ?? undefined }),
+    'rent_receipts',
+    { agency_id: user?.agency_id ?? undefined }
   );
+
+  // Cast to include joined data
+  const receipts = receiptsData as (RentReceipt & {
+    property?: { title: string; business_id: string };
+    tenant?: { first_name: string; last_name: string; business_id: string };
+  })[];
 
   const debouncedSetSearchTerm = useCallback(
     debounce((value: string) => setSearchTerm(value), 300),
@@ -73,14 +80,20 @@ export const ReceiptsList: React.FC = () => {
 
   const MONTHS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
-  const printReceipt = async (receipt: RentReceipt) => {
+  const printReceipt = async (receipt: any) => {
     if (!user?.agency_id) return;
-    await printReceiptHTML(receipt, user.agency_id);
+    await printReceiptHTML(receipt, user.agency_id, {
+      tenantName: receipt.tenant ? `${receipt.tenant.first_name} ${receipt.tenant.last_name}` : undefined,
+      propertyTitle: receipt.property?.title
+    });
   };
 
-  const downloadReceipt = async (receipt: RentReceipt) => {
+  const downloadReceipt = async (receipt: any) => {
     if (!user?.agency_id) return;
-    await downloadReceiptPDF(receipt, user.agency_id);
+    await downloadReceiptPDF(receipt, user.agency_id, {
+      tenantName: receipt.tenant ? `${receipt.tenant.first_name} ${receipt.tenant.last_name}` : undefined,
+      propertyTitle: receipt.property?.title
+    });
   };
 
   const totalAmount = useMemo(
@@ -106,15 +119,64 @@ export const ReceiptsList: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestion des Quittances</h1>
-          <p className="text-gray-600 mt-1">Quittances de loyers et reversements propriétaires ({receipts.length})</p>
+          <h1 className="text-2xl font-bold text-gray-900">Quittances de Loyer</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Historique des paiements encaissés ({receipts.length})</p>
         </div>
-        <Button onClick={() => openGenerator()} className="flex items-center space-x-2">
+        <Button onClick={() => openGenerator()} className="flex items-center space-x-2 shadow-md hover:shadow-lg transition-all">
           <Plus className="h-4 w-4" />
           <span>Nouvelle quittance</span>
         </Button>
+      </div>
+
+      {/* Cartes récap - Style Premium */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-none overflow-hidden relative group">
+          <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <FileText className="w-24 h-24" />
+          </div>
+          <div className="p-6">
+            <p className="text-blue-100 text-sm font-medium mb-1 uppercase tracking-wider">Total Quittances</p>
+            <div className="text-3xl font-bold">{receipts.length}</div>
+            <div className="mt-4 flex items-center text-xs text-blue-100">
+              <div className="h-1 w-12 bg-white/30 rounded-full mr-2">
+                <div className="h-full bg-white rounded-full w-2/3" />
+              </div>
+              Activité globale
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-white border-blue-100 shadow-sm relative overflow-hidden group">
+          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+            <TrendingUp className="w-24 h-24 text-blue-600" />
+          </div>
+          <div className="p-6">
+            <p className="text-slate-500 text-sm font-medium mb-1 uppercase tracking-wider">Montant Encaissé</p>
+            <div className="text-3xl font-bold text-slate-900">{formatCurrency(totalAmount)}</div>
+            <div className="mt-4 text-xs font-medium text-emerald-600 flex items-center">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
+              Volume validé
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-white border-orange-100 shadow-sm relative overflow-hidden group">
+          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+            <AlertCircle className="w-24 h-24 text-orange-600" />
+          </div>
+          <div className="p-6">
+            <p className="text-slate-500 text-sm font-medium mb-1 uppercase tracking-wider">Paiements Partiels</p>
+            <div className="text-3xl font-bold text-slate-900">
+              {receipts.filter(r => r.payment_status === 'partial' || (r.balance_due ?? 0) > 0).length}
+            </div>
+            <div className="mt-4 text-xs font-medium text-orange-600 flex items-center">
+              <span className="w-2 h-2 rounded-full bg-orange-500 mr-1.5" />
+              Soldes en attente
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Filtres */}
@@ -186,32 +248,43 @@ export const ReceiptsList: React.FC = () => {
             (receipt.balance_due ?? 0) > 0 ||
             (receipt.amount_paid != null && receipt.amount_paid < receipt.total_amount);
           return (
-            <Card key={receipt.id} className="hover:shadow-lg transition-shadow">
+            <Card key={receipt.id} className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-transparent hover:border-l-blue-500 group">
               <div className="p-6 flex justify-between items-center">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-gray-900">Quittance #{receipt.receipt_number}</h3>
-                    {isPartialReceipt ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">PARTIEL</span>
-                    ) : (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">PAYÉ</span>
-                    )}
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isPartialReceipt ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
+                    <FileText className="w-6 h-6" />
                   </div>
-                  <p className="text-sm text-gray-500">
-                    {MONTHS_FR[receipt.period_month] || receipt.period_month} {receipt.period_year} &bull; {(receipt.amount_paid ?? receipt.total_amount).toLocaleString('fr-FR')} FCFA versé
-                    {isPartialReceipt && (receipt.balance_due ?? 0) > 0 && (
-                      <span className="ml-1 text-orange-600 font-medium">/ Solde : {(receipt.balance_due ?? 0).toLocaleString('fr-FR')} FCFA</span>
-                    )}
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">#{receipt.receipt_number}</h3>
+                      {isPartialReceipt ? (
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 uppercase tracking-tight">PAIEMENT PARTIEL</span>
+                      ) : (
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase tracking-tight">SOLDÉ</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500 font-medium">
+                      <span className="text-gray-900">{receipt.tenant ? `${receipt.tenant.first_name} ${receipt.tenant.last_name}` : 'N/A'}</span> &bull; {receipt.property?.title || 'Bien'}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {MONTHS_FR[receipt.period_month] || receipt.period_month} {receipt.period_year} &bull; {(receipt.amount_paid ?? receipt.total_amount).toLocaleString('fr-FR')} FCFA encaissé
+                      {isPartialReceipt && (receipt.balance_due ?? 0) > 0 && (
+                        <span className="ml-2 inline-flex items-center bg-orange-50 rounded px-1.5 py-0.5">
+                          <span className="text-orange-600 font-bold uppercase text-[9px] mr-1">Reste :</span>
+                          <span className="text-orange-700 font-black">{(receipt.balance_due ?? 0).toLocaleString('fr-FR')} FCFA</span>
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <Button variant="ghost" size="sm" title="Voir détails" onClick={() => { setSelectedReceipt(receipt); setShowDetails(true); }}>
+                <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="sm" onClick={() => { setSelectedReceipt(receipt); setShowDetails(true); }} className="hover:bg-blue-50 hover:text-blue-600">
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" title="Imprimer" onClick={() => printReceipt(receipt)}>
+                  <Button variant="ghost" size="sm" onClick={() => printReceipt(receipt)} className="hover:bg-blue-50 hover:text-blue-600">
                     <Printer className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" title="Télécharger PDF" onClick={() => downloadReceipt(receipt)}>
+                  <Button variant="ghost" size="sm" onClick={() => downloadReceipt(receipt)} className="hover:bg-blue-50 hover:text-blue-600">
                     <Download className="h-4 w-4" />
                   </Button>
                 </div>
