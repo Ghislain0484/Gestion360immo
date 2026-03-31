@@ -12,27 +12,26 @@ interface GetAllParams {
 export const rentReceiptsService = {
   async getAll(params?: GetAllParams): Promise<RentReceipt[]> {
     if (params?.agency_id === '00000000-0000-0000-0000-000000000000') {
-      const { MOCK_RECEIPTS, MOCK_PROPERTIES, MOCK_TENANTS, MOCK_CONTRACTS } = await import('../mockData');
+      const { MOCK_RECEIPTS, MOCK_PROPERTIES, MOCK_TENANTS } = await import('../mockData');
       return MOCK_RECEIPTS.map((r: any) => ({
         ...r,
         property: MOCK_PROPERTIES.find(p => p.id === r.property_id),
-        tenant: MOCK_TENANTS.find(t => t.id === r.tenant_id),
-        contract: MOCK_CONTRACTS.find(c => c.id === r.contract_id),
+        tenant: MOCK_TENANTS.find(t => t.id === r.tenant_id)
       }));
     }
     let query = supabase
       .from('rent_receipts')
       .select(`
         *,
-        contract:contracts(monthly_rent, charges, agency_id),
-        property:properties(title, business_id, owner_id),
+        contracts!inner(agency_id),
+        property:properties(title, business_id),
         tenant:tenants(first_name, last_name, business_id),
         owner:owners(business_id)
       `)
       .order('created_at', { ascending: false });
 
     if (params?.agency_id) {
-      query = query.eq('contract.agency_id', params.agency_id);
+      query = query.eq('contracts.agency_id', params.agency_id);
     }
     if (params?.tenant_id) {
       query = query.eq('tenant_id', params.tenant_id);
@@ -49,14 +48,8 @@ export const rentReceiptsService = {
 
     const { data, error } = await query;
     if (error) throw new Error(formatSbError('❌ rent_receipts.select', error));
-    
     return (data ?? []).map((item: any) => ({
       ...item,
-      // Supabase transitions: ensure these are objects, not arrays
-      contract: Array.isArray(item.contract) ? item.contract[0] : item.contract,
-      property: Array.isArray(item.property) ? item.property[0] : item.property,
-      tenant: Array.isArray(item.tenant) ? item.tenant[0] : item.tenant,
-      owner: Array.isArray(item.owner) ? item.owner[0] : item.owner,
     }));
   },
   async findOne(id: string): Promise<RentReceipt | null> {

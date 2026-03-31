@@ -93,8 +93,7 @@ export const TenantDetails: React.FC = () => {
                     const balance = monthsCovered - elapsedMonths;
                     
                     const isVeryNew = elapsedMonths < 0.25;
-                    // Strict calculation: anything below 0.01 (small margin for rounding) is considered partial/late
-                    const isLate = balance < -0.01;
+                    const isLate = balance < -0.5 || (balance < -0.16 && !isVeryNew);
                     const status = balance >= 0.1 ? 'advance' : isLate ? 'late' : 'ok';
                     
                     setFinancialData({ totalPaid: totalPaidRent, totalCaution, monthsCovered, elapsedMonths, balance, status });

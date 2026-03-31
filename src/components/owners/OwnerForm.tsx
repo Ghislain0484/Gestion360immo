@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, User, MapPin, FileText, Heart } from 'lucide-react';
+import { Save, User, MapPin, FileText, Heart, Camera, X, Upload } from 'lucide-react';
+import { supabase } from '../../lib/config';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
@@ -40,7 +41,10 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     spouse_phone: null,
     children_count: 0,
     agency_id: '',
+    photo_url: null,
   });
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successInfo, setSuccessInfo] = useState({ title: '', message: '' });
@@ -112,6 +116,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       spouse_phone: null,
       children_count: 0,
       agency_id: authAgencyId || '',
+      photo_url: null,
       ...(initialData || {}),
     }),
     [initialData, authAgencyId]
@@ -120,8 +125,52 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
   useEffect(() => {
     if (isOpen) {
       setFormData(initialFormData);
+      setPhotoPreview(initialFormData.photo_url || null);
+    } else {
+      setPhotoPreview(null);
     }
   }, [isOpen, initialFormData]);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !authAgencyId) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('La photo est trop lourde (max 2Mo)');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${authAgencyId}/${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('owner-photos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('owner-photos')
+        .getPublicUrl(filePath);
+
+      updateFormData({ photo_url: publicUrl });
+      setPhotoPreview(publicUrl);
+      toast.success('Photo téléchargée !');
+    } catch (error: any) {
+      console.error('Error uploading photo:', error);
+      toast.error('Erreur lors de l’envoi de la photo');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removePhoto = () => {
+    updateFormData({ photo_url: null });
+    setPhotoPreview(null);
+  };
 
 
 
@@ -209,6 +258,46 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
               <h3 className="text-lg font-medium text-gray-900">Informations personnelles</h3>
             </div>
             <div className="p-4 pt-0">
+              {/* Photo Upload Section */}
+              <div className="flex flex-col items-center mb-6">
+                <div className="relative group">
+                  <div className="h-24 w-24 rounded-2xl bg-gray-100 border-2 border-dashed border-gray-300 overflow-hidden flex items-center justify-center transition-all group-hover:border-green-400">
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Aperçu" className="h-full w-full object-cover" />
+                    ) : (
+                      <Upload className="h-10 w-10 text-gray-300" />
+                    )}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-green-600 border-t-transparent" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {photoPreview ? (
+                    <button
+                      type="button"
+                      onClick={removePhoto}
+                      className="absolute -top-2 -right-2 p-1 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors shadow-sm"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <label className="absolute -bottom-2 -right-2 p-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors shadow-lg cursor-pointer">
+                      <Camera className="h-4 w-4" />
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        disabled={isUploading}
+                      />
+                    </label>
+                  )}
+                </div>
+                <p className="mt-2 text-xs font-bold text-gray-400 uppercase tracking-widest">Photo d'identité</p>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label="Prénom"

@@ -25,7 +25,10 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, tenantName
     const isAvailable = !isOccupied;
 
     return (
-        <Card className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group" onClick={onClick}>
+        <Card 
+            className="p-0 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group border-gray-100 hover:border-primary-100 flex flex-col h-full" 
+            onClick={onClick}
+        >
             <div className="relative">
                 <ImageCarousel
                     images={property.images || []}
@@ -33,86 +36,100 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, tenantName
                     interval={3000}
                     showControls={true}
                     showIndicators={true}
-                    height="h-48"
+                    height="h-52"
                 />
-                <div className="absolute top-3 right-3 z-50">
-                    <Badge variant={isOccupied ? 'warning' : (isAvailable ? 'success' : 'secondary')}>
-                        {isOccupied ? 'Occupé' : (isAvailable ? 'Vacant' : 'Indisponible')}
+                <div className="absolute top-4 right-4 z-20">
+                    <Badge 
+                        variant={isOccupied ? 'warning' : (isAvailable ? 'success' : 'secondary')}
+                        className="shadow-lg backdrop-blur-md bg-white/90 border-0 font-bold px-3 py-1 text-[10px] uppercase tracking-wider"
+                    >
+                        {isOccupied ? 'Occupé' : (isAvailable ? 'Disponible' : 'Indisponible')}
                     </Badge>
                 </div>
                 {onDelete && (
-                    <div className="absolute top-3 left-3 z-50">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            className="bg-white/90 hover:bg-red-50 text-red-600 hover:text-red-700 shadow-sm transition-colors w-8 h-8 p-0"
+                    <div className="absolute top-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                            className="w-10 h-10 rounded-xl bg-white/90 text-red-600 hover:bg-red-600 hover:text-white shadow-lg flex items-center justify-center transition-all"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onDelete();
                             }}
-                            title="Supprimer ce bien"
                         >
                             <Trash2 className="w-4 h-4" />
-                        </Button>
+                        </button>
                     </div>
                 )}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 z-10">
-                    <h3 className="text-white font-semibold truncate text-lg">{property.title}</h3>
+                {/* Subtle overlay for title */}
+                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent z-10 flex items-end p-5">
+                    <div className="min-w-0">
+                        <h3 className="text-white font-bold truncate text-xl leading-tight group-hover:text-primary-300 transition-colors">
+                            {property.title}
+                        </h3>
+                        <div className="flex items-center text-white/80 text-xs mt-1">
+                            <MapPin className="w-3 h-3 mr-1.5 text-primary-400" />
+                            <span className="truncate">{property.location.quartier}, {property.location.commune}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div className="p-4 space-y-3">
-                <div className="flex items-center text-gray-600 text-sm">
-                    <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                    <span className="truncate">{property.location.quartier}, {property.location.commune}</span>
-                </div>
-
+            <div className="p-5 flex-1 flex flex-col space-y-4">
+                {/* Stats / Yield */}
                 {property.monthly_rent && property.sale_price && (
-                  <PropertyYield 
-                    monthlyRent={property.monthly_rent} 
-                    propertyValue={property.sale_price} 
-                  />
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 group-hover:bg-primary-50 group-hover:border-primary-100 transition-colors">
+                        <PropertyYield 
+                            monthlyRent={property.monthly_rent} 
+                            propertyValue={property.sale_price} 
+                        />
+                    </div>
                 )}
 
-                {/* Owner Info */}
-                <div className="flex items-center text-gray-600 text-sm">
-                    <User className="w-4 h-4 mr-2 text-gray-400" />
-                    <span className="truncate">
-                        Proprio: {(() => {
-                            const p = property as any;
-                            // Check both owner (alias) and owners (default) just in case
-                            const rawOwner = p.owner || p.owners;
-                            const owner = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner;
-                            return owner ? `${owner.first_name} ${owner.last_name}` : 'Inconnu';
-                        })()}
-                    </span>
+                <div className="space-y-2.5 flex-1">
+                    {/* Owner Info */}
+                    <div className="flex items-center text-[13px] text-gray-600 font-medium">
+                        <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center mr-3 group-hover:bg-white transition-colors">
+                            <User className="w-3.5 h-3.5 text-gray-400" />
+                        </div>
+                        <span className="truncate flex-1">
+                            <span className="text-gray-400 font-normal mr-1">Proprio:</span>
+                            {(() => {
+                                const p = property as any;
+                                const rawOwner = p.owner || p.owners;
+                                const owner = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner;
+                                return owner ? `${owner.first_name} ${owner.last_name}` : 'Inconnu';
+                            })()}
+                        </span>
+                    </div>
+
+                    {/* Tenant Info if Occupied */}
+                    {isOccupied && (
+                        <div className="flex items-center text-[13px] text-blue-700 font-bold bg-blue-50/50 p-2 rounded-xl border border-blue-50">
+                            <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center mr-3">
+                                <User className="w-3.5 h-3.5 text-blue-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="truncate leading-none">{tenantName || 'Locataire inconnu'}</p>
+                                {rentAmount && (
+                                    <p className="text-[10px] text-blue-500 font-normal mt-1 tabular-nums">
+                                        Loyer: {rentAmount.toLocaleString('fr-FR')} FCFA
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Tenant & Rent Info */}
-                {isOccupied && (
-                    <div className="bg-blue-50 p-2 rounded-lg text-sm space-y-1">
-                        <div className="flex items-center justify-between text-blue-900">
-                            <span className="flex items-center gap-1.5 font-medium">
-                                <User className="w-3.5 h-3.5" />
-                                {tenantName || 'Locataire inconnu'}
-                            </span>
-                        </div>
-                        {rentAmount && (
-                            <div className="flex items-center justify-between text-blue-700 font-semibold">
-                                <span>Loyer:</span>
-                                <span>{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(rentAmount)}</span>
-                            </div>
-                        )}
+                {/* Footer Actions */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-50">
+                    <div className="flex items-center gap-1.5">
+                       <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-0 text-[10px] font-bold">
+                           {property.details.type}
+                       </Badge>
                     </div>
-                )}
-
-                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                    <div className="text-sm text-gray-500">
-                        {property.details.type}
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 p-0">
-                        Détails <ArrowRight className="w-4 h-4 ml-1" />
-                    </Button>
+                    <button className="flex items-center gap-1.5 text-xs font-black text-primary-600 uppercase tracking-widest group/btn hover:text-primary-700 transition-colors">
+                        PLUS DE DÉTAILS
+                        <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover/btn:translate-x-1" />
+                    </button>
                 </div>
             </div>
         </Card>

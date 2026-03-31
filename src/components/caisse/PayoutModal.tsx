@@ -26,6 +26,11 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
     const [isLoading, setIsLoading] = useState(false);
     const [calculatingBalance, setCalculatingBalance] = useState(false);
     const [balance, setBalance] = useState<number | null>(null);
+    const [breakdown, setBreakdown] = useState({
+        earned: 0,
+        paidOut: 0,
+        maintenance: 0
+    });
 
     const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<PayoutFormData>({
         defaultValues: {
@@ -76,11 +81,17 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
             const totalMaintenance = maintenance?.reduce((sum, m) => sum + (Number(m.cost) || 0), 0) || 0;
 
             // Current Balance = Total Earned - Total Paid Out - Total Maintenance
+            setBreakdown({
+                earned: totalEarned,
+                paidOut: totalPaidOut,
+                maintenance: totalMaintenance
+            });
             setBalance(totalEarned - totalPaidOut - totalMaintenance);
 
         } catch (error) {
             console.error("Error calculating balance", error);
             setBalance(0);
+            setBreakdown({ earned: 0, paidOut: 0, maintenance: 0 });
         } finally {
             setCalculatingBalance(false);
         }
@@ -122,16 +133,37 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
                 {/* Balance Display */}
-                <div className="bg-blue-50 p-4 rounded-lg flex justify-between items-center">
-                    <span className="text-blue-700 font-medium">Solde estimé disponible :</span>
-                    {calculatingBalance ? (
-                        <LoadingSpinner size="sm" />
-                    ) : (
-                        <span className="text-2xl font-bold text-blue-800">
-                            {balance?.toLocaleString('fr-FR')} FCFA
-                        </span>
-                    )}
+                <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                    <div className="relative z-10">
+                        <span className="text-slate-400 text-xs font-bold uppercase tracking-widest block mb-1">Solde disponible</span>
+                        {calculatingBalance ? (
+                            <div className="h-8 w-24 bg-slate-800 animate-pulse rounded-lg" />
+                        ) : (
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-3xl font-black">{balance?.toLocaleString('fr-FR')}</span>
+                                <span className="text-sm font-bold text-slate-400">FCFA</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {/* Breakdown Details */}
+                {!calculatingBalance && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                           <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Loyers Perçus</span>
+                           <span className="text-sm font-bold text-emerald-700">+{breakdown.earned.toLocaleString('fr-FR')}</span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-orange-50 border border-orange-100">
+                           <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest block mb-1">Reversements</span>
+                           <span className="text-sm font-bold text-orange-700">-{breakdown.paidOut.toLocaleString('fr-FR')}</span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-100">
+                           <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest block mb-1">Dépenses/Travaux</span>
+                           <span className="text-sm font-bold text-rose-700">-{breakdown.maintenance.toLocaleString('fr-FR')}</span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Amount */}
                 <div>
