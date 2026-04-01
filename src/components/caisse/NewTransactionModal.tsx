@@ -67,8 +67,8 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
             const payload = {
                 agency_id: user?.agency_id,
                 created_by: user?.id,
-                type: data.type, // Use 'credit' or 'debit' directly (supported by V20 schema)
-                amount: data.amount,
+                type: data.type === 'credit' ? 'income' : 'expense', // Map back to DB-compatible types
+                amount: Number(data.amount),
                 category: data.category,
                 description: data.description,
                 transaction_date: data.transaction_date,

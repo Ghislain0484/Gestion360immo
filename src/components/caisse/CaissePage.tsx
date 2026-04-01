@@ -302,18 +302,22 @@ export const CaissePage: React.FC = () => {
                 allDisplayTransactions = [...allRealTransactions, ...mockReceipts, ...mockManual];
             }
 
-            const sortedTrans = allDisplayTransactions.sort((a, b) =>
-                new Date(b.date).getTime() - new Date(a.date).getTime()
-            );
+            const sortedTrans = allDisplayTransactions.sort((a, b) => {
+                const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+                if (dateDiff !== 0) return dateDiff;
+                const aTime = a.details?.created_at ? new Date(a.details.created_at).getTime() : 0;
+                const bTime = b.details?.created_at ? new Date(b.details.created_at).getTime() : 0;
+                return bTime - aTime;
+            });
             
             setTransactions(sortedTrans);
 
             // Calculate Metrics
             if (isDemoMode) {
                 const { MOCK_PROPERTIES, MOCK_CONTRACTS } = await import('../../lib/mockData');
-                const potential = MOCK_PROPERTIES.reduce((s: number, p: any) => s + (p.monthly_rent || 0), 0);
-                const expected = MOCK_CONTRACTS.filter((c: any) => c.status === 'active').reduce((s: number, c: any) => s + (c.monthly_rent || 0), 0);
-                const collected = sortedTrans.filter(t => t.category === 'rent_payment').reduce((s: number, t: any) => s + t.amount, 0);
+                const potential = MOCK_PROPERTIES.reduce((s: number, p: any) => s + (Number(p.monthly_rent) || 0), 0);
+                const expected = MOCK_CONTRACTS.filter((c: any) => c.status === 'active').reduce((s: number, c: any) => s + (Number(c.monthly_rent) || 0), 0);
+                const collected = sortedTrans.filter(t => t.category === 'rent_payment' && t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
                 setMetrics({
                     potential,
                     expected,
@@ -324,9 +328,9 @@ export const CaissePage: React.FC = () => {
                 const { data: props } = await supabase.from('properties').select('monthly_rent').eq('agency_id', user?.agency_id);
                 const { data: contracts } = await supabase.from('contracts').select('monthly_rent').eq('agency_id', user?.agency_id).eq('status', 'active');
                 
-                const potential = props?.reduce((s, p) => s + (Number(p.monthly_rent) || 0), 0) || 0;
-                const expected = contracts?.reduce((s, c) => s + (Number(c.monthly_rent) || 0), 0) || 0;
-                const collected = allRealTransactions.filter(t => t.category === 'rent_payment').reduce((s: number, t: any) => s + t.amount, 0);
+                const potential = props?.reduce((s: number, p: any) => s + (Number(p.monthly_rent) || 0), 0) || 0;
+                const expected = contracts?.reduce((s: number, c: any) => s + (Number(c.monthly_rent) || 0), 0) || 0;
+                const collected = allRealTransactions.filter(t => t.category === 'rent_payment' && t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
                 setMetrics({
                     potential,
