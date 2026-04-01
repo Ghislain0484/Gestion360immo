@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Gem, TrendingUp, Info, ArrowUpRight, Percent } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { supabase } from '../../lib/config';
 import { motion } from 'framer-motion';
 
@@ -9,6 +10,7 @@ const formatCurrency = (v: number | null | undefined) =>
 
 export const OwnerPortfolio: React.FC = () => {
   const { owner } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [yieldRate, setYieldRate] = useState(7.5); // Default market yield for Côte d'Ivoire / West Africa
@@ -17,15 +19,28 @@ export const OwnerPortfolio: React.FC = () => {
     if (!owner?.id) return;
     const load = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from('properties')
-        .select('id, title, monthly_rent, location')
-        .eq('owner_id', owner.id);
-      setProperties(data || []);
-      setLoading(false);
+      try {
+        if (isDemoMode) {
+          const { MOCK_PROPERTIES } = await import('../../lib/mockData');
+          const demoOwnerId = 'demo-owner-1';
+          setProperties(MOCK_PROPERTIES.filter(p => p.owner_id === demoOwnerId));
+          setLoading(false);
+          return;
+        }
+
+        const { data } = await supabase
+          .from('properties')
+          .select('id, title, monthly_rent, location')
+          .eq('owner_id', owner.id);
+        setProperties(data || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     };
     load();
-  }, [owner?.id]);
+  }, [owner?.id, isDemoMode]);
 
   const stats = useMemo(() => {
     const annualRent = properties.reduce((s, p) => s + (p.monthly_rent || 0), 0) * 12;

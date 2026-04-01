@@ -16,6 +16,7 @@ const formatCurrency = (v: number | null | undefined) =>
 
 export const OwnerProperties: React.FC = () => {
   const { owner } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const [properties, setProperties] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
