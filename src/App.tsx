@@ -40,6 +40,8 @@ import { OwnerFinances } from './components/owner-portal/OwnerFinances';
 import { OwnerMaintenance } from './components/owner-portal/OwnerMaintenance';
 import { OwnerDocuments } from './components/owner-portal/OwnerDocuments';
 import { OwnerSecurity } from './components/owner-portal/OwnerSecurity';
+import { OwnerPortfolio } from './components/owner-portal/OwnerPortfolio';
+import { OwnerEnhancement } from './components/owner-portal/OwnerEnhancement';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -216,6 +218,8 @@ const AppContent: React.FC = () => {
           <Route path="finances" element={<OwnerFinances />} />
           <Route path="documents" element={<OwnerDocuments />} />
           <Route path="travaux" element={<OwnerMaintenance />} />
+          <Route path="patrimoine" element={<OwnerPortfolio />} />
+          <Route path="embellissement" element={<OwnerEnhancement />} />
           <Route path="securite" element={<OwnerSecurity />} />
         </Route>
 

@@ -3,8 +3,8 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Building2, Key, Wallet, ClipboardCheck, 
-  Menu, Bell, LogOut, X, User, ChevronRight, Settings,
-  Database, Info, AlertCircle, FileText, Shield
+  Menu, Bell, LogOut, User, ChevronRight, Settings,
+  Database, Info, AlertCircle, FileText, Shield, Gem, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
@@ -30,10 +30,12 @@ export const OwnerLayout: React.FC = () => {
   const navigation = [
     { name: 'Dashboard', href: '/espace-proprietaire', icon: LayoutDashboard },
     { name: 'Mon Parc Immobilier', href: '/espace-proprietaire/proprietes', icon: Building2 },
+    { name: 'Calculateur de Patrimoine', href: '/espace-proprietaire/patrimoine', icon: Gem },
     { name: 'Mes Locataires', href: '/espace-proprietaire/locataires', icon: Key },
     { name: 'États Financiers', href: '/espace-proprietaire/finances', icon: Wallet },
     { name: 'Documents', href: '/espace-proprietaire/documents', icon: FileText },
     { name: 'Maintenance & Travaux', href: '/espace-proprietaire/travaux', icon: ClipboardCheck },
+    { name: 'Projets d\'Embellissement', href: '/espace-proprietaire/embellissement', icon: Sparkles },
     { name: 'Sécurité', href: '/espace-proprietaire/securite', icon: Shield },
   ];
 

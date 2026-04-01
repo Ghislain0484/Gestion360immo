@@ -1,7 +1,7 @@
 import { 
   Building2, Wallet, AlertTriangle, TrendingUp, 
   CheckCircle2, Phone, ChevronRight, BarChart3, PieChart as PieIcon,
-  Info
+  Info, Gem
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import React, { useEffect, useState } from 'react';
@@ -255,10 +255,11 @@ export const OwnerDashboard: React.FC = () => {
       </AnimatePresence>
 
       {/* Main KPIs Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         {[
           { label: 'Revenus du Mois', value: formatCurrency(data?.monthlyRevenue), sub: 'Part nette propriétaire', icon: Wallet, color: 'emerald' },
           { label: 'Taux d\'Occupation', value: `${data?.occupancy}%`, sub: `${data?.contracts.length} biens loués`, icon: Building2, color: 'blue' },
+          { label: 'Valeur du Patrimoine', value: formatCurrency((data?.properties.reduce((s:number, p:any) => s + (p.monthly_rent || 0), 0) * 12) / 0.075), sub: 'Estimation (Rendement 7.5%)', icon: Gem, color: 'amber' },
           { label: 'Total Reversements', value: formatCurrency(data?.totalReversements), sub: 'Depuis le début', icon: TrendingUp, color: 'indigo' },
           { label: 'Alertes Actives', value: data?.overdueContracts.length, sub: 'Loyers en retard', icon: AlertTriangle, color: data?.overdueContracts.length > 0 ? 'rose' : 'slate' },
         ].map((k, i) => (
@@ -273,6 +274,7 @@ export const OwnerDashboard: React.FC = () => {
               k.color === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
               k.color === 'blue' ? 'bg-blue-50 text-blue-600' :
               k.color === 'indigo' ? 'bg-indigo-50 text-indigo-600' :
+              k.color === 'amber' ? 'bg-amber-50 text-amber-600' :
               k.color === 'rose' ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-400'
             }`}>
               <k.icon className="w-7 h-7" />
