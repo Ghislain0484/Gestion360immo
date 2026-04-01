@@ -259,7 +259,7 @@ export const OwnerDashboard: React.FC = () => {
         {[
           { label: 'Revenus du Mois', value: formatCurrency(data?.monthlyRevenue), sub: 'Part nette propriétaire', icon: Wallet, color: 'emerald' },
           { label: 'Taux d\'Occupation', value: `${data?.occupancy}%`, sub: `${data?.contracts.length} biens loués`, icon: Building2, color: 'blue' },
-          { label: 'Valeur du Patrimoine', value: formatCurrency((data?.properties.reduce((s:number, p:any) => s + (p.monthly_rent || 0), 0) * 12) / 0.075), sub: 'Estimation (Rendement 7.5%)', icon: Gem, color: 'amber' },
+          { label: 'Valeur du Patrimoine', value: formatCurrency(((data?.properties || []).reduce((s:number, p:any) => s + (p.monthly_rent || 0), 0) * 12) / 0.075), sub: 'Estimation (Rendement 7.5%)', icon: Gem, color: 'amber' },
           { label: 'Total Reversements', value: formatCurrency(data?.totalReversements), sub: 'Depuis le début', icon: TrendingUp, color: 'indigo' },
           { label: 'Alertes Actives', value: data?.overdueContracts.length, sub: 'Loyers en retard', icon: AlertTriangle, color: data?.overdueContracts.length > 0 ? 'rose' : 'slate' },
         ].map((k, i) => (

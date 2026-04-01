@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
   FileText, ClipboardCheck, Receipt, Search, 
-  Download, Eye, Calendar, ChevronRight, 
-  ShieldCheck, ArrowUpRight, Info, Filter
+  Download, Eye, Calendar, 
+  ShieldCheck, ArrowUpRight, Info
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { supabase } from '../../lib/config';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -13,6 +14,7 @@ const formatDate = (d: string | null | undefined) =>
 
 export const OwnerDocuments: React.FC = () => {
   const { owner } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const [activeTab, setActiveTab] = useState<'contracts' | 'inventories' | 'receipts'>('contracts');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{
@@ -27,6 +29,39 @@ export const OwnerDocuments: React.FC = () => {
     const load = async () => {
       setLoading(true);
       try {
+        if (isDemoMode) {
+          const { MOCK_PROPERTIES, MOCK_CONTRACTS, MOCK_INVENTORIES, MOCK_RECEIPTS } = await import('../../lib/mockData');
+          const demoOwnerId = 'demo-owner-1';
+          
+          const profileProps = MOCK_PROPERTIES.filter(p => p.owner_id === demoOwnerId);
+          const propIds = profileProps.map(p => p.id);
+          
+          const profileContracts = MOCK_CONTRACTS.filter(c => propIds.includes(c.property_id));
+          const profileInventories = MOCK_INVENTORIES.filter(i => propIds.includes(i.property_id));
+          const profileReceipts = MOCK_RECEIPTS.filter(r => propIds.includes(r.property_id || ''));
+
+          // Enchrich with titles for mock data if needed (some mock data might not have joins)
+          const enrich = (list: any[]) => list.map((item: any) => ({
+            ...item,
+            property: profileProps.find(p => p.id === item.property_id) || { title: 'Propriété Démo' }
+          }));
+
+          setData({
+            contracts: profileContracts.map(c => ({
+              ...c,
+              property: profileProps.find(p => p.id === c.property_id),
+              tenant: { first_name: 'Locataire', last_name: 'Démo' } // Simple fallback
+            })),
+            inventories: enrich(profileInventories),
+            receipts: profileReceipts.map(r => ({
+              ...r,
+              contract: { property: profileProps.find(p => p.id === r.property_id) || { title: 'Propriété Démo' } }
+            }))
+          });
+          setLoading(false);
+          return;
+        }
+
         const { data: props } = await supabase.from('properties').select('id').eq('owner_id', owner.id);
         const propIds = (props || []).map((p: any) => p.id);
 

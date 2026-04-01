@@ -150,3 +150,32 @@ export const MOCK_MANAGED_CONTRACTS: ManagedContract[] = [
     context_snapshot: {}, created_by: 'system', updated_by: null, created_at: '2023-01-01', updated_at: '2023-01-01'
   }
 ];
+
+export const MOCK_TICKETS: any[] = [
+  {
+    id: 't-demo-1', title: 'Fuite Plomberie Cuisine', description: 'Infiltration d\'eau constatée sous l\'évier principal. Nécessite intervention rapide.',
+    status: 'in_progress', priority: 'high', estimated_cost: 45000, actual_cost: null,
+    property_id: 'demo-prop-1', agency_id: DEMO_AGENCY_ID, created_at: '2024-03-25'
+  },
+  {
+    id: 't-demo-2', title: 'Révision Climatisation Salon', description: 'Entretien annuel des unités VRV. Nettoyage filtres et recharge gaz.',
+    status: 'resolved', priority: 'medium', estimated_cost: 85000, actual_cost: 85000,
+    property_id: 'demo-prop-1', agency_id: DEMO_AGENCY_ID, created_at: '2024-02-10'
+  },
+  {
+    id: 't-demo-3', title: 'Portail Électrique Bloqué', description: 'Le moteur du portail principal ne répond plus à la télécommande.',
+    status: 'open', priority: 'urgent', estimated_cost: 125000, actual_cost: null,
+    property_id: 'demo-prop-2', agency_id: DEMO_AGENCY_ID, created_at: '2024-03-28'
+  }
+];
+
+export const MOCK_INVENTORIES: any[] = [
+  {
+    id: 'inv-demo-1', property_id: 'demo-prop-1', date: '2024-01-01', condition: 'excellent',
+    comments: 'État neuf, remise des clés effectuée sans réserves.', status: 'signed'
+  },
+  {
+    id: 'inv-demo-2', property_id: 'demo-prop-2', date: '2024-03-01', condition: 'good',
+    comments: 'Quelques traces d\'usure sur les peintures du salon.', status: 'signed'
+  }
+];
