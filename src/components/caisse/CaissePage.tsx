@@ -157,32 +157,87 @@ export const CaissePage: React.FC = () => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            // 1. Fetch Rent Receipts (Credits)
-            if (isDemoMode) {
-                const { MOCK_RECEIPTS, MOCK_TRANSACTIONS } = await import('../../lib/mockData');
-                const { MOCK_PROPERTIES, MOCK_TENANTS } = await import('../../lib/mockData');
-                
-                const receiptTrans: Transaction[] = MOCK_RECEIPTS.map((r: any) => {
-                    const prop = MOCK_PROPERTIES.find(p => p.id === r.property_id);
-                    const tenant = MOCK_TENANTS.find(t => t.id === r.tenant_id);
-                    return {
-                        id: r.id,
-                        date: r.payment_date,
-                        type: 'credit',
-                        amount: r.total_amount,
-                        category: 'rent_payment',
-                        description: `Loyer - ${prop?.title || 'N/A'} (${tenant?.first_name} ${tenant?.last_name})`,
-                        payment_method: r.payment_method,
-                        source: 'rent_receipt',
-                        reference_id: r.receipt_number,
-                        details: r
-                    };
-                });
+            // 1. Fetch Real Transactions (Always if agencyId exists)
+            let allRealTransactions: Transaction[] = [];
+            
+            if (user?.agency_id) {
+                // a. Fetch Rent Receipts (Credits)
+                let receiptsQuery = supabase
+                    .from('rent_receipts')
+                    .select(`
+                        *,
+                        tenant:tenants(first_name, last_name, business_id),
+                        property:properties(title, business_id, owner_id)
+                    `)
+                    .eq('agency_id', user.agency_id);
 
-                const manualTrans: Transaction[] = MOCK_TRANSACTIONS.map((t: any) => ({
+                if (filters.ownerId !== 'all') {
+                    receiptsQuery = receiptsQuery.eq('owner_id', filters.ownerId);
+                }
+                
+                if (filters.period && filters.period !== 'all') {
+                    const [year, month] = filters.period.split('-');
+                    const startDate = `${year}-${month}-01`;
+                    const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
+                    receiptsQuery = receiptsQuery.gte('payment_date', startDate).lte('payment_date', endDate);
+                }
+
+                const { data: receipts } = await receiptsQuery;
+
+                // b. Fetch Manual Transactions
+                let cashQuery = supabase
+                    .from('modular_transactions')
+                    .select('*')
+                    .eq('agency_id', user.agency_id);
+
+                if (filters.ownerId !== 'all') {
+                    cashQuery = cashQuery.eq('related_owner_id', filters.ownerId);
+                }
+                if (filters.period && filters.period !== 'all') {
+                    const [year, month] = filters.period.split('-');
+                    const startDate = `${year}-${month}-01`;
+                    const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
+                    cashQuery = cashQuery.gte('transaction_date', startDate).lte('transaction_date', endDate);
+                }
+
+                const { data: cashTrans } = await cashQuery;
+
+                // c. Fetch Property Expenses
+                let expenseQuery = supabase
+                    .from('property_expenses')
+                    .select('*, property:properties(title)')
+                    .eq('agency_id', user.agency_id);
+
+                if (filters.ownerId !== 'all') {
+                    expenseQuery = expenseQuery.eq('owner_id', filters.ownerId);
+                }
+                if (filters.period && filters.period !== 'all') {
+                    const [year, month] = filters.period.split('-');
+                    const startDate = `${year}-${month}-01`;
+                    const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
+                    expenseQuery = expenseQuery.gte('expense_date', startDate).lte('expense_date', endDate);
+                }
+
+                const { data: workExpenses } = await expenseQuery;
+
+                // Map & Merge Real Data
+                const mappedReceipts: Transaction[] = (receipts || []).map(r => ({
+                    id: `receipt-${r.id}`,
+                    date: r.payment_date,
+                    type: 'credit',
+                    category: 'rent_payment',
+                    amount: r.amount_paid ?? r.total_amount,
+                    description: `Loyer ${r.property?.title || 'Bien'} - ${r.tenant?.first_name || ''} ${r.tenant?.last_name || ''}`,
+                    payment_method: r.payment_method,
+                    source: 'rent_receipt',
+                    reference_id: r.receipt_number,
+                    details: r
+                }));
+
+                const mappedManual: Transaction[] = (cashTrans || []).map(t => ({
                     id: t.id,
                     date: t.transaction_date,
-                    type: (t.type === 'income' || t.type === 'deposit') ? 'credit' : 'debit',
+                    type: (t.type === 'income' || t.type === 'credit' || t.type === 'deposit') ? 'credit' : 'debit',
                     amount: t.amount,
                     category: t.category,
                     description: t.description || 'N/A',
@@ -192,146 +247,73 @@ export const CaissePage: React.FC = () => {
                     details: t
                 }));
 
-                const allTrans = [...receiptTrans, ...manualTrans].sort((a, b) =>
-                    new Date(b.date).getTime() - new Date(a.date).getTime()
-                );
-                setTransactions(allTrans);
-                setIsLoading(false);
-                return;
+                const mappedExpenses: Transaction[] = (workExpenses || []).map(e => ({
+                    id: `expense-${e.id}`,
+                    date: e.expense_date,
+                    type: 'debit',
+                    amount: e.amount,
+                    category: e.category || 'maintenance',
+                    description: `Travaux - ${e.description || 'Intervention'} (${e.property?.title || 'Bien'})`,
+                    payment_method: 'especes',
+                    source: 'modular_transaction',
+                    reference_id: '',
+                    details: e
+                }));
+
+                allRealTransactions = [...mappedReceipts, ...mappedManual, ...mappedExpenses];
             }
 
-            let receiptsQuery = supabase
-                .from('rent_receipts')
-                .select(`
-                    *,
-                    tenant:tenants(first_name, last_name, business_id),
-                    property:properties(title, business_id, owner_id)
-                `)
-                .eq('agency_id', user?.agency_id);
+            // 2. Add Mock Data if in Demo Mode
+            let allDisplayTransactions = [...allRealTransactions];
 
-            if (filters.ownerId !== 'all') {
-                receiptsQuery = receiptsQuery.eq('owner_id', filters.ownerId);
-            }
-            if (filters.period && filters.period !== 'all') {
-                const [year, month] = filters.period.split('-');
-                const startDate = `${year}-${month}-01`;
-                const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
-                receiptsQuery = receiptsQuery.gte('payment_date', startDate).lte('payment_date', endDate);
-            }
-
-            const { data: receipts } = await receiptsQuery;
-
-            // 2. Fetch Manual Transactions
-            let cashQuery = supabase
-                .from('modular_transactions')
-                .select('*')
-                .eq('agency_id', user?.agency_id);
-
-            if (filters.ownerId !== 'all') {
-                cashQuery = cashQuery.eq('related_owner_id', filters.ownerId);
-            }
-            if (filters.period && filters.period !== 'all') {
-                const [year, month] = filters.period.split('-');
-                const startDate = `${year}-${month}-01`;
-                const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
-                cashQuery = cashQuery.gte('transaction_date', startDate).lte('transaction_date', endDate);
-            }
-
-            const { data: cashTrans } = await cashQuery;
-
-            // 3. Fetch Property Expenses (Maintenance/Work)
-            let expenseQuery = supabase
-                .from('property_expenses')
-                .select('*, property:properties(title)')
-                .eq('agency_id', user?.agency_id);
-
-            if (filters.ownerId !== 'all') {
-                expenseQuery = expenseQuery.eq('owner_id', filters.ownerId);
-            }
-            if (filters.period && filters.period !== 'all') {
-                const [year, month] = filters.period.split('-');
-                const startDate = `${year}-${month}-01`;
-                const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
-                expenseQuery = expenseQuery.gte('expense_date', startDate).lte('expense_date', endDate);
-            }
-
-            const { data: workExpenses } = await expenseQuery;
-
-            // Merge and Normalize
-            const mappedReceipts: Transaction[] = (receipts || []).map(r => {
-                const amountPaid = r.amount_paid ?? r.total_amount;
-                const isPartial = (r.amount_paid != null && r.amount_paid < r.total_amount) || (r.balance_due && r.balance_due > 0);
+            if (isDemoMode) {
+                const { MOCK_RECEIPTS, MOCK_TRANSACTIONS, MOCK_PROPERTIES, MOCK_TENANTS } = await import('../../lib/mockData');
                 
-                return {
-                    id: `receipt-${r.id}`,
-                    date: r.payment_date,
-                    type: 'credit',
-                    category: 'rent_payment',
-                    amount: amountPaid,
-                    description: `Loyer ${r.property?.title || 'Bien'} - ${r.tenant ? `${r.tenant.first_name} ${r.tenant.last_name}` : 'Locataire'}`,
-                    payment_method: r.payment_method,
-                    source: 'rent_receipt',
-                    reference_id: r.receipt_number,
-                    details: {
-                        ...r,
-                        receipt_id: r.id,
-                        owner_id: r.property?.owner_id,
-                        owner_share: r.owner_payment,
-                        total_amount: r.total_amount,
-                        amount_paid: amountPaid,
-                        balance_due: r.balance_due,
-                        is_partial: isPartial,
-                        receipt_number: r.receipt_number,
-                        property: r.property,
-                        tenant: r.tenant
-                    }
-                };
-            });
+                const mockReceipts: Transaction[] = MOCK_RECEIPTS.map((r: any) => {
+                    const prop = MOCK_PROPERTIES.find(p => p.id === r.property_id);
+                    const tenant = MOCK_TENANTS.find(t => t.id === r.tenant_id);
+                    return {
+                        id: `mock-r-${r.id}`,
+                        date: r.payment_date,
+                        type: 'credit',
+                        amount: r.total_amount,
+                        category: 'rent_payment',
+                        description: `[DÉMO] Loyer - ${prop?.title || 'N/A'} (${tenant?.first_name} ${tenant?.last_name})`,
+                        payment_method: r.payment_method,
+                        source: 'rent_receipt',
+                        reference_id: r.receipt_number,
+                        details: r
+                    };
+                });
 
-            const manualTrans: Transaction[] = (cashTrans || []).map((t: any) => {
-                let displayType: 'credit' | 'debit' = t.type as any;
-                if (t.type === 'income' || t.type === 'deposit') displayType = 'credit';
-                if (t.type === 'expense' || t.type === 'salary' || t.type === 'transfer') displayType = 'debit';
-                
-                return {
-                    id: t.id,
+                const mockManual: Transaction[] = MOCK_TRANSACTIONS.map((t: any) => ({
+                    id: `mock-t-${t.id}`,
                     date: t.transaction_date,
-                    type: displayType,
+                    type: (t.type === 'income' || t.type === 'deposit') ? 'credit' : 'debit',
                     amount: t.amount,
                     category: t.category,
-                    description: t.description || 'N/A',
+                    description: `[DÉMO] ${t.description || 'N/A'}`,
                     payment_method: t.payment_method,
                     source: 'modular_transaction',
                     reference_id: '',
                     details: t
-                };
-            });
+                }));
 
-            const workTrans: Transaction[] = (workExpenses || []).map((e: any) => ({
-                id: `expense-${e.id}`,
-                date: e.expense_date,
-                type: 'debit',
-                amount: e.amount,
-                category: e.category || 'maintenance',
-                description: `Travaux/Maintenance - ${e.description || 'Intervention'} (${e.property?.title || 'Bien'})`,
-                payment_method: 'especes', // Defaulting to cash for maintenance
-                source: 'modular_transaction', // Re-using modular mapping but source is work
-                reference_id: '',
-                details: e
-            }));
+                allDisplayTransactions = [...allRealTransactions, ...mockReceipts, ...mockManual];
+            }
 
-            const allTrans = [...mappedReceipts, ...manualTrans, ...workTrans].sort((a, b) =>
+            const sortedTrans = allDisplayTransactions.sort((a, b) =>
                 new Date(b.date).getTime() - new Date(a.date).getTime()
             );
-
-            setTransactions(allTrans);
+            
+            setTransactions(sortedTrans);
 
             // Calculate Metrics
             if (isDemoMode) {
                 const { MOCK_PROPERTIES, MOCK_CONTRACTS } = await import('../../lib/mockData');
                 const potential = MOCK_PROPERTIES.reduce((s: number, p: any) => s + (p.monthly_rent || 0), 0);
                 const expected = MOCK_CONTRACTS.filter((c: any) => c.status === 'active').reduce((s: number, c: any) => s + (c.monthly_rent || 0), 0);
-                const collected = allTrans.filter(t => t.category === 'rent_payment').reduce((s, t) => s + t.amount, 0);
+                const collected = sortedTrans.filter(t => t.category === 'rent_payment').reduce((s: number, t: any) => s + t.amount, 0);
                 setMetrics({
                     potential,
                     expected,
@@ -344,7 +326,7 @@ export const CaissePage: React.FC = () => {
                 
                 const potential = props?.reduce((s, p) => s + (Number(p.monthly_rent) || 0), 0) || 0;
                 const expected = contracts?.reduce((s, c) => s + (Number(c.monthly_rent) || 0), 0) || 0;
-                const collected = mappedReceipts.reduce((s, t) => s + t.amount, 0);
+                const collected = allRealTransactions.filter(t => t.category === 'rent_payment').reduce((s: number, t: any) => s + t.amount, 0);
 
                 setMetrics({
                     potential,

@@ -67,12 +67,13 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
             const payload = {
                 agency_id: user?.agency_id,
                 created_by: user?.id,
-                type: data.type === 'credit' ? 'income' : 'expense', // Map back to internal modular types
+                type: data.type, // Use 'credit' or 'debit' directly (supported by V20 schema)
                 amount: data.amount,
                 category: data.category,
                 description: data.description,
                 transaction_date: data.transaction_date,
-                payment_method: data.payment_method
+                payment_method: data.payment_method,
+                module_type: 'agency' // Mark as agency-level transaction
             };
 
             if (transaction?.id) {
@@ -163,12 +164,14 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                     >
                         <option value="">Sélectionner une catégorie</option>
                         <option value="rent_payment">Encaissement Loyer</option>
+                        <option value="caution">Caution (Dépôt de garantie)</option>
+                        <option value="agency_fees">Honoraires Agence</option>
                         <option value="owner_payout">Reversement Propriétaire</option>
                         <option value="bank_deposit">Dépôt Banque</option>
-                        <option value="withdrawal">Retrait</option>
-                        <option value="supplies">Fournitures</option>
-                        <option value="maintenance">Maintenance/Travaux</option>
-                        <option value="salary">Salaires</option>
+                        <option value="withdrawal">Retrait / Décaissement</option>
+                        <option value="supplies">Fournitures / Bureau</option>
+                        <option value="maintenance">Maintenance / Travaux</option>
+                        <option value="salary">Salaires / Commissions</option>
                         <option value="other">Autre</option>
                     </select>
                 </div>
