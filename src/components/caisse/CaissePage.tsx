@@ -130,7 +130,8 @@ export const CaissePage: React.FC = () => {
         potential: 0,
         expected: 0,
         collected: 0,
-        remaining: 0
+        remaining: 0,
+        balance: 0
     });
 
     // Fetch owners
@@ -318,11 +319,15 @@ export const CaissePage: React.FC = () => {
                 const potential = MOCK_PROPERTIES.reduce((s: number, p: any) => s + (Number(p.monthly_rent) || 0), 0);
                 const expected = MOCK_CONTRACTS.filter((c: any) => c.status === 'active').reduce((s: number, c: any) => s + (Number(c.monthly_rent) || 0), 0);
                 const collected = sortedTrans.filter(t => t.category === 'rent_payment' && t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+                const allCredits = sortedTrans.filter(t => t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+                const allDebits = sortedTrans.filter(t => t.type === 'debit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
                 setMetrics({
                     potential,
                     expected,
                     collected,
-                    remaining: Math.max(0, expected - collected)
+                    remaining: Math.max(0, expected - collected),
+                    balance: allCredits - allDebits
                 });
             } else {
                 const { data: props } = await supabase.from('properties').select('monthly_rent').eq('agency_id', user?.agency_id);
@@ -331,12 +336,15 @@ export const CaissePage: React.FC = () => {
                 const potential = props?.reduce((s: number, p: any) => s + (Number(p.monthly_rent) || 0), 0) || 0;
                 const expected = contracts?.reduce((s: number, c: any) => s + (Number(c.monthly_rent) || 0), 0) || 0;
                 const collected = allRealTransactions.filter(t => t.category === 'rent_payment' && t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+                const allCredits = allRealTransactions.filter(t => t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+                const allDebits = allRealTransactions.filter(t => t.type === 'debit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
                 setMetrics({
                     potential,
                     expected,
                     collected,
-                    remaining: Math.max(0, expected - collected)
+                    remaining: Math.max(0, expected - collected),
+                    balance: allCredits - allDebits
                 });
             }
 
@@ -580,7 +588,7 @@ export const CaissePage: React.FC = () => {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="p-4 bg-gradient-to-br from-indigo-50 to-blue-50 border-indigo-100">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-indigo-800">Potentiel Mensuel</span>
@@ -608,6 +616,13 @@ export const CaissePage: React.FC = () => {
                         <Wallet className="w-4 h-4 text-orange-600" />
                     </div>
                     <p className="text-2xl font-bold text-orange-700">{metrics.remaining.toLocaleString('fr-FR')} FCFA</p>
+                </Card>
+                <Card className="p-4 bg-slate-900 text-white border-slate-800 shadow-xl shadow-slate-200">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-slate-300">Solde de Caisse</span>
+                        <Wallet className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <p className="text-2xl font-black text-white">{metrics.balance.toLocaleString('fr-FR')} FCFA</p>
                 </Card>
             </div>
 
@@ -718,6 +733,7 @@ export const CaissePage: React.FC = () => {
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provenance</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Moyen</th>
@@ -738,6 +754,16 @@ export const CaissePage: React.FC = () => {
                                                         t.type === 'credit' ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                                                     )}>
                                                         {t.type === 'credit' ? 'Crédit' : 'Débit'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={clsx(
+                                                        "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest",
+                                                        t.source === 'rent_receipt' 
+                                                            ? "bg-blue-50 text-blue-700 border border-blue-100" 
+                                                            : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                                    )}>
+                                                        {t.source === 'rent_receipt' ? 'Quittance' : 'Opération'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">

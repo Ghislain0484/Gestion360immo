@@ -42,8 +42,12 @@ export const MOCK_PROPERTIES: Property[] = [
     title: 'Résidence Atlantic - Penthouse A', standing: 'haut',
     description: 'Penthouse d\'exception avec terrasse de 150m² surplombant l\'Atlantique. Finitions marbre et domotique intégrée.',
     location: { commune: 'Dixinn', quartier: 'Camayenne', facilites: ['Piscine Infinity', 'Smart Home', 'Salle de Sport', 'Sécurité VIP'] },
-    details: { type: 'appartement', numeroEtage: '12', numeroPorte: 'A' },
-    rooms: [], is_available: false, for_rent: true, for_sale: false,
+    details: { type: 'appartement', numeroEtage: '12', numeroPorte: 'A', surface: 185 },
+    rooms: [
+      { type: 'sejour', superficie: 65, plafond: { type: 'staff' }, electricite: { nombrePrises: 12, nombreInterrupteurs: 4, nombreDismatique: 2, nombreAmpoules: 8, typeLuminaires: 'LED Spot' }, peinture: { couleur: 'Blanc Off-white', type: 'Satinée', marque: 'Astral' }, menuiserie: { materiau: 'alu', nombreFenetres: 4, typeFenetres: 'Baie Vitrée' }, serrure: { typePoignee: 'Inox', typeCle: 'Sécurisée' }, sol: { type: 'carrelage', details: 'Marbre d\'Italie' }, images: [] },
+      { type: 'cuisine', superficie: 25, plafond: { type: 'staff' }, electricite: { nombrePrises: 8, nombreInterrupteurs: 2, nombreDismatique: 1, nombreAmpoules: 4, typeLuminaires: 'LED' }, peinture: { couleur: 'Gris', type: 'Satinée', marque: 'Astral' }, menuiserie: { materiau: 'alu', nombreFenetres: 1, typeFenetres: 'Coulissante' }, serrure: { typePoignee: 'Inox', typeCle: 'Sécurisée' }, sol: { type: 'carrelage' }, images: [] }
+    ],
+    is_available: false, for_rent: true, for_sale: false,
     monthly_rent: 15000000, sale_price: 2500000000,
     images: [{ id: 'p1', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80', isPrimary: true, room: 'Salon Principal' }],
     created_at: '2023-01-15', updated_at: '2023-01-15'
@@ -53,8 +57,11 @@ export const MOCK_PROPERTIES: Property[] = [
     title: 'Villa Emeraude - Nongo', standing: 'haut',
     description: 'Propriété de prestige sur 1200m². 6 suites, bureau indépendant et dépendance pour le personnel.',
     location: { commune: 'Ratoma', quartier: 'Nongo', facilites: ['Piscine Chauffée', 'Forage Industriel', 'Jardin Tropical', 'Garage 4 Véhicules'] },
-    details: { type: 'villa' },
-    rooms: [], is_available: false, for_rent: true, for_sale: false,
+    details: { type: 'villa', surface: 450 },
+    rooms: [
+      { type: 'sejour', superficie: 120, plafond: { type: 'staff' }, electricite: { nombrePrises: 20, nombreInterrupteurs: 6, nombreDismatique: 3, nombreAmpoules: 15, typeLuminaires: 'Lustre Crystal' }, peinture: { couleur: 'Beige', type: 'Satinée', marque: 'Astral' }, menuiserie: { materiau: 'bois', nombreFenetres: 6, typeFenetres: 'Française' }, serrure: { typePoignee: 'Laiton', typeCle: 'Sécurisée' }, sol: { type: 'carrelage' }, images: [] }
+    ],
+    is_available: false, for_rent: true, for_sale: false,
     monthly_rent: 35000000, sale_price: 5200000000,
     images: [{ id: 'p2', url: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1200&q=80', isPrimary: true, room: 'Façade' }],
     created_at: '2023-02-10', updated_at: '2023-02-10'
@@ -64,7 +71,7 @@ export const MOCK_PROPERTIES: Property[] = [
     title: 'Business Center Kaloum - Plateau 5', standing: 'haut',
     description: 'Espace de bureaux open-space modulable de 350m². Idéal pour siège social ou ambassade.',
     location: { commune: 'Kaloum', quartier: 'Almamya', facilites: ['Fibre Dédiée', 'Contrôle d\'accès', 'Climatisation VRV'] },
-    details: { type: 'autres' },
+    details: { type: 'autres', surface: 350 },
     rooms: [], is_available: false, for_rent: true, for_sale: false,
     monthly_rent: 55000000, sale_price: 8000000000,
     images: [{ id: 'p3', url: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80', isPrimary: true, room: 'Open Space' }],

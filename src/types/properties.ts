@@ -21,6 +21,7 @@ export interface PropertyDetails {
   numeroEtage?: string;
   numeroPorteImmeuble?: string;
   autresDetails?: string;
+  surface?: number;
 }
 
 export interface RoomDetails {
