@@ -27,7 +27,7 @@ interface FilterBarProps {
   searchPlaceholder?: string;
   stats?: { 
     label: string; 
-    count: number; 
+    count: string | number; 
     active: boolean; 
     onClick: () => void; 
     colorClass?: string;

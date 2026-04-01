@@ -24,7 +24,7 @@ export const tenantsService = {
         }
         let query = supabase
             .from('tenants')
-            .select('*, active_contracts:contracts(id, status, monthly_rent, property:properties(title))')
+            .select('*, active_contracts:contracts(id, status, monthly_rent, property_id, owner_id, property:properties(title))')
             .order('created_at', { ascending: false });
 
         // Note: Joining with contracts might return multiple rows if not filtered properly.

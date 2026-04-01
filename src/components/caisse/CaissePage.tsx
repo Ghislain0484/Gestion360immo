@@ -86,7 +86,7 @@ export const CaissePage: React.FC = () => {
 
     const [filters, setFilters] = useState({
         ownerId: searchParams.get('proprietaire') || 'all',
-        period: searchParams.get('periode') || new Date().toISOString().slice(0, 7),
+        period: searchParams.get('periode') || 'all', // Defaults to 'all' for complete visibility
         type: 'all',
         category: 'all',
     });
@@ -108,7 +108,7 @@ export const CaissePage: React.FC = () => {
     const clearFilters = () => {
         setFilters({
             ownerId: 'all',
-            period: new Date().toISOString().slice(0, 7),
+            period: 'all',
             type: 'all',
             category: 'all',
         });
@@ -210,9 +210,9 @@ export const CaissePage: React.FC = () => {
                 .eq('agency_id', user?.agency_id);
 
             if (filters.ownerId !== 'all') {
-                receiptsQuery = receiptsQuery.eq('property.owner_id', filters.ownerId);
+                receiptsQuery = receiptsQuery.eq('owner_id', filters.ownerId);
             }
-            if (filters.period) {
+            if (filters.period && filters.period !== 'all') {
                 const [year, month] = filters.period.split('-');
                 const startDate = `${year}-${month}-01`;
                 const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
@@ -230,7 +230,7 @@ export const CaissePage: React.FC = () => {
             if (filters.ownerId !== 'all') {
                 cashQuery = cashQuery.eq('related_owner_id', filters.ownerId);
             }
-            if (filters.period) {
+            if (filters.period && filters.period !== 'all') {
                 const [year, month] = filters.period.split('-');
                 const startDate = `${year}-${month}-01`;
                 const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
@@ -238,6 +238,24 @@ export const CaissePage: React.FC = () => {
             }
 
             const { data: cashTrans } = await cashQuery;
+
+            // 3. Fetch Property Expenses (Maintenance/Work)
+            let expenseQuery = supabase
+                .from('property_expenses')
+                .select('*, property:properties(title)')
+                .eq('agency_id', user?.agency_id);
+
+            if (filters.ownerId !== 'all') {
+                expenseQuery = expenseQuery.eq('owner_id', filters.ownerId);
+            }
+            if (filters.period && filters.period !== 'all') {
+                const [year, month] = filters.period.split('-');
+                const startDate = `${year}-${month}-01`;
+                const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
+                expenseQuery = expenseQuery.gte('expense_date', startDate).lte('expense_date', endDate);
+            }
+
+            const { data: workExpenses } = await expenseQuery;
 
             // Merge and Normalize
             const mappedReceipts: Transaction[] = (receipts || []).map(r => {
@@ -289,7 +307,20 @@ export const CaissePage: React.FC = () => {
                 };
             });
 
-            const allTrans = [...mappedReceipts, ...manualTrans].sort((a, b) =>
+            const workTrans: Transaction[] = (workExpenses || []).map((e: any) => ({
+                id: `expense-${e.id}`,
+                date: e.expense_date,
+                type: 'debit',
+                amount: e.amount,
+                category: e.category || 'maintenance',
+                description: `Travaux/Maintenance - ${e.description || 'Intervention'} (${e.property?.title || 'Bien'})`,
+                payment_method: 'especes', // Defaulting to cash for maintenance
+                source: 'modular_transaction', // Re-using modular mapping but source is work
+                reference_id: '',
+                details: e
+            }));
+
+            const allTrans = [...mappedReceipts, ...manualTrans, ...workTrans].sort((a, b) =>
                 new Date(b.date).getTime() - new Date(a.date).getTime()
             );
 
@@ -644,8 +675,9 @@ export const CaissePage: React.FC = () => {
                                         { value: 'owner_payout', label: 'Reversement' },
                                         { value: 'caution', label: 'Caution' },
                                         { value: 'agency_fees', label: 'Honoraires' },
-                                        { value: 'expense', label: 'Dépense' },
-                                        { value: 'income', label: 'Revenu' },
+                                        { value: 'maintenance', label: 'Travaux / Maintenance' },
+                                        { value: 'expense', label: 'Autre Dépense' },
+                                        { value: 'income', label: 'Autre Revenu' },
                                     ]
                                 }
                             ]}
@@ -654,9 +686,27 @@ export const CaissePage: React.FC = () => {
                             onClear={clearFilters}
                             stats={[
                                 {
-                                    label: 'Total Opérations',
-                                    count: summary.count,
+                                    label: 'Entrées (+)',
+                                    count: summary.totalCredit.toLocaleString('fr-FR') + ' F',
                                     active: true,
+                                    colorClass: 'bg-green-100 text-green-700',
+                                    activeColorClass: 'text-green-600',
+                                    onClick: () => {}
+                                },
+                                {
+                                    label: 'Sorties (-)',
+                                    count: summary.totalDebit.toLocaleString('fr-FR') + ' F',
+                                    active: true,
+                                    colorClass: 'bg-red-100 text-red-700',
+                                    activeColorClass: 'text-red-600',
+                                    onClick: () => {}
+                                },
+                                {
+                                    label: 'Solde Net',
+                                    count: summary.balance.toLocaleString('fr-FR') + ' F',
+                                    active: true,
+                                    colorClass: summary.balance >= 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700',
+                                    activeColorClass: summary.balance >= 0 ? 'text-indigo-600' : 'text-red-600',
                                     onClick: () => {}
                                 }
                             ]}
