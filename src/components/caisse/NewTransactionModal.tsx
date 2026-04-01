@@ -64,6 +64,12 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
     const onSubmit = async (data: TransactionFormData) => {
         setIsLoading(true);
         try {
+            if (!user?.agency_id) {
+                toast.error('Identifiant d\'agence manquant. Veuillez rafraîchir la page.');
+                console.error('Missing agency_id for user:', user);
+                return;
+            }
+
             const payload = {
                 agency_id: user?.agency_id,
                 created_by: user?.id,
@@ -81,13 +87,19 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                     .from('modular_transactions')
                     .update(payload)
                     .eq('id', transaction.id);
-                if (error) throw error;
+                if (error) {
+                    console.error('Update RLS error:', error);
+                    throw error;
+                }
                 toast.success('Transaction mise à jour');
             } else {
                 const { error } = await supabase
                     .from('modular_transactions')
                     .insert([payload]);
-                if (error) throw error;
+                if (error) {
+                    console.error('Insert RLS error:', error);
+                    throw error;
+                }
                 toast.success('Transaction enregistrée');
             }
 
