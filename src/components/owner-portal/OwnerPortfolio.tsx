@@ -149,7 +149,11 @@ export const OwnerPortfolio: React.FC = () => {
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
                   <td className="px-8 py-6">
                     <p className="font-bold text-slate-900">{p.title}</p>
-                    <p className="text-xs text-slate-400">{p.location}</p>
+                    <p className="text-xs text-slate-400">
+                      {typeof p.location === 'object' 
+                        ? `${p.location?.quartier || ''}, ${p.location?.commune || ''}`.replace(/^, |, $/, '')
+                        : p.location}
+                    </p>
                   </td>
                   <td className="px-8 py-6 font-bold text-slate-700">{formatCurrency(p.monthly_rent)}</td>
                   <td className="px-8 py-6 font-bold text-slate-700">{formatCurrency(p.monthly_rent * 12)}</td>
