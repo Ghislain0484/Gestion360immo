@@ -73,11 +73,15 @@ export const OwnerDocuments: React.FC = () => {
           .select('*, property:properties(title), tenant:tenants(first_name, last_name)')
           .in('property_id', propIds);
 
-        // Fetch Inventories
-        const { data: invs } = await supabase
+        // Fetch Inventories (Safe check)
+        const { data: invs, error: invError } = await supabase
           .from('inventories')
           .select('*, property:properties(title)')
           .in('property_id', propIds);
+        
+        if (invError && invError.code === '42P01') {
+          console.warn('Table inventories does not exist yet');
+        }
 
         // Fetch Receipts
         const contractIds = (ctrs || []).map((c: any) => c.id);
@@ -85,7 +89,7 @@ export const OwnerDocuments: React.FC = () => {
           .from('rent_receipts')
           .select('*, contract:contracts(id, property:properties(title))')
           .in('contract_id', contractIds)
-          .order('payment_date', { ascending: false }) : { data: [] };
+          .order('payment_date', { ascending: false }) : { data: [] as any[] };
 
         setData({
           contracts: ctrs || [],

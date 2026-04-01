@@ -35,7 +35,7 @@ export const OwnerProperties: React.FC = () => {
           const demoOwnerId = 'demo-owner-1';
           
           const profileProps = MOCK_PROPERTIES.filter(p => p.owner_id === demoOwnerId);
-          const profileContracts = MOCK_CONTRACTS.filter(c => (c.owner_id === demoOwnerId) && (c.status === 'active' || c.status === 'renewed'));
+          const profileContracts = MOCK_CONTRACTS.filter(c => (c.owner_id === demoOwnerId) && (['active', 'renewed', 'pending', 'signed'].includes(c.status)));
 
           setProperties(profileProps);
           setContracts(profileContracts);
@@ -49,14 +49,24 @@ export const OwnerProperties: React.FC = () => {
           .order('title');
 
         const propIds = (props || []).map((p: any) => p.id);
+        
+        // Fetch Inventories (Safe check)
+        const { data: invs, error: invError } = propIds.length > 0 ? await supabase
+          .from('inventories')
+          .select('*, property:properties(title)')
+          .in('property_id', propIds) : { data: [], error: null };
+        
+        if (invError && invError.code === '42P01') {
+          console.warn('Table inventories does not exist yet');
+        }
+
         const { data: ctrs } = propIds.length > 0 ? await supabase
           .from('contracts')
           .select(`
             id, monthly_rent, commission_rate, next_payment_date, start_date, status, property_id,
             tenant:tenants(id, first_name, last_name, phone)
           `)
-          .in('property_id', propIds)
-          .in('status', ['active', 'renewed']) : { data: [] };
+          .in('property_id', propIds) : { data: [] };
 
         setProperties(props || []);
         setContracts(ctrs || []);
@@ -75,9 +85,10 @@ export const OwnerProperties: React.FC = () => {
       const isLate = contract?.next_payment_date && new Date(contract.next_payment_date) < new Date();
       // Expert metric: Yield (simplified for demo: monthly rent * 12 / some base value if we had it, or just ratio)
       const commission = contract?.commission_rate ?? 10;
-      const netMonthly = (contract?.monthly_rent || 0) * (1 - commission/100);
+      const rentAmount = contract?.monthly_rent || p.monthly_rent || 0;
+      const netMonthly = rentAmount * (1 - commission/100);
       
-      return { ...p, contract, isOccupied: !!contract, isLate, netMonthly };
+      return { ...p, contract, isOccupied: !!contract, isLate, netMonthly, rentAmount };
     });
   }, [properties, contracts]);
 
@@ -265,7 +276,7 @@ export const OwnerProperties: React.FC = () => {
                     </div>
                     <div className="p-5 rounded-[1.8rem] bg-slate-50 border border-slate-100">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2 leading-none">Loyer Brut</p>
-                      <p className="text-lg font-bold text-slate-600">{formatCurrency(p.contract.monthly_rent)}</p>
+                      <p className="text-lg font-bold text-slate-600">{formatCurrency(p.rentAmount)}</p>
                     </div>
                   </div>
                   
@@ -364,10 +375,33 @@ export const OwnerProperties: React.FC = () => {
                       </h3>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         {[
-                          { label: 'Surface', val: selectedProperty.surface || 'N/A m²', icon: Maximize2 },
-                          { label: 'Type Bail', val: 'Habitation', icon: Shield },
-                          { label: 'Durée Bail', val: '12 mois ren.', icon: Zap },
-                          { label: 'Charges', val: 'Incluses', icon: Droplets },
+                          { 
+                            label: 'Surface', 
+                            val: selectedProperty.details?.surface 
+                              ? `${selectedProperty.details.surface} m²`
+                              : (selectedProperty.rooms?.length > 0)
+                                ? `${selectedProperty.rooms.reduce((sum: number, r: any) => sum + (r.superficie || 0), 0)} m²`
+                                : 'Non spécifiée', 
+                            icon: Maximize2 
+                          },
+                          { 
+                            label: 'Type', 
+                            val: selectedProperty.details?.type === 'villa' ? 'Villa' :
+                                 selectedProperty.details?.type === 'appartement' ? 'Appartement' :
+                                 selectedProperty.details?.type === 'immeuble' ? 'Immeuble' :
+                                 selectedProperty.details?.type === 'terrain_nu' ? 'Terrain Nu' : 'Habitation', 
+                            icon: Shield 
+                          },
+                          { 
+                            label: 'Contrat', 
+                            val: selectedProperty.contract?.type === 'location' ? 'Location' : 'Gestion simple', 
+                            icon: Zap 
+                          },
+                          { 
+                            label: 'Charges', 
+                            val: selectedProperty.contract?.details?.charges_included ? 'Incluses' : 'Non incluses', 
+                            icon: Droplets 
+                          },
                         ].map((item, idx) => (
                           <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
                             <item.icon className="w-5 h-5 text-slate-400 mx-auto mb-2" />
