@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Calendar, Plus, Trash2, Calculator, DollarSign, TrendingDown, ArrowRight } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
-import { dbService } from '../../lib/supabase';
+import { dbService, supabase } from '../../lib/supabase';
 import { RentReceipt } from '../../types/db';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -9,7 +9,6 @@ import { LoadingSpinner } from '../ui/LoadingSpinner';
 
 interface OwnerReversalCalculatorProps {
     ownerId: string;
-    ownerName: string;
     onGenerateReversal: (amount: number, details: ReversalDetails) => void;
 }
 
@@ -33,7 +32,6 @@ export interface ReversalDetails {
 
 export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = ({
     ownerId,
-    ownerName,
     onGenerateReversal,
 }) => {
     const currentDate = new Date();
@@ -59,24 +57,61 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         { owner_id: ownerId }
     );
 
-    // Filter payments by selected period
+    // --- Fetch all manual transactions for this owner ---
+    const fetchManualTransactions = React.useCallback(async () => {
+        if (!ownerId) return [];
+        const { data, error } = await supabase
+            .from('modular_transactions')
+            .select('*')
+            .eq('related_owner_id', ownerId)
+            .in('category', ['rent_payment', 'caution'])
+            .eq('type', 'income');
+        if (error) throw error;
+        return data || [];
+    }, [ownerId]);
+
+    const { data: allManual = [], initialLoading: loadingManual } = useRealtimeData<any>(
+        fetchManualTransactions,
+        'modular_transactions',
+        { related_owner_id: ownerId }
+    );
+
+    // Filter payments and manual transactions by selected period
     const periodPayments = useMemo(() => {
-        return allPayments.filter((payment) => {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+
+        const filteredReceipts = allPayments.filter((payment) => {
             const paymentDate = new Date(payment.payment_date);
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            // Set time to start of day for consistent comparison
-            start.setHours(0, 0, 0, 0);
-            end.setHours(23, 59, 59, 999);
             paymentDate.setHours(0, 0, 0, 0);
             return paymentDate >= start && paymentDate <= end;
         });
-    }, [allPayments, startDate, endDate]);
+
+        const filteredManual = allManual.filter((m: any) => {
+            const d = new Date(m.transaction_date);
+            d.setHours(0, 0, 0, 0);
+            return d >= start && d <= end;
+        });
+
+        return { receipts: filteredReceipts, manual: filteredManual };
+    }, [allPayments, allManual, startDate, endDate]);
 
     // Calculate totals
     const calculations = useMemo(() => {
-        const totalRent = periodPayments.reduce((sum, p) => sum + p.total_amount, 0);
-        const totalCommission = periodPayments.reduce((sum, p) => sum + (p.commission_amount || 0), 0);
+        const totalRentFromReceipts = periodPayments.receipts.reduce((sum, p) => sum + p.total_amount, 0);
+        const totalCommFromReceipts = periodPayments.receipts.reduce((sum, p) => sum + (p.commission_amount || 0), 0);
+
+        const totalRentFromManual = periodPayments.manual.reduce((sum, m) => sum + Number(m.amount), 0);
+        const totalCommFromManual = periodPayments.manual.reduce((sum, m) => {
+            const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+            const ownerNet = match ? Number(match[1]) : (Number(m.amount) * 0.9);
+            return sum + (Number(m.amount) - ownerNet);
+        }, 0);
+
+        const totalRent = totalRentFromReceipts + totalRentFromManual;
+        const totalCommission = totalCommFromReceipts + totalCommFromManual;
         const totalFees = fees.reduce((sum, f) => sum + f.amount, 0);
         const netAmount = totalRent - totalCommission - totalFees;
 
@@ -85,7 +120,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
             totalCommission,
             totalFees,
             netAmount,
-            paymentsCount: periodPayments.length,
+            paymentsCount: periodPayments.receipts.length + periodPayments.manual.length,
         };
     }, [periodPayments, fees]);
 
@@ -129,7 +164,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         return `${start} - ${end}`;
     };
 
-    if (initialLoading) {
+    if (initialLoading || loadingManual) {
         return (
             <div className="flex justify-center py-12">
                 <LoadingSpinner size="lg" label="Chargement..." />

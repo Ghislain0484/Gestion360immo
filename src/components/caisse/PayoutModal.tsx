@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Modal } from '../ui/Modal';
 import { toast } from 'react-hot-toast';
-import { LoadingSpinner } from '../ui/LoadingSpinner';
 
 interface PayoutModalProps {
     isOpen: boolean;
@@ -58,19 +57,31 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 .select('owner_payment')
                 .eq('owner_id', ownerId);
 
-            const totalEarned = rentReceipts?.reduce((sum, r) => sum + (Number(r.owner_payment) || 0), 0) || 0;
+            const earnedFromReceipts = rentReceipts?.reduce((sum, r) => sum + (Number(r.owner_payment) || 0), 0) || 0;
 
-            // 2. Get past payouts (DEBITS of type 'owner_payout')
-            const { data: transactions } = await supabase
+            // 2. Get all modular transactions for this owner
+            const { data: manualTrans } = await supabase
                 .from('modular_transactions')
-                .select('amount')
-                .eq('related_owner_id', ownerId)
-                .eq('category', 'owner_payout')
-                .eq('type', 'debit');
+                .select('amount, category, type, description')
+                .eq('related_owner_id', ownerId);
 
-            const totalPaidOut = transactions?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+            // 3. Calculate earnings from manual transactions (Rent and Caution)
+            const earnedFromManual = manualTrans?.reduce((s, t) => {
+                if (t.type === 'debit') return s;
+                if (t.category === 'caution') return s + Number(t.amount);
+                if (t.category === 'rent_payment') {
+                    const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+                    if (match) return s + Number(match[1]);
+                    return s + (Number(t.amount) * 0.9);
+                }
+                return s;
+            }, 0) || 0;
+
+            // 4. Calculate total paid out
+            const totalPaidOut = manualTrans?.filter(t => t.category === 'owner_payout' && t.type === 'debit')
+                .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
             
-            // 3. Get Maintenance costs (resolved tickets charged to owner)
+            // 5. Get Maintenance costs
             const { data: maintenance } = await supabase
                 .from('tickets')
                 .select('cost')
@@ -80,7 +91,8 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
 
             const totalMaintenance = maintenance?.reduce((sum, m) => sum + (Number(m.cost) || 0), 0) || 0;
 
-            // Current Balance = Total Earned - Total Paid Out - Total Maintenance
+            const totalEarned = earnedFromReceipts + earnedFromManual;
+
             setBreakdown({
                 earned: totalEarned,
                 paidOut: totalPaidOut,

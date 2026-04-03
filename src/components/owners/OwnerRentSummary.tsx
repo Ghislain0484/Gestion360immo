@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { TrendingUp, CheckCircle, AlertTriangle, Clock, Building2, Calendar, Users, Home, Target, FileText } from 'lucide-react';
+import { TrendingUp, CheckCircle, AlertTriangle, Clock, Building2, Calendar, Users, Home, Target, FileText, Wallet, History, ArrowRight } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService } from '../../lib/supabase';
+import { dbService, supabase } from '../../lib/supabase';
 import { Property, RentReceipt } from '../../types/db';
 import { Contract } from '../../types/contracts';
 import { Card } from '../ui/Card';
@@ -59,101 +59,136 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         { owner_id: ownerId }
     );
 
+    // --- Fetch all manual transactions for this owner ---
+    const fetchManualTransactions = React.useCallback(async () => {
+        if (!ownerId) return [];
+        const { data, error } = await supabase
+            .from('modular_transactions')
+            .select('*')
+            .eq('related_owner_id', ownerId)
+            .in('category', ['rent_payment', 'caution'])
+            .eq('type', 'income');
+        if (error) throw error;
+        return data || [];
+    }, [ownerId]);
+
+    const { data: allManual = [], initialLoading: loadingManual } = useRealtimeData<any>(
+        fetchManualTransactions,
+        'modular_transactions',
+        { related_owner_id: ownerId }
+    );
+
+    // --- Fetch all owner transactions (reversals) ---
+    const fetchOwnerTransactions = React.useCallback(async () => {
+        if (!ownerId) return [];
+        const { data, error } = await supabase
+            .from('owner_transactions')
+            .select('*')
+            .eq('owner_id', ownerId)
+            .eq('type', 'debit');
+        if (error) throw error;
+        return data || [];
+    }, [ownerId]);
+
+    const { data: allReversals = [], initialLoading: loadingReversals } = useRealtimeData<any>(
+        fetchOwnerTransactions,
+        'owner_transactions',
+        { owner_id: ownerId }
+    );
+
     // --- Computations ---
     const stats = useMemo(() => {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
         // Filter receipts for the selected period
-        const currentPeriodReceipts = allReceipts.filter(
+        const filteredReceipts = allReceipts.filter(
             r => r.period_month === selectedMonth && r.period_year === selectedYear
         );
 
-        // Year receipts
-        const currentYearReceipts = allReceipts.filter(r => r.period_year === selectedYear);
+        // Filter manual transactions for the selected period
+        const filteredManual = allManual.filter((m: any) => {
+            const d = new Date(m.transaction_date);
+            return (d.getMonth() + 1) === selectedMonth && d.getFullYear() === selectedYear;
+        });
 
-        // Revenue Potential (Sum of target monthly_rent for ALL owner properties)
-        const totalPotential = ownerProperties.reduce((sum, p) => sum + (p.monthly_rent || 0), 0);
+        // --- New Metrics ---
+        // 1. Recent Collections (Last 30 days)
+        const recentReceipts = allReceipts.filter(r => new Date(r.payment_date) >= thirtyDaysAgo);
+        const recentManual = allManual.filter(m => new Date(m.transaction_date) >= thirtyDaysAgo);
+        const recentTotal = recentReceipts.reduce((sum, r) => sum + (r.amount_paid || r.total_amount), 0) +
+                           recentManual.reduce((sum, m) => sum + Number(m.amount), 0);
 
-        // Occupancy quantification
+        // 2. Global Balance (Total Accumulated - Total Reversed)
+        const totalAccumulated = allReceipts.reduce((sum, r) => sum + (r.owner_payment || (r.amount_paid || r.total_amount) * 0.9), 0) +
+                                allManual.reduce((sum, m) => {
+                                    const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+                                    return sum + (match ? Number(match[1]) : Number(m.amount) * 0.9);
+                                }, 0);
+        const totalReversed = allReversals.reduce((sum, r) => sum + Number(r.montant), 0);
+        const globalBalance = totalAccumulated - totalReversed;
+
+        // 3. Status Check for Previous Month
+        const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+        const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+        const hasPrevActivity = allReceipts.some(r => r.period_month === prevMonth && r.period_year === prevYear) ||
+                               allManual.some(m => {
+                                   const d = new Date(m.transaction_date);
+                                   return (d.getMonth() + 1) === prevMonth && d.getFullYear() === prevYear;
+                               });
+        
+        // --- Per Property Rows ---
         let occupiedCount = 0;
-
-        // Per-property status for selected month
         const propertyRows = ownerProperties.map(prop => {
-            // A property is considered "occupied" if it has an active/renewed contract
-            // (Note: In a true history mode, we'd check if the contract was active during the selected period)
-            const contract = ownerContracts.find(c =>
-                c.property_id === prop.id &&
+            const contract = ownerContracts.find(c => 
+                c.property_id === prop.id && 
                 ['active', 'renewed'].includes(c.status)
             );
-
+            
             const isOccupied = !!contract;
             if (isOccupied) occupiedCount++;
 
-            const monthlyRentTarget = prop.monthly_rent || 0;
-            const monthlyRentContractVal = contract?.monthly_rent || 0;
+            const monthlyRentContract = contract?.monthly_rent || 0;
+            
+            const propReceipts = filteredReceipts.filter(r => r.property_id === prop.id);
+            const propManual = filteredManual.filter((m: any) => m.related_property_id === prop.id);
+            
+            const paid = propReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0) +
+                        propManual.reduce((sum, m) => sum + Number(m.amount), 0);
 
-            const periodReceipts = currentPeriodReceipts.filter(r => r.property_id === prop.id);
-            const amountPaid = periodReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0);
-
-            let status: 'paid' | 'partial' | 'unpaid' | 'no_contract';
-            let balanceDue = 0;
-
-            if (!contract) {
-                status = 'no_contract';
-            } else if (periodReceipts.length === 0) {
-                status = 'unpaid';
-                balanceDue = monthlyRentContractVal;
-            } else {
-                // If there's an explicit balance_due on the latest receipt, we might use it,
-                // but for this report context, contract - sum(paid) is more robust.
-                balanceDue = Math.max(0, monthlyRentContractVal - amountPaid);
-                
-                // Status determined by total paid vs contract
-                if (amountPaid >= monthlyRentContractVal) {
-                    status = 'paid';
-                } else if (amountPaid > 0) {
-                    status = 'partial';
-                } else {
-                    status = 'unpaid';
-                }
-            }
+            let status: 'paid' | 'partial' | 'unpaid' | 'no_contract' = 'unpaid';
+            if (!contract) status = 'no_contract';
+            else if (paid >= monthlyRentContract && monthlyRentContract > 0) status = 'paid';
+            else if (paid > 0) status = 'partial';
 
             return {
                 prop,
-                monthlyRentTarget,
-                monthlyRentContract: monthlyRentContractVal,
+                monthlyRentContract,
+                amountPaid: paid,
+                balanceDue: Math.max(0, monthlyRentContract - paid),
                 status,
-                amountPaid,
-                balanceDue,
                 isOccupied
             };
         });
 
-        // Financials only for "Occupied" properties (expected rent according to contracts)
-        const monthlyExpected = propertyRows.reduce((sum, row) => sum + row.monthlyRentContract, 0);
         const monthlyPaid = propertyRows.reduce((sum, row) => sum + row.amountPaid, 0);
-        const monthlyRemaining = Math.max(0, monthlyExpected - monthlyPaid);
-
-        // Yearly view
-        const yearlyCollected = currentYearReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0);
-        const yearlyExpected = monthlyExpected * 12; // Approximation
-        const yearlyUnpaid = Math.max(0, yearlyExpected - yearlyCollected);
+        const monthlyExpected = propertyRows.reduce((sum, row) => sum + row.monthlyRentContract, 0);
 
         return {
-            totalPotential,
-            monthlyExpected,
-            monthlyPaid,
-            monthlyRemaining,
-            yearlyExpected,
-            yearlyCollected,
-            yearlyUnpaid,
             propertyRows,
+            monthlyPaid,
+            monthlyExpected,
+            recentTotal,
+            globalBalance,
+            hasPrevActivity,
             occupiedCount,
             vacantCount: ownerProperties.length - occupiedCount,
-            totalCount: ownerProperties.length
+            totalPotential: ownerProperties.reduce((sum, p) => sum + (p.monthly_rent || 0), 0)
         };
-    }, [ownerContracts, allReceipts, ownerProperties, selectedMonth, selectedYear]);
+    }, [ownerContracts, allReceipts, allManual, allReversals, ownerProperties, selectedMonth, selectedYear]);
 
-    if (loadingContracts || loadingReceipts) {
-        return <div className="flex justify-center py-8"><LoadingSpinner size="md" label="Chargement du résumé..." /></div>;
+    if (loadingContracts || loadingReceipts || loadingManual || loadingReversals) {
+        return <div className="flex justify-center py-8"><LoadingSpinner size="md" label="Chargement des données..." /></div>;
     }
 
     if (ownerProperties.length === 0) {
@@ -211,47 +246,73 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                 </div>
             </div>
 
+            {/* Previous Month Activity Hint */}
+            {stats.monthlyPaid === 0 && stats.hasPrevActivity && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 animate-pulse shadow-sm">
+                    <div className="p-2 bg-amber-100 rounded-lg">
+                        <AlertTriangle className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                        <p className="text-sm font-bold text-amber-900">Aucun encaissement détecté pour {MONTHS_FR[selectedMonth]} {selectedYear}</p>
+                        <p className="text-xs text-amber-700">Des paiements ont été trouvés sur le mois précédent. Vérifiez si vous avez bien sélectionné la période correspondant aux quittances.</p>
+                    </div>
+                    <button 
+                        onClick={() => {
+                            const pm = selectedMonth === 1 ? 12 : selectedMonth - 1;
+                            const py = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+                            setSelectedMonth(pm);
+                            setSelectedYear(py);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-black rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
+                    >
+                        Voir le mois précédent <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            )}
+
             {/* Top KPIs Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Potential KPI */}
-                <Card className="p-4 bg-slate-50 border-slate-200 shadow-none">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-white rounded-xl text-slate-400 border border-slate-100"><Target className="w-5 h-5" /></div>
+                {/* Global Balance KPI */}
+                <Card className="p-4 bg-gradient-to-br from-indigo-600 to-purple-700 border-none shadow-lg shadow-indigo-100 relative overflow-hidden group">
+                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-500"></div>
+                    <div className="flex items-center gap-3 relative z-10">
+                        <div className="p-2.5 bg-white/20 rounded-xl text-white backdrop-blur-md border border-white/30"><Wallet className="w-5 h-5" /></div>
                         <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Potentiel Mensuel</p>
-                            <p className="text-lg font-black text-slate-900 leading-none">{formatCurrency(stats.totalPotential)}</p>
+                            <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest leading-none mb-1">Solde Global (Restant)</p>
+                            <p className="text-lg font-black text-white leading-none">{formatCurrency(stats.globalBalance)}</p>
                         </div>
                     </div>
                 </Card>
 
+                {/* Recent Collections KPI */}
+                <Card className="p-4 bg-white border-slate-200 shadow-none border-dashed border-2">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-slate-50 rounded-xl text-slate-400 border border-slate-100"><History className="w-5 h-5" /></div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Derniers 30 jours</p>
+                            <p className="text-lg font-black text-slate-900 leading-none">{formatCurrency(stats.recentTotal)}</p>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Expected KPI */}
                 <Card className="p-4 bg-blue-50/50 border-blue-100 shadow-none">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-white rounded-xl text-blue-600 border border-blue-100 shadow-sm"><FileText className="w-5 h-5" /></div>
                         <div>
-                            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest leading-none mb-1">Attendu (Contrats)</p>
+                            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest leading-none mb-1">Attendu ({MONTHS_FR[selectedMonth]})</p>
                             <p className="text-lg font-black text-slate-900 leading-none">{formatCurrency(stats.monthlyExpected)}</p>
                         </div>
                     </div>
                 </Card>
 
+                {/* Paid KPI */}
                 <Card className="p-4 bg-emerald-50/50 border-emerald-100 shadow-none">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-white rounded-xl text-emerald-600 border border-emerald-100 shadow-sm"><CheckCircle className="w-5 h-5" /></div>
                         <div>
-                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest leading-none mb-1">Encaissé Réel</p>
+                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest leading-none mb-1">Perçu (Période)</p>
                             <p className="text-lg font-black text-emerald-700 leading-none">{formatCurrency(stats.monthlyPaid)}</p>
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="p-4 bg-rose-50 border-rose-100 shadow-none">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-white rounded-xl text-rose-600 border border-rose-100 shadow-sm"><AlertTriangle className="w-5 h-5" /></div>
-                        <div>
-                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest leading-none mb-1">Reste à Percevoir</p>
-                            <p className={`text-lg font-black leading-none ${stats.monthlyRemaining > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                                {formatCurrency(stats.monthlyRemaining)}
-                            </p>
                         </div>
                     </div>
                 </Card>
@@ -266,7 +327,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                         </div>
                         <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase">Patrimoine</p>
-                            <p className="text-lg font-black text-slate-900">{stats.totalCount < 10 ? `0${stats.totalCount}` : stats.totalCount}</p>
+                            <p className="text-lg font-black text-slate-900">{ownerProperties.length < 10 ? `0${ownerProperties.length}` : ownerProperties.length}</p>
                         </div>
                     </div>
                     <Badge variant="secondary" className="bg-slate-50 text-slate-500 border-none">Biens</Badge>
@@ -327,7 +388,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {stats.propertyRows.map(({ prop, monthlyRentTarget, monthlyRentContract, status, amountPaid, balanceDue, isOccupied }) => (
+                                {stats.propertyRows.map(({ prop, monthlyRentContract, status, amountPaid, balanceDue, isOccupied }) => (
                                     <tr key={prop.id} className={`hover:bg-blue-50/20 transition-colors ${!isOccupied ? 'bg-slate-50/20' : ''}`}>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-4">
@@ -345,15 +406,15 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                                             </div>
                                         </td>
                                         <td className="px-4 py-4 text-right font-bold text-slate-900 bg-slate-50/30">
-                                            {formatCurrency(monthlyRentTarget)}
+                                            {formatCurrency(prop.monthly_rent || 0)}
                                         </td>
                                         <td className="px-4 py-4 text-right">
                                             {isOccupied ? (
                                                 <div className="flex flex-col items-end">
                                                     <span className="font-black text-blue-600">{formatCurrency(monthlyRentContract)}</span>
-                                                    {monthlyRentContract !== monthlyRentTarget && (
-                                                        <span className={`text-[10px] font-bold ${monthlyRentContract > monthlyRentTarget ? 'text-emerald-500' : 'text-orange-500'}`}>
-                                                            {monthlyRentContract > monthlyRentTarget ? '↑ Sur-performance' : '↓ Sous-coté'}
+                                                    {monthlyRentContract !== (prop.monthly_rent || 0) && (
+                                                        <span className={`text-[10px] font-bold ${monthlyRentContract > (prop.monthly_rent || 0) ? 'text-emerald-500' : 'text-orange-500'}`}>
+                                                            {monthlyRentContract > (prop.monthly_rent || 0) ? '↑ Sur-performance' : '↓ Sous-coté'}
                                                         </span>
                                                     )}
                                                 </div>
@@ -383,7 +444,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                                 <tr>
                                     <td className="px-6 py-5">
                                         <div className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-1">Résumé Consolidé</div>
-                                        <div className="text-sm font-medium text-slate-300 italic">Total des montants listés</div>
+                                        <div className="text-sm font-medium text-slate-300 italic">Total pour {MONTHS_FR[selectedMonth]}</div>
                                     </td>
                                     <td className="px-4 py-5 text-right">
                                         <div className="font-black text-lg">{formatCurrency(stats.totalPotential)}</div>
@@ -391,7 +452,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                                     </td>
                                     <td className="px-4 py-5 text-right">
                                         <div className="font-black text-lg text-blue-400">{formatCurrency(stats.monthlyExpected)}</div>
-                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter italic">Attendu contrats</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter italic">Attendu période</div>
                                     </td>
                                     <td className="px-4 py-5 text-right">
                                         <div className="font-black text-lg text-emerald-400">{formatCurrency(stats.monthlyPaid)}</div>

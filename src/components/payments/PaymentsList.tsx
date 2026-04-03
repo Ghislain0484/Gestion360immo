@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Calendar, Download, Eye, CreditCard, X } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
-import { dbService } from '../../lib/supabase';
+import { dbService, supabase } from '../../lib/supabase';
 import { RentReceipt } from '../../types/db';
 import { ModularTransaction } from '../../types/modular';
 import { Card } from '../ui/Card';
@@ -52,8 +52,15 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
         let modularData: ModularTransaction[] = [];
         if (tenantId) {
             modularData = await dbService.modular.getTenantTransactions(tenantId);
+        } else if (ownerId) {
+            const { data, error } = await supabase
+                .from('modular_transactions')
+                .select('*')
+                .eq('related_owner_id', ownerId)
+                .in('category', ['rent_payment', 'caution']);
+            if (error) console.error('Error fetching owner transactions:', error);
+            modularData = data || [];
         } else if (agencyId) {
-            // For agency-wide list, we'd need a more global fetch, but usually this is used per tenant/property
             const startDate = new Date(2020, 0, 1).toISOString();
             const endDate = new Date(2030, 0, 1).toISOString();
             modularData = await dbService.modular.getAgencyTransactions(agencyId, startDate, endDate);
@@ -70,21 +77,27 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
 
         const normalizedModular = (modularData || [])
             .filter(t => t.type === 'income' || t.type === 'credit')
-            .map(t => ({
-                id: t.id,
-                payment_date: t.transaction_date,
-                total_amount: Number(t.amount),
-                amount_paid: Number(t.amount),
-                payment_method: t.payment_method,
-                receipt_number: 'TXN-' + t.id.slice(0, 8).toUpperCase(),
-                notes: t.description,
-                period_month: new Date(t.transaction_date).getMonth() + 1,
-                period_year: new Date(t.transaction_date).getFullYear(),
-                displayDate: t.transaction_date,
-                displayAmount: Number(t.amount),
-                displayTitle: t.description,
-                displayType: 'transaction'
-            }));
+            .map(t => {
+                const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+                const ownerPayment = match ? Number(match[1]) : (Number(t.amount) * 0.9);
+                
+                return {
+                    id: t.id,
+                    payment_date: t.transaction_date,
+                    total_amount: Number(t.amount),
+                    amount_paid: Number(t.amount),
+                    payment_method: t.payment_method,
+                    receipt_number: 'TXN-' + t.id.slice(0, 8).toUpperCase(),
+                    notes: t.description,
+                    period_month: new Date(t.transaction_date).getMonth() + 1,
+                    period_year: new Date(t.transaction_date).getFullYear(),
+                    displayDate: t.transaction_date,
+                    displayAmount: Number(t.amount),
+                    displayTitle: t.description,
+                    displayType: 'transaction',
+                    owner_payment: ownerPayment
+                };
+            });
 
         return [...normalizedReceipts, ...normalizedModular] as any[];
     }, [tenantId, propertyId, ownerId, agencyId]);
