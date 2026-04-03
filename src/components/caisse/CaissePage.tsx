@@ -60,14 +60,33 @@ export const CaissePage: React.FC = () => {
                     return;
                 }
                 const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment').eq('owner_id', ownerId);
-                const { data: payouts } = await supabase.from('modular_transactions').select('amount').eq('related_owner_id', ownerId).eq('category', 'owner_payout').eq('type', 'debit');
+                const { data: manualTrans } = await supabase.from('modular_transactions')
+                    .select('amount, category, type, description')
+                    .eq('related_owner_id', ownerId);
                 const { data: maintenance } = await supabase.from('tickets').select('cost').eq('owner_id', ownerId).eq('charge_to', 'owner').eq('status', 'resolved');
                 
-                const earned = receipts?.reduce((s, r) => s + (Number(r.owner_payment) || 0), 0) || 0;
-                const paid = payouts?.reduce((s, p) => s + (Number(p.amount) || 0), 0) || 0;
+                const earnedFromReceipts = receipts?.reduce((s, r) => s + (Number(r.owner_payment) || 0), 0) || 0;
+                
+                // Add modular transactions (Rent and Caution)
+                const earnedFromManual = manualTrans?.reduce((s, t) => {
+                    if (t.type === 'debit') return s; // Skip payouts here
+                    if (t.category === 'caution') return s + Number(t.amount); // Cautions go 100% to owner pocket
+                    if (t.category === 'rent_payment') {
+                        // Try to parse [Part Proprio: XXX] from description (newly added in TenantCollectionModal)
+                        const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+                        if (match) return s + Number(match[1]);
+                        // Fallback: 90% if not found
+                        return s + (Number(t.amount) * 0.9);
+                    }
+                    return s;
+                }, 0) || 0;
+
+                const paid = manualTrans?.filter(t => t.category === 'owner_payout' && t.type === 'debit')
+                    .reduce((s, p) => s + (Number(p.amount) || 0), 0) || 0;
+                    
                 const repairs = maintenance?.reduce((s, m) => s + (Number(m.cost) || 0), 0) || 0;
                 
-                setBalance(earned - paid - repairs);
+                setBalance(earnedFromReceipts + earnedFromManual - paid - repairs);
                 setLoading(false);
             };
             fetchBalance();
@@ -235,18 +254,28 @@ export const CaissePage: React.FC = () => {
                     details: r
                 }));
 
-                const mappedManual: Transaction[] = (cashTrans || []).map(t => ({
-                    id: t.id,
-                    date: t.transaction_date,
-                    type: (t.type === 'income' || t.type === 'credit' || t.type === 'deposit') ? 'credit' : 'debit',
-                    amount: t.amount,
-                    category: t.category,
-                    description: t.description || 'N/A',
-                    payment_method: t.payment_method,
-                    source: 'modular_transaction',
-                    reference_id: '',
-                    details: t
-                }));
+                const mappedManual: Transaction[] = (cashTrans || []).map(t => {
+                    let ownerPayment = 0;
+                    if (t.category === 'owner_payout') ownerPayment = t.amount;
+                    else if (t.category === 'caution') ownerPayment = t.amount;
+                    else if (t.category === 'rent_payment') {
+                        const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+                        ownerPayment = match ? Number(match[1]) : (t.amount * 0.9);
+                    }
+
+                    return {
+                        id: t.id,
+                        date: t.transaction_date,
+                        type: (t.type === 'income' || t.type === 'credit' || t.type === 'deposit') ? 'credit' : 'debit',
+                        amount: t.amount,
+                        category: t.category,
+                        description: t.description || 'N/A',
+                        payment_method: t.payment_method,
+                        source: 'modular_transaction',
+                        reference_id: '',
+                        details: { ...t, owner_payment: ownerPayment }
+                    };
+                });
 
                 const mappedExpenses: Transaction[] = (workExpenses || []).map(e => ({
                     id: `expense-${e.id}`,
@@ -780,7 +809,7 @@ export const CaissePage: React.FC = () => {
                                                     {t.payment_method}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium text-right">
-                                                    {t.source === 'rent_receipt' ? `${(t.details?.owner_share || 0).toLocaleString('fr-FR')}` : '-'}
+                                                    {t.source === 'rent_receipt' ? `${(t.details?.owner_payment || 0).toLocaleString('fr-FR')}` : '-'}
                                                 </td>
                                                 <td className={clsx(
                                                     "px-6 py-4 whitespace-nowrap text-sm font-semibold text-right",

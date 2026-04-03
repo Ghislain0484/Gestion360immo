@@ -86,6 +86,18 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             const selectedProp = properties.find(p => p.id === data.property_id);
             const selectedTenant = tenants.find(t => t.id === data.tenant_id);
 
+            // Fetch contract to get commission rate
+            const { data: contract } = await supabase
+                .from('contracts')
+                .select('id, commission_rate, start_date')
+                .eq('property_id', data.property_id)
+                .eq('tenant_id', data.tenant_id)
+                .eq('status', 'active')
+                .maybeSingle();
+
+            const commissionRate = contract?.commission_rate || 10;
+            const ownerRentPart = advanceAmount * (1 - commissionRate / 100);
+
             // Create 3 Transactions
             const transactions = [
                 {
@@ -107,7 +119,7 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
                     type: 'credit',
                     amount: advanceAmount,
                     category: 'rent_payment',
-                    description: `Avance Loyer (${data.advance_months} mois) - ${selectedProp?.title} - ${selectedTenant?.first_name} ${selectedTenant?.last_name}`,
+                    description: `Avance Loyer (${data.advance_months} mois) [Part Proprio: ${ownerRentPart}] - ${selectedProp?.title} - ${selectedTenant?.first_name} ${selectedTenant?.last_name}`,
                     transaction_date: data.transaction_date,
                     payment_method: data.payment_method,
                     related_owner_id: selectedProp?.owner_id,
@@ -133,23 +145,13 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             if (transError) throw transError;
 
             // Update Tenant Next Payment Date in Contract
-            if (data.advance_months > 0) {
-                const { data: contract } = await supabase
+            if (data.advance_months > 0 && contract) {
+                const start = new Date(contract.start_date);
+                start.setMonth(start.getMonth() + Number(data.advance_months));
+                await supabase
                     .from('contracts')
-                    .select('id, start_date')
-                    .eq('property_id', data.property_id)
-                    .eq('tenant_id', data.tenant_id)
-                    .eq('status', 'active')
-                    .maybeSingle();
-
-                if (contract) {
-                    const start = new Date(contract.start_date);
-                    start.setMonth(start.getMonth() + Number(data.advance_months));
-                    await supabase
-                        .from('contracts')
-                        .update({ next_payment_date: start.toISOString().split('T')[0] })
-                        .eq('id', contract.id);
-                }
+                    .update({ next_payment_date: start.toISOString().split('T')[0] })
+                    .eq('id', contract.id);
             }
 
             toast.success('Encaissement global réussi !');

@@ -78,9 +78,7 @@ export const OwnerFinances: React.FC = () => {
         const { data: payoutsData } = await supabase
           .from('modular_transactions')
           .select('id, amount, transaction_date, description, payment_method, category, type')
-          .eq('related_owner_id', owner.id)
-          .eq('category', 'owner_payout')
-          .eq('type', 'debit');
+          .eq('related_owner_id', owner.id);
 
         setContracts(ctrs || []);
         setReceipts(rcts || []);
@@ -98,25 +96,40 @@ export const OwnerFinances: React.FC = () => {
     const normalizedReceipts: OwnerTransaction[] = receipts.map(r => ({
       id: r.id,
       date: r.payment_date || r.created_at,
-      type: 'receipt',
+      type: 'receipt' as 'receipt',
       amount: r.total_amount,
       owner_net: r.owner_payment,
       reference: r.receipt_number,
       contract_id: r.contract_id,
-      description: 'Encaissement Loyer'
+      description: 'Encaissement Loyer (Quittance)'
     }));
 
-    const normalizedPayouts: OwnerTransaction[] = payouts.map(p => ({
-      id: p.id,
-      date: p.transaction_date,
-      type: 'payout',
-      amount: Number(p.amount),
-      owner_net: Number(p.amount),
-      reference: `REVERSEMENT-${p.id.slice(0,8).toUpperCase()}`,
-      description: p.description || 'Reversement Agence'
-    }));
+    const normalizedManual: OwnerTransaction[] = (payouts || []).map(p => {
+      const isPayout = p.category === 'owner_payout' && p.type === 'debit';
+      const isCaution = p.category === 'caution';
+      const isRentPayment = p.category === 'rent_payment';
+      
+      let ownerNet = 0;
+      if (isPayout) ownerNet = Number(p.amount);
+      else if (isCaution) ownerNet = Number(p.amount);
+      else if (isRentPayment) {
+          const match = p.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+          ownerNet = match ? Number(match[1]) : (Number(p.amount) * 0.9);
+      }
 
-    return [...normalizedReceipts, ...normalizedPayouts].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return {
+        id: p.id,
+        date: p.transaction_date,
+        type: (isPayout ? 'payout' : 'receipt') as 'payout' | 'receipt',
+        amount: Number(p.amount),
+        owner_net: ownerNet,
+        reference: isPayout ? `REV-${p.id.slice(0,8).toUpperCase()}` : `ENC-${p.id.slice(0,8).toUpperCase()}`,
+        description: p.description || (isPayout ? 'Reversement Agence' : 'Versement Manuel')
+      };
+    }).filter(t => t.owner_net > 0 || t.type === 'payout');
+
+    return [...normalizedReceipts, ...normalizedManual]
+      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [receipts, payouts]);
 
   const filteredTransactions = useMemo(() => {

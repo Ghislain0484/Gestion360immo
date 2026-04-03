@@ -302,7 +302,6 @@ export const OwnerDetails: React.FC = () => {
                                     <div className="p-6">
                                         <OwnerReversalCalculator
                                             ownerId={owner.id}
-                                            ownerName={`${owner.first_name} ${owner.last_name}`}
                                             onGenerateReversal={(amount, details) => {
                                                 setReversalAmount(amount);
                                                 setReversalDetails(details);
