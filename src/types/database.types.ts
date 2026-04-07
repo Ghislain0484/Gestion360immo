@@ -1740,7 +1740,7 @@ export type Database = {
       }
     }
     Enums: {
-      agency_user_role: "director" | "manager" | "agent"
+      agency_user_role: "director" | "manager" | "agent" | "cashier"
       announcement_type: "location" | "vente"
       contract_status: "draft" | "active" | "expired" | "terminated" | "renewed"
       contract_type: "location" | "vente" | "gestion"
@@ -1900,7 +1900,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      agency_user_role: ["director", "manager", "agent"],
+      agency_user_role: ["director", "manager", "agent", "cashier"],
       announcement_type: ["location", "vente"],
       contract_status: ["draft", "active", "expired", "terminated", "renewed"],
       contract_type: ["location", "vente", "gestion"],
