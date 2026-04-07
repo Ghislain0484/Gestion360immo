@@ -20,7 +20,7 @@ create extension if not exists "uuid-ossp";
 -- =========================================================
 do $$
 begin
-  create type agency_user_role as enum ('director','manager','agent');
+  create type agency_user_role as enum ('director','manager','agent','cashier');
 exception when duplicate_object then null; end $$;
 
 do $$
