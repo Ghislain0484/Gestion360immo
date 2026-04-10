@@ -51,4 +51,4 @@ EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
 
-DO c:\Users\DELL 5510 CORE I7\Documents\project-gestion360-main BEGIN RAISE NOTICE ''; END c:\Users\DELL 5510 CORE I7\Documents\project-gestion360-main;
+DO $$ BEGIN RAISE NOTICE '✅ Migration terminée avec succès.'; END $$;
