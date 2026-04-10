@@ -135,7 +135,8 @@ DECLARE
         'owners', 'tenants', 'properties', 'contracts', 'financial_statements', 
         'financial_transactions', 'tickets', 'cash_transactions', 'contract_templates', 
         'inventories', 'property_tenant_assignments', 'managed_contracts', 
-        'agency_subscriptions', 'agency_rankings', 'agency_service_modules'
+        'agency_subscriptions', 'agency_rankings', 'agency_service_modules',
+        'announcement_interests'
     ];
 BEGIN
     FOREACH t_name IN ARRAY tables_to_secure LOOP
