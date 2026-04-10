@@ -234,8 +234,8 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
                                 position={marker.position}
                                 onClick={() => setSelectedPropertyId(marker.id)}
                                 icon={marker.isOccupied
-                                    ? 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
-                                    : 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                                    ? 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+                                    : 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'
                                 }
                             />
                         ))}
