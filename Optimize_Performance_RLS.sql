@@ -1,44 +1,49 @@
 -- =============================================================================
--- GESTION360 - OPTIMISATION DES PERFORMANCES RLS (V23.2)
--- Ce script ajoute les index manquants pour accélérer les vérifications RLS.
+-- GESTION360 - OPTIMISATION DES PERFORMANCES RLS (V23.3 - ROBUSTE)
+-- Ce script ajoute les index de sécurité de manière sécurisée (vérifie l'existence des tables).
 -- =============================================================================
 
--- 1. Indexation massive sur agency_id (Le socle du RLS)
-CREATE INDEX IF NOT EXISTS idx_agency_users_agency_id ON public.agency_users(agency_id);
-CREATE INDEX IF NOT EXISTS idx_agency_users_user_id ON public.agency_users(user_id);
+DO $$ 
+DECLARE 
+    t_name TEXT;
+BEGIN
+    -- 1. Indexation massive sur agency_id pour les tables existantes
+    FOR t_name IN (
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name IN (
+            'owners', 'tenants', 'properties', 'contracts', 'financial_statements', 
+            'financial_transactions', 'cash_transactions', 'announcements', 
+            'agency_subscriptions', 'agency_rankings', 'agency_service_modules',
+            'agency_users', 'messages', 'notifications', 'audit_logs', 'rent_receipts'
+        )
+    ) LOOP
+        -- Indexation sur agency_id si la colonne existe
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = t_name AND column_name = 'agency_id') THEN
+            EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_agency_id ON public.%I(agency_id)', t_name, t_name);
+        END IF;
 
-CREATE INDEX IF NOT EXISTS idx_owners_agency_id ON public.owners(agency_id);
-CREATE INDEX IF NOT EXISTS idx_tenants_agency_id ON public.tenants(agency_id);
-CREATE INDEX IF NOT EXISTS idx_properties_agency_id ON public.properties(agency_id);
-CREATE INDEX IF NOT EXISTS idx_contracts_agency_id ON public.contracts(agency_id);
-CREATE INDEX IF NOT EXISTS idx_financial_statements_agency_id ON public.financial_statements(agency_id);
-CREATE INDEX IF NOT EXISTS idx_financial_transactions_agency_id ON public.financial_transactions(agency_id);
-CREATE INDEX IF NOT EXISTS idx_cash_transactions_agency_id ON public.cash_transactions(agency_id);
-CREATE INDEX IF NOT EXISTS idx_announcements_agency_id ON public.announcements(agency_id);
-CREATE INDEX IF NOT EXISTS idx_agency_subscriptions_agency_id ON public.agency_subscriptions(agency_id);
-CREATE INDEX IF NOT EXISTS idx_agency_rankings_agency_id ON public.agency_rankings(agency_id);
-CREATE INDEX IF NOT EXISTS idx_agency_service_modules_agency_id ON public.agency_service_modules(agency_id);
+        -- Indexation sur d'autres colonnes clés
+        IF t_name = 'agency_users' THEN
+            CREATE INDEX IF NOT EXISTS idx_agency_users_user_id ON public.agency_users(user_id);
+        ELSIF t_name = 'rent_receipts' THEN
+            CREATE INDEX IF NOT EXISTS idx_rent_receipts_contract_id ON public.rent_receipts(contract_id);
+        ELSIF t_name = 'messages' THEN
+            CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON public.messages(sender_id);
+            CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON public.messages(receiver_id);
+        ELSIF t_name = 'notifications' THEN
+            CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+        END IF;
+    END LOOP;
 
--- 2. Indexation des clés étrangères utilisées dans les jointures RLS
--- Crucial pour rent_receipts qui lie via contracts
-CREATE INDEX IF NOT EXISTS idx_rent_receipts_contract_id ON public.rent_receipts(contract_id);
-CREATE INDEX IF NOT EXISTS idx_contracts_owner_id ON public.contracts(owner_id);
-CREATE INDEX IF NOT EXISTS idx_contracts_tenant_id ON public.contracts(tenant_id);
+    -- 2. Analyse pour le planificateur de requêtes
+    ANALYZE public.agency_users;
+END $$;
 
--- 3. Indexation pour la communication
-CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON public.messages(sender_id);
-CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON public.messages(receiver_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
-
--- 4. Audit & Logs
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON public.audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs(created_at DESC);
-
--- 5. Optimisation de la fonction RLS is_agency_member
--- On s'assure qu'elle est STABLE et utilise au mieux les index.
+-- 3. Optimisation de la fonction RLS (toujours valide si le schéma est là)
 CREATE OR REPLACE FUNCTION public.is_agency_member(p_agency_id UUID)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  -- Utilisation d'une sous-requête simple indexée
   SELECT EXISTS (
     SELECT 1 FROM public.agency_users 
     WHERE user_id = auth.uid() 
@@ -46,13 +51,4 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   );
 $$;
 
--- 6. Analyse de la base pour mettre à jour les statistiques du planificateur
-ANALYZE public.agency_users;
-ANALYZE public.owners;
-ANALYZE public.tenants;
-ANALYZE public.properties;
-ANALYZE public.contracts;
-ANALYZE public.rent_receipts;
-ANALYZE public.financial_transactions;
-
-DO $$ BEGIN RAISE NOTICE '✅ Optimisations de performance appliquées avec succès.'; END $$;
+DO $$ BEGIN RAISE NOTICE '✅ Optimisations de performance appliquées de manière sécurisée.'; END $$;

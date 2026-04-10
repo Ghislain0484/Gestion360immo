@@ -20,6 +20,14 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='rent_receipts' AND column_name='payment_status') THEN
         ALTER TABLE public.rent_receipts ADD COLUMN payment_status text DEFAULT 'paid';
     END IF;
+
+    -- agency_id (Nécessaire pour RLS rapide)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='rent_receipts' AND column_name='agency_id') THEN
+        ALTER TABLE public.rent_receipts ADD COLUMN agency_id uuid REFERENCES public.agencies(id) ON DELETE CASCADE;
+        -- Remplissage initial basé sur le contrat
+        UPDATE public.rent_receipts r SET agency_id = (SELECT agency_id FROM public.contracts c WHERE c.id = r.contract_id)
+        WHERE agency_id IS NULL;
+    END IF;
 END $$;
 
 -- 2. Vérification des tables manquantes (ex: financial_transactions si elle n'existait pas)
