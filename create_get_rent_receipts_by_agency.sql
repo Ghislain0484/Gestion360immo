@@ -29,8 +29,7 @@ BEGIN
     rr.period_year, 
     rr.contract_id
   FROM rent_receipts rr
-  INNER JOIN contracts c ON rr.contract_id = c.id
-  WHERE c.agency_id = p_agency_id
+  WHERE rr.agency_id = p_agency_id
     AND (p_start_date IS NULL OR rr.payment_date >= p_start_date)
     AND (p_end_date IS NULL OR rr.payment_date <= p_end_date);
 END;
