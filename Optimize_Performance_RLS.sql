@@ -55,4 +55,4 @@ ANALYZE public.contracts;
 ANALYZE public.rent_receipts;
 ANALYZE public.financial_transactions;
 
--- RAISE NOTICE '✅ Optimisations de performance appliquées avec succès.';
+DO Apply_Schema_Updates.sql BEGIN RAISE NOTICE ''; END Apply_Schema_Updates.sql;
