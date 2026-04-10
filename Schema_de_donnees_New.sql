@@ -143,7 +143,7 @@ $$ LANGUAGE plpgsql;
 -- Utilisateurs (liés à Supabase Auth)
 -- =========================================================
 -- Convention: users.id = auth.users.id (FK forte, on supprime le profil si l’auth user est supprimé)
-create table public.users (
+create table if not exists public.users (
   id uuid primary key references auth.users (id) on delete cascade,
   email text not null unique,
   first_name text not null,
@@ -164,7 +164,7 @@ create index if not exists idx_users_phone on users(phone);
 -- Administrateurs plateforme
 -- =========================================================
 -- On lie un admin à un user existant (1-1)
-create table public.platform_admins (
+create table if not exists public.platform_admins (
   id uuid not null default gen_random_uuid() primary key,
   user_id uuid not null unique references public.users(id) on delete cascade,
   role text not null check (role in ('super_admin','admin')),
@@ -180,7 +180,7 @@ create trigger trg_platform_admins_updated_at before update on public.platform_a
 -- =========================================================
 -- Agences
 -- =========================================================
-create table public.agencies (
+create table if not exists public.agencies (
   id uuid primary key default uuid_generate_v4(),
   business_id text unique, -- ADDED
   name text not null,
@@ -207,7 +207,7 @@ create trigger trg_agencies_id_gen before insert on public.agencies
 -- =========================================================
 -- Liaison utilisateurs/agences (rôles par agence)
 -- =========================================================
-create table public.agency_users (
+create table if not exists public.agency_users (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   agency_id uuid references public.agencies(id) on delete cascade, -- Suppression de not null pour permettre la création d'utilisateur avant validation et création d'Agence.
@@ -224,7 +224,7 @@ create unique index uq_agency_single_director
 -- =========================================================
 -- Demandes d’inscription agence
 -- =========================================================
-create table public.agency_registration_requests (
+create table if not exists public.agency_registration_requests (
   id uuid primary key default gen_random_uuid(),
   agency_name text not null,
   commercial_register text not null,
@@ -249,7 +249,7 @@ create table public.agency_registration_requests (
 -- =========================================================
 -- Abonnements agence
 -- =========================================================
-create table public.agency_subscriptions (
+create table if not exists public.agency_subscriptions (
   id uuid primary key default uuid_generate_v4(),
   agency_id uuid not null unique references public.agencies(id) on delete cascade,
   plan_type plan_type not null default 'basic',
@@ -268,7 +268,7 @@ create table public.agency_subscriptions (
 create trigger trg_agency_subscriptions_updated_at before update on public.agency_subscriptions
   for each row execute function set_updated_at();
 
-create table public.subscription_payments (
+create table if not exists public.subscription_payments (
   id uuid primary key default uuid_generate_v4(),
   subscription_id uuid not null references public.agency_subscriptions(id) on delete cascade,
   amount numeric not null,
@@ -285,7 +285,7 @@ create index idx_subscription_payments_sub on public.subscription_payments(subsc
 -- =========================================================
 -- Classements agence
 -- =========================================================
-create table public.agency_rankings (
+create table if not exists public.agency_rankings (
   id uuid primary key default uuid_generate_v4(),
   agency_id uuid not null references public.agencies(id) on delete cascade,
   year int not null,
@@ -306,7 +306,7 @@ create trigger trg_agency_rankings_updated_at before update on public.agency_ran
 -- =========================================================
 -- Propriétaires / Locataires
 -- =========================================================
-create table public.owners (
+create table if not exists public.owners (
   id uuid primary key default uuid_generate_v4(),
   business_id text unique, -- ADDED
   agency_id uuid not null references public.agencies(id) on delete cascade,
@@ -330,7 +330,7 @@ create trigger trg_owners_updated_at before update on public.owners
 create trigger trg_owners_id_gen before insert on public.owners
   for each row execute function generate_business_id();
 
-create table public.tenants (
+create table if not exists public.tenants (
   id uuid primary key default uuid_generate_v4(),
   business_id text unique, -- ADDED
   agency_id uuid not null references public.agencies(id) on delete cascade,
@@ -360,7 +360,7 @@ create trigger trg_tenants_id_gen before insert on public.tenants
 -- =========================================================
 -- Biens
 -- =========================================================
-create table public.properties (
+create table if not exists public.properties (
   id uuid primary key default uuid_generate_v4(),
   business_id text unique, -- ADDED
   agency_id uuid not null references public.agencies(id) on delete cascade,
@@ -388,7 +388,7 @@ create trigger trg_properties_id_gen before insert on public.properties
 -- =========================================================
 -- Annonces + Intérêts
 -- =========================================================
-create table public.announcements (
+create table if not exists public.announcements (
   id uuid primary key default uuid_generate_v4(),
   agency_id uuid not null references public.agencies(id) on delete cascade,
   property_id uuid not null references public.properties(id) on delete cascade,
@@ -406,7 +406,7 @@ create index idx_announcements_property on public.announcements(property_id);
 create trigger trg_announcements_updated_at before update on public.announcements
   for each row execute function set_updated_at();
 
-create table public.announcement_interests (
+create table if not exists public.announcement_interests (
   id uuid primary key default uuid_generate_v4(),
   announcement_id uuid not null references public.announcements(id) on delete cascade,
   agency_id uuid not null references public.agencies(id) on delete cascade,
@@ -421,7 +421,7 @@ create index idx_interests_agency on public.announcement_interests(agency_id);
 -- =========================================================
 -- Contrats
 -- =========================================================
-create table public.contracts (
+create table if not exists public.contracts (
   id uuid primary key default uuid_generate_v4(),
   agency_id uuid not null references public.agencies(id) on delete cascade,
   property_id uuid not null references public.properties(id) on delete restrict,
@@ -451,7 +451,7 @@ create trigger trg_contracts_updated_at before update on public.contracts
 -- =========================================================
 -- Reçus de loyers (normalisés)
 -- =========================================================
-create table public.rent_receipts (
+create table if not exists public.rent_receipts (
   id uuid primary key default uuid_generate_v4(),
   receipt_number text not null unique,
   contract_id uuid not null references public.contracts(id) on delete cascade,
@@ -465,6 +465,9 @@ create table public.rent_receipts (
   payment_date date not null,
   payment_method pay_method not null,
   notes text,
+  amount_paid numeric default 0,
+  balance_due numeric default 0,
+  payment_status text default 'paid', -- 'paid', 'partial', 'pending'
   issued_by uuid not null references public.users(id) on delete set null,
   created_at timestamptz default now()
 );
@@ -473,7 +476,7 @@ create index idx_receipts_contract on public.rent_receipts(contract_id);
 -- =========================================================
 -- États financiers (liens forts)
 -- =========================================================
-create table public.financial_statements (
+create table if not exists public.financial_statements (
   id uuid primary key default uuid_generate_v4(),
   agency_id uuid not null references public.agencies(id) on delete cascade,
   owner_id uuid references public.owners(id) on delete cascade,
@@ -500,7 +503,7 @@ create index idx_financials_tenant on public.financial_statements(tenant_id);
 -- =========================================================
 -- Messages & Notifications
 -- =========================================================
-create table public.messages (
+create table if not exists public.messages (
   id uuid primary key default uuid_generate_v4(),
   sender_id uuid not null references public.users(id) on delete cascade,
   receiver_id uuid not null references public.users(id) on delete cascade,
@@ -515,7 +518,7 @@ create table public.messages (
 );
 create index idx_messages_receiver on public.messages(receiver_id);
 
-create table public.notifications (
+create table if not exists public.notifications (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references public.users(id) on delete cascade,
   type notif_type not null,
@@ -531,7 +534,7 @@ create index idx_notifications_user on public.notifications(user_id);
 -- =========================================================
 -- Notification Settings
 -- =========================================================
-create table public.notification_settings (
+create table if not exists public.notification_settings (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null unique references public.users(id) on delete cascade,
   payment_reminder boolean not null default true,
@@ -549,7 +552,7 @@ create trigger trg_notification_settings_updated_at before update on public.noti
 -- =========================================================
 -- Paramètres plateforme
 -- =========================================================
-create table public.platform_settings (
+create table if not exists public.platform_settings (
   id uuid primary key default uuid_generate_v4(),
   setting_key text not null unique,
   setting_value jsonb not null,

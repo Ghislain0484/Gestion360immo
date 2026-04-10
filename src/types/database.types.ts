@@ -1474,6 +1474,9 @@ export type Database = {
           rent_amount: number
           tenant_id: string | null
           total_amount: number
+          amount_paid: number
+          balance_due: number
+          payment_status: "paid" | "partial" | "pending"
         }
         Insert: {
           charges?: number | null
@@ -1494,6 +1497,9 @@ export type Database = {
           rent_amount: number
           tenant_id?: string | null
           total_amount: number
+          amount_paid?: number
+          balance_due?: number
+          payment_status?: "paid" | "partial" | "pending"
         }
         Update: {
           charges?: number | null
@@ -1514,6 +1520,9 @@ export type Database = {
           rent_amount?: number
           tenant_id?: string | null
           total_amount?: number
+          amount_paid?: number
+          balance_due?: number
+          payment_status?: "paid" | "partial" | "pending"
         }
         Relationships: [
           {
