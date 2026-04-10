@@ -80,7 +80,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 <Input
                   type={field.type === 'date' && field.dateType ? field.dateType : field.type}
                   placeholder={field.placeholder || field.label}
-                  value={values[field.id] || ''}
+                  value={values[field.id] === 'all' ? '' : (values[field.id] || '')}
                   onChange={(e) => onChange(field.id, e.target.value)}
                   className="border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm h-[42px]"
                 />

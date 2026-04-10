@@ -103,7 +103,7 @@ USING (public.is_platform_admin()) WITH CHECK (public.is_platform_admin());
 -- agency_users
 DROP POLICY IF EXISTS "agency_users_read" ON public.agency_users;
 CREATE POLICY "agency_users_read" ON public.agency_users FOR SELECT TO authenticated 
-USING (user_id = auth.uid() OR public.is_agency_member(agency_id));
+USING (user_id = auth.uid() OR agency_id IN (SELECT au.agency_id FROM public.agency_users au WHERE au.user_id = auth.uid()));
 
 DROP POLICY IF EXISTS "director_manage_members" ON public.agency_users;
 CREATE POLICY "director_manage_members" ON public.agency_users FOR ALL TO authenticated 
@@ -136,7 +136,7 @@ DECLARE
         'financial_transactions', 'tickets', 'cash_transactions', 'contract_templates', 
         'inventories', 'property_tenant_assignments', 'managed_contracts', 
         'agency_subscriptions', 'agency_rankings', 'agency_service_modules',
-        'announcement_interests'
+        'announcement_interests', 'rent_receipts'
     ];
 BEGIN
     FOREACH t_name IN ARRAY tables_to_secure LOOP
@@ -151,10 +151,7 @@ END $$;
 
 -- Exceptions & Compléments Métier :
 
--- rent_receipts (lié via contract)
-DROP POLICY IF EXISTS "receipts_agency_access" ON public.rent_receipts;
-CREATE POLICY "receipts_agency_access" ON public.rent_receipts FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.contracts c WHERE c.id = rent_receipts.contract_id AND public.is_agency_member(c.agency_id)));
+-- (rent_receipts est maintenant géré par la boucle générique ci-dessus)
 
 -- subscription_payments (lié via subscription)
 DROP POLICY IF EXISTS "payments_agency_access" ON public.subscription_payments;
