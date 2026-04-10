@@ -133,9 +133,9 @@ DECLARE
     t_name TEXT;
     tables_to_secure TEXT[] := ARRAY[
         'owners', 'tenants', 'properties', 'contracts', 'financial_statements', 
-        'tickets', 'cash_transactions', 'contract_templates', 'inventories',
-        'property_tenant_assignments', 'managed_contracts', 'agency_subscriptions',
-        'agency_rankings', 'agency_service_modules'
+        'financial_transactions', 'tickets', 'cash_transactions', 'contract_templates', 
+        'inventories', 'property_tenant_assignments', 'managed_contracts', 
+        'agency_subscriptions', 'agency_rankings', 'agency_service_modules'
     ];
 BEGIN
     FOREACH t_name IN ARRAY tables_to_secure LOOP
@@ -154,6 +154,11 @@ END $$;
 DROP POLICY IF EXISTS "receipts_agency_access" ON public.rent_receipts;
 CREATE POLICY "receipts_agency_access" ON public.rent_receipts FOR ALL TO authenticated
 USING (EXISTS (SELECT 1 FROM public.contracts c WHERE c.id = rent_receipts.contract_id AND public.is_agency_member(c.agency_id)));
+
+-- subscription_payments (lié via subscription)
+DROP POLICY IF EXISTS "payments_agency_access" ON public.subscription_payments;
+CREATE POLICY "payments_agency_access" ON public.subscription_payments FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.agency_subscriptions s WHERE s.id = subscription_payments.subscription_id AND public.is_agency_member(s.agency_id)));
 
 -- announcements (Visibilité publique)
 DROP POLICY IF EXISTS "announcements_public_read" ON public.announcements;
