@@ -55,4 +55,4 @@ ANALYZE public.contracts;
 ANALYZE public.rent_receipts;
 ANALYZE public.financial_transactions;
 
-RAISE NOTICE '✅ Optimisations de performance appliquées avec succès.';
+-- RAISE NOTICE '✅ Optimisations de performance appliquées avec succès.';

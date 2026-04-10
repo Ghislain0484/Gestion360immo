@@ -51,4 +51,4 @@ EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
 
-RAISE NOTICE '✅ Migration terminée avec succès.';
+-- RAISE NOTICE '✅ Migration terminée avec succès.';
