@@ -48,12 +48,13 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
 $$;
 
 -- 1.5. Vérifier si un utilisateur partage une agence avec le demandeur
+-- Version optimisée pour éviter les timeouts
 CREATE OR REPLACE FUNCTION public.is_same_agency(p_user_id UUID)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (
-    SELECT 1 FROM public.agency_users au1
-    JOIN public.agency_users au2 ON au1.agency_id = au2.agency_id
-    WHERE au1.user_id = auth.uid() AND au2.user_id = p_user_id
+    SELECT 1 FROM public.agency_users
+    WHERE agency_id IN (SELECT agency_id FROM public.agency_users WHERE user_id = auth.uid())
+    AND user_id = p_user_id
   );
 $$;
 
@@ -145,10 +146,13 @@ DECLARE
 BEGIN
     FOREACH t_name IN ARRAY tables_to_secure LOOP
         IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = t_name AND table_schema = 'public') THEN
-            EXECUTE format('DROP POLICY IF EXISTS "agency_member_all_%I" ON public.%I', t_name, t_name);
-            EXECUTE format('CREATE POLICY "agency_member_all_%I" ON public.%I FOR ALL TO authenticated 
-                           USING (public.is_agency_member(agency_id)) 
-                           WITH CHECK (public.is_agency_member(agency_id))', t_name, t_name);
+            -- S'assurer que la colonne agency_id existe avant d'appliquer la politique
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = t_name AND column_name = 'agency_id') THEN
+                EXECUTE format('DROP POLICY IF EXISTS "agency_member_all_%I" ON public.%I', t_name, t_name);
+                EXECUTE format('CREATE POLICY "agency_member_all_%I" ON public.%I FOR ALL TO authenticated 
+                               USING (public.is_agency_member(agency_id)) 
+                               WITH CHECK (public.is_agency_member(agency_id))', t_name, t_name);
+            END IF;
         END IF;
     END LOOP;
 END $$;
