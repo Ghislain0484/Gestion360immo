@@ -47,10 +47,21 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   );
 $$;
 
+-- 1.5. Vérifier si un utilisateur partage une agence avec le demandeur
+CREATE OR REPLACE FUNCTION public.is_same_agency(p_user_id UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.agency_users au1
+    JOIN public.agency_users au2 ON au1.agency_id = au2.agency_id
+    WHERE au1.user_id = auth.uid() AND au2.user_id = p_user_id
+  );
+$$;
+
 GRANT EXECUTE ON FUNCTION public.is_platform_admin() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_my_agency_ids() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_agency_member(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_agency_director(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_same_agency(UUID) TO authenticated;
 
 -- =============================================================================
 -- ÉTAPE 2 : ACTIVATION GLOBALE DU RLS SUR TOUTES LES TABLES
@@ -75,14 +86,7 @@ END $$;
 -- users : On peut voir son profil, et les membres d'une même agence peuvent se voir entre eux.
 DROP POLICY IF EXISTS "users_read_policy" ON public.users;
 CREATE POLICY "users_read_policy" ON public.users FOR SELECT TO authenticated 
-USING (
-    id = auth.uid() 
-    OR EXISTS (
-        SELECT 1 FROM public.agency_users au1
-        JOIN public.agency_users au2 ON au1.agency_id = au2.agency_id
-        WHERE au1.user_id = auth.uid() AND au2.user_id = public.users.id
-    )
-);
+USING (id = auth.uid() OR public.is_same_agency(id));
 
 DROP POLICY IF EXISTS "users_update_self" ON public.users;
 CREATE POLICY "users_update_self" ON public.users FOR UPDATE TO authenticated 
@@ -103,7 +107,7 @@ USING (public.is_platform_admin()) WITH CHECK (public.is_platform_admin());
 -- agency_users
 DROP POLICY IF EXISTS "agency_users_read" ON public.agency_users;
 CREATE POLICY "agency_users_read" ON public.agency_users FOR SELECT TO authenticated 
-USING (user_id = auth.uid() OR agency_id IN (SELECT au.agency_id FROM public.agency_users au WHERE au.user_id = auth.uid()));
+USING (user_id = auth.uid() OR public.is_agency_member(agency_id));
 
 DROP POLICY IF EXISTS "director_manage_members" ON public.agency_users;
 CREATE POLICY "director_manage_members" ON public.agency_users FOR ALL TO authenticated 
@@ -221,9 +225,10 @@ USING (
     public.is_platform_admin() 
     OR (user_id = auth.uid())
     OR EXISTS (
-        SELECT 1 FROM public.agency_users au 
-        WHERE au.user_id = auth.uid() AND au.role = 'director'
-        AND au.agency_id IN (SELECT agency_id FROM public.agency_users WHERE user_id = audit_logs.user_id)
+        SELECT 1 FROM public.agency_users au_dir
+        JOIN public.agency_users au_target ON au_dir.agency_id = au_target.agency_id
+        WHERE au_dir.user_id = auth.uid() AND au_dir.role = 'director' 
+        AND au_target.user_id = audit_logs.user_id
     )
 );
 
