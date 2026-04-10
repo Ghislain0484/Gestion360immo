@@ -23,7 +23,6 @@ export const rentReceiptsService = {
       .from('rent_receipts')
       .select(`
         *,
-        contracts!inner(agency_id),
         property:properties(title, business_id),
         tenant:tenants(first_name, last_name, business_id),
         owner:owners(business_id)
@@ -31,7 +30,7 @@ export const rentReceiptsService = {
       .order('created_at', { ascending: false });
 
     if (params?.agency_id) {
-      query = query.eq('contracts.agency_id', params.agency_id);
+      query = query.eq('agency_id', params.agency_id);
     }
     if (params?.tenant_id) {
       query = query.eq('tenant_id', params.tenant_id);
