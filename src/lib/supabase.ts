@@ -79,129 +79,98 @@ export const dbService = {
         throw new Error('agencyId manquant');
       }
 
-      const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-      const endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+      // Utilisation du nouveau RPC optimisé pour tout récupérer en une seule requête
+      const { data, error } = await supabase.rpc('get_dashboard_stats_v3', {
+        p_agency_id: agencyId
+      });
 
-      const [
-        { count: totalProperties, error: propertiesError },
-        { count: totalOwners, error: ownersError },
-        { count: totalTenants, error: tenantsError },
-        { count: totalContracts, error: contractsError },
-        { data: rentReceipts, error: receiptsError },
-        { data: activeContractsData, count: activeContractsCount, error: activeContractsError },
-        modularTransactions,
-      ] = await Promise.all([
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('agency_id', agencyId),
-        supabase
-          .from('owners')
-          .select('*', { count: 'exact', head: true })
-          .eq('agency_id', agencyId),
-        supabase
-          .from('tenants')
-          .select('*', { count: 'exact', head: true })
-          .eq('agency_id', agencyId),
-        supabase
-          .from('contracts')
-          .select('*', { count: 'exact', head: true })
-          .eq('agency_id', agencyId),
-        // RPC sans cast restrictif - retourne { data: RentReceiptSummary[], error }
-        supabase.rpc('get_rent_receipts_by_agency', {
-          p_agency_id: agencyId,
-          p_start_date: startDate.toISOString(),
-          p_end_date: endDate.toISOString(),
-        }),
-        supabase
-          .from('contracts')
-          .select('property_id, monthly_rent, type', { count: 'exact' })
-          .eq('agency_id', agencyId)
-          .in('status', ['active', 'renewed']),
-        modularService.getAgencyTransactions(
-          agencyId,
-          startDate.toISOString(),
-          endDate.toISOString()
-        ),
-      ]);
+      if (error) {
+        console.warn('⚠️ get_dashboard_stats_v3 non trouvé ou erreur, repli sur l\'ancienne méthode:', error);
+        // Fallback technique (ancienne méthode) pour éviter de bloquer l'utilisateur si le SQL n'est pas encore appliqué
+        return this.getDashboardStatsLegacy(agencyId);
+      }
 
-      if (propertiesError) throw new Error(formatSbError('❌ properties.count', propertiesError));
-      if (ownersError) throw new Error(formatSbError('❌ owners.count', ownersError));
-      if (tenantsError) throw new Error(formatSbError('❌ tenants.count', tenantsError));
-      if (contractsError) throw new Error(formatSbError('❌ contracts.count', contractsError));
-      if (receiptsError) throw new Error(formatSbError('❌ rent_receipts.rpc', receiptsError));
-      if (activeContractsError) throw new Error(formatSbError('❌ contracts.select (active)', activeContractsError));
-
-      // CALCUL COMPTABILITÉ PROFESSIONNELLE (Logic Expert)
-      // 1. Revenu Locatif (Loyer + Charges + Honoraires)
-      const rentRevenue = Array.isArray(rentReceipts)
-        ? rentReceipts.reduce((sum: number, r: any) => sum + (Number(r.rent_amount) || 0) + (Number(r.charges) || 0) + (Number(r.agency_fees) || 0), 0)
-        : 0;
-
-      // 2. Caution (Passif / Séquestre)
-      // Note: On garde les cautions séparées dans le totalDeposits, mais on les exclut du Revenue
-      const totalDeposits = Array.isArray(rentReceipts)
-        ? rentReceipts.reduce((sum: number, r: any) => sum + (r.deposit_amount || 0), 0)
-        : 0;
-
-      // 3. Gains Agence Réels (Commissions + Honoraires de tous horizons)
-      const rentEarnings = Array.isArray(rentReceipts)
-        ? rentReceipts.reduce((sum: number, r: any) => sum + (Number(r.commission_amount) || 0) + (Number(r.agency_fees) || 0), 0)
-        : 0;
-
-      const modularTxs = Array.isArray(modularTransactions) ? modularTransactions : [];
-      
-      const modularRevenue = modularTxs.reduce((sum: number, tx: any) => {
-        const isEarned = (tx.type === 'income' || tx.type === 'credit') && 
-                        !['caution', 'deposit', 'payout'].includes((tx.category || '').toLowerCase());
-        return isEarned ? sum + Number(tx.amount || 0) : sum;
-      }, 0);
-
-      const modularEarnings = modularTxs.reduce((sum: number, tx: any) => {
-        const isFee = ['agency_fees', 'commission', 'fees', 'honoraires', 'frais'].includes((tx.category || '').toLowerCase());
-        return isFee ? sum + Number(tx.amount || 0) : sum;
-      }, 0);
-
-      const agencyEarnings = rentEarnings + modularEarnings;
-
-      // Chiffre d'affaires global encaissé pour l'agence et les proprios (hors cautions)
-      const monthlyRevenue = rentRevenue + modularRevenue;
-
-      // Calculate expected revenue from active contracts (Locataires uniquement)
-      const activeRentals = Array.isArray(activeContractsData)
-        ? activeContractsData.filter((c: any) => c.type === 'location')
-        : [];
-      
-      const expectedRevenue = activeRentals.reduce((sum: number, c: any) => sum + (c.monthly_rent || 0), 0);
-
-      const remainingRevenue = Math.max(0, expectedRevenue - rentRevenue);
-
-      const safeTotalProperties = totalProperties ?? 0;
-      // Unique properties from active rentals
-      const safeOccupiedProperties = new Set(activeRentals.map((c: any) => c.property_id)).size;
-
-      const occupancyRate =
-        safeTotalProperties > 0
-          ? (safeOccupiedProperties / safeTotalProperties) * 100
-          : 0;
-
-      return {
-        totalProperties: totalProperties || 0,
-        totalOwners: totalOwners || 0,
-        totalTenants: totalTenants || 0,
-        totalContracts: totalContracts || 0,
-        monthlyRevenue,
-        expectedRevenue,
-        remainingRevenue,
-        activeContracts: activeContractsCount || 0,
-        occupancyRate: Number(occupancyRate.toFixed(2)),
-        totalDeposits,
-        agencyEarnings,
-      };
+      return data as DashboardStats;
     } catch (err) {
       console.error('getDashboardStats error:', err);
       throw new Error(formatSbError('❌ getDashboardStats', err));
     }
+  },
+
+  /** 
+   * Ancienne méthode de calcul (Backend Fallback)
+   * À conserver temporairement pendant la migration
+   */
+  async getDashboardStatsLegacy(agencyId: string): Promise<DashboardStats> {
+    const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+
+    const [
+      { count: totalProperties },
+      { count: totalOwners },
+      { count: totalTenants },
+      { count: totalContracts },
+      { data: rentReceipts },
+      { data: activeContractsData, count: activeContractsCount },
+      modularTransactions,
+    ] = await Promise.all([
+      supabase.from('properties').select('*', { count: 'exact', head: true }).eq('agency_id', agencyId),
+      supabase.from('owners').select('*', { count: 'exact', head: true }).eq('agency_id', agencyId),
+      supabase.from('tenants').select('*', { count: 'exact', head: true }).eq('agency_id', agencyId),
+      supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('agency_id', agencyId),
+      supabase.rpc('get_rent_receipts_by_agency', {
+        p_agency_id: agencyId,
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      }),
+      supabase.from('contracts').select('property_id, monthly_rent, type', { count: 'exact' })
+        .eq('agency_id', agencyId).in('status', ['active', 'renewed']),
+      modularService.getAgencyTransactions(agencyId, startDate.toISOString(), endDate.toISOString()),
+    ]);
+
+    const rentRevenue = Array.isArray(rentReceipts)
+      ? rentReceipts.reduce((sum: number, r: any) => sum + (Number(r.rent_amount) || 0) + (Number(r.charges) || 0) + (Number(r.agency_fees) || 0), 0)
+      : 0;
+
+    const totalDeposits = Array.isArray(rentReceipts)
+      ? rentReceipts.reduce((sum: number, r: any) => sum + (r.deposit_amount || 0), 0)
+      : 0;
+
+    const rentEarnings = Array.isArray(rentReceipts)
+      ? rentReceipts.reduce((sum: number, r: any) => sum + (Number(r.commission_amount) || 0) + (Number(r.agency_fees) || 0), 0)
+      : 0;
+
+    const modularTxs = Array.isArray(modularTransactions) ? modularTransactions : [];
+    const modularRevenue = modularTxs.reduce((sum: number, tx: any) => {
+      const isEarned = (tx.type === 'income' || tx.type === 'credit') && !['caution', 'deposit', 'payout'].includes((tx.category || '').toLowerCase());
+      return isEarned ? sum + Number(tx.amount || 0) : sum;
+    }, 0);
+
+    const modularEarnings = modularTxs.reduce((sum: number, tx: any) => {
+      const isFee = ['agency_fees', 'commission', 'fees', 'honoraires', 'frais'].includes((tx.category || '').toLowerCase());
+      return isFee ? sum + Number(tx.amount || 0) : sum;
+    }, 0);
+
+    const expectedRevenue = Array.isArray(activeContractsData)
+      ? activeContractsData.filter((c: any) => c.type === 'location').reduce((sum: number, c: any) => sum + (c.monthly_rent || 0), 0)
+      : 0;
+
+    const safeTotalProperties = totalProperties ?? 0;
+    const safeOccupiedProperties = new Set((activeContractsData || []).filter((c: any) => c.type === 'location').map((c: any) => c.property_id)).size;
+
+    return {
+      totalProperties: totalProperties || 0,
+      totalOwners: totalOwners || 0,
+      totalTenants: totalTenants || 0,
+      totalContracts: totalContracts || 0,
+      monthlyRevenue: rentRevenue + modularRevenue,
+      expectedRevenue,
+      remainingRevenue: Math.max(0, expectedRevenue - rentRevenue),
+      activeContracts: activeContractsCount || 0,
+      occupancyRate: Number((safeTotalProperties > 0 ? (safeOccupiedProperties / safeTotalProperties) * 100 : 0).toFixed(2)),
+      totalDeposits,
+      agencyEarnings: rentEarnings + modularEarnings,
+    };
   },
 
   // Remplace getMonthlyRevenue
