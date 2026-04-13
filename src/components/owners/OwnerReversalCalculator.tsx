@@ -7,17 +7,23 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 
-interface OwnerReversalCalculatorProps {
-    ownerId: string;
-    onGenerateReversal: (amount: number, details: ReversalDetails) => void;
-}
-
 export interface DeductibleFee {
     id: string;
     description: string;
     amount: number;
     date: string;
     category: 'reparation' | 'charge' | 'autre';
+}
+
+export interface ReversalTransaction {
+    id: string;
+    date: string;
+    description: string;
+    propertyTitle: string;
+    amount: number;
+    commission: number;
+    type: 'receipt' | 'manual';
+    status?: 'full' | 'partial';
 }
 
 export interface ReversalDetails {
@@ -28,10 +34,18 @@ export interface ReversalDetails {
     netAmount: number;
     paymentsCount: number;
     fees: DeductibleFee[];
+    transactions: ReversalTransaction[];
+}
+
+interface OwnerReversalCalculatorProps {
+    ownerId: string;
+    ownerProperties?: any[];
+    onGenerateReversal: (amount: number, details: ReversalDetails) => void;
 }
 
 export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = ({
     ownerId,
+    ownerProperties = [],
     onGenerateReversal,
 }) => {
     const currentDate = new Date();
@@ -98,20 +112,48 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         return { receipts: filteredReceipts, manual: filteredManual };
     }, [allPayments, allManual, startDate, endDate]);
 
-    // Calculate totals
+    // Calculate totals and transaction breakdown
     const calculations = useMemo(() => {
-        const totalRentFromReceipts = periodPayments.receipts.reduce((sum, p) => sum + p.total_amount, 0);
-        const totalCommFromReceipts = periodPayments.receipts.reduce((sum, p) => sum + (p.commission_amount || 0), 0);
+        const transactions: ReversalTransaction[] = [];
+        
+        // Process Receipts
+        periodPayments.receipts.forEach(p => {
+            const prop = ownerProperties.find(op => op.id === p.property_id);
+            const amount = p.amount_paid || p.total_amount;
+            const comm = p.commission_amount || 0;
+            
+            transactions.push({
+                id: p.id,
+                date: p.payment_date,
+                description: `Quittance - ${p.receipt_number || 'N/A'}`,
+                propertyTitle: prop?.title || 'Bien non identifié',
+                amount: amount,
+                commission: comm,
+                type: 'receipt',
+                status: p.payment_status || (p.amount_paid && p.amount_paid < p.total_amount ? 'partial' : 'full')
+            });
+        });
 
-        const totalRentFromManual = periodPayments.manual.reduce((sum, m) => sum + Number(m.amount), 0);
-        const totalCommFromManual = periodPayments.manual.reduce((sum, m) => {
+        // Process Manual Transactions
+        periodPayments.manual.forEach(m => {
+            const prop = ownerProperties.find(op => op.id === m.related_property_id);
             const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
             const ownerNet = match ? Number(match[1]) : (Number(m.amount) * 0.9);
-            return sum + (Number(m.amount) - ownerNet);
-        }, 0);
+            const comm = Number(m.amount) - ownerNet;
 
-        const totalRent = totalRentFromReceipts + totalRentFromManual;
-        const totalCommission = totalCommFromReceipts + totalCommFromManual;
+            transactions.push({
+                id: m.id,
+                date: m.transaction_date,
+                description: m.description || 'Paiement manuel',
+                propertyTitle: prop?.title || 'Bien non identifié',
+                amount: Number(m.amount),
+                commission: comm,
+                type: 'manual'
+            });
+        });
+
+        const totalRent = transactions.reduce((sum, t) => sum + t.amount, 0);
+        const totalCommission = transactions.reduce((sum, t) => sum + t.commission, 0);
         const totalFees = fees.reduce((sum, f) => sum + f.amount, 0);
         const netAmount = totalRent - totalCommission - totalFees;
 
@@ -120,9 +162,10 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
             totalCommission,
             totalFees,
             netAmount,
-            paymentsCount: periodPayments.receipts.length + periodPayments.manual.length,
+            paymentsCount: transactions.length,
+            transactions
         };
-    }, [periodPayments, fees]);
+    }, [periodPayments, fees, ownerProperties]);
 
     const handleAddFee = () => {
         if (newFee.description && newFee.amount > 0) {
@@ -151,6 +194,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
             netAmount: calculations.netAmount,
             paymentsCount: calculations.paymentsCount,
             fees,
+            transactions: calculations.transactions,
         };
         onGenerateReversal(calculations.netAmount, details);
     };
@@ -218,6 +262,48 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
                     </p>
                 )}
             </Card>
+
+            {/* Detailed Transactions List */}
+            {calculations.transactions.length > 0 && (
+                <Card className="p-0 overflow-hidden border-slate-200">
+                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                        <h4 className="font-semibold text-gray-900 text-sm">Détail des encaissements</h4>
+                        <Badge variant="info" className="text-[10px]">{calculations.transactions.length} opérations</Badge>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto">
+                        <table className="w-full text-xs text-left">
+                            <thead className="sticky top-0 bg-white shadow-sm">
+                                <tr>
+                                    <th className="px-4 py-2 font-bold text-gray-500">Bien / Description</th>
+                                    <th className="px-4 py-2 text-right font-bold text-gray-500">Montant</th>
+                                    <th className="px-4 py-2 text-right font-bold text-gray-500">Comm.</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {calculations.transactions.map((t) => (
+                                    <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-4 py-2">
+                                            <div className="font-medium text-gray-900">{t.propertyTitle}</div>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <span className="text-[10px] text-gray-400">{t.description}</span>
+                                                {t.status === 'partial' && (
+                                                    <Badge variant="warning" className="text-[8px] py-0 px-1 border-none bg-amber-100 text-amber-700">Partiel</Badge>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                                            {formatCurrency(t.amount)}
+                                        </td>
+                                        <td className="px-4 py-2 text-right text-red-500">
+                                            -{formatCurrency(t.commission)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            )}
 
             {/* Calculation Summary */}
             <Card className="p-6 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200">
