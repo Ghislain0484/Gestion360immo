@@ -67,6 +67,8 @@ export const TenantDetails: React.FC = () => {
     const [activeTab, setActiveTab] = useState('contract');
     const [showEditForm, setShowEditForm] = useState(false);
     const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
+    const [showContractPicker, setShowContractPicker] = useState(false);
+    const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -356,7 +358,16 @@ export const TenantDetails: React.FC = () => {
                                             {activeContracts.length > 0 && (
                                                 <Button
                                                     variant="primary"
-                                                    onClick={() => setShowReceiptGenerator(true)}
+                                                    onClick={() => {
+                                                        if (activeContracts.length === 1) {
+                                                            // Single contract: open directly
+                                                            setSelectedContractId(activeContracts[0].id);
+                                                            setShowReceiptGenerator(true);
+                                                        } else {
+                                                            // Multiple contracts: show picker first
+                                                            setShowContractPicker(true);
+                                                        }
+                                                    }}
                                                 >
                                                     <Plus className="h-4 w-4 mr-2" />
                                                     Enregistrer un paiement
@@ -422,20 +433,71 @@ export const TenantDetails: React.FC = () => {
                 />
             )}
 
-            {/* Receipt Generator Modal */}
-            {showReceiptGenerator && activeContracts.length > 0 && (
-                <ReceiptGenerator
-                    isOpen={showReceiptGenerator}
-                    onClose={() => setShowReceiptGenerator(false)}
-                    contractId={activeContracts[0].id} // Default to first (can be improved)
-                    tenantId={tenant.id}
-                    propertyId={activeContracts[0].property_id}
-                    ownerId={activeContracts[0].owner_id}
-                    onReceiptGenerated={async () => {
-                        setShowReceiptGenerator(false);
-                    }}
-                />
+            {/* Contract Picker Modal - for multi-unit tenants */}
+            {showContractPicker && activeContracts.length > 1 && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowContractPicker(false)}>
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900">Choisir un bien</h2>
+                                <p className="text-sm text-gray-500 mt-0.5">Sélectionnez le bien pour lequel enregistrer le paiement</p>
+                            </div>
+                            <button onClick={() => setShowContractPicker(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                                <X className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-3">
+                            {activeContracts.map(contract => {
+                                const prop = properties.find(p => p.id === contract.property_id);
+                                return (
+                                    <button
+                                        key={contract.id}
+                                        className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all group"
+                                        onClick={() => {
+                                            setSelectedContractId(contract.id);
+                                            setShowContractPicker(false);
+                                            setShowReceiptGenerator(true);
+                                        }}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="font-semibold text-gray-900 group-hover:text-blue-700">
+                                                    {prop?.title || 'Bien en chargement...'}
+                                                </p>
+                                                <p className="text-sm text-gray-500 mt-0.5">
+                                                    Loyer : <span className="font-bold text-blue-600">{contract.monthly_rent?.toLocaleString('fr-FR')} FCFA</span>
+                                                    {contract.charges ? ` + ${contract.charges.toLocaleString('fr-FR')} charges` : ''}
+                                                </p>
+                                            </div>
+                                            <Building2 className="w-5 h-5 text-gray-300 group-hover:text-blue-400" />
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
             )}
+
+            {/* Receipt Generator Modal */}
+            {showReceiptGenerator && selectedContractId && (() => {
+                const contract = activeContracts.find(c => c.id === selectedContractId);
+                if (!contract) return null;
+                return (
+                    <ReceiptGenerator
+                        isOpen={showReceiptGenerator}
+                        onClose={() => { setShowReceiptGenerator(false); setSelectedContractId(null); }}
+                        contractId={contract.id}
+                        tenantId={tenant.id}
+                        propertyId={contract.property_id}
+                        ownerId={contract.owner_id}
+                        onReceiptGenerated={async () => {
+                            setShowReceiptGenerator(false);
+                            setSelectedContractId(null);
+                        }}
+                    />
+                );
+            })()}
 
             <ConfirmDeleteModal
                 isOpen={showDeleteModal}
