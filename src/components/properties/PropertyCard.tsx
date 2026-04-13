@@ -74,11 +74,11 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, tenantName
             </div>
 
             <div className="p-5 flex-1 flex flex-col space-y-4">
-                {/* Stats / Yield */}
-                {property.monthly_rent && property.sale_price && (
+                {/* Stats / Yield - Only show if both values are valid and positive */}
+                {(property.monthly_rent > 0 && property.sale_price > 0) && (
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 group-hover:bg-primary-50 group-hover:border-primary-100 transition-colors">
                         <PropertyYield 
-                            monthlyRent={property.monthly_rent} 
+                            monthlyRent={rentAmount ?? property.monthly_rent} 
                             propertyValue={property.sale_price} 
                         />
                     </div>

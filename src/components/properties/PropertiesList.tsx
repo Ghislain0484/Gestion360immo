@@ -67,7 +67,10 @@ export const PropertiesList: React.FC = () => {
   );
 
   const getRentalInfo = (propertyId: string) => {
-    const activeContract = contracts?.find(c => c.property_id === propertyId && c.status === 'active' && c.type === 'location');
+    // Match both 'active' and 'renewed' contracts
+    const activeContract = contracts?.find(
+      c => c.property_id === propertyId && (c.status === 'active' || c.status === 'renewed') && c.type === 'location'
+    );
 
     if (!activeContract) return { isOccupied: false };
 
@@ -75,6 +78,7 @@ export const PropertiesList: React.FC = () => {
     return {
       isOccupied: !!tenant,
       tenantName: tenant ? `${tenant.first_name} ${tenant.last_name}` : 'Inconnu',
+      // Always use the contract rent — this is the actual rent agreed upon, not the indicative price
       rentAmount: activeContract.monthly_rent
     };
   };
@@ -480,7 +484,15 @@ export const PropertiesList: React.FC = () => {
                           {property.location.quartier}, {property.location.commune}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          {property.monthly_rent?.toLocaleString('fr-FR')} FCFA
+                          {(() => {
+                            const info = getRentalInfo(property.id);
+                            const displayRent = info.isOccupied && info.rentAmount != null
+                              ? info.rentAmount
+                              : property.monthly_rent;
+                            return displayRent
+                              ? <>{displayRent.toLocaleString('fr-FR')} FCFA{info.isOccupied && <span className="ml-1 text-[10px] text-blue-500 font-normal">(bail)</span>}</>                            
+                              : <span className="text-gray-400 italic">N/A</span>;
+                          })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${isOccupied ? 'bg-blue-100 text-blue-700' :
