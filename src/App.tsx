@@ -22,6 +22,7 @@ import { ReportsHub } from './components/reports/ReportsHub';
 import { NotificationsCenter } from './components/notifications/NotificationsCenter';
 import { SettingsHub } from './components/settings/SettingsHub';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { AuditLogsPage } from './components/admin/AuditLogsPage';
 import { PasswordResetRequest } from './components/auth/PasswordResetRequest';
 import { PasswordResetConfirm } from './components/auth/PasswordResetConfirm';
 import { CaissePage } from './components/caisse/CaissePage';
@@ -182,6 +183,7 @@ const AppContent: React.FC = () => {
           <Route path="/rapports" element={<ReportsHub />} />
           <Route path="/notifications" element={<NotificationsCenter />} />
           <Route path="/parametres" element={<SettingsHub />} />
+          <Route path="/admin/audit" element={<AuditLogsPage />} />
           
           {/* Modular Routes */}
           <Route 

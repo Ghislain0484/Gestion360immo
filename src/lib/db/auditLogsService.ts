@@ -60,4 +60,21 @@ export const auditLogsService = {
         }
         return data ?? clean;
     },
+    async logDeletion(options: {
+        table_name: string;
+        record_id: string;
+        old_values: any;
+        userId: string;
+        agencyId: string;
+    }) {
+        return this.insert({
+            action: 'DELETE',
+            table_name: options.table_name,
+            record_id: options.record_id,
+            old_values: options.old_values,
+            user_id: options.userId,
+            agency_id: options.agencyId,
+            user_agent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Server',
+        });
+    }
 };

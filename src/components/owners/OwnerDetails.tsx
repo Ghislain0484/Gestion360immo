@@ -22,6 +22,8 @@ import { OwnerRentSummary } from './OwnerRentSummary';
 import { AssignTenantModal } from '../tenants/AssignTenantModal';
 import { MaintenanceManager } from './MaintenanceManager';
 import { OwnerPortfolioInsights } from './OwnerPortfolioInsights';
+import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
+import { supabase } from '../../lib/supabase';
 
 export const OwnerDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
@@ -74,6 +76,8 @@ export const OwnerDetails: React.FC = () => {
     const [reversalAmount, setReversalAmount] = useState<number>(0);
     const [reversalDetails, setReversalDetails] = useState<ReversalDetails | null>(null);
     const [propertyToAssign, setPropertyToAssign] = useState<Property | null>(null);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // 4. Mutation Hooks
     const { create: createProperty } = useSupabaseCreate(
@@ -120,6 +124,38 @@ export const OwnerDetails: React.FC = () => {
         { id: 'info', label: 'Informations', icon: User },
     ];
 
+    const handleDeleteOwner = async () => {
+        if (!owner || !user?.id || !authAgencyId) return;
+        setIsDeleting(true);
+        const toastId = toast.loading('Suppression en cours...');
+        
+        try {
+            // 1. Audit Log Snapshot
+            await dbService.auditLogs.logDeletion({
+                table_name: 'owners',
+                record_id: owner.id,
+                old_values: owner,
+                userId: user.id,
+                agencyId: authAgencyId
+            });
+
+            // 2. Perform the deletion (The owner will be deleted, but system stays traces)
+            // Note: per user request "supprimer les contrats un par un par sécurité", 
+            // we will NOT auto-delete properties/contracts here if not handled by DB cascade.
+            const { error } = await supabase.from('owners').delete().eq('id', owner.id);
+            if (error) throw error;
+
+            toast.success('Propriétaire supprimé avec succès', { id: toastId });
+            navigate('/proprietaires');
+        } catch (error: any) {
+            console.error('Error deleting owner:', error);
+            toast.error('Erreur lors de la suppression : ' + error.message, { id: toastId });
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteModal(false);
+        }
+    };
+
     // 7. Early Returns
     if (loadingOwner) {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
@@ -162,27 +198,17 @@ export const OwnerDetails: React.FC = () => {
                             <Edit className="w-4 h-4 mr-2" />
                             Modifier
                         </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={async () => {
-                                if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
-                                    const toastId = toast.loading('Suppression en cours...');
-                                    try {
-                                        await dbService.owners.safeDelete(owner.id, authAgencyId || undefined);
-                                        toast.success('Propriétaire supprimé avec succès', { id: toastId });
-                                        navigate('/proprietaires');
-                                    } catch (err: any) {
-                                        console.error(err);
-                                        toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
-                                    }
-                                }
-                            }}
-                        >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Supprimer
-                        </Button>
+                        {['director', 'manager'].includes(user?.role || '') && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setShowDeleteModal(true)}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Supprimer
+                            </Button>
+                        )}
                         <Button size="sm" onClick={() => setShowPropertyForm(true)}>
                             <Plus className="w-4 h-4 mr-2" />
                             Ajouter un bien
@@ -428,6 +454,17 @@ export const OwnerDetails: React.FC = () => {
                     onSuccess={() => setPropertyToAssign(null)}
                 />
             )}
+                onLogoutConfirm={() => setShowTerminationModal(false)}
+            /> */}
+
+            <ConfirmDeleteModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDeleteOwner}
+                itemTitle={`${owner.first_name} ${owner.last_name}`}
+                isLoading={isDeleting}
+                message="Voulez-vous vraiment supprimer ce propriétaire ? Pour une suppression complète, ses biens et contrats doivent être supprimés individuellement au préalable."
+            />
         </div>
     );
 };

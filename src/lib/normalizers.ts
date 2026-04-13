@@ -423,6 +423,7 @@ export const normalizeAuditLog = (al: Partial<AuditLog>) => {
         new_values: al.new_values ?? null,
         ip_address,
         user_agent: nilIfEmpty(al.user_agent),
+        agency_id: nilIfEmpty(al.agency_id),
         created_at: al.created_at ?? new Date().toISOString(),
     };
 };

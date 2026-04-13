@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Calendar, Download, Eye, CreditCard, X } from 'lucide-react';
+import { Calendar, Download, Eye, CreditCard, X, Trash2 } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService, supabase } from '../../lib/supabase';
 import { RentReceipt } from '../../types/db';
@@ -8,6 +8,7 @@ import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
 import { Button } from '../ui/Button';
+import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { printReceiptHTML, downloadReceiptPDF } from '../../utils/receiptActions';
@@ -37,6 +38,11 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
 }) => {
     const { user, agencyId } = useAuth();
     const [selectedPayment, setSelectedPayment] = React.useState<any | null>(null);
+    const [paymentToDelete, setPaymentToDelete] = React.useState<any | null>(null);
+    const [isDeleting, setIsDeleting] = React.useState(false);
+    
+    // Check if user can delete
+    const canDelete = ['director', 'manager'].includes(user?.role || '');
 
     // Fetch payments with filters
     const fetchPayments = React.useCallback(async () => {
@@ -154,6 +160,40 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
             propertyTitle: payment.property?.title,
             ownerName: undefined
         });
+    };
+
+
+    const handleDelete = async () => {
+        if (!paymentToDelete || !user?.id || !agencyId) return;
+        setIsDeleting(true);
+        try {
+            const tableName = paymentToDelete.displayType === 'receipt' ? 'rent_receipts' : 'modular_transactions';
+            
+            // 1. Log the deletion in audit logs
+            await dbService.auditLogs.logDeletion({
+                table_name: tableName,
+                record_id: paymentToDelete.id,
+                old_values: paymentToDelete,
+                userId: user.id,
+                agencyId: agencyId
+            });
+
+            // 2. Perform the deletion
+            const { error } = await supabase
+                .from(tableName)
+                .delete()
+                .eq('id', paymentToDelete.id);
+
+            if (error) throw error;
+
+            toast.success('Élément supprimé avec succès');
+            setPaymentToDelete(null);
+        } catch (error: any) {
+            console.error('Error deleting:', error);
+            toast.error('Erreur lors de la suppression : ' + error.message);
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     if (initialLoading) {
@@ -304,6 +344,17 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                                 >
                                                     <Download className="w-4 h-4" />
                                                 </Button>
+                                                {canDelete && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                        title="Supprimer"
+                                                        onClick={() => setPaymentToDelete(payment)}
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </td>
                                     )}
@@ -402,6 +453,15 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                     </div>
                 </div>
             )}
+            {/* Modal de suppression */}
+            <ConfirmDeleteModal
+                isOpen={!!paymentToDelete}
+                onClose={() => setPaymentToDelete(null)}
+                onConfirm={handleDelete}
+                itemTitle={paymentToDelete?.displayTitle}
+                isLoading={isDeleting}
+                message={`Vous allez supprimer ce ${paymentToDelete?.displayType === 'receipt' ? 'paiement de loyer' : 'mouvement de caisse'}. Cette opération sera tracée au nom de l'agence.`}
+            />
         </div>
     );
 };
