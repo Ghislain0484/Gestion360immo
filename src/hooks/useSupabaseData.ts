@@ -4,7 +4,7 @@ import { dbService } from '../lib/supabase';
 import { AgencyEntity, Entity } from '../types/db';
 import { toast } from 'react-hot-toast';
 import debounce from 'lodash/debounce';
-import { RealtimePostgresChangesPayload, RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { formatSbError, isRlsDenied } from '../lib/helpers';
 import { supabase } from '../lib/config';
 import { useDemoMode } from '../contexts/DemoContext';
@@ -278,6 +278,10 @@ export function useRealtimeData<T extends AgencyEntity>(
 
   // -------------------------
   // useEffect principal
+  // NOTE: Realtime postgres_changes subscriptions are DISABLED intentionally.
+  // Supabase Realtime v2.103 throws "No Listener: tabs:outgoing.message.ready"
+  // from the Phoenix WebSocket when multiple channels subscribe concurrently.
+  // We use a polling interval instead — data refreshes every 30 seconds.
   // -------------------------
   useEffect(() => {
     isMountedRef.current = true;
@@ -292,7 +296,6 @@ export function useRealtimeData<T extends AgencyEntity>(
       setError(msg);
       setInitialLoading(false);
       setData([]);
-      // Pas de toast : l'alerte rouge dans le Dashboard est suffisante
       return;
     }
 
@@ -301,34 +304,22 @@ export function useRealtimeData<T extends AgencyEntity>(
       return;
     }
 
+    // Initial fetch
     fetchData(fetchParams);
 
-    if (!channelRef.current) {
-      log(`📡 Subscription ${tableName}, agency: ${agencyId}`);
-      const channel = supabase
-        .channel(`public:${tableName}:${agencyId}:${channelInstanceId.current}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: tableName, filter: `agency_id=eq.${agencyId}` },
-          (payload: RealtimePostgresChangesPayload<T>) => {
-            const row = (payload.new ?? payload.old) as T;
-            if (!agencyId || row?.agency_id === agencyId) {
-              log(`📡 Event recu pour ${tableName} valide (agence ${agencyId})`);
-              debouncedRefetch(fetchParams);
-            }
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') log(`[info] Subscription active pour ${tableName}`);
-        });
-
-      channelRef.current = channel;
-    }
+    // Polling-based refresh every 30 seconds (replaces broken Realtime subscription)
+    const pollInterval = setInterval(() => {
+      if (isMountedRef.current && agencyId) {
+        log(`🔄 Poll ${tableName}`);
+        debouncedRefetch(fetchParams);
+      }
+    }, 30000);
 
     return () => {
       isMountedRef.current = false;
+      clearInterval(pollInterval);
+      // Clean up any leftover channel from previous renders
       if (channelRef.current) {
-        log(`🔌 Cleanup subscription ${tableName}`);
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
