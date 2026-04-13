@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, ArrowLeft, FileText, Plus, Link, Trash2 } from 'lucide-react';
-import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService, supabase } from '../../lib/supabase';
 import { Tenant, Property } from '../../types/db';
@@ -38,17 +37,26 @@ export const TenantDetails: React.FC = () => {
     );
     const tenant = tenants?.[0];
 
-    // Fetch Tenant's Contracts
+    // Fetch Tenant's Contracts — direct fetch (no realtime sub to avoid channel collision)
+    const [contracts, setContracts] = React.useState<Contract[]>([]);
+    const [loadingContracts, setLoadingContracts] = React.useState(false);
+
     const fetchContracts = React.useCallback(async () => {
-        if (!tenant?.id) return [];
-        return dbService.contracts.getAll({ tenant_id: tenant.id });
+        if (!tenant?.id) return;
+        setLoadingContracts(true);
+        try {
+            const result = await dbService.contracts.getAll({ tenant_id: tenant.id });
+            setContracts(result || []);
+        } catch (err) {
+            console.error('Error fetching tenant contracts:', err);
+        } finally {
+            setLoadingContracts(false);
+        }
     }, [tenant?.id]);
 
-    const { data: contracts } = useRealtimeData<Contract>(
-        fetchContracts,
-        'contracts',
-        { tenant_id: tenant?.id }
-    );
+    React.useEffect(() => {
+        fetchContracts();
+    }, [fetchContracts]);
 
     const activeContracts = (contracts || []).filter(c => c.status === 'active' || c.status === 'renewed');
 
