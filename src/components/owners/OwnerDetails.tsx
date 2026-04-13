@@ -454,8 +454,6 @@ export const OwnerDetails: React.FC = () => {
                     onSuccess={() => setPropertyToAssign(null)}
                 />
             )}
-                onLogoutConfirm={() => setShowTerminationModal(false)}
-            /> */}
 
             <ConfirmDeleteModal
                 isOpen={showDeleteModal}
