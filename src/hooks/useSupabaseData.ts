@@ -100,6 +100,9 @@ export function useRealtimeData<T extends AgencyEntity>(
   const isMountedRef = useRef(true);
   const isFetchingRef = useRef(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  // Unique per-instance channel ID to prevent collisions when multiple components
+  // use the same table (e.g. both PropertiesList and TenantDetails subscribe to 'contracts')
+  const channelInstanceId = useRef(`${Math.random().toString(36).substr(2, 9)}`);
 
   // Stabiliser agencyId et params
   const agencyId = useMemo(() => (authLoading ? null : user?.agency_id ?? null), [user?.agency_id, authLoading]);
@@ -303,7 +306,7 @@ export function useRealtimeData<T extends AgencyEntity>(
     if (!channelRef.current) {
       log(`📡 Subscription ${tableName}, agency: ${agencyId}`);
       const channel = supabase
-        .channel(`public:${tableName}:${agencyId}`)
+        .channel(`public:${tableName}:${agencyId}:${channelInstanceId.current}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: tableName, filter: `agency_id=eq.${agencyId}` },
