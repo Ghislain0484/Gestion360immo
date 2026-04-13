@@ -45,25 +45,38 @@ import { OwnerPortfolio } from './components/owner-portal/OwnerPortfolio';
 import { OwnerEnhancement } from './components/owner-portal/OwnerEnhancement';
 
 // Error Boundary Component
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null, errorInfo: React.ErrorInfo | null }> {
+  state = { hasError: false, error: null, errorInfo: null };
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.setState({ errorInfo });
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-red-600">Erreur</h1>
-            <p className="text-gray-600">Une erreur est survenue. Veuillez recharger la page.</p>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="bg-white p-8 rounded-lg shadow-lg max-w-3xl w-full text-center">
+            <h1 className="text-2xl font-bold text-red-600 mb-4">CRASH DE RENDU REACT</h1>
+            <p className="text-gray-600 mb-4 font-bold">L'application a planté pour la raison suivante :</p>
+            <div className="bg-red-50 text-red-900 border border-red-200 p-4 rounded text-left overflow-auto mb-6 text-sm">
+              <p className="font-mono font-bold mb-2 break-all">
+                {this.state.error && (this.state.error as Error).toString()}
+              </p>
+              <pre className="text-xs text-red-700 whitespace-pre-wrap">
+                {this.state.errorInfo && (this.state.errorInfo as React.ErrorInfo).componentStack}
+              </pre>
+            </div>
             <button
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+              className="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition"
               onClick={() => window.location.reload()}
             >
-              Recharger
+              Recharger l'application
             </button>
           </div>
         </div>
@@ -72,6 +85,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     return this.props.children;
   }
 }
+
 
 // Route protégée pour utilisateurs
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
