@@ -26,6 +26,8 @@
   
   --radius-premium: 1.25rem;
   --spring-easing: cubic-bezier(0.16, 1, 0.3, 1);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom);
+  --header-height: 64px;
 }
 
 .dark {
@@ -131,6 +133,24 @@ h1, h2, h3, .font-display {
   background-clip: content-box;
 }
 
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    height: -webkit-fill-available;
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased selection:bg-primary-100 selection:text-primary-900;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
+.glass-morphism {
+  @apply bg-white/70 backdrop-blur-md border border-white/20;
+  -webkit-backdrop-filter: blur(12px);
+}
 .dark ::-webkit-scrollbar-thumb {
   background: hsla(var(--p-h), 20%, 40%, 0.4);
 }

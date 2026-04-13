@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import legacy from '@vitejs/plugin-legacy';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    legacy({
+      targets: ['defaults', 'not IE 11', 'Safari 12'],
+    }),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
@@ -51,10 +55,6 @@ export default defineConfig({
           'vendor-supabase': ['@supabase/supabase-js'],
           'vendor-ui': ['lucide-react', 'clsx', 'tailwind-merge', 'react-hot-toast'],
           'vendor-utils': ['date-fns', 'dexie', 'html2canvas', 'jspdf'],
-          'modular-core': [
-            './src/lib/db/modularService.ts',
-            './src/lib/offlineSync.ts'
-          ]
         }
       }
     }
