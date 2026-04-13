@@ -12,6 +12,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Contract, Owner, Property, Tenant } from '../../types/db';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import toast from 'react-hot-toast';
+import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
+import { supabase } from '../../lib/supabase';
 
 import { useRef, useEffect } from 'react';
 
@@ -134,6 +136,10 @@ export const ContractsList: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | Contract['status']>('all');
   const [page, setPage] = useState(1);
   const pageSize = 1000;
+  
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [activeContractId, setActiveContractId] = useState<string | null>(null);
 
   const { data: contracts = [], refetch, setData, initialLoading } = useRealtimeData<Contract>(
     () => dbService.contracts.getAll({
@@ -262,15 +268,49 @@ export const ContractsList: React.FC = () => {
     }
   };
 
-  const handleDeleteContract = async (contractId: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce contrat ? Cette action est irréversible.')) {
-      const contractToDelete = contracts.find(c => c.id === contractId);
-      await deleteContract(contractId);
+  const handleDeleteContract = async () => {
+    if (!activeContractId || !user?.id || !user?.agency_id) return;
+    
+    const contractObj = contracts.find(c => c.id === activeContractId);
+    if (!contractObj) return;
 
-      if (contractToDelete && contractToDelete.status === 'active' && contractToDelete.type === 'location') {
-        console.log('🏘️ Restauration de la disponibilité du bien:', contractToDelete.property_id);
-        await dbService.properties.update(contractToDelete.property_id, { is_available: true });
+    setIsDeleting(true);
+    const toastId = toast.loading('Suppression en cours...');
+    
+    try {
+      // 1. Audit Log Snapshot
+      await dbService.auditLogs.logDeletion({
+        table_name: 'contracts',
+        record_id: activeContractId,
+        old_values: contractObj,
+        userId: user.id,
+        agencyId: user.agency_id
+      });
+
+      // 2. Suppression (one by one safety)
+      // Delete receipts first
+      const receipts = await dbService.rentReceipts.getAll({ contract_id: activeContractId, agency_id: user.agency_id });
+      for (const receipt of receipts) {
+        await supabase.from('rent_receipts').delete().eq('id', receipt.id);
       }
+
+      const { error } = await supabase.from('contracts').delete().eq('id', activeContractId);
+      if (error) throw error;
+
+      if (contractObj.status === 'active' && contractObj.type === 'location') {
+        console.log('居️ Restauration de la disponibilité du bien:', contractObj.property_id);
+        await dbService.properties.update(contractObj.property_id, { is_available: true });
+      }
+
+      toast.success('Contrat supprimé avec succès', { id: toastId });
+      refetch();
+    } catch (err: any) {
+      console.error('Error deleting contract:', err);
+      toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+      setActiveContractId(null);
     }
   };
 
@@ -563,7 +603,10 @@ export const ContractsList: React.FC = () => {
                       }
                     }}
                     onTerminate={() => handleTerminateContract(contract)}
-                    onDelete={() => handleDeleteContract(contract.id)}
+                    onDelete={() => {
+                        setActiveContractId(contract.id);
+                        setShowDeleteModal(true);
+                    }}
                   />
                 </div>
 
@@ -624,6 +667,15 @@ export const ContractsList: React.FC = () => {
         onSubmit={handleAddOrUpdateContract}
         initialData={showForm.contract}
         readOnly={showForm.readOnly}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteContract}
+        itemTitle={activeContractId ? `Contrat #${activeContractId.slice(0, 8)}` : "ce contrat"}
+        isLoading={isDeleting}
+        message="Voulez-vous vraiment supprimer ce contrat ? Toutes les quittances associées seront également supprimées."
       />
     </div>
   );

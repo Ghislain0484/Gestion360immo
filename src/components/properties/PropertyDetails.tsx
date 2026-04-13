@@ -18,7 +18,8 @@ import { AssignTenantModal } from '../tenants/AssignTenantModal';
 import { ExpenseLogger } from './ExpenseLogger';
 import { LeaseTerminationModal } from '../contracts/LeaseTerminationModal';
 import { PropertyHistory } from './PropertyHistory';
-import { History } from 'lucide-react';
+import { History, Trash2 } from 'lucide-react';
+import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 
 const OwnerInfoDisplay: React.FC<{ ownerId: string; agencyId?: string }> = ({ ownerId, agencyId }) => {
     const navigate = useNavigate();
@@ -69,6 +70,8 @@ export const PropertyDetails: React.FC = () => {
     const [showEditForm, setShowEditForm] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showTerminationModal, setShowTerminationModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Fetch Specific Property Data
     const fetchProperty = React.useCallback(async () => {
@@ -157,41 +160,44 @@ export const PropertyDetails: React.FC = () => {
     const bathrooms = property.rooms?.filter(r => r.type === 'salle_bain').length || 0;
 
     const handleDeleteProperty = async () => {
-        if (!window.confirm(`Supprimer définitivement "${property.title}" ? Cette action est irréversible et supprimera tout l'historique associé.`)) {
-            return;
-        }
-
+        if (!property || !user?.id || !authAgencyId) return;
+        setIsDeleting(true);
         const toastId = toast.loading('Suppression en cours...');
+        
         try {
-            // Cleanup logic (same as PropertiesList)
-            const propertyContracts = await dbService.contracts.getAll({ property_id: property.id, agency_id: authAgencyId || undefined });
+            // 1. Journalisation d'audit
+            await dbService.auditLogs.logDeletion({
+                table_name: 'properties',
+                record_id: property.id,
+                old_values: property,
+                userId: user.id,
+                agencyId: authAgencyId
+            });
+
+            // 2. Suppression (un par un comme demandé par l'utilisateur pour la sécurité)
+            // Note: L'utilisateur a demandé de supprimer les contrats un par un.
+            const propertyContracts = await dbService.contracts.getAll({ property_id: property.id, agency_id: authAgencyId });
             for (const contract of propertyContracts) {
-                const receipts = await dbService.rentReceipts.getAll({ contract_id: contract.id, agency_id: authAgencyId || undefined });
+                // Pour supprimer un contrat, il faut d'abord supprimer ses quittances
+                const receipts = await dbService.rentReceipts.getAll({ contract_id: contract.id, agency_id: authAgencyId });
                 for (const receipt of receipts) {
-                    await dbService.rentReceipts.delete(receipt.id);
+                    await supabase.from('rent_receipts').delete().eq('id', receipt.id);
                 }
-                await dbService.contracts.delete(contract.id);
+                await supabase.from('contracts').delete().eq('id', contract.id);
             }
 
-            const { data: transactions } = await dbService.financials.getTransactionsByProperty(property.id);
-            if (transactions) {
-                for (const tx of transactions) {
-                    await dbService.financials.deleteTransaction(tx.tx_id || tx.id);
-                }
-            }
+            // Supprimer le bien lui-même
+            const { error } = await supabase.from('properties').delete().eq('id', property.id);
+            if (error) throw error;
 
-            if (property.images) {
-                for (const img of property.images) {
-                    if (img.url) await dbService.properties.deleteImage(img.url);
-                }
-            }
-
-            await dbService.properties.delete(property.id);
             toast.success('Bien supprimé avec succès', { id: toastId });
             navigate('/proprietes');
         } catch (err: any) {
             console.error('Error deleting property:', err);
             toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteModal(false);
         }
     };
 
@@ -251,12 +257,13 @@ export const PropertyDetails: React.FC = () => {
                                     <Edit className="w-4 h-4 mr-2" />
                                     Modifier
                                 </Button>
-                                {(user?.role === 'director' || user?.role === 'manager') && (
+                                {['director', 'manager'].includes(user?.role || '') && (
                                     <Button
-                                        onClick={() => handleDeleteProperty()}
+                                        onClick={() => setShowDeleteModal(true)}
                                         variant="outline"
                                         className="bg-red-600/20 text-red-100 border-red-500/30 hover:bg-red-600/40"
                                     >
+                                        <Trash2 className="w-4 h-4 mr-2" />
                                         Supprimer
                                     </Button>
                                 )}
@@ -531,6 +538,15 @@ export const PropertyDetails: React.FC = () => {
                     }}
                 />
             )}
+
+            <ConfirmDeleteModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDeleteProperty}
+                itemTitle={property.title}
+                isLoading={isDeleting}
+                message="Voulez-vous vraiment supprimer ce bien ? Tous les contrats et quittances liés doivent être supprimés au préalable pour une suppression propre."
+            />
         </div>
     );
 };

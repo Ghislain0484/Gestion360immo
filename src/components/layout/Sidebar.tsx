@@ -16,6 +16,7 @@ import {
   ClipboardCheck,
   Zap,
   ZapOff,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
@@ -68,6 +69,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       href: '/parametres', 
       icon: Settings 
     },
+    ...(user?.role === 'director' || user?.role === 'manager' ? [
+      { name: "Journal d'Audit", href: '/admin/audit', icon: Shield }
+    ] : []),
   ];
 
   const checkModule = (mod?: string) => {

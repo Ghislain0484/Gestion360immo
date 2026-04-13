@@ -22,6 +22,7 @@ export interface AuditLog {
   new_values?: JsonB | null;
   ip_address?: string | null;
   user_agent?: string | null;
+  agency_id?: string | null; // UUID, FK vers agencies(id)
   created_at: string; // timestamptz
 }
 

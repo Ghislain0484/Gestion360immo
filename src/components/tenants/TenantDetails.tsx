@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, ArrowLeft, FileText, Plus, Link } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, ArrowLeft, FileText, Plus, Link, Trash2 } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService } from '../../lib/supabase';
+import { dbService, supabase } from '../../lib/supabase';
 import { Tenant, Property } from '../../types/db';
 import { Contract } from '../../types/contracts';
 import { extractIdFromSlug, generateSlug } from '../../utils/idSystem';
@@ -11,10 +9,13 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Tabs } from '../ui/Tabs';
 import { Badge } from '../ui/Badge';
+import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { TenantForm } from './TenantForm';
 import ReceiptGenerator from '../receipts/ReceiptGenerator';
 import { PaymentsList } from '../payments/PaymentsList';
 import { LinkTenantToPropertyModal } from './LinkTenantToPropertyModal';
+import { toast } from 'react-hot-toast';
+import { useNavigate, useParams } from 'react-router-dom';
 
 export const TenantDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
@@ -48,20 +49,29 @@ export const TenantDetails: React.FC = () => {
         { tenant_id: tenant?.id }
     );
 
-    const activeContract = contracts?.find(c => c.status === 'active');
+    const activeContracts = (contracts || []).filter(c => c.status === 'active' || c.status === 'renewed');
 
-    // Fetch Property if active contract exists
-    const [property, setProperty] = useState<Property | null>(null);
+    // Fetch Properties for all active contracts
+    const [properties, setProperties] = useState<Property[]>([]);
     React.useEffect(() => {
-        if (activeContract?.property_id) {
-            dbService.properties.getById(activeContract.property_id).then(setProperty);
+        if (activeContracts.length > 0) {
+            const propIds = activeContracts.map(c => c.property_id);
+            Promise.all(propIds.map(id => dbService.properties.getById(id)))
+                .then(props => setProperties(props.filter((p): p is Property => p !== null)));
+        } else {
+            setProperties([]);
         }
-    }, [activeContract?.property_id]);
+    }, [activeContracts.map(c => c.id).join(',')]);
 
     const [activeTab, setActiveTab] = useState('contract');
     const [showEditForm, setShowEditForm] = useState(false);
     const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
     const [showLinkModal, setShowLinkModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    
+    // Check if user can delete
+    const canDelete = ['director', 'manager'].includes(useAuth().user?.role || '');
     
     // Expert Financial Data
     const [receipts, setReceipts] = useState<any[]>([]);
@@ -83,13 +93,16 @@ export const TenantDetails: React.FC = () => {
                 const totalCaution = receiptsData.reduce((sum: any, r: any) => sum + (r.deposit_amount || 0), 0);
                 
                 // Coverage calculation based on active contract if available
-                if (activeContract) {
-                    const monthlyTotal = (activeContract.monthly_rent || 0) + (activeContract.charges || 0);
+                // Coverage calculation based on aggregate active contracts
+                if (activeContracts.length > 0) {
+                    const monthlyTotal = activeContracts.reduce((sum, c) => sum + (c.monthly_rent || 0) + (c.charges || 0), 0);
                     const monthsCovered = monthlyTotal > 0 ? totalPaidRent / monthlyTotal : 0;
                     
-                    const start = new Date(activeContract.start_date);
+                    // Simplified aggregate status (using earliest start date)
+                    const startDates = activeContracts.map(c => new Date(c.start_date).getTime());
+                    const earliestStart = new Date(Math.min(...startDates));
                     const now = new Date();
-                    const elapsedMonths = Math.max(0, (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+                    const elapsedMonths = Math.max(0, (now.getTime() - earliestStart.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
                     const balance = monthsCovered - elapsedMonths;
                     
                     const isVeryNew = elapsedMonths < 0.25;
@@ -103,7 +116,35 @@ export const TenantDetails: React.FC = () => {
             }
         };
         loadFinance();
-    }, [tenant?.id, activeContract?.id]);
+    }, [tenant?.id, activeContracts.length]);
+
+    const handleDeleteTenant = async () => {
+        if (!tenant || !useAuth().user?.id || !authAgencyId) return;
+        setIsDeleting(true);
+        try {
+            // 1. Audit Log
+            await dbService.auditLogs.logDeletion({
+                table_name: 'tenants',
+                record_id: tenant.id,
+                old_values: tenant,
+                userId: useAuth().user!.id,
+                agencyId: authAgencyId
+            });
+
+            // 2. Delete from Supabase
+            const { error } = await supabase.from('tenants').delete().eq('id', tenant.id);
+            if (error) throw error;
+
+            toast.success('Locataire supprimé avec succès');
+            navigate('/locataires');
+        } catch (error: any) {
+            console.error('Error deleting tenant:', error);
+            toast.error('Erreur lors de la suppression : ' + error.message);
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteModal(false);
+        }
+    };
 
     if (loadingTenant) {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
@@ -163,6 +204,17 @@ export const TenantDetails: React.FC = () => {
                             <Edit className="w-4 h-4 mr-2" />
                             Modifier
                         </Button>
+                        {canDelete && (
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                onClick={() => setShowDeleteModal(true)}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Supprimer
+                            </Button>
+                        )}
                     </div>
                 </div>
             </Card>
@@ -177,125 +229,75 @@ export const TenantDetails: React.FC = () => {
                     <div className="p-6">
                         {activeTab === 'contract' && (
                             <div className="space-y-6">
-                                {activeContract ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <Card className="p-5 bg-white shadow-sm border border-gray-100">
-                                            <h3 className="font-semibold text-lg text-gray-900 mb-4 flex items-center gap-2">
-                                                <Building2 className="w-5 h-5 text-primary-600" />
-                                                Informations sur la location
-                                            </h3>
-                                            <div className="space-y-4">
-                                                {property ? (
-                                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                                        <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Bien Occupé</p>
-                                                        <div className="flex justify-between items-start">
+                                {activeContracts.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {activeContracts.map(contract => {
+                                            const prop = properties.find(p => p.id === contract.property_id);
+                                            return (
+                                                <Card key={contract.id} className="p-5 bg-white shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                                            <Building2 className="w-5 h-5 text-primary-600" />
+                                                            {prop?.title || 'Bien en cours...'}
+                                                        </h3>
+                                                        <Badge variant="success">Actif</Badge>
+                                                    </div>
+                                                    
+                                                    <div className="space-y-3">
+                                                        <div className="p-3 bg-gray-50 rounded-lg">
+                                                            <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Loyer Mensuel</p>
+                                                            <p className="font-bold text-primary-700">
+                                                                {contract.monthly_rent?.toLocaleString('fr-FR')} FCFA
+                                                            </p>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-2 text-sm">
                                                             <div>
-                                                                <p className="font-medium text-gray-900">{property.title}</p>
-                                                                <p className="text-sm text-gray-600">{property.location.commune}, {property.location.quartier}</p>
+                                                                <p className="text-gray-500 text-xs">Entrée</p>
+                                                                <p className="font-medium">{new Date(contract.start_date).toLocaleDateString('fr-FR')}</p>
                                                             </div>
+                                                            <div>
+                                                                <p className="text-gray-500 text-xs">Type</p>
+                                                                <p className="font-medium capitalize">{contract.type}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="pt-3 flex gap-2">
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
+                                                                className="flex-1 text-primary-600 hover:bg-primary-50"
                                                                 onClick={() => {
-                                                                    const slugId = property.business_id || property.id;
-                                                                    const slug = generateSlug(slugId, property.title);
+                                                                    if (!prop) return;
+                                                                    const slugId = prop.business_id || prop.id;
+                                                                    const slug = generateSlug(slugId, prop.title);
                                                                     navigate(`/proprietes/${slug}`);
                                                                 }}
-                                                                className="text-primary-600 hover:text-primary-700 hover:bg-primary-50"
                                                             >
-                                                                Voir
+                                                                Voir le bien
                                                             </Button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="animate-pulse h-16 bg-gray-100 rounded-lg"></div>
-                                                )}
-
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                                        <p className="text-xs text-gray-500 uppercase font-semibold mb-1 flex items-center gap-1">
-                                                            <Wallet className="w-3 h-3" /> Loyer Mensuel
-                                                        </p>
-                                                        <p className="font-bold text-lg text-primary-700">
-                                                            {activeContract.monthly_rent?.toLocaleString('fr-FR')} FCFA
-                                                        </p>
-                                                    </div>
-                                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                                        <p className="text-xs text-gray-500 uppercase font-semibold mb-1 flex items-center gap-1">
-                                                            <FileText className="w-3 h-3" /> Date d'entrée
-                                                        </p>
-                                                        <p className="font-medium text-gray-900">
-                                                            {new Date(activeContract.start_date).toLocaleDateString('fr-FR')}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Owner Information */}
-                                                <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
-                                                    <p className="text-xs text-blue-600 uppercase font-semibold mb-2 flex items-center gap-1">
-                                                        <User className="w-3 h-3" /> Propriétaire
-                                                    </p>
-                                                    {activeContract.owner ? (
-                                                        <div className="flex justify-between items-center">
-                                                            <div>
-                                                                <p className="font-medium text-gray-900">
-                                                                    {(activeContract.owner as any).first_name} {(activeContract.owner as any).last_name}
-                                                                </p>
-                                                                <p className="text-xs text-gray-500">{(activeContract.owner as any).business_id}</p>
-                                                            </div>
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                onClick={() => {
-                                                                    const owner = activeContract.owner as any;
-                                                                    const slugId = owner.business_id || owner.id;
-                                                                    const slug = generateSlug(slugId, `${owner.first_name} ${owner.last_name}`);
-                                                                    navigate(`/proprietaires/${slug}`);
-                                                                }}
-                                                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                                className="flex-1 text-gray-600 hover:bg-gray-100"
+                                                                onClick={() => navigate(`/contrats`)} // Could be improved to deep link
                                                             >
-                                                                Contact
+                                                                Contrat
                                                             </Button>
                                                         </div>
-                                                    ) : (
-                                                        <p className="text-sm text-gray-500 italic">Information non disponible</p>
-                                                    )}
-                                                </div>
+                                                    </div>
+                                                </Card>
+                                            );
+                                        })}
+                                        
+                                        {/* Add more properties option */}
+                                        <div 
+                                            onClick={() => setShowLinkModal(true)}
+                                            className="p-5 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary-300 hover:text-primary-600 cursor-pointer transition-all group"
+                                        >
+                                            <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-2 group-hover:bg-primary-50">
+                                                <Plus className="w-6 h-6" />
                                             </div>
-                                        </Card>
-
-                                        <Card className="p-5 bg-white shadow-sm border border-gray-100">
-                                            <h3 className="font-semibold text-lg text-gray-900 mb-4 flex items-center gap-2">
-                                                <FileText className="w-5 h-5 text-gray-400" />
-                                                Détails du contrat
-                                            </h3>
-                                            <div className="space-y-4">
-                                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                                    <span className="text-gray-600 text-sm">Référence</span>
-                                                    <span className="font-medium text-gray-900">{activeContract.id.split('-')[0].toUpperCase()}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                                    <span className="text-gray-600 text-sm">Type</span>
-                                                    <span className="font-medium text-gray-900 capitalize">{activeContract.type}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                                    <span className="text-gray-600 text-sm">Prochaine échéance</span>
-                                                    <span className="font-medium text-gray-900">
-                                                        {new Date().getDate() <= 5 ? "5 du mois courant" : "5 du mois prochain"}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                                    <span className="text-gray-600 text-sm">Statut</span>
-                                                    <Badge variant="success">Actif</Badge>
-                                                </div>
-                                                <div className="pt-4">
-                                                    <Button variant="outline" className="w-full text-gray-600" onClick={() => navigate(`/contrats`)}>
-                                                        <FileText className="w-4 h-4 mr-2" />
-                                                        Voir le contrat complet
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </Card>
+                                            <p className="font-medium">Lier un autre bien</p>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
@@ -350,7 +352,7 @@ export const TenantDetails: React.FC = () => {
                                                 <h3 className="text-lg font-semibold text-gray-900">Paiements de loyer (Expert)</h3>
                                                 <p className="text-sm text-gray-600 mt-1">Livre de caisse détaillé pour ce locataire</p>
                                             </div>
-                                            {activeContract && (
+                                            {activeContracts.length > 0 && (
                                                 <Button
                                                     variant="primary"
                                                     onClick={() => setShowReceiptGenerator(true)}
@@ -420,19 +422,28 @@ export const TenantDetails: React.FC = () => {
             )}
 
             {/* Receipt Generator Modal */}
-            {showReceiptGenerator && activeContract && (
+            {showReceiptGenerator && activeContracts.length > 0 && (
                 <ReceiptGenerator
                     isOpen={showReceiptGenerator}
                     onClose={() => setShowReceiptGenerator(false)}
-                    contractId={activeContract.id}
+                    contractId={activeContracts[0].id} // Default to first (can be improved)
                     tenantId={tenant.id}
-                    propertyId={activeContract.property_id}
-                    ownerId={activeContract.owner_id}
+                    propertyId={activeContracts[0].property_id}
+                    ownerId={activeContracts[0].owner_id}
                     onReceiptGenerated={async () => {
                         setShowReceiptGenerator(false);
                     }}
                 />
             )}
+
+            <ConfirmDeleteModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDeleteTenant}
+                itemTitle={`${tenant.first_name} ${tenant.last_name}`}
+                isLoading={isDeleting}
+                message="Voulez-vous vraiment supprimer ce locataire ? Ses contrats et paiements resteront en base mais ne seront plus liés."
+            />
         </div>
     );
 };
