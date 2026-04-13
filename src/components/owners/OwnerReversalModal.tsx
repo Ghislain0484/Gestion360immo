@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { X, DollarSign, CreditCard, Banknote, Receipt, ArrowDownLeft, Info } from 'lucide-react';
+import { X, DollarSign, CreditCard, Banknote, Receipt, ArrowDownLeft, Info, FileText } from 'lucide-react';
+import { PdfReportService } from '../../utils/PdfReportService';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { clsx } from 'clsx';
+import { Badge } from '../ui/Badge';
 import { ReversalDetails } from './OwnerReversalCalculator';
 
 interface OwnerReversalModalProps {
@@ -35,6 +36,7 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
 }) => {
     const { user } = useAuth();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const [reversalData, setReversalData] = useState<ReversalData>({
         montant: 0,
         mode_paiement: 'virement',
@@ -48,6 +50,32 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
             setReversalData(prev => ({ ...prev, montant: initialAmount }));
         }
     }, [initialAmount]);
+
+    const handleDownloadPDF = async () => {
+        if (!details || !user?.agency_id) return;
+        setIsGeneratingPDF(true);
+        try {
+            // Get owner details for PDF
+            const { data: owner } = await supabase
+                .from('owners')
+                .select('*')
+                .eq('id', ownerId)
+                .single();
+
+            if (owner) {
+                await PdfReportService.generateReversalStatement({
+                    owner,
+                    agencyId: user.agency_id,
+                    details
+                });
+            }
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Erreur lors de la génération du PDF');
+        } finally {
+            setIsGeneratingPDF(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -165,6 +193,30 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                                         <div className="border-t border-blue-300 pt-2 mt-2 flex justify-between font-semibold text-blue-900">
                                             <span>Montant net:</span>
                                             <span>{details.netAmount.toLocaleString('fr-FR')} FCFA</span>
+                                        </div>
+
+                                        {/* Transaction Breakdown */}
+                                        <div className="mt-4 pt-2 border-t border-blue-200">
+                                            <p className="text-[10px] font-black uppercase text-blue-400 mb-2 tracking-widest">Détail par bien</p>
+                                            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                                                {details.transactions.map((t) => (
+                                                    <div key={t.id} className="flex justify-between items-start bg-white/40 p-2 rounded border border-blue-100/50">
+                                                        <div>
+                                                            <p className="font-bold text-blue-900 leading-tight">{t.propertyTitle}</p>
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                <span className="text-[9px] text-blue-500/70">{t.description}</span>
+                                                                {t.status === 'partial' && (
+                                                                    <Badge variant="warning" className="text-[8px] py-0 px-1 leading-none h-3.5 border-none bg-amber-100 text-amber-700">Partiel</Badge>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="font-black text-blue-900 leading-tight">{t.amount.toLocaleString('fr-FR')} FCFA</p>
+                                                            <p className="text-[9px] text-red-500 font-bold">Comm: -{t.commission.toLocaleString('fr-FR')}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -292,9 +344,24 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                         >
                             Annuler
                         </button>
+                        {details && (
+                            <button
+                                type="button"
+                                onClick={handleDownloadPDF}
+                                disabled={isGeneratingPDF || isProcessing}
+                                className="px-6 py-3 border border-indigo-600 text-indigo-600 font-medium rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {isGeneratingPDF ? (
+                                    <LoadingSpinner size="sm" color="indigo" />
+                                ) : (
+                                    <FileText className="w-5 h-5" />
+                                )}
+                                <span>Bordereau PDF</span>
+                            </button>
+                        )}
                         <button
                             type="submit"
-                            disabled={isProcessing || reversalData.montant <= 0}
+                            disabled={isProcessing || reversalData.montant <= 0 || isGeneratingPDF}
                             className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-lg hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {isProcessing ? (
