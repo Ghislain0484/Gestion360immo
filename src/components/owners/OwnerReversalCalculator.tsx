@@ -5,6 +5,7 @@ import { dbService, supabase } from '../../lib/supabase';
 import { RentReceipt } from '../../types/db';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { Badge } from '../ui/Badge';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 
 export interface DeductibleFee {
