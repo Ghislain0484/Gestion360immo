@@ -57,7 +57,21 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
         // Fetch modular transactions
         let modularData: ModularTransaction[] = [];
         if (tenantId) {
-            modularData = await dbService.modular.getTenantTransactions(tenantId);
+            // Fetch only rent-specific transactions for this tenant
+            // Exclude internal agency cash transfers (reversements, payouts, etc.)
+            const allTenantTxs = await dbService.modular.getTenantTransactions(tenantId);
+            const RENT_CATEGORIES = ['rent_payment', 'caution', 'stay_payment', 'avance_loyer', 'loyer', 'paiement_loyer'];
+            modularData = allTenantTxs.filter(t => {
+                const cat = (t.category || '').toLowerCase();
+                const desc = (t.description || '').toLowerCase();
+                // Include transaction if it has a known rent category
+                if (RENT_CATEGORIES.some(rc => cat.includes(rc))) return true;
+                // Exclude known internal transfers even if they mention a tenant
+                const EXCLUDED_PATTERNS = ['reversement', 'payout', 'virement agence', 'cross pro', 'commission agence', 'transfer'];
+                if (EXCLUDED_PATTERNS.some(p => desc.includes(p) || cat.includes(p))) return false;
+                // Default: include if it has a rent-like category or exclude if purely internal
+                return RENT_CATEGORIES.some(rc => desc.includes(rc));
+            });
         } else if (ownerId) {
             const { data, error } = await supabase
                 .from('modular_transactions')

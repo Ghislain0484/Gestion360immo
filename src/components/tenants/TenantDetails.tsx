@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, ArrowLeft, FileText, Plus, Link, Trash2 } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,7 +21,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 export const TenantDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { agencyId: authAgencyId } = useAuth();
+    const { agencyId: authAgencyId, user } = useAuth();
     const tenantId = extractIdFromSlug(slug || '');
 
     // Fetch Tenant Data
@@ -71,7 +72,7 @@ export const TenantDetails: React.FC = () => {
     const [isDeleting, setIsDeleting] = useState(false);
     
     // Check if user can delete
-    const canDelete = ['director', 'manager'].includes(useAuth().user?.role || '');
+    const canDelete = ['director', 'manager'].includes(user?.role || '');
     
     // Expert Financial Data
     const [receipts, setReceipts] = useState<any[]>([]);
@@ -119,7 +120,7 @@ export const TenantDetails: React.FC = () => {
     }, [tenant?.id, activeContracts.length]);
 
     const handleDeleteTenant = async () => {
-        if (!tenant || !useAuth().user?.id || !authAgencyId) return;
+        if (!tenant || !user?.id || !authAgencyId) return;
         setIsDeleting(true);
         try {
             // 1. Audit Log
@@ -127,7 +128,7 @@ export const TenantDetails: React.FC = () => {
                 table_name: 'tenants',
                 record_id: tenant.id,
                 old_values: tenant,
-                userId: useAuth().user!.id,
+                userId: user.id,
                 agencyId: authAgencyId
             });
 
@@ -189,7 +190,7 @@ export const TenantDetails: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                         {/* Show "Lier à un bien" button if no active contract */}
-                        {!activeContract && (
+                        {activeContracts.length === 0 && (
                             <Button
                                 variant="outline"
                                 size="sm"
