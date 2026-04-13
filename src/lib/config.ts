@@ -14,12 +14,23 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storage: localStorage,
-        storageKey: 'supabase.auth.token',
-        broadcast: false, // Désactiver le broadcast pour éviter l'erreur "No Listener"
+        // DO NOT use a custom storageKey — the default is fine, and custom keys
+        // cause @supabase/auth-js to create a BroadcastChannel named
+        // 'tabs:<storageKey>:outgoing.message.ready' that has no listener,
+        // producing the "No Listener: tabs:outgoing.message.ready" crash.
+        // storageKey: 'supabase.auth.token',  <-- REMOVED
+        flowType: 'pkce',
+        debug: false,
     },
     realtime: {
         params: {
-            eventsPerSecond: 10,
+            eventsPerSecond: 2,
+        },
+        heartbeatIntervalMs: 60000,
+    },
+    global: {
+        headers: {
+            'x-application-name': 'gestion360',
         },
     },
 });
