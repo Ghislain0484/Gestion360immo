@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download, Calendar, TrendingUp, Wallet, ArrowRightLeft, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, dbService } from '../../lib/supabase';
+import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
 import { Card } from '../ui/Card';
@@ -144,6 +145,11 @@ export const CaissePage: React.FC = () => {
     const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
     const [selectedOwnerForPayout, setSelectedOwnerForPayout] = useState<Owner | null>(null);
     const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
+    
+    // Deletion states
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
 
     const [metrics, setMetrics] = useState({
         potential: 0,
@@ -495,28 +501,43 @@ export const CaissePage: React.FC = () => {
         }
     };
 
-    const handleDeleteTransaction = async (t: Transaction) => {
-        if (t.source !== 'modular_transaction') {
-            toast.error("Les quittances de loyer ne peuvent pas être supprimées ici");
-            return;
-        }
-
-        if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette opération ? Cette action est irréversible.")) {
-            return;
-        }
+    const handleDeleteTransaction = async () => {
+        if (!transactionToDelete || !user?.id || !user?.agency_id) return;
+        
+        setIsDeleting(true);
+        const toastId = toast.loading('Suppression en cours...');
 
         try {
+            const isReceipt = transactionToDelete.source === 'rent_receipt';
+            const table = isReceipt ? 'rent_receipts' : 'modular_transactions';
+            const recordId = isReceipt ? transactionToDelete.id.replace('receipt-', '') : transactionToDelete.id;
+
+            // 1. Audit Log Snapshot
+            await dbService.auditLogs.logDeletion({
+                table_name: table,
+                record_id: recordId,
+                old_values: transactionToDelete.details || transactionToDelete,
+                userId: user.id,
+                agencyId: user.agency_id
+            });
+
+            // 2. Supprimer de Supabase
             const { error } = await supabase
-                .from('modular_transactions')
+                .from(table)
                 .delete()
-                .eq('id', t.id);
+                .eq('id', recordId);
             
             if (error) throw error;
-            toast.success("Opération supprimée");
+            
+            toast.success("Opération supprimée avec succès", { id: toastId });
+            setShowDeleteModal(false);
+            setTransactionToDelete(null);
             fetchData();
-        } catch (error) {
-            console.error(error);
-            toast.error("Erreur lors de la suppression");
+        } catch (error: any) {
+            console.error('Error deleting transaction:', error);
+            toast.error("Erreur lors de la suppression: " + (error.message || ''), { id: toastId });
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -836,12 +857,21 @@ export const CaissePage: React.FC = () => {
                                                         <button title="Imprimer" onClick={() => handleDownloadReceiptFromTransaction(t, true)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors">
                                                             <Printer className="w-4 h-4" />
                                                         </button>
-                                                        {t.source === 'modular_transaction' && (
+                                                        {(user?.role === 'director' || user?.role === 'manager') && (
                                                             <>
-                                                                <button title="Modifier" onClick={() => handleEditTransaction(t)} className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 transition-colors">
-                                                                    <Edit className="w-4 h-4" />
-                                                                </button>
-                                                                <button title="Supprimer" onClick={() => handleDeleteTransaction(t)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors">
+                                                                {t.source === 'modular_transaction' && (
+                                                                    <button title="Modifier" onClick={() => handleEditTransaction(t)} className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 transition-colors">
+                                                                        <Edit className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
+                                                                <button 
+                                                                    title="Supprimer" 
+                                                                    onClick={() => {
+                                                                        setTransactionToDelete(t);
+                                                                        setShowDeleteModal(true);
+                                                                    }} 
+                                                                    className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
+                                                                >
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </button>
                                                             </>
@@ -980,6 +1010,15 @@ export const CaissePage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmDeleteModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDeleteTransaction}
+                itemTitle={transactionToDelete?.description || "cette opération"}
+                isLoading={isDeleting}
+                message={`Vous allez supprimer définitivement ${transactionToDelete?.source === 'rent_receipt' ? 'cette quittance de loyer' : 'ce mouvement de caisse'}. Cette action sera enregistrée dans le journal d'audit.`}
+            />
         </div>
     );
 };
