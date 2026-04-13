@@ -19,6 +19,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
         // 'tabs:<storageKey>:outgoing.message.ready' that has no listener,
         // producing the "No Listener: tabs:outgoing.message.ready" crash.
         // storageKey: 'supabase.auth.token',  <-- REMOVED
+        broadcast: false, // EXTREMELY CRITICAL: Prevents "No Listener: tabs:outgoing.message.ready" from crashing Vite
         flowType: 'pkce',
         debug: false,
     },
