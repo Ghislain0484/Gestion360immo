@@ -57,7 +57,7 @@ BEGIN
             SELECT au.agency_id 
             FROM public.agency_users au 
             WHERE au.user_id = auth.uid() 
-            AND au.role IN (''director'', ''manager'')
+            AND au.role IN ('director', 'manager')
         )
     );
 END $$;
