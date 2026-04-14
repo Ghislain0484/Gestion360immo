@@ -3,7 +3,7 @@ import {
   Users, Search, MapPin, AlertTriangle, 
   CheckCircle2, MessageSquare,
   TrendingUp, Calendar, ShieldCheck, X,
-  CreditCard, Clock
+  CreditCard, Clock, MailIcon
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';

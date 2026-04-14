@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Building, Users, Wallet, Edit, ArrowLeft, BedDouble, Bath, Square, CheckCircle, AlertCircle, Wrench, AlertTriangle } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService } from '../../lib/supabase';
+import { dbService, supabase } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { Property, RoomDetails, Owner } from '../../types/db';
 import { extractIdFromSlug, generateSlug } from '../../utils/idSystem';

@@ -197,7 +197,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
     setFormError(null);
 
     // Vérification quota locataire
-    if (!initialData?.agency_id && !isEnterprise && stats.tenants.isReached) {
+    if (!initialData?.agency_id && stats.tenants.isReached) {
       setShowQuotaModal(true);
       setIsSubmitting(false);
       return;
