@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { X, DollarSign, CreditCard, Banknote, Receipt, ArrowDownLeft, Info, FileText } from 'lucide-react';
 import { PdfReportService } from '../../utils/PdfReportService';
 import { Card } from '../ui/Card';
