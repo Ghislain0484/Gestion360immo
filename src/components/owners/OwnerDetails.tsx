@@ -60,12 +60,11 @@ export const OwnerDetails: React.FC = () => {
     const { data: contracts = [] } = useRealtimeData(
         dbService.contracts.getAll,
         'contracts',
-        { agency_id: authAgencyId || undefined, limit: 1000 }
-    );
-    const { data: tenants = [] } = useRealtimeData(
-        dbService.tenants.getAll,
-        'tenants',
-        { agency_id: authAgencyId || undefined }
+        { 
+            agency_id: authAgencyId || undefined, 
+            owner_id: owner?.id,
+            limit: 1000 
+        }
     );
 
     // 3. State Hooks
@@ -98,22 +97,18 @@ export const OwnerDetails: React.FC = () => {
     // Build one entry PER OCCUPIED PROPERTY (not deduplicated by tenant.id).
     // A tenant occupying 2 properties will appear 2 times, each linked to their respective property.
     const ownerTenants = React.useMemo(() => {
-        const entries: Array<typeof tenants[0] & { propertyTitle: string; contractId: string }> = [];
+        const entries: Array<NonNullable<typeof contracts[0]['tenant']> & { propertyTitle: string; contractId: string }> = [];
         contracts?.forEach(c => {
-            const prop = ownerProperties?.find(p => p.id === c.property_id);
-            if (prop && c.status === 'active' && c.type === 'location') {
-                const tenant = tenants?.find(t => t.id === c.tenant_id);
-                if (tenant) {
-                    entries.push({
-                        ...tenant,
-                        propertyTitle: prop.title,
-                        contractId: c.id,
-                    });
-                }
+            if (c.status === 'active' && c.type === 'location' && c.tenant) {
+                entries.push({
+                    ...c.tenant,
+                    propertyTitle: c.property?.title || 'Bien inconnu',
+                    contractId: c.id,
+                });
             }
         });
         return entries;
-    }, [contracts, ownerProperties, tenants]);
+    }, [contracts]);
 
     const tabs = [
         { id: 'properties', label: `Biens (${ownerProperties?.length || 0})`, icon: Building2 },
