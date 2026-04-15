@@ -46,7 +46,7 @@ export const tenantsService = {
             );
         }
 
-        const limit = filters.limit ?? 100;
+        const limit = filters.limit ?? 1000;
         const from = filters.offset ?? 0;
         const to = from + limit - 1;
         query = query.range(from, to);

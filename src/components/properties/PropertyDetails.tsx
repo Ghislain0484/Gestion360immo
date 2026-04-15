@@ -102,11 +102,6 @@ export const PropertyDetails: React.FC = () => {
             property_id: property?.id // Only fetch using UUID
         }
     );
-    const { data: tenants = [] } = useRealtimeData(
-        dbService.tenants.getAll,
-        'tenants',
-        { agency_id: authAgencyId || undefined }
-    );
 
     // Derived Data
     // Correction : Un bien est "loué" uniquement s'il y a un contrat de type 'location' actif
@@ -117,7 +112,7 @@ export const PropertyDetails: React.FC = () => {
     );
 
     // Source robuste pour le locataire : prioriser celui inclus dans le contrat (jointure)
-    const currentTenant = activeContract?.tenant || (activeContract ? tenants?.find(t => t.id === activeContract.tenant_id) : null);
+    const currentTenant = activeContract?.tenant;
 
     // Historique : Uniquement les contrats de location pour cet onglet
     const rentalHistory = contracts?.filter(c =>
