@@ -63,14 +63,19 @@ export const OwnerDetails: React.FC = () => {
         { owner_id: owner?.id }
     );
 
-    const { data: contracts = [] } = useRealtimeData(
-        dbService.contracts.getAll,
-        'contracts',
-        { 
-            agency_id: authAgencyId || undefined, 
-            owner_id: owner?.id,
+    const fetchContracts = React.useCallback(async () => {
+        if (!owner?.id || !authAgencyId) return [];
+        return dbService.contracts.getAll({ 
+            agency_id: authAgencyId, 
+            owner_id: owner.id,
             limit: 1000 
-        }
+        });
+    }, [owner?.id, authAgencyId]);
+
+    const { data: contracts = [] } = useRealtimeData(
+        fetchContracts,
+        'contracts',
+        { owner_id: owner?.id }
     );
 
     // 3. State Hooks
