@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePlatformSettings } from '../../hooks/useAdminQueries';
 import { Modal } from '../ui/Modal';
 import { toast } from 'react-hot-toast';
 import { Building2, User, Calculator, Info } from 'lucide-react';
@@ -27,6 +28,7 @@ interface CollectionFormData {
 
 export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ isOpen, onClose, onSuccess }) => {
     const { user } = useAuth();
+    const { data: platformSettings } = usePlatformSettings();
     const [isLoading, setIsLoading] = useState(false);
     const [properties, setProperties] = useState<Property[]>([]);
     const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -96,6 +98,9 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
                 .maybeSingle();
 
             const commissionRate = contract?.commission_rate || 10;
+            const tvaRate = platformSettings?.finance_tva_rate || 20;
+            const airsiRate = platformSettings?.finance_airsi_rate || 2;
+
             const ownerRentPart = advanceAmount * (1 - commissionRate / 100);
 
             // Create 3 Transactions

@@ -155,6 +155,8 @@ export const LoginForm: React.FC = () => {
     }
   };
 
+  const allowNewRegistrations = settings?.platform_allow_new_registrations !== false;
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950">
       <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950" />
@@ -303,12 +305,14 @@ export const LoginForm: React.FC = () => {
               </form>
 
               {userType === 'agency' ? (
-                <div className="space-y-4 rounded-2xl bg-slate-50 px-5 py-4 text-center">
-                  <p className="text-sm text-slate-600">Pas encore d’accès à la plateforme ?</p>
-                  <Button variant="ghost" className="text-blue-600 hover:text-blue-500" onClick={() => setShowRegistration(true)}>
-                    Demander l’activation de mon agence
-                  </Button>
-                </div>
+                allowNewRegistrations && (
+                  <div className="space-y-4 rounded-2xl bg-slate-50 px-5 py-4 text-center">
+                    <p className="text-sm text-slate-600">Pas encore d’accès à la plateforme ?</p>
+                    <Button variant="ghost" className="text-blue-600 hover:text-blue-500" onClick={() => setShowRegistration(true)}>
+                      Demander l’activation de mon agence
+                    </Button>
+                  </div>
+                )
               ) : (
                 <div className="space-y-4 rounded-2xl bg-slate-50 px-5 py-4 text-center">
                   <p className="text-sm text-slate-600">Vous n'avez pas encore de compte ?</p>

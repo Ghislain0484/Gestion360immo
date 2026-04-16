@@ -26,6 +26,24 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 }) => {
   const { admin } = useAuth();
   const { data: settings } = usePlatformSettings();
+
+  if (settings?.platform_allow_new_registrations === false && !admin) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} size="md" title="Inscriptions fermées">
+        <div className="p-6 text-center">
+          <Shield className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-slate-900 mb-2">Inscriptions Temporairement Suspendues</h3>
+          <p className="text-slate-500">
+            Les nouvelles inscriptions sont actuellement désactivées. Veuillez réessayer plus tard ou contacter le support.
+          </p>
+          <Button variant="primary" className="mt-6 w-full" onClick={onClose}>
+            Fermer
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
+
   const [currentStep, setCurrentStep] = useState(1);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium' | 'enterprise'>('basic');

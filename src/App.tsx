@@ -43,6 +43,9 @@ import { OwnerDocuments } from './components/owner-portal/OwnerDocuments';
 import { OwnerSecurity } from './components/owner-portal/OwnerSecurity';
 import { OwnerPortfolio } from './components/owner-portal/OwnerPortfolio';
 import { OwnerEnhancement } from './components/owner-portal/OwnerEnhancement';
+import { MaintenancePage } from './components/layout/MaintenancePage';
+import { AccountSuspended } from './components/auth/AccountSuspended';
+import { usePlatformSettings } from './hooks/useAdminQueries';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null, errorInfo: React.ErrorInfo | null }> {
@@ -151,7 +154,8 @@ const ModuleGuard: React.FC<{ children: React.ReactNode; module: string }> = ({ 
 };
 
 const AppContent: React.FC = () => {
-  const { user, admin, owner } = useAuth();
+  const { user, admin, owner, agencies, agencyId } = useAuth();
+  const { data: settings, isLoading: isSettingsLoading } = usePlatformSettings();
 
   React.useEffect(() => {
     if (user?.agency_id && user.id) {
@@ -163,6 +167,21 @@ const AppContent: React.FC = () => {
       });
     }
   }, [user]);
+
+  // Global Maintenance Mode check
+  const isMaintenanceMode = settings?.platform_maintenance_mode === true;
+  
+  if (!isSettingsLoading && isMaintenanceMode && !admin) {
+    return <MaintenancePage />;
+  }
+
+  // Agency Suspension check
+  const currentAgency = agencies.find(a => a.agency_id === agencyId);
+  const isSuspended = currentAgency?.subscription_status === 'suspended' || currentAgency?.status === 'suspended';
+
+  if (user && isSuspended && !admin) {
+    return <AccountSuspended />;
+  }
 
   return (
     <Router>

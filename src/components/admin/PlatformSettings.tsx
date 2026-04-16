@@ -27,6 +27,10 @@ interface SettingsState {
     supportEmail: string;
     enableOwnerPortal: boolean;
   };
+  finance: {
+    tvaRate: number;
+    airsiRate: number;
+  };
 }
 
 interface Toast {
@@ -58,6 +62,10 @@ export const PlatformSettings: React.FC = () => {
       maxAgenciesPerCity: 10,
       supportEmail: 'support@immoplatform.ci',
       enableOwnerPortal: true,
+    },
+    finance: {
+      tvaRate: 20,
+      airsiRate: 2,
     },
   });
 
@@ -122,6 +130,10 @@ export const PlatformSettings: React.FC = () => {
           maxAgenciesPerCity: Number(settingsMap['platform_max_agencies_per_city']) || 10,
           supportEmail: String(settingsMap['platform_support_email']) || 'support@immoplatform.ci',
           enableOwnerPortal: Boolean(settingsMap['platform_enable_owner_portal']) ?? true,
+        },
+        finance: {
+          tvaRate: Number(settingsMap['finance_tva_rate']) || 20,
+          airsiRate: Number(settingsMap['finance_airsi_rate']) || 2,
         },
       });
     } catch (err: any) {
@@ -342,6 +354,28 @@ export const PlatformSettings: React.FC = () => {
           setting_value: settings.platform.supportEmail,
           description: 'Email de support de la plateforme',
           category: 'platform',
+          is_public: true,
+          updated_by: admin?.id || null,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: settingsMap['finance_tva_rate']?.id || crypto.randomUUID(),
+          setting_key: 'finance_tva_rate',
+          setting_value: settings.finance.tvaRate,
+          description: 'Taux de TVA par défaut (%)',
+          category: 'finance',
+          is_public: true,
+          updated_by: admin?.id || null,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: settingsMap['finance_airsi_rate']?.id || crypto.randomUUID(),
+          setting_key: 'finance_airsi_rate',
+          setting_value: settings.finance.airsiRate,
+          description: 'Taux AIRSI par défaut (%)',
+          category: 'finance',
           is_public: true,
           updated_by: admin?.id || null,
           updated_at: new Date().toISOString(),
@@ -587,6 +621,42 @@ export const PlatformSettings: React.FC = () => {
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                 </label>
               </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Finance Settings */}
+      <Card>
+        <div className="p-6">
+          <div className="flex items-center mb-4">
+            <DollarSign className="h-5 w-5 text-emerald-600 mr-2" />
+            <h3 className="text-lg font-semibold text-gray-900">Paramètres Financiers Globaux</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <Input
+                label="Taux de TVA (%)"
+                type="number"
+                value={settings.finance.tvaRate}
+                onChange={(e) => updateSetting('finance', 'tvaRate', parseFloat(e.target.value) || 0)}
+                min={0}
+                max={100}
+                step="0.01"
+              />
+              <p className="text-xs text-gray-500 mt-1">Appliqué par défaut sur les quittances et prestations.</p>
+            </div>
+            <div>
+              <Input
+                label="Taux AIRSI (%)"
+                type="number"
+                value={settings.finance.airsiRate}
+                onChange={(e) => updateSetting('finance', 'airsiRate', parseFloat(e.target.value) || 0)}
+                min={0}
+                max={100}
+                step="0.01"
+              />
+              <p className="text-xs text-gray-500 mt-1">Acompte d'Impôt sur le Revenu du Secteur Immobilier.</p>
             </div>
           </div>
         </div>
