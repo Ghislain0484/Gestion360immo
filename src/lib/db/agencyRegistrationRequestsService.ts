@@ -57,7 +57,7 @@ export const agencyRegistrationRequestsService = {
     },
     async approve(requestId: string): Promise<{ agencyId: string }> {
         // 🚀 Appel RPC SECURITY DEFINER — bypass RLS, logique côté PostgreSQL
-        let result: any = {};
+        let rpcResponse: any = null;
         try {
             const { data, error } = await supabase.rpc('approve_agency_request', {
                 p_request_id: requestId,
@@ -71,7 +71,7 @@ export const agencyRegistrationRequestsService = {
                     throw new Error(formatSbError('❌ RPC approve_agency_request', error));
                 }
             }
-            result = data;
+            rpcResponse = data;
         } catch (rpcErr: any) {
             if (rpcErr.message && rpcErr.message.includes('No Listener')) {
                 console.warn('⚠️ [Capturé] Erreur No Listener bloquée, continuation du flux.');
@@ -85,7 +85,7 @@ export const agencyRegistrationRequestsService = {
             throw rpcErr;
         }
 
-        const result = data as { success?: boolean; agency_id?: string; error?: string; detail?: string };
+        const result = rpcResponse as { success?: boolean; agency_id?: string; error?: string; detail?: string };
 
         if (result.error) {
             throw new Error(`❌ Approbation échouée : ${result.error}${result.detail ? ` (${result.detail})` : ''}`);
