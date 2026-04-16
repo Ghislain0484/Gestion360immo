@@ -12,6 +12,19 @@ export const ActiveSubscriptions: React.FC = () => {
         return agencies.map((agency) => {
             const subRaw = (agency as any)?.subscription;
             const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
+            
+            // Calcul de la date d'expiration réelle
+            let expirationDate: Date;
+            if (agency.subscription_status === 'trial') {
+                // Fin d'essai = inscription + 60 jours
+                expirationDate = new Date(new Date(agency.created_at).getTime() + 60 * 24 * 60 * 60 * 1000);
+            } else if (sub?.next_payment_date) {
+                // Date de prochain paiement
+                expirationDate = new Date(sub.next_payment_date);
+            } else {
+                // Fallback 1 an
+                expirationDate = new Date(new Date(agency.created_at).getTime() + 365 * 24 * 60 * 60 * 1000);
+            }
 
             return {
                 id: sub?.id || `${agency.id}-legacy`,
@@ -20,9 +33,7 @@ export const ActiveSubscriptions: React.FC = () => {
                 plan_type: sub?.plan_type || agency.plan_type || 'basic',
                 status: sub?.status || agency.subscription_status || 'active',
                 start_date: sub?.start_date || agency.created_at,
-                end_date: sub?.next_payment_date || new Date(
-                    new Date(agency.created_at).setFullYear(new Date(agency.created_at).getFullYear() + 1)
-                ).toISOString(),
+                end_date: expirationDate.toISOString(),
                 monthly_fee: sub?.monthly_fee !== undefined ? sub.monthly_fee : (agency.monthly_fee || 0),
             };
         });
