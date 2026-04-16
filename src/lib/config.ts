@@ -14,11 +14,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storage: localStorage,
-        // DO NOT use a custom storageKey — the default is fine, and custom keys
-        // cause @supabase/auth-js to create a BroadcastChannel named
-        // 'tabs:<storageKey>:outgoing.message.ready' that has no listener,
-        // producing the "No Listener: tabs:outgoing.message.ready" crash.
-        // storageKey: 'supabase.auth.token',  <-- REMOVED
+        storageKey: 'gb360-auth-token', // ISOLATION: Prevents name clashes with other apps on the same domain
         broadcast: false, // EXTREMELY CRITICAL: Prevents "No Listener: tabs:outgoing.message.ready" from crashing Vite
         flowType: 'pkce',
         debug: false,
