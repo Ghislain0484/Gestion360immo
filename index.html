@@ -5,9 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestion360Immo | Plateforme Collaborative de Gestion Immobilière</title>
-    <!-- GHOST LISTENERS ANTI-CRASH SUPABASE -->
+    <!-- GHOST LISTENERS & SILENCER ANTI-CRASH SUPABASE -->
     <script>
       (function() {
+        // 1. Ghost Listeners
         if ('BroadcastChannel' in window) {
           ['tabs:outgoing.message.ready', 'tabs:gb360-auth-token:outgoing.message.ready'].forEach(function(name) {
             try {
@@ -16,6 +17,18 @@
             } catch (e) {}
           });
         }
+        // 2. Global Silencer
+        var silencer = function(e) {
+          var msg = (e.message || (e.reason && e.reason.message) || "").toLowerCase();
+          if (msg.indexOf('no listener') !== -1 || msg.indexOf('outgoing.message.ready') !== -1) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            console.warn("🚫 [Silençage HTML] Erreur Supabase neutralisée au plus tôt.");
+            return true;
+          }
+        };
+        window.addEventListener('error', silencer, true);
+        window.addEventListener('unhandledrejection', silencer, true);
       })();
     </script>
   </head>
