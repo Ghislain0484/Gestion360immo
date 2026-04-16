@@ -9,6 +9,7 @@ import { AgencyRegistrationRequest, AuditLog, AgencyFormData, UserFormData } fro
 import { dbService } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
+import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 
 import { usePlatformSettings } from '../../hooks/useAdminQueries';
@@ -371,8 +372,12 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur");
       }
 
+      // --- Générer l'ID de la demande côté client ---
+      const registrationId = uuidv4();
+
       // --- Créer la demande d’inscription d’agence ---
       const requestData: Partial<AgencyRegistrationRequest> = {
+        id: registrationId,
         agency_name: agencyData.name,
         commercial_register: agencyData.commercialRegister,
         director_first_name: directorData.first_name,
@@ -391,11 +396,10 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         created_at: new Date().toISOString(),
       };
 
-      const { data: result, error: requestError } = await supabase
+      const { error: requestError } = await supabase
         .from('agency_registration_requests')
-        .insert([requestData])
-        .select('id')
-        .single();
+        .insert([requestData]);
+
       if (requestError) {
         console.error('agency_registration_requests.insert error:', requestError);
         throw new Error(`agency_registration_requests.insert | code=${requestError.code} | msg=${requestError.message}`);
@@ -406,15 +410,15 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         'registration_request_submitted',
         {
           ...requestData,
-          registration_id: result.id,
+          registration_id: registrationId,
           user_id: authData.user.id,
           timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
         },
-        result.id
+        registrationId
       );
 
       // --- Feedback UI ---
-      await onSubmit(agencyData, directorData, result.id);
+      await onSubmit(agencyData, directorData, registrationId);
 
       toast.success(
         `✅ Demande d'inscription envoyée !\n\n` +
@@ -423,7 +427,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         `📧 Email : ${directorData.email}\n` +
         `📱 Téléphone : ${agencyData.phone}\n` +
         `🏙️ Ville : ${agencyData.city}\n\n` +
-        `🆔 ID : ${result.id}\n` +
+        `🆔 ID : ${registrationId}\n` +
         `⏱️ Validation sous 24–48h\n` +
         `📧 Vous recevrez vos identifiants par email`
       );
