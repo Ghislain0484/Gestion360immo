@@ -8,16 +8,35 @@ import { OfflineSyncManager } from './lib/offlineSync';
 // Initialisation du gestionnaire de synchronisation Hors-ligne
 OfflineSyncManager.init();
 
-// --- BLINDAGE ANTI-CRASH SUPABASE (BROADCASTCHANNEL) ---
+// --- GHOST LISTENERS (ANTI-CRASH SUPABASE) ---
+// On crée manuellement les canaux de communication que Supabase attend 
+// pour éviter l'erreur "No Listener: tabs:outgoing.message.ready"
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  const ghostChannels = [
+    'tabs:outgoing.message.ready',
+    'tabs:gb360-auth-token:outgoing.message.ready'
+  ];
+  ghostChannels.forEach(name => {
+    try {
+      const channel = new BroadcastChannel(name);
+      channel.onmessage = () => {}; // On écoute pour satisfaire la logique interne
+    } catch (e) { /* ignore */ }
+  });
+}
+
+// --- BLINDAGE INTERCEPTEUR D'ERREURS ---
 function suppressSupabaseCrash(error: any) {
   if (!error) return false;
-  const msg = error.message || (typeof error === 'string' ? error : error.toString());
-  if (msg && (
-    msg.includes('No Listener') || 
-    msg.includes('tabs:outgoing.message.ready') ||
-    msg.includes('BroadcastChannel')
-  )) {
-    console.warn('⚡ [Intercepté] Crash Supabase évité :', msg);
+  const msg = (error.message || error.reason || error.toString() || '').toLowerCase();
+  
+  const isSupabaseBug = 
+    msg.includes('no listener') || 
+    msg.includes('outgoing.message.ready') ||
+    msg.includes('broadcastchannel') ||
+    msg.includes('supabase.auth');
+
+  if (isSupabaseBug) {
+    console.warn('⚡ [Intercepté] Bug Supabase neutralisé :', msg);
     return true;
   }
   return false;
@@ -26,16 +45,16 @@ function suppressSupabaseCrash(error: any) {
 window.addEventListener('unhandledrejection', (event) => {
   if (suppressSupabaseCrash(event.reason)) {
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
   }
-}, true);
+}, { capture: true });
 
 window.addEventListener('error', (event) => {
   if (suppressSupabaseCrash(event.error || event.message)) {
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
   }
-}, true);
+}, { capture: true });
 
 // Configuration du QueryClient
 const queryClient = new QueryClient({
