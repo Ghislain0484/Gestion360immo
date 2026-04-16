@@ -4,6 +4,7 @@ import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import { Agency } from '../../../types/db';
+import { cn } from '../../../utils/cn';
 import { useAgencies, useToggleAgencyStatus } from '../../../hooks/useAdminQueries';
 
 interface AgenciesListProps {
@@ -263,7 +264,7 @@ const AgencyCard = React.memo<{
 
                                             if (!expDate) return null;
                                             return (
-                                                <span className={clsx(
+                                                <span className={cn(
                                                     "text-[10px] font-bold",
                                                     expDate.getTime() < Date.now() ? "text-red-500" : "text-emerald-600"
                                                 )}>

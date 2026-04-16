@@ -1,6 +1,6 @@
 import React from 'react';
 import { Building2, MapPin, Calendar } from 'lucide-react';
-import { clsx } from 'clsx';
+import { cn } from '../../../utils/cn';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
 import { Agency } from '../../../types/db';
@@ -74,7 +74,7 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
                             <div
                                 key={agency.id}
                                 onClick={() => onViewDetails?.(agency)}
-                                className={clsx(
+                                className={cn(
                                     "flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 transition-colors",
                                     onViewDetails ? "cursor-pointer hover:bg-slate-100 hover:border-slate-200" : ""
                                 )}
@@ -123,7 +123,7 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
                                             const isExpired = expDate.getTime() < Date.now();
 
                                             return (
-                                                <div className={clsx(
+                                                <div className={cn(
                                                     "text-[10px] font-bold px-1.5 py-0.5 rounded-sm inline-block",
                                                     isExpired ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
                                                 )}>
