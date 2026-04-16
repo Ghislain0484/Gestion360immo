@@ -5,6 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestion360Immo | Plateforme Collaborative de Gestion Immobilière</title>
+    <!-- GHOST LISTENERS ANTI-CRASH SUPABASE -->
+    <script>
+      (function() {
+        if ('BroadcastChannel' in window) {
+          ['tabs:outgoing.message.ready', 'tabs:gb360-auth-token:outgoing.message.ready'].forEach(function(name) {
+            try {
+              var channel = new BroadcastChannel(name);
+              channel.onmessage = function() {};
+            } catch (e) {}
+          });
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

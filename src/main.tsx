@@ -8,22 +8,6 @@ import { OfflineSyncManager } from './lib/offlineSync';
 // Initialisation du gestionnaire de synchronisation Hors-ligne
 OfflineSyncManager.init();
 
-// --- GHOST LISTENERS (ANTI-CRASH SUPABASE) ---
-// On crée manuellement les canaux de communication que Supabase attend 
-// pour éviter l'erreur "No Listener: tabs:outgoing.message.ready"
-if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-  const ghostChannels = [
-    'tabs:outgoing.message.ready',
-    'tabs:gb360-auth-token:outgoing.message.ready'
-  ];
-  ghostChannels.forEach(name => {
-    try {
-      const channel = new BroadcastChannel(name);
-      channel.onmessage = () => {}; // On écoute pour satisfaire la logique interne
-    } catch (e) { /* ignore */ }
-  });
-}
-
 // --- BLINDAGE INTERCEPTEUR D'ERREURS ---
 function suppressSupabaseCrash(error: any) {
   if (!error) return false;
