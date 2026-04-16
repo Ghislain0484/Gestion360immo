@@ -76,13 +76,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const checkModule = (mod?: string) => {
     if (!mod) return true;
-    if (enabledModules.includes(mod)) return true;
-    if (enabledModules.includes('base')) {
-      // Compatibility mapping: if 'base' is present, it covers core modules
-      const coreModules = ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'];
-      return coreModules.includes(mod);
-    }
-    return false;
+    
+    // Le module Dashboard est toujours visible par défaut pour toutes les agences
+    if (mod === 'dashboard') return true;
+
+    return enabledModules.includes(mod);
   };
 
   const enabledModules = IS_STANDALONE 

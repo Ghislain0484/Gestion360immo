@@ -42,7 +42,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
         commercial_register: agency.commercial_register || '',
         plan_type: agency.plan_type || 'basic',
         monthly_fee: agency.monthly_fee || 25000,
-        enabled_modules: agency.enabled_modules || ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'],
+        enabled_modules: agency.enabled_modules || [],
         subscription_status: (agency as any).subscription_status || 'active',
     });
 
@@ -57,7 +57,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
             commercial_register: agency.commercial_register || '',
             plan_type: agency.plan_type || 'basic',
             monthly_fee: agency.monthly_fee || 25000,
-            enabled_modules: agency.enabled_modules || ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'],
+            enabled_modules: agency.enabled_modules || [],
             subscription_status: (agency as any).subscription_status || 'active',
         });
     }, [agency]);
@@ -176,7 +176,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
     const getTrialEndDate = (startDate: string) => {
         const date = new Date(startDate);
         date.setDate(date.getDate() + 60);
-        return date.toLocaleDateString('fr-FR');
+        return `Fin essai : ${date.toLocaleDateString('fr-FR')}`;
     };
 
     return (
@@ -531,7 +531,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                             commercial_register: agency.commercial_register || '',
                                             plan_type: agency.plan_type || 'basic',
                                             monthly_fee: agency.monthly_fee || 25000,
-                                            enabled_modules: agency.enabled_modules || ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'],
+                                            enabled_modules: agency.enabled_modules || [],
                                             subscription_status: (agency as any).subscription_status || 'active',
                                         });
                                     }}

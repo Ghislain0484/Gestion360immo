@@ -245,7 +245,33 @@ const AgencyCard = React.memo<{
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Calendar className="h-4 w-4 text-blue-500" />
-                                    <span>{new Date(agency.created_at).toLocaleDateString('fr-FR')}</span>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-400">Inscrit le {new Date(agency.created_at).toLocaleDateString('fr-FR')}</span>
+                                        {(() => {
+                                            const subRaw = (agency as any)?.subscription;
+                                            const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
+                                            
+                                            let expDate: Date | null = null;
+                                            let label = "Expiration";
+                                            
+                                            if (agency.subscription_status === 'trial') {
+                                                expDate = new Date(new Date(agency.created_at).getTime() + 60 * 24 * 60 * 60 * 1000);
+                                                label = "Fin essai";
+                                            } else if (sub?.next_payment_date) {
+                                                expDate = new Date(sub.next_payment_date);
+                                            }
+
+                                            if (!expDate) return null;
+                                            return (
+                                                <span className={clsx(
+                                                    "text-[10px] font-bold",
+                                                    expDate.getTime() < Date.now() ? "text-red-500" : "text-emerald-600"
+                                                )}>
+                                                    {label}: {expDate.toLocaleDateString('fr-FR')}
+                                                </span>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
                             </div>
                         </div>

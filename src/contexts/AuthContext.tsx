@@ -111,7 +111,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
               name: agencyDetails.name,
               city: agencyDetails.city,
               logo_url: agencyDetails.logo_url,
-              enabled_modules: agencyDetails.enabled_modules || ['base'],
+              enabled_modules: agencyDetails.enabled_modules || [],
               status: agencyDetails.status,
               subscription_status: agencyDetails.subscription_status,
             };
@@ -160,7 +160,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
             name: a.name,
             city: a.city,
             logo_url: a.logo_url,
-            enabled_modules: a.enabled_modules || ['base'],
+            enabled_modules: a.enabled_modules || [],
             status: a.status,
             subscription_status: a.subscription_status,
           }));
