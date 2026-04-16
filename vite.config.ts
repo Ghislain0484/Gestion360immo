@@ -11,10 +11,16 @@ export default defineConfig({
       targets: ['defaults', 'not IE 11', 'Safari 12'],
     }),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // On utilise prompt pour forcer la visibilité du changement
+      devOptions: {
+        enabled: true
+      },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       workbox: {
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
+        cleanupOutdatedCaches: true, // Nettoyage agressif
+        skipWaiting: true, // Force le nouveau SW à s'activer immediately
+        clientsClaim: true,
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       },
       manifest: {

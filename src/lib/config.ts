@@ -8,15 +8,28 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Configuration Supabase manquante');
 }
 
+// --- CONFIGURATION SILENCIEUSE DU STOCKAGE ---
+const silentStorage = {
+    getItem: (key: string) => localStorage.getItem(key),
+    setItem: (key: string, value: string) => {
+        try { localStorage.setItem(key, value); } catch (e) { /* silent */ }
+    },
+    removeItem: (key: string) => localStorage.removeItem(key),
+};
+
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storage: localStorage,
-        storageKey: 'gb360-auth-token', // ISOLATION: Prevents name clashes with other apps on the same domain
-        broadcast: false, // EXTREMELY CRITICAL: Prevents "No Listener: tabs:outgoing.message.ready" from crashing Vite
+        storage: silentStorage,
+        storageKey: 'gb360-auth-v2', // FORCE FRESH SESSION
         flowType: 'pkce',
+        // 🛡️ [PROTECTION] On fournit un verrou qui ne fait rien (No-op Lock)
+        // Cela empêche Supabase d'utiliser BroadcastChannel pour le verrouillage inter-onglets
+        lock: {
+            acquire: async () => ({ release: () => {} }),
+        },
         debug: false,
     },
     realtime: {
