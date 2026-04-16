@@ -362,6 +362,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
             first_name: directorData.first_name,
             last_name: directorData.last_name,
             role: directorData.role,
+            permissions: directorData.permissions,
           },
         },
       });
@@ -369,19 +370,6 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         console.error('Auth signUp error:', authError);
         throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur");
       }
-
-      // --- Insérer dans la table users ---
-      const userPayload = {
-        id: authData.user.id,
-        email: directorData.email.toLowerCase(),
-        first_name: directorData.first_name,
-        last_name: directorData.last_name,
-        is_active: directorData.is_active,
-        permissions: directorData.permissions,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      const newUser = await dbService.users.create(userPayload);
 
       // --- Créer la demande d’inscription d’agence ---
       const requestData: Partial<AgencyRegistrationRequest> = {
