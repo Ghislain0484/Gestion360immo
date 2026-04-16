@@ -5,26 +5,36 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestion360Immo | Plateforme Collaborative de Gestion Immobilière</title>
-    <!-- NUKER ANTI-CRASH SUPABASE (MONKEY-PATCH) -->
+    <!-- DEFENSE NUCLEAIRE (BLACKHOLE BROADCAST) -->
     <script>
       (function() {
-        var _BroadcastChannel = window.BroadcastChannel;
-        if (!_BroadcastChannel) return;
+        // 1. Remplacement radical de BroadcastChannel pour Supabase
+        var _RealBC = window.BroadcastChannel;
+        if (_RealBC) {
+          window.BroadcastChannel = function(name) {
+            // Si c'est un canal interne de Supabase, on le court-circuite
+            if (name && (name.indexOf('tabs:') !== -1 || name.indexOf('supabase') !== -1)) {
+              console.warn("🛡️ [Blackhole] Canal neutralisé :", name);
+              return {
+                name: name,
+                onmessage: null,
+                onmessageerror: null,
+                postMessage: function() {}, // On avale le message sans erreur
+                close: function() {},
+                addEventListener: function() {},
+                removeEventListener: function() {}
+              };
+            }
+            return new _RealBC(name);
+          };
+          window.BroadcastChannel.prototype = _RealBC.prototype;
+        }
 
-        window.BroadcastChannel = function(name) {
-          var channel = new _BroadcastChannel(name);
-          // Si c'est un canal Supabase (tabs:), on force un écouteur immédiatement
-          if (name && name.indexOf('tabs:') !== -1) {
-            channel.onmessage = function() {};
-            console.warn("🛡️ [Nuker] Protection activée pour le canal :", name);
-          }
-          return channel;
-        };
-        window.BroadcastChannel.prototype = _BroadcastChannel.prototype;
-
-        // Silencieux global (backup)
+        // 2. Silencieux universel pour les erreurs persistantes
         var silencer = function(e) {
-          var msg = (e.message || (e.reason && e.reason.message) || "").toLowerCase();
+          var error = e.error || e.reason || e;
+          var msg = (typeof error === 'string' ? error : (error.message || error.stack || "")).toLowerCase();
+          
           if (msg.indexOf('no listener') !== -1 || msg.indexOf('outgoing.message.ready') !== -1) {
             if (e.preventDefault) e.preventDefault();
             if (e.stopImmediatePropagation) e.stopImmediatePropagation();
