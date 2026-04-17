@@ -10,8 +10,8 @@ export default defineConfig({
     legacy({
       targets: ['defaults', 'not IE 11', 'Safari 12'],
     }),
-    VitePWA({
-      selfDestroying: true, // PURGE TOTALE : Force la suppression du Service Worker et des caches
+    /* VitePWA({
+      selfDestroying: true, // PURGE TOTALE
       registerType: 'autoUpdate',
       devOptions: {
         enabled: true
@@ -22,7 +22,7 @@ export default defineConfig({
         description: 'Solution de Gestion Immobilière et Hôtelière',
         theme_color: '#4f46e5',
       }
-    })
+    }) */
   ],
   build: {
     outDir: 'dist',
