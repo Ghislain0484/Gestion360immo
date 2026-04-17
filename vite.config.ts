@@ -11,35 +11,16 @@ export default defineConfig({
       targets: ['defaults', 'not IE 11', 'Safari 12'],
     }),
     VitePWA({
-      registerType: 'prompt', // On utilise prompt pour forcer la visibilité du changement
+      selfDestroying: true, // PURGE TOTALE : Force la suppression du Service Worker et des caches
+      registerType: 'autoUpdate',
       devOptions: {
         enabled: true
-      },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
-      workbox: {
-        cleanupOutdatedCaches: true, // Nettoyage agressif
-        skipWaiting: true, // Force le nouveau SW à s'activer immediately
-        clientsClaim: true,
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       },
       manifest: {
         name: 'Gestion360 Immo',
         short_name: 'Gestion360',
         description: 'Solution de Gestion Immobilière et Hôtelière',
         theme_color: '#4f46e5',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
       }
     })
   ],
@@ -68,7 +49,9 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
-    hmr: false
+    hmr: {
+      overlay: false
+    }
   },
   preview: {
     port: 3000,
