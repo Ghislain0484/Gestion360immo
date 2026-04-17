@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Diagnostic Vérité Supabase</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; display: inline-block; }
+        .pending { background: #fff3cd; color: #856404; }
+        .approved { background: #d4edda; color: #155724; }
+        .rejected { background: #f8d7da; color: #721c24; }
+        ul { list-style: none; padding: 0; }
+        li { padding: 10px; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔍 Audit en temps réel (Zéro Cache)</h1>
+        <p>Cette page interroge directement Supabase sans passer par le cache de l'application.</p>
+        <div id="results">Chargement des données...</div>
+        <br>
+        <button onclick="check()" style="padding: 10px 20px; cursor: pointer;">Actualiser les données</button>
+    </div>
+
+    <script>
+        const URL = "https://jedknkbevxiyytsypjrv.supabase.co/rest/v1/agencies";
+        const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplZGtua2JldnhpeXl0c3lwanJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NzM0NzIsImV4cCI6MjA3MzI0OTQ3Mn0.uFtctOXUMOrxvgK2iLsdy2FSeO_C1uNNVfcMIh4sbIU";
+
+        async function check() {
+            const resEl = document.getElementById('results');
+            resEl.innerHTML = "<i>Recherche des agences créées...</i>";
+            
+            try {
+                const response = await fetch(URL + "?select=name,status,created_at&order=created_at.desc", {
+                    headers: { 
+                        "apikey": KEY,
+                        "Authorization": "Bearer " + KEY
+                    }
+                });
+                const data = await response.json();
+                
+                if (!Array.isArray(data) || data.length === 0) {
+                    resEl.innerHTML = "<div class='status rejected'>❌ Aucune agence trouvée dans la table 'agencies'.</div>";
+                } else {
+                    let html = `<h3>🎉 SUCCESS : ${data.length} agence(s) trouvée(s) en base !</h3>`;
+                    html += "<ul>";
+                    data.forEach(r => {
+                        html += `<li>✅ <b>${r.name}</b> - Statut : <span class='status approved'>${r.status}</span> (Créée le: ${new Date(r.created_at).toLocaleString()})</li>`;
+                    });
+                    html += "</ul>";
+                    html += "<p><b>Si votre dashboard affiche encore des demandes, c'est UNIQUEMENT dû au cache. Utilisez la NAVIGATION PRIVÉE pour voir la vérité.</b></p>";
+                    resEl.innerHTML = html;
+                }
+            } catch (e) {
+                resEl.innerHTML = "❌ Erreur : " + e.message;
+            }
+        }
+        check();
+    </script>
+</body>
+</html>
