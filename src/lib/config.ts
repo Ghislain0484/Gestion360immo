@@ -9,11 +9,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // --- ISOLATION TOTALE (GHOST STORAGE) ---
-// Empeche Supabase d'initier le BroadcastChannel en masquant l'identite du stockage
+// Empeche toute synchronisation en masquant l'identite du stockage
 const ghostStorage = {
     getItem: (key: string) => localStorage.getItem(key),
     setItem: (key: string, value: string) => {
-        try { localStorage.setItem(key, value); } catch (e) { /* silent */ }
+        try { localStorage.setItem(key, value); } catch (e) {}
     },
     removeItem: (key: string) => localStorage.removeItem(key),
 };
@@ -24,7 +24,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storage: ghostStorage,
-        storageKey: 'gb360-auth-final', // NOUVELLE IDENTITE
+        storageKey: 'gb360-purge-ultimate', // FORCE REFRESH TOTAL
         flowType: 'pkce',
         debug: false,
     },
