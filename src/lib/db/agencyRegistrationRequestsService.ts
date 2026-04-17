@@ -88,6 +88,7 @@ export const agencyRegistrationRequestsService = {
         const result = rpcResponse as { success?: boolean; agency_id?: string; error?: string; detail?: string };
 
         if (result.error) {
+            console.error('❌ SQL Error Object:', result);
             throw new Error(`❌ Approbation échouée : ${result.error}${result.detail ? ` (${result.detail})` : ''}`);
         }
 
