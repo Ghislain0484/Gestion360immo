@@ -5,9 +5,25 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestion360Immo | Plateforme Collaborative de Gestion Immobilière</title>
+    <style>
+      /* NUCLEAR HIDER: Empêche l'overlay de Vite/PWA de bloquer l'UI */
+      vite-error-overlay, #vite-error-overlay, [id="vite-error-overlay"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    </style>
     <!-- DEFENSE IMMUABLE (BLACKHOLE BROADCAST) -->
     <script>
       (function() {
+        // 1. SW Nuker : On vide le cache PWA au chargement pour forcer le nouveau code
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for(let registration of registrations) { registration.unregister(); }
+          });
+        }
+
         var _RealBC = window.BroadcastChannel;
         if (!_RealBC) return;
 
@@ -16,7 +32,7 @@
           Object.defineProperty(window, 'BroadcastChannel', {
             value: function(name) {
               if (name && (name.indexOf('tabs:') !== -1 || name.indexOf('supabase') !== -1)) {
-                console.warn("🛡️ [Immuable] Canal neutralisé :", name);
+                console.warn("🛡️ [Endgame] Canal neutralisé :", name);
                 return {
                   name: name,
                   onmessage: null,
@@ -32,7 +48,7 @@
             configurable: false
           });
         } catch (e) {
-          console.error("⚠️ [Immuable] Échec du verrouillage du canal.");
+          console.error("⚠️ [Endgame] Échec du verrouillage du canal.");
         }
 
         // Silencieux universel

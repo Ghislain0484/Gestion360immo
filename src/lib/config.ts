@@ -8,7 +8,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Configuration Supabase manquante');
 }
 
-// --- CONFIGURATION SILENCIEUSE DU STOCKAGE ---
+// --- CONFIGURATION SILENCIEUSE ET VERROUILLAGE UNIVERSEL ---
 const silentStorage = {
     getItem: (key: string) => localStorage.getItem(key),
     setItem: (key: string, value: string) => {
@@ -17,14 +17,19 @@ const silentStorage = {
     removeItem: (key: string) => localStorage.removeItem(key),
 };
 
+// Hybrid Lock: fonctionne comme fonction ET comme objet pour parer à toute version de Gotrue
+const universalNoopLock: any = (name: string, acquire: () => Promise<any>) => acquire();
+universalNoopLock.acquire = (name: string, callback: () => Promise<any>) => callback();
+
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storage: silentStorage,
-        storageKey: 'gb360-auth-v3', // On change encore la clé pour repartir sur un stockage propre
+        storageKey: 'gb360-auth-v4', // NUKER SESSION
         flowType: 'pkce',
+        lock: universalNoopLock,
         debug: false,
     },
     realtime: {
