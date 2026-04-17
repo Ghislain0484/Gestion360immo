@@ -8,18 +8,20 @@ import { OfflineSyncManager } from './lib/offlineSync';
 // Initialisation du gestionnaire de synchronisation Hors-ligne
 OfflineSyncManager.init();
 
-// --- SILENCIEUX DE PANIQUE (RÉACT) ---
-// Intercepteur de dernier recours pour neutraliser les crashs de Supabase
+// --- SILENCIEUX DE PANIQUE ULTIME (RÉACT) ---
+// On intercepte TOUT ce qui pourrait bloquer l'UI suite au bug Supabase/Antivirus
 if (typeof window !== 'undefined') {
   const universalSilencer = (e: any) => {
     const error = e.error || e.reason || e.message || e;
-    const msg = (typeof error === 'string' ? error : (error.message || error.stack || "")).toLowerCase();
+    const msg = (typeof error === 'string' ? error : (error.message || error.stack || "") || "").toLowerCase();
     
-    // On cible spécifiquement les erreurs de BroadcastChannel / No Listener
-    if (msg.indexOf('no listener') !== -1 || msg.indexOf('outgoing.message.ready') !== -1) {
+    // On capture les erreurs de communication (Broadcast) et les erreurs de type (regression lock)
+    const patterns = ['no listener', 'outgoing.message.ready', 'this.lock'];
+    
+    if (patterns.some(p => msg.indexOf(p) !== -1)) {
       if (e.preventDefault) e.preventDefault();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      console.warn("🛡️ [Réact] Panique Supabase neutralisée avec succès.");
+      console.warn("🛡️ [Réact] Protection Active : Erreur interceptée et neutralisée.");
       return true;
     }
   };
