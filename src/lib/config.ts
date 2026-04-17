@@ -23,13 +23,8 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storage: silentStorage,
-        storageKey: 'gb360-auth-v2', // FORCE FRESH SESSION
+        storageKey: 'gb360-auth-v3', // On change encore la clé pour repartir sur un stockage propre
         flowType: 'pkce',
-        // 🛡️ [PROTECTION] On fournit un verrou qui ne fait rien (No-op Lock)
-        // Cela empêche Supabase d'utiliser BroadcastChannel pour le verrouillage inter-onglets
-        lock: {
-            acquire: async () => ({ release: () => {} }),
-        },
         debug: false,
     },
     realtime: {

@@ -5,37 +5,42 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestion360Immo | Plateforme Collaborative de Gestion Immobilière</title>
-    <!-- DEFENSE NUCLEAIRE (BLACKHOLE BROADCAST) -->
+    <!-- DEFENSE IMMUABLE (BLACKHOLE BROADCAST) -->
     <script>
       (function() {
-        // 1. Remplacement radical de BroadcastChannel pour Supabase
         var _RealBC = window.BroadcastChannel;
-        if (_RealBC) {
-          window.BroadcastChannel = function(name) {
-            // Si c'est un canal interne de Supabase, on le court-circuite
-            if (name && (name.indexOf('tabs:') !== -1 || name.indexOf('supabase') !== -1)) {
-              console.warn("🛡️ [Blackhole] Canal neutralisé :", name);
-              return {
-                name: name,
-                onmessage: null,
-                onmessageerror: null,
-                postMessage: function() {}, // On avale le message sans erreur
-                close: function() {},
-                addEventListener: function() {},
-                removeEventListener: function() {}
-              };
-            }
-            return new _RealBC(name);
-          };
-          window.BroadcastChannel.prototype = _RealBC.prototype;
+        if (!_RealBC) return;
+
+        // On rend le remplacement immuable (ne peut être écrasé par des extensions)
+        try {
+          Object.defineProperty(window, 'BroadcastChannel', {
+            value: function(name) {
+              if (name && (name.indexOf('tabs:') !== -1 || name.indexOf('supabase') !== -1)) {
+                console.warn("🛡️ [Immuable] Canal neutralisé :", name);
+                return {
+                  name: name,
+                  onmessage: null,
+                  postMessage: function() {},
+                  close: function() {},
+                  addEventListener: function() {},
+                  removeEventListener: function() {}
+                };
+              }
+              return new _RealBC(name);
+            },
+            writable: false,
+            configurable: false
+          });
+        } catch (e) {
+          console.error("⚠️ [Immuable] Échec du verrouillage du canal.");
         }
 
-        // 2. Silencieux universel pour les erreurs persistantes
+        // Silencieux universel
         var silencer = function(e) {
           var error = e.error || e.reason || e;
-          var msg = (typeof error === 'string' ? error : (error.message || error.stack || "")).toLowerCase();
+          var msg = (typeof error === 'string' ? error : (error.message || error.stack || "") || "").toLowerCase();
           
-          if (msg.indexOf('no listener') !== -1 || msg.indexOf('outgoing.message.ready') !== -1) {
+          if (msg.indexOf('no listener') !== -1 || msg.indexOf('this.lock') !== -1) {
             if (e.preventDefault) e.preventDefault();
             if (e.stopImmediatePropagation) e.stopImmediatePropagation();
             return true;
