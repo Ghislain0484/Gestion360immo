@@ -5,8 +5,25 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestion360Immo | Plateforme Collaborative de Gestion Immobilière</title>
+    <script>
+      /* HIGH PRIORITY SILENCER: On intercepte TOUT au sommet du head */
+      (function() {
+        var _dispatchEvent = window.dispatchEvent;
+        window.dispatchEvent = function(event) {
+          if (event && event.type === 'unhandledrejection') {
+            var reason = event.reason || "";
+            var msg = (typeof reason === 'string' ? reason : (reason.message || reason.stack || "")).toLowerCase();
+            if (msg.indexOf('no listener') !== -1 || msg.indexOf('outgoing.message.ready') !== -1) {
+              // On avale l'événement silencieusement pour éviter l'overlay Vite
+              return false;
+            }
+          }
+          return _dispatchEvent.apply(this, arguments);
+        };
+      })();
+    </script>
     <style>
-      /* NUCLEAR HIDER: Empêche l'overlay de Vite/PWA de bloquer l'UI */
+      /* NUCLEAR HIDER: Masque physiquement l'overlay Vite/PWA */
       vite-error-overlay, #vite-error-overlay, [id="vite-error-overlay"] {
         display: none !important;
         visibility: hidden !important;
@@ -17,7 +34,7 @@
     <!-- DEFENSE IMMUABLE (BLACKHOLE BROADCAST) -->
     <script>
       (function() {
-        // 1. SW Nuker : On vide le cache PWA au chargement pour forcer le nouveau code
+        // SW Nuker : Nettoyage agressif du cache PWA
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(function(registrations) {
             for(let registration of registrations) { registration.unregister(); }
@@ -27,12 +44,11 @@
         var _RealBC = window.BroadcastChannel;
         if (!_RealBC) return;
 
-        // On rend le remplacement immuable (ne peut être écrasé par des extensions)
         try {
           Object.defineProperty(window, 'BroadcastChannel', {
             value: function(name) {
               if (name && (name.indexOf('tabs:') !== -1 || name.indexOf('supabase') !== -1)) {
-                console.warn("🛡️ [Endgame] Canal neutralisé :", name);
+                console.warn("🛡️ [Forteresse] Canal neutralisé :", name);
                 return {
                   name: name,
                   onmessage: null,
@@ -47,23 +63,7 @@
             writable: false,
             configurable: false
           });
-        } catch (e) {
-          console.error("⚠️ [Endgame] Échec du verrouillage du canal.");
-        }
-
-        // Silencieux universel
-        var silencer = function(e) {
-          var error = e.error || e.reason || e;
-          var msg = (typeof error === 'string' ? error : (error.message || error.stack || "") || "").toLowerCase();
-          
-          if (msg.indexOf('no listener') !== -1 || msg.indexOf('this.lock') !== -1) {
-            if (e.preventDefault) e.preventDefault();
-            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-            return true;
-          }
-        };
-        window.addEventListener('error', silencer, true);
-        window.addEventListener('unhandledrejection', silencer, true);
+        } catch (e) {}
       })();
     </script>
   </head>
