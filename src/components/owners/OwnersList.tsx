@@ -19,7 +19,7 @@ import { ViewToggle } from '../shared/ViewToggle';
 import { OwnerCard } from './OwnerCard';
 import { exportToExcel, formatOwnersForExport } from '../../utils/exportUtils';
 
-import { OwnerPaymentModal } from './OwnerPaymentModal';
+import { OwnerPaymentModal } from '../owner-portal/OwnerPaymentModal';
 
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
