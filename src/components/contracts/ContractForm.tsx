@@ -14,6 +14,7 @@ import { Contract, Owner, Property, Tenant, Agency } from '../../types/db';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/config';
+import { Info } from 'lucide-react';
 
 interface ContractFormProps {
   isOpen: boolean;
@@ -36,6 +37,8 @@ export const ContractForm = React.memo<ContractFormProps>(
       start_date: new Date().toISOString().split('T')[0],
       monthly_rent: undefined,
       deposit: undefined,
+      deposit_months: 2,
+      advance_rent_months: 2,
       charges: undefined,
       commission_rate: 10,
       commission_amount: 0,
@@ -137,8 +140,15 @@ export const ContractForm = React.memo<ContractFormProps>(
         // Ajuster caution selon type de bail
         if (updates.extra_data?.lease_usage && updates.extra_data.lease_usage !== prev.extra_data?.lease_usage) {
           if (updated.monthly_rent && updated.extra_data) {
-            updated.deposit = updated.extra_data.lease_usage === 'commercial' ? updated.monthly_rent * 3 : updated.monthly_rent * 2;
+            updated.deposit_months = updated.extra_data.lease_usage === 'commercial' ? 3 : 2;
+            updated.deposit = updated.monthly_rent * updated.deposit_months;
           }
+        }
+        // Recalculate deposit if months or rent change
+        if (updates.monthly_rent !== undefined || updates.deposit_months !== undefined) {
+          const rent = updates.monthly_rent ?? prev.monthly_rent ?? 0;
+          const months = updates.deposit_months ?? prev.deposit_months ?? 2;
+          updated.deposit = rent * months;
         }
         // Recalculate commission
         if (updates.monthly_rent !== undefined || updates.commission_rate !== undefined) {
@@ -573,17 +583,30 @@ export const ContractForm = React.memo<ContractFormProps>(
                     min={0}
                     placeholder="450000"
                   />
-                  <Input
-                    id="deposit"
-                    label="Caution (FCFA)"
-                    type="number"
-                    value={formData.deposit ?? ''}
-                    onChange={(e) =>
-                      updateFormData({ deposit: parseFloat(e.target.value) || undefined })
-                    }
-                    min={0}
-                    placeholder="900000"
-                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input
+                      id="deposit_months"
+                      label="Mois de Caution"
+                      type="number"
+                      value={formData.deposit_months ?? ''}
+                      onChange={(e) =>
+                        updateFormData({ deposit_months: parseInt(e.target.value) || 0 })
+                      }
+                      min={0}
+                      max={12}
+                    />
+                    <Input
+                      id="advance_rent_months"
+                      label="Mois d'Avance"
+                      type="number"
+                      value={formData.advance_rent_months ?? ''}
+                      onChange={(e) =>
+                        updateFormData({ advance_rent_months: parseInt(e.target.value) || 0 })
+                      }
+                      min={0}
+                      max={12}
+                    />
+                  </div>
                   <Input
                     id="charges"
                     label="Charges (FCFA)"
@@ -628,9 +651,55 @@ export const ContractForm = React.memo<ContractFormProps>(
               />
             </div>
 
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg space-y-2 border border-blue-100">
+              <div className="flex items-center gap-2 mb-2">
+                <Info className="h-4 w-4 text-blue-600" />
+                <h4 className="text-sm font-bold text-blue-900">Calculateur Initial (OHADA)</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Dépot de garantie ({formData.deposit_months} mois) :</span>
+                  <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.deposit || 0)} XOF</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Avance de loyer ({formData.advance_rent_months} mois) :</span>
+                  <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format((formData.monthly_rent || 0) * (formData.advance_rent_months || 0))} XOF</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Loyer du 1er mois :</span>
+                  <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.monthly_rent || 0)} XOF</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Charges initiales :</span>
+                  <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.charges || 0)} XOF</span>
+                </div>
+              </div>
+
+              <div className="pt-3 mt-3 border-t border-blue-200 flex justify-between items-center">
+                <span className="text-blue-900 font-black uppercase text-xs tracking-wider">Total à payer à l'entrée :</span>
+                <span className="text-blue-700 font-black text-xl">
+                  {new Intl.NumberFormat('fr-FR', {
+                    style: 'currency',
+                    currency: 'XOF',
+                    minimumFractionDigits: 0,
+                  }).format(
+                    (formData.deposit || 0) + 
+                    ((formData.monthly_rent || 0) * (formData.advance_rent_months || 0)) + 
+                    (formData.monthly_rent || 0) + 
+                    (formData.charges || 0)
+                  )}
+                </span>
+              </div>
+              
+              <p className="text-[10px] text-blue-600 italic">
+                Note: Le locataire a payé {formData.advance_rent_months} mois d'avance. Son prochain paiement sera dû dans {(formData.advance_rent_months || 0) + 1} mois.
+              </p>
+            </div>
+
             <div className="mt-4 p-4 bg-green-50 rounded-lg">
               <p className="text-sm text-green-800">
-                <strong>Commission calculée :</strong>{' '}
+                <strong>Commission calculée (Agence) :</strong>{' '}
                 {new Intl.NumberFormat('fr-FR', {
                   style: 'currency',
                   currency: 'XOF',

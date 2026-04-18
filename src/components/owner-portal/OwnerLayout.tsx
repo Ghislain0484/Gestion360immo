@@ -10,14 +10,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
 import { clsx } from 'clsx';
 import { APP_NAME } from '../../lib/constants';
+import { OwnerPaymentModal } from './OwnerPaymentModal';
 
 export const OwnerLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [propertyCount, setPropertyCount] = useState<number | null>(null);
   const location = useLocation();
-  const { owner, logout } = useAuth();
+  const { owner, logout, refreshAuth } = useAuth();
   const navigate = useNavigate();
+
+  const isExpired = owner?.subscription_status === 'expired';
 
   useEffect(() => {
     if (owner?.id) {
@@ -142,8 +146,10 @@ export const OwnerLayout: React.FC = () => {
                       </span>
                    </div>
                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                      <span className="flex items-center gap-2"><Settings className="w-3 h-3" /> RLS Status</span>
-                      <span className="text-amber-400">À vérifier</span>
+                      <span className="flex items-center gap-2"><Gem className="w-3 h-3" /> Statut Portal</span>
+                      <span className={isExpired ? "text-amber-400" : "text-emerald-400"}>
+                        {isExpired ? 'Limité' : 'Premium'}
+                      </span>
                    </div>
                    {propertyCount === 0 && (
                      <p className="text-[10px] text-amber-200 leading-relaxed italic mt-2 p-3 bg-amber-400/10 rounded-xl">
@@ -181,12 +187,21 @@ export const OwnerLayout: React.FC = () => {
                <span className="text-xs font-bold text-slate-900">{location.pathname.split('/').pop()?.toUpperCase() || 'ACCUEIL'}</span>
             </div>
             
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4">
+              {isExpired && (
+                <button 
+                  onClick={() => setIsPaymentModalOpen(true)}
+                  className="hidden md:flex items-center gap-2 px-6 py-2.5 bg-amber-500 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all hover:-translate-y-0.5"
+                >
+                  <Gem className="w-4 h-4" />
+                  Passer Premium
+                </button>
+              )}
               <button className="relative p-3 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-[1.2rem] transition-all">
                 <Bell className="w-6 h-6" />
                 <span className="absolute top-4 right-4 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white animate-pulse" />
               </button>
-              <div className="h-8 w-[1px] bg-slate-100 mx-2" />
+              <div className="h-8 w-[1px] bg-slate-100 mx-1" />
               <div className="flex items-center gap-3 pl-2">
                  <div className="text-right hidden sm:block">
                     <p className="text-xs font-black text-slate-900 leading-none">{owner?.first_name}</p>
@@ -201,8 +216,35 @@ export const OwnerLayout: React.FC = () => {
         </header>
 
         {/* Layout Content */}
-        <main className="flex-1 p-8 lg:p-12 transition-all">
-          <div className="max-w-[1700px] mx-auto relative">
+        <main className="flex-1 transition-all overflow-y-auto">
+          {/* Subscription Banner */}
+          {isExpired && (
+            <div className="px-8 lg:px-12 pt-8">
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-[2rem] p-6 text-white shadow-xl shadow-amber-500/20 flex flex-col md:flex-row items-center justify-between gap-6"
+              >
+                <div className="flex items-center gap-6 text-center md:text-left">
+                  <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0">
+                    <Sparkles className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black italic">Accès Premium Limité</h3>
+                    <p className="text-amber-100 text-sm font-medium mt-1">Vos revenus n'ont jamais été aussi proches. Réglez vos frais de service (10 000 FCFA) pour débloquer toutes les fonctionnalités.</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsPaymentModalOpen(true)}
+                  className="px-10 py-4 bg-white text-amber-600 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-amber-50 transition-all shadow-lg active:scale-95 shrink-0"
+                >
+                  Payer 10.000 XOF
+                </button>
+              </motion.div>
+            </div>
+          )}
+
+          <div className="p-8 lg:p-12 max-w-[1700px] mx-auto relative">
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
@@ -235,6 +277,19 @@ export const OwnerLayout: React.FC = () => {
             )}
           </div>
         </main>
+
+        <OwnerPaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          onSuccess={refreshAuth}
+          data={{
+            type: 'service_fee',
+            amount: 10000,
+            title: 'Abonnement Portail Propriétaire',
+            description: `Frais de service mensuels pour l'accès premium au portail ${APP_NAME}`,
+            targetId: owner?.id
+          }}
+        />
       </div>
     </div>
   );

@@ -1,11 +1,8 @@
-/**
- * Flutterwave Integration Service
- * Documentation: https://github.com/Flutterwave/flutterwave-react-v3
- */
-
 export const FLUTTERWAVE_CONFIG = {
   getPublicKey: () => import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK_TEST-SANDBOX-KEY',
 };
+
+export type PaymentType = 'subscription' | 'maintenance' | 'service_fee';
 
 export interface FlutterwavePaymentData {
   amount: number;
@@ -15,6 +12,9 @@ export interface FlutterwavePaymentData {
   title: string;
   description: string;
   tx_ref: string;
+  payment_type: PaymentType;
+  metadata?: Record<string, any>;
+  logo_url?: string | null;
 }
 
 export const getFlutterwaveConfig = (data: FlutterwavePaymentData) => {
@@ -29,10 +29,14 @@ export const getFlutterwaveConfig = (data: FlutterwavePaymentData) => {
       phone_number: data.phone,
       name: data.name,
     },
+    meta: {
+      payment_type: data.payment_type,
+      ...data.metadata
+    },
     customizations: {
       title: data.title,
       description: data.description,
-      logo: 'https://gestion360immo.com/logo.png', // À adapter
+      logo: data.logo_url || 'https://jedknkbevxiyytsypjrv.supabase.co/storage/v1/object/public/platform/logo-main.png',
     },
   };
 };

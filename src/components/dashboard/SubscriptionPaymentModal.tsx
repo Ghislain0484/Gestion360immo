@@ -27,8 +27,14 @@ export const SubscriptionPaymentModal: React.FC<Props> = ({ isOpen, onClose, sub
     phone: user.phone || '',
     name: `${user.first_name} ${user.last_name}`,
     title: `Abonnement Gestion360 - ${subscription.plan_type.toUpperCase()}`,
-    description: `Paiement mensuel pour l'agence ${user.agencies.find(a => a.agency_id === user.agency_id)?.name || ''}`,
+    description: `Paiement mensuel pour l'agence ${user.agencies?.find((a: any) => a.agency_id === user.agency_id)?.name || ''}`,
     tx_ref: `SUB-${subscription.id}-${Date.now()}`,
+    payment_type: 'subscription',
+    logo_url: user.agencies?.find((a: any) => a.agency_id === user.agency_id)?.logo_url,
+    metadata: {
+      agency_id: user.agency_id,
+      subscription_id: subscription.id
+    }
   });
 
   const handleFlutterPayment = useFlutterwave(config);

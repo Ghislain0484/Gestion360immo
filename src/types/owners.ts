@@ -18,6 +18,8 @@ export interface Owner extends AgencyEntity {
   spouse_name?: string | null;
   spouse_phone?: string | null;
   children_count: number;
+  subscription_status?: 'active' | 'expired' | 'none';
+  subscription_expires_at?: string | null;
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
 }
