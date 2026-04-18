@@ -50,6 +50,10 @@ export async function getPlatformStats(): Promise<PlatformStats> {
       .from('platform_settings')
       .select('setting_key, setting_value')
       .eq('category', 'subscription'),
+    supabase
+      .from('owners')
+      .select('*', { head: true, count: 'exact' })
+      .eq('subscription_status', 'active'),
   ]);
 
   const [
@@ -63,7 +67,8 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     agenciesPreviousMonthRes,
     todayPaymentsRes,
     allTimePaymentsRes,
-    settingsRes
+    settingsRes,
+    activeOwnersRes
   ] = responses;
 
   const errors = responses.map(r => r.error).filter(Boolean);
@@ -101,17 +106,20 @@ export async function getPlatformStats(): Promise<PlatformStats> {
   const activeAgenciesCount = operationalAgencies.length;
 
   // Revenu Mensuel Potentiel (MRR)
-  // On utilise le prix actuel du pack s'il est supérieur au monthly_fee enregistré (cas de migration)
-  const subscriptionRevenue = operationalAgencies.reduce((sum: number, agency: any) => {
+  // 1. Revenu des agences
+  const agencySubscriptionRevenue = operationalAgencies.reduce((sum: number, agency: any) => {
     const planType = (agency.plan_type || 'basic') as keyof typeof prices;
     const standardPrice = prices[planType] || prices.basic;
-    
-    // Si l'agence a un monthly_fee inférieur au tarif standard du pack, on prend le standard 
-    // pour le calcul du potentiel réel de la plateforme
     const effectiveFee = Math.max(agency.monthly_fee || 0, standardPrice);
-    
     return sum + effectiveFee;
   }, 0);
+
+  // 2. Revenu des propriétaires (10 000 FCFA / propriétaire actif)
+  const activeOwnersCount = activeOwnersRes.count ?? 0;
+  const ownerSubscriptionRevenue = activeOwnersCount * 10000;
+
+  // Total MRR Consolide
+  const subscriptionRevenue = agencySubscriptionRevenue + ownerSubscriptionRevenue;
 
   const currentMonthAgencies = agenciesCurrentMonthRes.count ?? 0;
   const previousMonthAgencies = agenciesPreviousMonthRes.count ?? 0;

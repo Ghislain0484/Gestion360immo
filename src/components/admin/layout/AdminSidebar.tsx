@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Building2, DollarSign, Award, Settings, Home, FileText } from 'lucide-react';
+import { BarChart3, Building2, DollarSign, Award, Settings, Home, FileText, Users } from 'lucide-react';
 import clsx from 'clsx';
 
 interface AdminSidebarProps {
@@ -11,6 +11,7 @@ interface AdminSidebarProps {
 const menuItems = [
     { id: 'overview', name: 'Vue d\'ensemble', icon: Home },
     { id: 'agencies', name: 'Agences', icon: Building2 },
+    { id: 'owners', name: 'Propriétaires', icon: Users },
     { id: 'subscriptions', name: 'Abonnements', icon: DollarSign },
     { id: 'requests', name: 'Demandes', icon: FileText, badge: true },
     { id: 'rankings', name: 'Classements', icon: Award },
