@@ -88,7 +88,14 @@ En deux (2) exemplaires originaux.
     const endDate = new Date(rentalTerms.startDate);
     endDate.setMonth(endDate.getMonth() + (rentalTerms.duration || 12));
 
-    const totalDueAtSigning = (rentalTerms.monthlyRent * 2) + (rentalTerms.deposit || (rentalTerms.monthlyRent * 2)) + (rentalTerms.agencyFee || rentalTerms.monthlyRent);
+    const depositMonths = rentalTerms.depositMonths || 2;
+    const advanceMonths = rentalTerms.advanceMonths || 2;
+    
+    const totalDueAtSigning = 
+      rentalTerms.monthlyRent + // Loyer du 1er mois
+      (rentalTerms.monthlyRent * advanceMonths) + // Mois d'avance
+      (rentalTerms.deposit || (rentalTerms.monthlyRent * depositMonths)) + // Caution
+      (rentalTerms.agencyFee || rentalTerms.monthlyRent); // Frais agence
 
     return `
 CONTRAT DE BAIL D'HABITATION
@@ -147,12 +154,13 @@ Elles comprennent : eau, électricité, entretien des parties communes.
 
 ARTICLE ${rentalTerms.charges ? '6' : '5'} - DÉPÔT DE GARANTIE ET PAIEMENTS
 ${rentalTerms.isExistingTenant ? `Le PRENEUR déclare et les parties reconnaissent que les sommes suivantes ont déjà été versées antérieurement à la signature des présentes (Reprise de bail) :
-- Dépôt de garantie (Caution) : ${(rentalTerms.deposit || (rentalTerms.monthlyRent * 2)).toLocaleString()} FRANCS CFA
+- Dépôt de garantie (Caution) : ${(rentalTerms.deposit || (rentalTerms.monthlyRent * depositMonths)).toLocaleString()} FRANCS CFA
 - Caution détenue par : ${rentalTerms.depositHeldBy || 'Ancien gestionnaire / Propriétaire'}
 - Date de début de facturation par l'Agence : ${rentalTerms.billingStartDate ? new Date(rentalTerms.billingStartDate).toLocaleDateString('fr-FR') : 'À la signature'}
 ` : `Le PRENEUR verse à la signature des présentes :
-- Deux (2) mois de loyer d'avance : ${(rentalTerms.monthlyRent * 2).toLocaleString()} FRANCS CFA
-- Dépôt de garantie (Caution) : ${(rentalTerms.deposit || (rentalTerms.monthlyRent * 2)).toLocaleString()} FRANCS CFA  
+- Loyer du premier mois : ${rentalTerms.monthlyRent.toLocaleString()} FRANCS CFA
+- ${advanceMonths} (${this.numberToWords(advanceMonths)}) mois de loyer d'avance : ${(rentalTerms.monthlyRent * advanceMonths).toLocaleString()} FRANCS CFA
+- Dépôt de garantie (${depositMonths} mois de caution) : ${(rentalTerms.deposit || (rentalTerms.monthlyRent * depositMonths)).toLocaleString()} FRANCS CFA  
 - Frais d'agence : ${(rentalTerms.agencyFee || rentalTerms.monthlyRent).toLocaleString()} FRANCS CFA
 
 TOTAL À PAYER À LA SIGNATURE : ${totalDueAtSigning.toLocaleString()} (${this.numberToWords(totalDueAtSigning)}) FRANCS CFA
@@ -291,6 +299,8 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
       deposit: number;
       agencyFee?: number;
       advance?: number;
+      advanceMonths?: number;
+      depositMonths?: number;
       duration: number;
       startDate: Date;
       usage?: 'habitation' | 'professionnel' | 'commercial';
@@ -324,6 +334,8 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
         : this.generateRentalContract(agency, tenant, property, {
           monthlyRent: rentalParams.monthlyRent,
           deposit: rentalParams.deposit,
+          depositMonths: rentalParams.depositMonths || 2,
+          advanceMonths: rentalParams.advanceMonths || 2,
           agencyFee: agencyFee,
           duration: rentalParams.duration,
           startDate: rentalParams.startDate,
@@ -599,6 +611,8 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
       return this.generateRentalContract(agency, tenant, property, {
         monthlyRent: contract.monthly_rent,
         deposit: contract.deposit,
+        depositMonths: contract.deposit_months || 2,
+        advanceMonths: contract.advance_rent_months || 2,
         duration: contract.duration || 12,
         startDate: new Date(contract.start_date),
         charges: contract.charges || 0,

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Building2, Upload, Shield, Users, Save } from 'lucide-react';
+import { Building2, Upload, Shield, Users, Save, CheckCircle2, ChevronRight, Mail } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
@@ -46,6 +46,8 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
   }
 
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium' | 'enterprise'>('basic');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -102,13 +104,8 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     setLogoFile(file);
 
     try {
-      // Log pour déboguer la session (doit être null pour anonyme)
-      console.log('SupabaseAnon session:', await supabase.auth.getSession());
-
-      // Utiliser temp-registration/ pour respecter RLS anon
       const fileName = `temp-registration/${Date.now()}_${file.name}`;
-      console.log('Uploading logo to bucket: agency-logos, file:', fileName);
-      const { data, error } = await supabase.storage  // Utiliser supabaseAnon pour anonyme
+      const { data, error } = await supabase.storage
         .from('agency-logos')
         .upload(fileName, file, { cacheControl: '3600', upsert: false });
       if (error) {
@@ -117,7 +114,6 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         return;
       }
       const publicUrl = supabase.storage.from('agency-logos').getPublicUrl(fileName).data.publicUrl;
-      console.log('Logo uploaded successfully, public URL:', publicUrl);
       updateAgencyData({ logo_url: publicUrl });
       toast.success('Logo téléchargé avec succès');
     } catch (err) {
@@ -129,7 +125,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
   const logAudit = useCallback(
     async (action: string, details: any, registrationId?: string) => {
       try {
-        const ip_address = '0.0.0.0'; // Fallback since api.ipify.org has CORS issues
+        const ip_address = '0.0.0.0';
         const auditLog: Partial<AuditLog> = {
           user_id: admin?.id ?? null,
           action,
@@ -141,7 +137,6 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
           user_agent: navigator.userAgent,
         };
         await dbService.auditLogs.insert(auditLog);
-        console.log('Audit log created successfully');
       } catch (err) {
         console.error("Erreur lors de l’enregistrement de l’audit:", err);
       }
@@ -149,168 +144,9 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     [admin]
   );
 
-  /*
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validations
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const phoneRegex = /^\+?\d{10,15}$/;
-    if (!agencyData.name.trim() || !agencyData.commercialRegister.trim()) {
-      toast.error('Le nom de l’agence et le registre de commerce sont obligatoires');
-      return;
-    }
-    if (!directorData.first_name.trim() || !directorData.last_name.trim() || !directorData.email.trim()) {
-      toast.error('Les informations du directeur sont obligatoires');
-      return;
-    }
-    if (!emailRegex.test(directorData.email)) {
-      toast.error('Format d’email invalide');
-      return;
-    }
-    if (!agencyData.phone.trim() || !phoneRegex.test(agencyData.phone)) {
-      toast.error('Numéro de téléphone invalide (10-15 chiffres, ex: +225XXXXXXXXXX)');
-      return;
-    }
-    if (!agencyData.city.trim() || !agencyData.address.trim()) {
-      toast.error('Ville et adresse sont obligatoires');
-      return;
-    }
-    if (!directorData.password || directorData.password.length < 8) {
-      toast.error('Mot de passe : minimum 8 caractères');
-      return;
-    }
-    if (agencyData.isAccredited && !agencyData.accreditationNumber?.trim()) {
-      toast.error('Numéro d’agrément requis si l’agence est agréée');
-      return;
-    }
-
-    try {
-      // Check for existing email
-      console.log('Checking for existing email:', directorData.email.toLowerCase());
-      const { data: existingUsers } = await supabase
-        .from('users')
-        .select('email')
-        .eq('email', directorData.email.toLowerCase());
-      if (existingUsers?.length) {
-        toast.error('Cet email est déjà utilisé');
-        return;
-      }
-
-      // Create auth user
-      console.log('Creating auth user:', directorData.email.toLowerCase());
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: directorData.email.toLowerCase(),
-        password: directorData.password,
-        options: {
-          data: {
-            first_name: directorData.first_name,
-            last_name: directorData.last_name,
-            role: directorData.role,
-          },
-        },
-      });
-      if (authError || !authData.user) {
-        console.error('Auth signUp error:', authError);
-        throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur");
-      }
-      console.log('Auth user created:', authData.user);
-
-      // Create user in users table
-      const userPayload = {
-        id: authData.user.id,
-        email: directorData.email.toLowerCase(),
-        first_name: directorData.first_name,
-        last_name: directorData.last_name,
-        is_active: directorData.is_active,
-        permissions: directorData.permissions,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      console.log('Creating user in users table with payload:', userPayload); // Log pour tracer id
-      if (!userPayload.id) {
-        throw new Error('ID utilisateur manquant après signUp');
-      }
-      const newUser = await dbService.users.create(userPayload);
-      console.log('User created in users table:', newUser);
-
-      // Create agency registration request
-      const requestData: Partial<AgencyRegistrationRequest> = {
-        agency_name: agencyData.name,
-        commercial_register: agencyData.commercialRegister,
-        director_first_name: directorData.first_name,
-        director_last_name: directorData.last_name,
-        director_email: directorData.email.toLowerCase(),
-        phone: agencyData.phone,
-        city: agencyData.city,
-        address: agencyData.address,
-        logo_url: agencyData.logo_url || null,
-        is_accredited: agencyData.isAccredited,
-        accreditation_number: agencyData.isAccredited ? agencyData.accreditationNumber : null,
-        status: 'pending',
-        director_auth_user_id: authData.user.id,
-        selected_plan: selectedPlan,
-        billing_cycle: billingCycle,
-        created_at: new Date().toISOString(),
-      };
-      console.log('Creating agency registration request with payload:', requestData);
-      const { data: result, error: requestError } = await supabase
-        .from('agency_registration_requests')
-        .insert([requestData])
-        .select('id')
-        .single();
-      if (requestError) {
-        console.error('agency_registration_requests.insert error:', requestError);
-        throw new Error(`agency_registration_requests.insert | code=${requestError.code} | msg=${requestError.message}`);
-      }
-      console.log('Agency registration request created:', result);
-
-      // Log audit
-      await logAudit(
-        'registration_request_submitted',
-        {
-          ...requestData,
-          registration_id: result.id,
-          user_id: authData.user.id,
-          timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
-        },
-        result.id
-      );
-
-      // Call onSubmit for UI updates
-      await onSubmit(agencyData, directorData, result.id);
-
-      toast.success(
-        `✅ Demande d'inscription envoyée !\n\n` +
-        `🏢 Agence : ${agencyData.name}\n` +
-        `👤 Directeur : ${directorData.first_name} ${directorData.last_name}\n` +
-        `📧 Email : ${directorData.email}\n` +
-        `📱 Téléphone : ${agencyData.phone}\n` +
-        `🏙️ Ville : ${agencyData.city}\n\n` +
-        `🆔 ID : ${result.id}\n` +
-        `⏱️ Validation sous 24–48h\n` +
-        `📧 Vous recevrez vos identifiants par email`
-      );
-      onClose();
-    } catch (err: any) {
-      console.error('❌ Erreur inscription agence:', err.message, err.stack);
-      const errorMessage = err.message.includes('duplicate key')
-        ? 'Cette agence ou cet email est déjà enregistré'
-        : err.message || 'Erreur lors de l’inscription';
-      await logAudit('registration_request_failed', {
-        agency_name: agencyData.name,
-        director_email: directorData.email.toLowerCase(),
-        error: errorMessage,
-        timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
-      });
-      toast.error(errorMessage);
-    }
-  };
-  */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // --- Validations ---
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^\+?\d{10,15}$/;
 
@@ -344,7 +180,6 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     }
 
     try {
-      // --- Vérifier si email déjà utilisé ---
       const { data: existingUsers } = await supabase
         .from('users')
         .select('email')
@@ -354,7 +189,6 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         return;
       }
 
-      // --- Créer l'utilisateur Auth ---
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: directorData.email.toLowerCase(),
         password: directorData.password,
@@ -368,14 +202,11 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         },
       });
       if (authError || !authData.user) {
-        console.error('Auth signUp error:', authError);
         throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur");
       }
 
-      // --- Générer l'ID de la demande côté client ---
       const registrationId = uuidv4();
 
-      // --- Créer la demande d’inscription d’agence ---
       const requestData: Partial<AgencyRegistrationRequest> = {
         id: registrationId,
         agency_name: agencyData.name,
@@ -401,11 +232,9 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         .insert([requestData]);
 
       if (requestError) {
-        console.error('agency_registration_requests.insert error:', requestError);
         throw new Error(`agency_registration_requests.insert | code=${requestError.code} | msg=${requestError.message}`);
       }
 
-      // --- Audit ---
       await logAudit(
         'registration_request_submitted',
         {
@@ -417,21 +246,10 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         registrationId
       );
 
-      // --- Feedback UI ---
       await onSubmit(agencyData, directorData, registrationId);
-
-      toast.success(
-        `✅ Demande d'inscription envoyée !\n\n` +
-        `🏢 Agence : ${agencyData.name}\n` +
-        `👤 Directeur : ${directorData.first_name} ${directorData.last_name}\n` +
-        `📧 Email : ${directorData.email}\n` +
-        `📱 Téléphone : ${agencyData.phone}\n` +
-        `🏙️ Ville : ${agencyData.city}\n\n` +
-        `🆔 ID : ${registrationId}\n` +
-        `⏱️ Validation sous 24–48h\n` +
-        `📧 Vous recevrez vos identifiants par email`
-      );
-      onClose();
+      
+      setSubmittedId(registrationId);
+      setIsSuccess(true);
     } catch (err: any) {
       console.error('❌ Erreur inscription agence:', err.message, err.stack);
       const errorMessage = err.message.includes('duplicate key')
@@ -864,6 +682,56 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
           </div>
         </div>
       </form>
+
+      {/* --- Success View Overlay --- */}
+      {isSuccess && (
+        <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in duration-300">
+          <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-bounce">
+            <CheckCircle2 className="h-12 w-12 text-green-600" />
+          </div>
+          
+          <h2 className="text-3xl font-black text-gray-900 text-center mb-2">
+            Demande Envoyée !
+          </h2>
+          <p className="text-gray-500 text-center mb-8 max-w-sm">
+            Bienvenue dans l'écosystème <span className="text-blue-600 font-bold">Gestion360</span>. Votre demande est en cours de traitement.
+          </p>
+
+          <div className="w-full max-w-md bg-slate-50 border border-slate-100 rounded-2xl p-6 mb-8 space-y-4 shadow-sm">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-400 font-medium">Agence</span>
+              <span className="text-gray-900 font-bold">{agencyData.name}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-400 font-medium">Directeur</span>
+              <span className="text-gray-900 font-bold">{directorData.first_name} {directorData.last_name}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-400 font-medium">Identifiant unique</span>
+              <code className="bg-white px-2 py-1 rounded border border-gray-200 text-blue-600 font-mono text-xs">
+                {submittedId}
+              </code>
+            </div>
+            <div className="pt-4 border-t border-slate-200">
+              <div className="flex items-start gap-3 bg-blue-50 p-3 rounded-xl">
+                <Mail className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-800 leading-relaxed">
+                  Un email de confirmation vous sera envoyé dès que votre compte sera validé par nos administrateurs (sous 24-48h).
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Button 
+            className="w-full max-w-xs h-12 text-lg font-bold shadow-lg shadow-blue-200 group"
+            onClick={onClose}
+          >
+            Terminer
+            <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+          </Button>
+        </div>
+      )}
+
       <Toaster position="bottom-right" />
     </Modal>
   );

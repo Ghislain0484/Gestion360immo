@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
 import { supabase } from '../../lib/config';
 import { motion, AnimatePresence } from 'framer-motion';
+import { OwnerPaymentModal } from './OwnerPaymentModal';
 
 const formatCurrency = (v: number | null | undefined) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(v ?? 0);
@@ -37,6 +38,8 @@ export const OwnerMaintenance: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved'>('all');
+  const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   useEffect(() => {
     if (!owner?.id) return;
@@ -224,34 +227,56 @@ export const OwnerMaintenance: React.FC = () => {
                       </p>
                    </div>
 
-                   <div className="lg:w-64 space-y-4">
-                      <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Montant Facturé</p>
-                         <p className="text-2xl font-black text-slate-900">{formatCurrency(t.cost || 0)}</p>
-                         <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                           {t.status === 'resolved' || t.status === 'closed' ? (
-                             <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Traité</>
-                           ) : (
-                             <><Clock className="w-3.5 h-3.5" /> En cours</>
-                           )}
-                         </div>
+                      <div className="lg:w-64 space-y-4">
+                        <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Montant Facturé</p>
+                          <p className="text-2xl font-black text-slate-900">{formatCurrency(t.cost || 0)}</p>
+                          {(t.cost > 0 && t.status !== 'resolved' && t.status !== 'closed') && (
+                            <button 
+                              onClick={() => { setSelectedTicket(t); setIsPaymentModalOpen(true); }}
+                              className="w-full mt-4 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/20"
+                            >
+                              Régler la facture
+                            </button>
+                          )}
+                          <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            {t.status === 'resolved' || t.status === 'closed' ? (
+                              <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Traité / Réglé</>
+                            ) : (
+                              <><Clock className="w-3.5 h-3.5" /> En cours de règlement</>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between px-2">
+                           <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-tighter">
+                              <Calendar className="w-3.5 h-3.5" /> {formatDate(t.created_at)}
+                           </div>
+                           <button className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline flex items-center gap-1">
+                              Détails <ArrowUpRight className="w-3 h-3" />
+                           </button>
+                        </div>
                       </div>
-                      
-                      <div className="flex items-center justify-between px-2">
-                         <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-tighter">
-                            <Calendar className="w-3.5 h-3.5" /> {formatDate(t.created_at)}
-                         </div>
-                         <button className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline flex items-center gap-1">
-                            Détails <ArrowUpRight className="w-3 h-3" />
-                         </button>
-                      </div>
-                   </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+
+          <OwnerPaymentModal
+            isOpen={isPaymentModalOpen}
+            onClose={() => setIsPaymentModalOpen(false)}
+            data={{
+              type: 'maintenance',
+              amount: selectedTicket?.cost || 0,
+              title: `Règlement Travaux - #${selectedTicket?.id.slice(0, 8).toUpperCase()}`,
+              description: `Paiement pour l'intervention : ${selectedTicket?.title} sur le bien ${selectedTicket?.property?.title || ''}`,
+              targetId: selectedTicket?.id,
+              propertyId: selectedTicket?.property_id
+            }}
+            onSuccess={loadTickets}
+          />
 
       {/* Info Banner */}
       <div className="bg-slate-900 p-8 rounded-[3rem] text-white overflow-hidden relative group">

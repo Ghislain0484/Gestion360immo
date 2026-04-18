@@ -19,10 +19,13 @@ import { ViewToggle } from '../shared/ViewToggle';
 import { OwnerCard } from './OwnerCard';
 import { exportToExcel, formatOwnersForExport } from '../../utils/exportUtils';
 
+import { OwnerPaymentModal } from './OwnerPaymentModal';
+
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
   const { agencyId: authAgencyId, user } = useAuth();
   const [showForm, setShowForm] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'active' | 'free'>('all');
@@ -267,11 +270,14 @@ export const OwnersList: React.FC = () => {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Identité & Contact
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                   Localisation
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Biens & Locataires
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Abonnement Portal
                 </th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -286,26 +292,23 @@ export const OwnersList: React.FC = () => {
                   onClick={() => handleRowClick(owner)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
+                    <div className="flex items-center text-slate-900">
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold">
                           {owner.first_name[0]}{owner.last_name[0]}
                         </div>
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium">
                           {owner.first_name} {owner.last_name}
                         </div>
                         <div className="text-xs text-gray-500 font-mono">
                           {owner.business_id || `PROP-${owner.id.slice(0, 8)}`}
                         </div>
-                        <div className="text-sm text-gray-500 sm:hidden">
-                          {owner.phone}
-                        </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                  <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                     <div className="flex items-center text-sm text-gray-600">
                       <MapPin className="h-4 w-4 mr-1.5 text-gray-400" />
                       {owner.city}
@@ -318,43 +321,44 @@ export const OwnersList: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     {(() => {
                       const stats = getPropertyStats(owner.id);
-                      const { contractCount, tenantCount } = getOccupancyInfo(owner.id);
+                      const { tenantCount } = getOccupancyInfo(owner.id);
                       return (
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-slate-200">
                               {stats.total}
                             </Badge>
-                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-tighter">Biens</span>
-                            <div className="flex items-center gap-1.5 ml-1">
-                              {stats.occupied > 0 && (
-                                <span className="flex items-center text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100" title="Biens occupés">
-                                  {stats.occupied} occupé{stats.occupied > 1 ? 's' : ''}
-                                </span>
-                              )}
-                              {stats.vacant > 0 && (
-                                <span className="flex items-center text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100" title="Biens vacants">
-                                  {stats.vacant} vacant{stats.vacant > 1 ? 's' : ''}
-                                </span>
-                              )}
-                            </div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Biens</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <Badge variant="primary" className="h-5 min-w-[20px] flex items-center justify-center">
+                            <Badge variant="primary" className="h-5 min-w-[20px] bg-indigo-600 flex items-center justify-center">
                               {tenantCount}
                             </Badge>
-                            <span className="text-xs text-slate-500 font-medium tracking-tight">
-                              locataire{tenantCount > 1 ? 's' : ''} distinct{tenantCount > 1 ? 's' : ''}
+                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-tight">
+                              locataires
                             </span>
-                            {contractCount !== tenantCount && (
-                              <span className="text-[10px] text-slate-400 italic" title="Un locataire occupe plusieurs biens">
-                                ({contractCount} contrats)
-                              </span>
-                            )}
                           </div>
                         </div>
                       );
                     })()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex flex-col">
+                      <Badge 
+                        variant={owner.subscription_status === 'active' ? 'success' : 'warning'}
+                        className={clsx(
+                          "w-fit font-black text-[9px] uppercase tracking-widest",
+                          owner.subscription_status === 'active' ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-rose-100 text-rose-700 border-rose-200"
+                        )}
+                      >
+                        {owner.subscription_status === 'active' ? 'Premium' : 'Expiré'}
+                      </Badge>
+                      {owner.subscription_expires_at && (
+                        <span className="text-[10px] text-slate-400 mt-1 font-medium italic">
+                          jusqu'au {new Date(owner.subscription_expires_at).toLocaleDateString('fr-FR')}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2">
@@ -412,6 +416,21 @@ export const OwnersList: React.FC = () => {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
+                      {owner.subscription_status !== 'active' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Payer l'abonnement"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedOwner(owner);
+                            setIsPaymentModalOpen(true);
+                          }}
+                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        >
+                          <ShieldCheck className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -462,6 +481,25 @@ export const OwnersList: React.FC = () => {
           setShowForm(false);
           setSelectedOwner(null);
           refetch();
+        }}
+      />
+
+      <OwnerPaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setSelectedOwner(null);
+        }}
+        onSuccess={() => {
+          refetch();
+          refreshAuth();
+        }}
+        data={{
+          type: 'service_fee',
+          amount: 10000,
+          title: 'Régularisation Portail Propriétaire',
+          description: `Paiement des frais de service pour : ${selectedOwner?.first_name} ${selectedOwner?.last_name}`,
+          targetId: selectedOwner?.id
         }}
       />
     </div>
