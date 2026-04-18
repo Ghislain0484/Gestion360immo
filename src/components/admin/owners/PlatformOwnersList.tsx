@@ -77,7 +77,7 @@ export const PlatformOwnersList: React.FC = () => {
                 <Card className="p-6 bg-white border-slate-100 shadow-sm">
                     <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Revenus Mensuels Estimés</p>
                     <h3 className="text-4xl font-black text-slate-900">
-                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(owners.filter(o => o.subscription_status === 'active').length * 10000)}
+                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(owners.filter(o => o.subscription_status === 'active').length * ownerSubscriptionPrice)}
                     </h3>
                 </Card>
                 <Card className="p-6 bg-white border-slate-100 shadow-sm">
