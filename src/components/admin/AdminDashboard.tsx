@@ -13,6 +13,7 @@ import { RegistrationRequests } from './requests/RegistrationRequests';
 import { AgencyRankingsEnhanced } from './rankings/AgencyRankingsEnhanced';
 import { FinancialReports } from './reports/FinancialReports';
 import { PlatformOwnersList } from './owners/PlatformOwnersList';
+import { PlatformSettings } from './PlatformSettings';
 import { Agency } from '../../types/db';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useAgencies } from '../../hooks/useAdminQueries';
