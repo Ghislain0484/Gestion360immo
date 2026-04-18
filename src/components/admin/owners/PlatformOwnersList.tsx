@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import { AdminOwnerSubscriptionModal } from './AdminOwnerSubscriptionModal';
 
 export const PlatformOwnersList: React.FC = () => {
+    const [ownerSubscriptionPrice, setOwnerSubscriptionPrice] = useState(10000);
     const { data: agencies = [], isLoading: loadingAgencies } = useAgencies();
     const [owners, setOwners] = useState<Owner[]>([]);
     const [loadingOwners, setLoadingOwners] = useState(true);
@@ -19,6 +20,17 @@ export const PlatformOwnersList: React.FC = () => {
     const [selectedAgencyId, setSelectedAgencyId] = useState<string>('all');
     const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const loadSettings = React.useCallback(async () => {
+        const { data, error } = await supabase
+            .from('platform_settings')
+            .select('setting_value')
+            .eq('setting_key', 'subscription_owner_price')
+            .single();
+        if (!error && data) {
+            setOwnerSubscriptionPrice(Number(data.setting_value));
+        }
+    }, []);
 
     const loadAllOwners = React.useCallback(async () => {
         setLoadingOwners(true);
@@ -41,8 +53,9 @@ export const PlatformOwnersList: React.FC = () => {
     }, [selectedAgencyId]);
 
     React.useEffect(() => {
+        loadSettings();
         loadAllOwners();
-    }, [loadAllOwners]);
+    }, [loadSettings, loadAllOwners]);
 
     const filteredOwners = useMemo(() => {
         return owners.filter(o => 
