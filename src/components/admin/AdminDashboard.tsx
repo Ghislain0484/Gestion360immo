@@ -12,7 +12,7 @@ import { ActiveSubscriptions } from './subscriptions/ActiveSubscriptions';
 import { RegistrationRequests } from './requests/RegistrationRequests';
 import { AgencyRankingsEnhanced } from './rankings/AgencyRankingsEnhanced';
 import { FinancialReports } from './reports/FinancialReports';
-import { PlatformSettings } from './PlatformSettings';
+import { PlatformOwnersList } from './owners/PlatformOwnersList';
 import { Agency } from '../../types/db';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useAgencies } from '../../hooks/useAdminQueries';
@@ -193,6 +193,24 @@ export const AdminDashboard: React.FC = () => {
                           <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-4">Nouveaux <span className="text-amber-600">Partenaires</span></h2>
                         </div>
                         <RegistrationRequests />
+                      </div>
+                    )}
+
+                    {activeTab === 'owners' && (
+                      <div className="space-y-8 animate-slide-up">
+                        <div className="mb-10">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="h-1.5 w-8 rounded-full bg-indigo-500" />
+                            <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-[0.2em]">Management</span>
+                          </div>
+                          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+                            Pilotage <span className="text-indigo-600">Propriétaires</span>
+                          </h2>
+                          <p className="text-slate-500 text-lg max-w-2xl">
+                            Visualisez et gérez les abonnements de tous les propriétaires de la plateforme.
+                          </p>
+                        </div>
+                        <PlatformOwnersList />
                       </div>
                     )}
 
