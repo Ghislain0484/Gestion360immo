@@ -231,14 +231,14 @@ export const OwnerLayout: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-xl font-black italic">Accès Premium Limité</h3>
-                    <p className="text-amber-100 text-sm font-medium mt-1">Vos revenus n'ont jamais été aussi proches. Réglez vos frais de service (10 000 FCFA) pour débloquer toutes les fonctionnalités.</p>
+                    <p className="text-amber-100 text-sm font-medium mt-1">Vos revenus n'ont jamais été aussi proches. Réglez vos frais de service ({formatCurrency(ownerSubscriptionPrice)}) pour débloquer toutes les fonctionnalités.</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setIsPaymentModalOpen(true)}
                   className="px-10 py-4 bg-white text-amber-600 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-amber-50 transition-all shadow-lg active:scale-95 shrink-0"
                 >
-                  Payer 10.000 XOF
+                  Payer {formatCurrency(ownerSubscriptionPrice)}
                 </button>
               </motion.div>
             </div>

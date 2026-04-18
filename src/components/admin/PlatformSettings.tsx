@@ -469,7 +469,7 @@ export const PlatformSettings: React.FC = () => {
             <DollarSign className="h-5 w-5 text-green-600 mr-2" />
             <h3 className="text-lg font-semibold text-gray-900">Paramètres d'abonnement</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <Input
               label="Plan Basique (FCFA/mois)"
               type="number"
@@ -484,6 +484,8 @@ export const PlatformSettings: React.FC = () => {
               onChange={(e) => updateSetting('subscription', 'premiumPrice', parseInt(e.target.value) || 0)}
               min={0}
             />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <Input
               label="Plan Entreprise (FCFA/mois)"
               type="number"
@@ -491,6 +493,17 @@ export const PlatformSettings: React.FC = () => {
               onChange={(e) => updateSetting('subscription', 'enterprisePrice', parseInt(e.target.value) || 0)}
               min={0}
             />
+            <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
+              <Input
+                label="Prix Portail Propriétaire (FCFA/mois)"
+                type="number"
+                value={settings.subscription.ownerSubscriptionPrice}
+                onChange={(e) => updateSetting('subscription', 'ownerSubscriptionPrice', parseInt(e.target.value) || 0)}
+                min={0}
+                className="bg-white border-indigo-200 focus:border-indigo-500"
+              />
+              <p className="text-[10px] text-indigo-500 font-bold uppercase mt-2">Monétisation B2C</p>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input

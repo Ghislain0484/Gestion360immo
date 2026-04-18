@@ -78,8 +78,13 @@ export const OwnerPaymentModal: React.FC<Props> = ({ isOpen, onClose, data, onSu
               toast.success('Paiement réussi ! Travaux réglés.');
             } else if (data.type === 'service_fee') {
               // Mise à jour de l'abonnement propriétaire (30 jours supplémentaires)
-              const newExpiry = new Date();
+              // On ajoute les 30 jours à la date actuelle ou à la date d'expiration existante (si future)
+              const currentExpiry = owner.subscription_expires_at ? new Date(owner.subscription_expires_at) : new Date();
+              const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+              
+              const newExpiry = new Date(baseDate);
               newExpiry.setDate(newExpiry.getDate() + 30);
+              
               const { error } = await supabase
                 .from('owners')
                 .update({ 
