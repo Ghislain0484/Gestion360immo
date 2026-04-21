@@ -1,5 +1,11 @@
 export const FLUTTERWAVE_CONFIG = {
-  getPublicKey: () => import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK_TEST-SANDBOX-KEY',
+  getPublicKey: () => {
+    const key = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY;
+    if (!key || key.includes('SANDBOX')) {
+      console.error("CRITIQUE: La clé publique Flutterwave (VITE_FLUTTERWAVE_PUBLIC_KEY) est absente ou invalide dans Vercel !");
+    }
+    return key || '';
+  },
 };
 
 export type PaymentType = 'subscription' | 'maintenance' | 'service_fee';
