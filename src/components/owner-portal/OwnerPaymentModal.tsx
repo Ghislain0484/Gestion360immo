@@ -159,18 +159,9 @@ export const OwnerPaymentModal: React.FC<Props> = ({ isOpen, onClose, data, onSu
 
         <div className="p-4 bg-emerald-50 rounded-xl flex items-start gap-3 border border-emerald-100">
           <ShieldCheck className="h-5 w-5 text-emerald-600 mt-0.5" />
-          <div className="space-y-1">
-            <p className="text-sm text-emerald-800 leading-relaxed">
-              Paiement sécurisé via Flutterwave. Règlement par <strong>Mobile Money</strong> ou <strong>Carte Bancaire</strong>.
-            </p>
-            {/* Diagnostic de clé pour debug */}
-            <p className="text-[9px] text-emerald-600/50 font-mono italic">
-              Debug ID: {(() => {
-                const key = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || 'ABSENTE';
-                return key === 'ABSENTE' ? 'Clé non détectée' : `${key.slice(0, 10)}...${key.slice(-5)}`;
-              })()}
-            </p>
-          </div>
+          <p className="text-sm text-emerald-800 leading-relaxed">
+            Paiement sécurisé via Flutterwave. Règlement par <strong>Mobile Money</strong> ou <strong>Carte Bancaire</strong>.
+          </p>
         </div>
 
         <div className="flex gap-3 pt-4">
