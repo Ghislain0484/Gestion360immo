@@ -188,30 +188,45 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       return;
     }
 
-    try {
+      try {
       setIsSubmitting(true);
+      
+      // Nettoyage des données pour éviter les erreurs 400 (Bad Request)
+      // On ne construit le payload qu'avec les champs attendus par la DB
+      const payload: any = {
+        first_name: formData.first_name?.trim(),
+        last_name: formData.last_name?.trim(),
+        phone: formData.phone?.trim(),
+        address: formData.address?.trim(),
+        city: formData.city?.trim(),
+        property_title: formData.property_title,
+        marital_status: formData.marital_status,
+        children_count: formData.children_count || 0,
+        agency_id: formData.agency_id || authAgencyId || '',
+        email: formData.email?.trim() || null,
+        property_title_details: formData.property_title_details?.trim() || null,
+        spouse_name: formData.spouse_name?.trim() || null,
+        spouse_phone: formData.spouse_phone?.trim() || null,
+      };
+
+      // N'ajouter photo_url que s'il est présent, pour éviter l'erreur 400 si la colonne n'existe pas
+      if (formData.photo_url) {
+        payload.photo_url = formData.photo_url;
+      }
+
+      // Gérer business_id seulement s'il existe (cas de l'update)
+      if (formData.business_id) {
+        payload.business_id = formData.business_id;
+      }
+
       let result: Owner;
       if (formData.id) {
-        result = await dbService.owners.update(formData.id, {
-          ...formData,
-          agency_id: formData.agency_id || authAgencyId || '',
-          email: formData.email || null,
-          property_title_details: formData.property_title_details || null,
-          spouse_name: formData.spouse_name || null,
-          spouse_phone: formData.spouse_phone || null,
-        });
+        result = await dbService.owners.update(formData.id, payload);
       } else {
         if (!authAgencyId) {
           throw new Error('Aucune agence associée à l’utilisateur');
         }
-        result = await dbService.owners.create({
-          ...formData,
-          agency_id: authAgencyId,
-          email: formData.email || null,
-          property_title_details: formData.property_title_details || null,
-          spouse_name: formData.spouse_name || null,
-          spouse_phone: formData.spouse_phone || null,
-        } as Owner);
+        result = await dbService.owners.create(payload);
       }
 
       toast.success(
