@@ -174,15 +174,24 @@ export const SubscriptionPaymentModal: React.FC<Props> = ({ isOpen, onClose, sub
 
         <div className="flex items-start gap-3 rounded-xl bg-primary-50 p-4 dark:bg-primary-500/10">
           <ShieldCheck className="mt-0.5 h-5 w-5 text-primary-600 dark:text-primary-400" />
-          <p className="text-sm leading-relaxed text-primary-800 dark:text-primary-200">
-            Paiement securise via Flutterwave. Vous pouvez payer par <strong>Carte bancaire (Visa/Mastercard)</strong>,
-            <strong> Mobile Money (Orange, MTN, Moov, Wave)</strong> ou par <strong>Virement bancaire</strong>.
-            {!user.phone && (
-              <span className="mt-2 block text-xs font-medium text-amber-700 dark:text-amber-300">
-                Vous pouvez continuer sans numero de telephone pour les paiements non Mobile Money.
-              </span>
-            )}
-          </p>
+          <div className="space-y-1">
+            <p className="text-sm leading-relaxed text-primary-800 dark:text-primary-200">
+              Paiement securise via Flutterwave. Vous pouvez payer par <strong>Carte bancaire (Visa/Mastercard)</strong>,
+              <strong> Mobile Money (Orange, MTN, Moov, Wave)</strong> ou par <strong>Virement bancaire</strong>.
+              {!user.phone && (
+                <span className="mt-2 block text-xs font-medium text-amber-700 dark:text-amber-300">
+                  Vous pouvez continuer sans numero de telephone pour les paiements non Mobile Money.
+                </span>
+              )}
+            </p>
+            {/* Diagnostic de clé pour debug */}
+            <p className="text-[9px] italic font-mono text-primary-600/50 dark:text-primary-400/50">
+              Debug ID: {(() => {
+                const key = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || 'ABSENTE';
+                return key === 'ABSENTE' ? 'Clé non détectée' : `${key.slice(0, 10)}...${key.slice(-5)}`;
+              })()}
+            </p>
+          </div>
         </div>
 
         <div className="flex gap-3 pt-4">
