@@ -464,7 +464,19 @@ export const UserManagement: React.FC = () => {
       last_name: userData.last_name,
       role: userData.role,
       agency_id: userData.agency_id,
-      permissions: userData.permissions,
+      permissions: userData.permissions || {
+        dashboard: true,
+        properties: false,
+        owners: false,
+        tenants: false,
+        contracts: false,
+        collaboration: false,
+        caisse: false,
+        reports: false,
+        notifications: true,
+        settings: false,
+        userManagement: false,
+      },
       is_active: userData.is_active,
       password: '',
     });
@@ -607,7 +619,7 @@ export const UserManagement: React.FC = () => {
   const updatePermission = (key: keyof UserPermissions, value: boolean) => {
     setFormData((prev) => ({
       ...prev,
-      permissions: { ...prev.permissions, [key]: value },
+      permissions: { ...(prev.permissions || {}), [key]: value },
     }));
   };
 

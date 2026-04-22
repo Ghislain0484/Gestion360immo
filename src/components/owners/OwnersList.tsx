@@ -295,15 +295,15 @@ export const OwnersList: React.FC = () => {
                     <div className="flex items-center text-slate-900">
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold">
-                          {owner.first_name[0]}{owner.last_name[0]}
+                          <span>{owner.first_name[0]}{owner.last_name[0]}</span>
                         </div>
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium">
-                          {owner.first_name} {owner.last_name}
+                          <span>{owner.first_name} {owner.last_name}</span>
                         </div>
                         <div className="text-xs text-gray-500 font-mono">
-                          {owner.business_id || `PROP-${owner.id.slice(0, 8)}`}
+                          <span>{owner.business_id || `PROP-${owner.id.slice(0, 8)}`}</span>
                         </div>
                       </div>
                     </div>
@@ -311,11 +311,11 @@ export const OwnersList: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                     <div className="flex items-center text-sm text-gray-600">
                       <MapPin className="h-4 w-4 mr-1.5 text-gray-400" />
-                      {owner.city}
+                      <span>{owner.city}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-600 mt-1">
                       <Phone className="h-4 w-4 mr-1.5 text-gray-400" />
-                      {owner.phone}
+                      <span>{owner.phone}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -326,13 +326,13 @@ export const OwnersList: React.FC = () => {
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-slate-200">
-                              {stats.total}
+                              <span>{stats.total}</span>
                             </Badge>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Biens</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <Badge variant="primary" className="h-5 min-w-[20px] bg-indigo-600 flex items-center justify-center">
-                              {tenantCount}
+                              <span>{tenantCount}</span>
                             </Badge>
                             <span className="text-[10px] text-slate-400 font-black uppercase tracking-tight">
                               locataires
@@ -351,11 +351,15 @@ export const OwnersList: React.FC = () => {
                           owner.subscription_status === 'active' ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-rose-100 text-rose-700 border-rose-200"
                         )}
                       >
-                        {owner.subscription_status === 'active' ? 'Premium' : 'Expiré'}
+                        <span>{owner.subscription_status === 'active' ? 'Premium' : 'Expiré'}</span>
                       </Badge>
-                      {owner.subscription_expires_at && (
+                      {owner.subscription_expires_at ? (
                         <span className="text-[10px] text-slate-400 mt-1 font-medium italic">
                           jusqu'au {new Date(owner.subscription_expires_at).toLocaleDateString('fr-FR')}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 mt-1 font-medium italic">
+                          Non abonné
                         </span>
                       )}
                     </div>
