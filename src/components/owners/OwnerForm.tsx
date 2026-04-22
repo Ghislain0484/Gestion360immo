@@ -214,17 +214,26 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
         } as Owner);
       }
 
-      setSuccessInfo({
-        title: formData.id ? 'Propriétaire mis à jour' : 'Propriétaire créé',
-        message: `Le dossier de ${result.first_name} ${result.last_name} (${result.business_id}) a été enregistré avec succès.`
-      });
-      setShowSuccessModal(true);
+      toast.success(
+        formData.id
+          ? 'Propriétaire mis à jour avec succès'
+          : `Le dossier de ${result.first_name} ${result.last_name} (${result.business_id || 'ID en cours...'}) a été enregistré avec succès.`
+      );
       onSuccess?.();
     } catch (error: any) {
-      console.error('❌ Erreur soumission propriétaire:', error);
-      toast.error(error.message.includes('row-level security')
-        ? 'Vous n’avez pas les permissions nécessaires pour effectuer cette action.'
-        : error.message || `Erreur lors de la ${formData.id ? 'mise à jour' : 'création'} du propriétaire`);
+      console.error('❌ [OwnerForm] Erreur détaillée:', error);
+      
+      let errorMessage = `Erreur lors de la ${formData.id ? 'mise à jour' : 'création'} du propriétaire`;
+      
+      if (error.message?.includes('row-level security')) {
+        errorMessage = 'Permissions insuffisantes (RLS). Votre session a peut-être expiré.';
+      } else if (error.message?.includes('unique constraint') || error.code === '23505') {
+        errorMessage = 'Ce numéro de téléphone ou cet email est déjà utilisé par un autre propriétaire.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage, { duration: 5000 });
     } finally {
       setIsSubmitting(false);
     }

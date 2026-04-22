@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import clsx from 'clsx';
 import { useNavigate, Link } from 'react-router-dom';
@@ -31,6 +32,7 @@ import { AgencyUserRole } from '../../types/enums';
 import { AgencySubscriptionStatus } from './AgencySubscriptionStatus';
 import { DashboardCharts } from './DashboardCharts';
 import { MonthlyRevenueItem } from '../../types/contracts';
+import { ModularTransaction } from '../../types/modular';
 
 interface DashboardRental {
   id: string;
@@ -88,21 +90,6 @@ export const Dashboard: React.FC = () => {
     () => ({ agency_id: user?.agency_id || undefined, status: 'active', limit: 1000 }),
     [user?.agency_id],
   );
-  if (authLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-2 border-transparent border-t-blue-500" />
-      </div>
-    );
-  }
-
-  if (!user && !admin) {
-    return (
-      <div className="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-rose-700 shadow-sm" role="alert">
-        Veuillez vous connecter pour acceder au tableau de bord.
-      </div>
-    );
-  }
 
   const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
 
@@ -134,7 +121,7 @@ export const Dashboard: React.FC = () => {
   const [recentReceipts, setRecentReceipts] = useState<RentReceipt[]>([]);
   const [receiptsLoading, setReceiptsLoading] = useState(true);
   const [receiptsError, setReceiptsError] = useState<string | null>(null);
-  const [recentModularTxs, setRecentModularTxs] = useState<any[]>([]);
+  const [recentModularTxs, setRecentModularTxs] = useState<ModularTransaction[]>([]);
   const [monthlyRevenueData, setMonthlyRevenueData] = useState<MonthlyRevenueItem[]>([]);
   const agencyId = realtimeFilters.agency_id;
 
@@ -231,9 +218,9 @@ export const Dashboard: React.FC = () => {
           .slice(0, 12);
 
         setAgencyActivities(formatted);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
-          setActivitiesError(err?.message || 'Impossible de charger les activites recentes.');
+          setActivitiesError(err instanceof Error ? err.message : 'Impossible de charger les activites recentes.');
           setAgencyActivities([]);
         }
       } finally {
@@ -294,12 +281,15 @@ export const Dashboard: React.FC = () => {
       },
     ];
   }, [dashboardStats]);
-  const formatCurrency = (amount: number | null | undefined) =>
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(amount ?? 0);
+  const formatCurrency = useCallback(
+    (amount: number | null | undefined) =>
+      new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'XOF',
+        minimumFractionDigits: 0,
+      }).format(amount ?? 0),
+    []
+  );
 
 
 
@@ -474,7 +464,7 @@ export const Dashboard: React.FC = () => {
     return entries
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 6);
-  }, [recentReceipts, recentContracts]);
+  }, [recentReceipts, recentContracts, recentModularTxs]);
 
   const getStatusBadge = (status: string, isFirstPayment?: boolean) => {
     if (isFirstPayment) {
@@ -625,6 +615,23 @@ export const Dashboard: React.FC = () => {
   }, [dashboardStats]);
 
   const showSpotlightSkeleton = statsLoading && !dashboardStats;
+
+  if (authLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-2 border-transparent border-t-blue-500" />
+      </div>
+    );
+  }
+
+  if (!user && !admin) {
+    return (
+      <div className="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-rose-700 shadow-sm" role="alert">
+        Veuillez vous connecter pour acceder au tableau de bord.
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen">
       {/* Decorative ambient blobs */}
@@ -776,10 +783,10 @@ export const Dashboard: React.FC = () => {
         />
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="border-none shadow-xl">
+          <Card className="border-none shadow-xl dark:bg-slate-900/80">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Activites recentes</h3>
-              <Button variant="ghost" onClick={() => setShowAllActivities(true)} className="text-slate-500 hover:text-slate-700">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Activites recentes</h3>
+              <Button variant="ghost" onClick={() => setShowAllActivities(true)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 Voir tout
               </Button>
             </div>
@@ -789,7 +796,7 @@ export const Dashboard: React.FC = () => {
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" />
                 </div>
               ) : activitiesError ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-600">
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-600 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
                   {activitiesError}
                 </div>
               ) : agencyActivities.length === 0 ? (
@@ -800,7 +807,7 @@ export const Dashboard: React.FC = () => {
                   return (
                     <div
                       key={activity.id}
-                      className="group flex items-start gap-3 rounded-2xl border border-slate-100 bg-white/80 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg"
+                      className="group flex items-start gap-3 rounded-2xl border border-slate-100 bg-white/80 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-slate-600"
                     >
                       <span className={clsx('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', bg)}>
                         <ActivityIcon className={clsx('h-5 w-5', color)} aria-hidden="true" />
@@ -808,14 +815,14 @@ export const Dashboard: React.FC = () => {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <div>
-                            <p className="text-sm font-semibold text-slate-900 truncate">
+                            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                               {activity.actor?.full_name ?? 'Utilisateur inconnu'}
                             </p>
-                            <p className="text-xs text-slate-500">{activity.actor?.role ?? 'Collaborateur'}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{activity.actor?.role ?? 'Collaborateur'}</p>
                           </div>
-                          <span className="whitespace-nowrap text-xs text-slate-400">{getTimeAgo(activity.created_at)}</span>
+                          <span className="whitespace-nowrap text-xs text-slate-400 dark:text-slate-500">{getTimeAgo(activity.created_at)}</span>
                         </div>
-                        <p className="mt-1 text-sm text-slate-500 line-clamp-2">{formatActivityDescription(activity)}</p>
+                        <p className="mt-1 line-clamp-2 text-sm text-slate-500 dark:text-slate-300">{formatActivityDescription(activity)}</p>
                       </div>
                     </div>
                   );
@@ -824,10 +831,10 @@ export const Dashboard: React.FC = () => {
             </div>
           </Card>
 
-          <Card className="border-none shadow-xl">
+          <Card className="border-none shadow-xl dark:bg-slate-900/80">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Loyers a venir</h3>
-              <Button variant="ghost" onClick={() => setShowAllRentals(true)} className="text-slate-500 hover:text-slate-700">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Loyers a venir</h3>
+              <Button variant="ghost" onClick={() => setShowAllRentals(true)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 Voir tout
               </Button>
             </div>
@@ -842,16 +849,16 @@ export const Dashboard: React.FC = () => {
                 upcomingRentals.map((rental) => (
                   <div
                     key={rental.id}
-                    className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white/80 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg"
+                    className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white/80 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-slate-600"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{rental.property}</p>
-                      <p className="mt-1 text-sm text-slate-500 truncate">
+                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{rental.property}</p>
+                      <p className="mt-1 truncate text-sm text-slate-500 dark:text-slate-300">
                         {rental.tenant} | {rental.dueDate}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-slate-900">{rental.amount}</span>
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{rental.amount}</span>
                       {getStatusBadge(rental.status, rental.isFirstPayment)}
                     </div>
                   </div>
@@ -861,15 +868,15 @@ export const Dashboard: React.FC = () => {
           </Card>
         </div>
 
-        <Card className="border-none shadow-xl">
+        <Card className="border-none shadow-xl dark:bg-slate-900/80">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-slate-900">Paiements recents</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Paiements recents</h3>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => setShowAllPayments(true)} className="text-slate-500 hover:text-slate-700">
+              <Button variant="ghost" onClick={() => setShowAllPayments(true)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 Voir tout
               </Button>
               <Link to="/receipts">
-                <Button variant="outline" size="sm" className="border-slate-200 text-slate-700 hover:bg-slate-100">
+                <Button variant="outline" size="sm" className="border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
                   <Receipt className="mr-2 h-4 w-4" />
                   Gestion quittances
                 </Button>
@@ -887,7 +894,7 @@ export const Dashboard: React.FC = () => {
               recentPayments.map((payment) => (
                 <div
                   key={payment.id}
-                  className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white/80 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white/80 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-slate-600 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-center gap-3">
                     <span
@@ -898,26 +905,26 @@ export const Dashboard: React.FC = () => {
                       aria-hidden="true"
                     />
                     <div>
-                      <p className="font-semibold text-slate-900">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">
                         {payment.type === 'received'
                           ? `Loyer recu - ${payment.tenant}`
                           : `Reversement - ${payment.owner}`}
                       </p>
-                      <p className="text-sm text-slate-500">
+                      <p className="text-sm text-slate-500 dark:text-slate-300">
                         {payment.property} | {payment.receiptNumber} | {payment.date}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="font-semibold text-slate-900">{formatCurrency(payment.amount)}</p>
-                      <p className="text-sm text-slate-500 capitalize">{payment.status}</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(payment.amount)}</p>
+                      <p className="text-sm capitalize text-slate-500 dark:text-slate-300">{payment.status}</p>
                     </div>
                     <div className="flex gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-slate-500 hover:text-slate-700"
+                        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         title="Voir détails"
                         onClick={() => {
                           setSelectedPayment(payment);
@@ -929,7 +936,7 @@ export const Dashboard: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-slate-500 hover:text-slate-700"
+                        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         title="Imprimer"
                         onClick={() => {
                           if (payment.receipt && user?.agency_id) {
@@ -948,7 +955,7 @@ export const Dashboard: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-slate-500 hover:text-slate-700"
+                        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         title="Télécharger"
                         onClick={() => {
                           if (payment.receipt && user?.agency_id) {
@@ -972,62 +979,62 @@ export const Dashboard: React.FC = () => {
           </div>
         </Card>
 
-        <Card className="border-none shadow-xl">
-          <h3 className="mb-4 text-lg font-semibold text-slate-900">Actions rapides</h3>
+        <Card className="border-none shadow-xl dark:bg-slate-900/80">
+          <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">Actions rapides</h3>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Button
               variant="ghost"
               onClick={() => navigate('/properties')}
-              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-gradient-to-br from-sky-50 to-sky-100 p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+              className="group flex items-center gap-3 rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-sky-100 p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-sky-500/20 dark:from-sky-500/10 dark:to-slate-900 dark:hover:border-sky-500/30"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 group-hover:bg-sky-500/20">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 group-hover:bg-sky-500/20 dark:bg-sky-500/15 dark:text-sky-300">
                 <Building2 className="h-6 w-6" />
               </span>
               <div>
-                <p className="font-semibold text-slate-900">Ajouter une propriete</p>
-                <p className="text-sm text-slate-500">Enregistrez rapidement un nouveau bien</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Ajouter une propriete</p>
+                <p className="text-sm text-slate-500 dark:text-slate-300">Enregistrez rapidement un nouveau bien</p>
               </div>
             </Button>
 
             <Button
               variant="ghost"
               onClick={() => navigate('/owners')}
-              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+              className="group flex items-center gap-3 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-emerald-500/20 dark:from-emerald-500/10 dark:to-slate-900 dark:hover:border-emerald-500/30"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/20">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-300">
                 <Users className="h-6 w-6" />
               </span>
               <div>
-                <p className="font-semibold text-slate-900">Nouveau proprietaire</p>
-                <p className="text-sm text-slate-500">Ajoutez un bailleur a votre reseau</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Nouveau proprietaire</p>
+                <p className="text-sm text-slate-500 dark:text-slate-300">Ajoutez un bailleur a votre reseau</p>
               </div>
             </Button>
 
             <Button
               variant="ghost"
               onClick={() => navigate('/tenants')}
-              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-gradient-to-br from-amber-50 to-amber-100 p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+              className="group flex items-center gap-3 rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-amber-100 p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-amber-500/20 dark:from-amber-500/10 dark:to-slate-900 dark:hover:border-amber-500/30"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20 dark:bg-amber-500/15 dark:text-amber-300">
                 <UserCheck className="h-6 w-6" />
               </span>
               <div>
-                <p className="font-semibold text-slate-900">Nouveau locataire</p>
-                <p className="text-sm text-slate-500">Preparez votre prochain bail</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Nouveau locataire</p>
+                <p className="text-sm text-slate-500 dark:text-slate-300">Preparez votre prochain bail</p>
               </div>
             </Button>
 
             <Button
               variant="ghost"
               onClick={() => navigate('/contracts')}
-              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+              className="group flex items-center gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-indigo-500/20 dark:from-indigo-500/10 dark:to-slate-900 dark:hover:border-indigo-500/30"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-500/20">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-500/20 dark:bg-indigo-500/15 dark:text-indigo-300">
                 <FileText className="h-6 w-6" />
               </span>
               <div>
-                <p className="font-semibold text-slate-900">Generer un contrat</p>
-                <p className="text-sm text-slate-500">Automatisez votre documentation</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Generer un contrat</p>
+                <p className="text-sm text-slate-500 dark:text-slate-300">Automatisez votre documentation</p>
               </div>
             </Button>
           </div>
@@ -1047,7 +1054,7 @@ export const Dashboard: React.FC = () => {
                 return (
                   <div
                     key={activity.id}
-                    className="flex items-start gap-3 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm"
+                    className="flex items-start gap-3 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/80"
                   >
                     <span className={clsx('mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', bg)}>
                       <ActivityIcon className={clsx('h-5 w-5', color)} aria-hidden="true" />
@@ -1055,14 +1062,14 @@ export const Dashboard: React.FC = () => {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900 truncate">
+                          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                             {activity.actor?.full_name ?? 'Utilisateur inconnu'}
                           </p>
-                          <p className="text-xs text-slate-500">{activity.actor?.role ?? 'Collaborateur'}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{activity.actor?.role ?? 'Collaborateur'}</p>
                         </div>
-                        <span className="whitespace-nowrap text-xs text-slate-400">{getTimeAgo(activity.created_at)}</span>
+                        <span className="whitespace-nowrap text-xs text-slate-400 dark:text-slate-500">{getTimeAgo(activity.created_at)}</span>
                       </div>
-                      <p className="mt-1 text-sm text-slate-500">{formatActivityDescription(activity)}</p>
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">{formatActivityDescription(activity)}</p>
                     </div>
                   </div>
                 );
@@ -1084,16 +1091,16 @@ export const Dashboard: React.FC = () => {
               upcomingRentals.map((rental) => (
                 <div
                   key={rental.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm"
+                  className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/80"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">{rental.property}</p>
-                    <p className="mt-1 text-sm text-slate-500 truncate">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{rental.property}</p>
+                    <p className="mt-1 truncate text-sm text-slate-500 dark:text-slate-300">
                       {rental.tenant} | {rental.dueDate}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-slate-900">{rental.amount}</span>
+                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{rental.amount}</span>
                     {getStatusBadge(rental.status)}
                   </div>
                 </div>
@@ -1115,7 +1122,7 @@ export const Dashboard: React.FC = () => {
               recentPayments.map((payment) => (
                 <div
                   key={payment.id}
-                  className="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/80 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-center gap-3">
                     <span
@@ -1126,26 +1133,26 @@ export const Dashboard: React.FC = () => {
                       aria-hidden="true"
                     />
                     <div>
-                      <p className="font-semibold text-slate-900">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">
                         {payment.type === 'received'
                           ? `Loyer recu - ${payment.tenant}`
                           : `Reversement - ${payment.owner}`}
                       </p>
-                      <p className="text-sm text-slate-500">
+                      <p className="text-sm text-slate-500 dark:text-slate-300">
                         {payment.property} | {payment.receiptNumber} | {payment.date}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="font-semibold text-slate-900">{formatCurrency(payment.amount)}</p>
-                      <p className="text-sm text-slate-500 capitalize">{payment.status}</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(payment.amount)}</p>
+                      <p className="text-sm capitalize text-slate-500 dark:text-slate-300">{payment.status}</p>
                     </div>
                     <div className="flex gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-slate-500 hover:text-slate-700"
+                        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         title="Voir détails"
                         onClick={() => {
                           setSelectedPayment(payment);
@@ -1157,7 +1164,7 @@ export const Dashboard: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-slate-500 hover:text-slate-700"
+                        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         title="Imprimer"
                         onClick={() => {
                           if (payment.receipt && user?.agency_id) {
@@ -1176,7 +1183,7 @@ export const Dashboard: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-slate-500 hover:text-slate-700"
+                        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         title="Télécharger"
                         onClick={() => {
                           if (payment.receipt && user?.agency_id) {
@@ -1212,19 +1219,19 @@ export const Dashboard: React.FC = () => {
         >
           {selectedPayment && (
             <div className="space-y-6">
-              <div className="bg-gradient-to-br from-slate-50 to-blue-50 border border-blue-100 rounded-2xl p-6 shadow-sm">
+              <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-slate-50 to-blue-50 p-6 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-800">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <Badge variant={selectedPayment.type === 'received' ? 'success' : 'info'} className="mb-2">
                       {selectedPayment.type === 'received' ? 'Encaissement Loyer' : 'Reversement Propriétaire'}
                     </Badge>
-                    <h3 className="text-xl font-bold text-slate-900">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">
                       Reçu N° {selectedPayment.receiptNumber}
                     </h3>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-slate-500">Montant</p>
-                    <p className="text-2xl font-black text-blue-600">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Montant</p>
+                    <p className="text-2xl font-black text-blue-600 dark:text-blue-300">
                       {formatCurrency(selectedPayment.amount)}
                     </p>
                   </div>
@@ -1234,21 +1241,21 @@ export const Dashboard: React.FC = () => {
                   <div className="space-y-4">
                     <div>
                       <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Locataire</p>
-                      <p className="font-semibold text-slate-700">{selectedPayment.tenant}</p>
+                      <p className="font-semibold text-slate-700 dark:text-slate-100">{selectedPayment.tenant}</p>
                     </div>
                     <div>
                       <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Propriétaire</p>
-                      <p className="font-semibold text-slate-700">{selectedPayment.owner}</p>
+                      <p className="font-semibold text-slate-700 dark:text-slate-100">{selectedPayment.owner}</p>
                     </div>
                   </div>
                   <div className="space-y-4">
                     <div>
                       <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Bien Immobilier</p>
-                      <p className="font-semibold text-slate-700">{selectedPayment.property}</p>
+                      <p className="font-semibold text-slate-700 dark:text-slate-100">{selectedPayment.property}</p>
                     </div>
                     <div>
                       <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Date de Paiement</p>
-                      <p className="font-semibold text-slate-700">
+                      <p className="font-semibold text-slate-700 dark:text-slate-100">
                         {new Date(selectedPayment.date).toLocaleDateString('fr-FR', {
                           day: 'numeric',
                           month: 'long',
@@ -1260,9 +1267,9 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 {selectedPayment.receipt?.notes && (
-                  <div className="mt-6 pt-6 border-t border-blue-100">
+                  <div className="mt-6 border-t border-blue-100 pt-6 dark:border-slate-700">
                     <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Notes / Observations</p>
-                    <p className="text-sm text-slate-600 italic">"{selectedPayment.receipt.notes}"</p>
+                    <p className="text-sm italic text-slate-600 dark:text-slate-300">"{selectedPayment.receipt.notes}"</p>
                   </div>
                 )}
               </div>
@@ -1285,7 +1292,7 @@ export const Dashboard: React.FC = () => {
                 </Button>
                 <Button
                   variant="outline"
-                  className="w-full flex items-center justify-center gap-2 py-6 rounded-xl border-2 hover:bg-slate-50 transition-all"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border-2 py-6 transition-all hover:bg-slate-50 dark:hover:bg-slate-800"
                   onClick={() => {
                     if (selectedPayment.receipt && user?.agency_id) {
                       downloadReceiptPDF(selectedPayment.receipt, user.agency_id, {

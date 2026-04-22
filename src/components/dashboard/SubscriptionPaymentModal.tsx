@@ -1,13 +1,12 @@
 import React from 'react';
 import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
+import { ShieldCheck, Mail, Phone, User as UserIcon } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { ShieldCheck, Mail, Phone, User as UserIcon } from 'lucide-react';
 import { getFlutterwaveConfig } from '../../lib/flutterwave';
 import { AgencySubscription } from '../../types/db';
 import { useAuth } from '../../contexts/AuthContext';
-import toast from 'react-hot-toast';
-import { agencySubscriptionsService } from '../../lib/db/agencySubscriptionsService';
 
 interface Props {
   isOpen: boolean;
@@ -16,51 +15,109 @@ interface Props {
   onSuccess: () => void;
 }
 
+interface VerifySubscriptionPaymentResponse {
+  ok: boolean;
+  error?: string;
+  alreadyProcessed?: boolean;
+  message?: string;
+  status?: string;
+  next_payment_date?: string;
+}
+
 export const SubscriptionPaymentModal: React.FC<Props> = ({ isOpen, onClose, subscription, onSuccess }) => {
   const { user } = useAuth();
-
-  if (!user) return null;
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const currentAgency = user?.agencies?.find((agency) => agency.agency_id === user?.agency_id);
 
   const config = getFlutterwaveConfig({
     amount: subscription.monthly_fee,
-    email: user.email,
-    phone: user.phone || '',
-    name: `${user.first_name} ${user.last_name}`,
+    email: user?.email || '',
+    phone: user?.phone || '',
+    name: `${user?.first_name || ''} ${user?.last_name || ''}`.trim(),
     title: `Abonnement Gestion360 - ${subscription.plan_type.toUpperCase()}`,
-    description: `Paiement mensuel pour l'agence ${user.agencies?.find((a: any) => a.agency_id === user.agency_id)?.name || ''}`,
+    description: `Paiement mensuel pour l'agence ${currentAgency?.name || ''}`,
     tx_ref: `SUB-${subscription.id}-${Date.now()}`,
     payment_type: 'subscription',
-    logo_url: user.agencies?.find((a: any) => a.agency_id === user.agency_id)?.logo_url,
+    logo_url: currentAgency?.logo_url,
     metadata: {
-      agency_id: user.agency_id,
-      subscription_id: subscription.id
+      agency_id: user?.agency_id,
+      subscription_id: subscription.id,
+      payment_type: 'subscription',
     }
   });
 
   const handleFlutterPayment = useFlutterwave(config);
 
+  if (!user) return null;
+
+  const verifySubscriptionPayment = async (response: {
+    transaction_id: number;
+    tx_ref: string;
+    status: string;
+    amount: number;
+    currency: string;
+  }) => {
+    const apiResponse = await fetch('/api/payments/verify-subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        transaction_id: response.transaction_id,
+        tx_ref: response.tx_ref,
+        agency_id: subscription.agency_id,
+        subscription_id: subscription.id,
+        expected_amount: subscription.monthly_fee,
+        currency: response.currency || 'XOF',
+        email: user.email,
+      }),
+    });
+
+    const payload = await apiResponse.json().catch(() => null) as VerifySubscriptionPaymentResponse | null;
+
+    if (!apiResponse.ok || !payload?.ok) {
+      throw new Error(payload?.error || 'Le serveur n a pas pu verifier le paiement.');
+    }
+
+    return payload;
+  };
+
   const startPayment = () => {
+    setIsSubmitting(true);
+
     handleFlutterPayment({
       callback: async (response) => {
-        console.log('Flutterwave Response:', response);
-        if (response.status === 'successful') {
-          try {
-            // Dans un vrai scénario, on devrait vérifier la transaction côté serveur via webhook
-            // Ici on met à jour directement pour la démo/V1
-            await agencySubscriptionsService.extend(subscription.agency_id!, 1);
-            toast.success('Paiement réussi ! Votre abonnement a été prolongé.');
-            onSuccess();
-          } catch (err) {
-            console.error('Erreur mise à jour abonnement:', err);
-            toast.error('Paiement reçu mais erreur lors de la mise à jour de l\'abonnement. Veuillez contacter le support.');
+        try {
+          if (response.status !== 'successful') {
+            toast.error("Le paiement n'a pas pu etre complete.");
+            return;
           }
-        } else {
-            toast.error('Le paiement n\'a pas pu être complété.');
+
+          const verification = await verifySubscriptionPayment(response);
+          toast.success(
+            verification.message || (
+              verification.alreadyProcessed
+                ? 'Paiement deja confirme.'
+                : 'Paiement verifie et abonnement mis a jour.'
+            ),
+            { duration: 6000 }
+          );
+          onSuccess();
+          onClose();
+        } catch (error) {
+          console.error('Erreur verification abonnement:', error);
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Paiement recu mais verification impossible. Veuillez contacter le support."
+          );
+        } finally {
+          setIsSubmitting(false);
+          closePaymentModal();
         }
-        closePaymentModal();
       },
       onClose: () => {
-        console.log('Payment modal closed');
+        setIsSubmitting(false);
       },
     });
   };
@@ -74,68 +131,77 @@ export const SubscriptionPaymentModal: React.FC<Props> = ({ isOpen, onClose, sub
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Paiement de l'abonnement">
-      <div className="space-y-6">
-        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-slate-500 font-medium">Forfait actuel</span>
-            <span className="font-bold text-slate-900 uppercase">{subscription.plan_type}</span>
+      <div className="space-y-6 text-slate-900 dark:text-slate-100">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-6 dark:border-slate-700 dark:bg-slate-800/70">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="font-medium text-slate-500 dark:text-slate-400">Forfait actuel</span>
+            <span className="font-bold uppercase text-slate-900 dark:text-slate-100">{subscription.plan_type}</span>
           </div>
-          <div className="flex justify-between items-center py-4 border-t border-slate-200">
-            <span className="text-slate-500 font-medium">Montant à régler</span>
-            <span className="text-2xl font-black text-primary-600">{formatCurrency(subscription.monthly_fee)}</span>
+          <div className="flex items-center justify-between border-t border-slate-200 py-4 dark:border-slate-700">
+            <span className="font-medium text-slate-500 dark:text-slate-400">Montant a regler</span>
+            <span className="text-2xl font-black text-primary-600 dark:text-primary-400">{formatCurrency(subscription.monthly_fee)}</span>
           </div>
-          <div className="flex justify-between items-center py-4 border-t border-slate-200">
-            <span className="text-slate-500 font-medium">Validité</span>
-            <span className="font-medium text-slate-700">+1 Mois après paiement</span>
+          <div className="flex items-center justify-between border-t border-slate-200 py-4 dark:border-slate-700">
+            <span className="font-medium text-slate-500 dark:text-slate-400">Validite</span>
+            <span className="font-medium text-slate-700 dark:text-slate-200">+1 mois apres paiement</span>
           </div>
         </div>
 
         <div className="space-y-3">
-            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Vos informations de contact</h4>
-            <div className="grid grid-cols-1 gap-3">
-                <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl">
-                    <UserIcon className="h-5 w-5 text-slate-400" />
-                    <span className="text-sm text-slate-700">{user.first_name} {user.last_name}</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl">
-                    <Mail className="h-5 w-5 text-slate-400" />
-                    <span className="text-sm text-slate-700">{user.email}</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl relative">
-                    <Phone className="h-5 w-5 text-slate-400" />
-                    <span className="text-sm text-slate-700">{user.phone || 'Aucun numéro enregistré'}</span>
-                    {!user.phone && (
-                        <span className="absolute right-3 text-[10px] bg-red-50 text-red-500 px-2 py-1 rounded-full font-bold">Requis pour Mobile Money</span>
-                    )}
-                </div>
+          <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Vos informations de contact
+          </h4>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+            <UserIcon className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+            <span className="text-sm text-slate-700 dark:text-slate-200">{user.first_name} {user.last_name}</span>
             </div>
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+              <Mail className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+              <span className="text-sm text-slate-700 dark:text-slate-200">{user.email}</span>
+            </div>
+            <div className="relative flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+              <Phone className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+              <span className="text-sm text-slate-700 dark:text-slate-200">{user.phone || 'Aucun numero enregistre'}</span>
+              {!user.phone && (
+                <span className="absolute right-3 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-600 dark:bg-amber-500/10 dark:text-amber-300">
+                  Mobile Money requis
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="p-4 bg-primary-50 rounded-xl flex items-start gap-3">
-          <ShieldCheck className="h-5 w-5 text-primary-600 mt-0.5" />
-          <p className="text-sm text-primary-800 leading-relaxed">
-            Paiement sécurisé via Flutterwave. Vous pouvez payer par <strong>Carte bancaire (Visa/Mastercard)</strong>, 
-            <strong>Mobile Money (Orange, MTN, Moov, Wave)</strong> ou par <strong>Virement bancaire</strong>.
+        <div className="flex items-start gap-3 rounded-xl bg-primary-50 p-4 dark:bg-primary-500/10">
+          <ShieldCheck className="mt-0.5 h-5 w-5 text-primary-600 dark:text-primary-400" />
+          <p className="text-sm leading-relaxed text-primary-800 dark:text-primary-200">
+            Paiement securise via Flutterwave. Vous pouvez payer par <strong>Carte bancaire (Visa/Mastercard)</strong>,
+            <strong> Mobile Money (Orange, MTN, Moov, Wave)</strong> ou par <strong>Virement bancaire</strong>.
+            {!user.phone && (
+              <span className="mt-2 block text-xs font-medium text-amber-700 dark:text-amber-300">
+                Vous pouvez continuer sans numero de telephone pour les paiements non Mobile Money.
+              </span>
+            )}
           </p>
         </div>
 
         <div className="flex gap-3 pt-4">
-          <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-12 font-bold">
+          <Button variant="outline" onClick={onClose} className="h-12 flex-1 rounded-xl font-bold" disabled={isSubmitting}>
             Annuler
           </Button>
-          <Button 
-            onClick={startPayment} 
-            className="flex-1 btn-premium h-12 shadow-lg shadow-primary-500/25"
-            disabled={!user.phone && subscription.monthly_fee > 0}
+          <Button
+            onClick={startPayment}
+            className="h-12 flex-1 btn-premium shadow-lg shadow-primary-500/25"
+            isLoading={isSubmitting}
           >
             Payer {formatCurrency(subscription.monthly_fee)}
           </Button>
         </div>
 
         {!user.phone && (
-            <p className="text-[11px] text-center text-red-500 font-medium mt-2">
-                Note : Veuillez ajouter votre numéro de téléphone dans votre profil pour utiliser le Mobile Money.
-            </p>
+          <p className="mt-2 text-center text-[11px] font-medium text-amber-600 dark:text-amber-300">
+            Note : ajoutez votre numero de telephone dans votre profil si vous voulez utiliser le Mobile Money.
+          </p>
         )}
       </div>
     </Modal>
