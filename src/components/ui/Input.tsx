@@ -19,21 +19,21 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-200">
           {label}
           {props.required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <div className="relative">
         {leftIcon && (
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 pointer-events-none dark:text-slate-400">
             {leftIcon}
           </div>
         )}
         <input
           ref={ref}
           className={clsx(
-            "block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm transition-shadow duration-200",
+            "block w-full rounded-lg border border-gray-300 bg-white text-gray-900 shadow-sm transition-shadow duration-200 focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500",
             leftIcon && "pl-10",
             rightIcon && "pr-10",
             error && "border-red-500 focus:border-red-500 focus:ring-red-500",
@@ -42,7 +42,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
           {...props}
         />
         {rightIcon && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-500">
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 pointer-events-none dark:text-slate-400">
             {rightIcon}
           </div>
         )}

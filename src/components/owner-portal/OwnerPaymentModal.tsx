@@ -11,6 +11,7 @@ import { supabase } from '../../lib/config';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  owner?: any; // Optional owner override for admin usage
   data: {
     type: 'maintenance' | 'service_fee';
     amount: number;
@@ -22,8 +23,9 @@ interface Props {
   onSuccess: () => void;
 }
 
-export const OwnerPaymentModal: React.FC<Props> = ({ isOpen, onClose, data, onSuccess }) => {
-  const { owner } = useAuth();
+export const OwnerPaymentModal: React.FC<Props> = ({ isOpen, onClose, data, onSuccess, owner: propOwner }) => {
+  const { owner: authOwner } = useAuth();
+  const owner = propOwner || authOwner;
   const [agencyLogo, setAgencyLogo] = React.useState<string | null>(null);
 
   React.useEffect(() => {

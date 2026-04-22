@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Trash2, Edit, Download } from 'lucide-react';
+import { Plus, Search, MapPin, Phone, Eye, MessageCircle, Trash2, Edit, Download, ShieldCheck } from 'lucide-react';
 import { useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -23,7 +23,7 @@ import { OwnerPaymentModal } from '../owner-portal/OwnerPaymentModal';
 
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
-  const { agencyId: authAgencyId, user } = useAuth();
+  const { agencyId: authAgencyId, user, refreshAuth } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
@@ -490,6 +490,7 @@ export const OwnersList: React.FC = () => {
           setIsPaymentModalOpen(false);
           setSelectedOwner(null);
         }}
+        owner={selectedOwner}
         onSuccess={() => {
           refetch();
           refreshAuth();

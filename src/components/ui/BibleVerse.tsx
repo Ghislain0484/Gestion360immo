@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Book, RefreshCw, Heart } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
@@ -11,26 +11,29 @@ interface BibleVerseProps {
   compact?: boolean;
 }
 
-export const BibleVerseCard: React.FC<BibleVerseProps> = ({ 
+const normalizeThemeKey = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+export const BibleVerseCard: React.FC<BibleVerseProps> = ({
   className = '',
   showRefresh = false,
-  compact = false 
+  compact = false,
 }) => {
   const [verse, setVerse] = useState<BibleVerse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Charger le verset du jour au montage du composant
-    const dailyVerse = DailyVerseService.getDailyVerse();
-    setVerse(dailyVerse);
+    setVerse(DailyVerseService.getDailyVerse());
   }, []);
 
   const refreshVerse = async () => {
     setIsLoading(true);
-    // Petit délai pour l'effet visuel
-    setTimeout(() => {
-      const randomVerse = DailyVerseService.getRandomVerse();
-      setVerse(randomVerse);
+    window.setTimeout(() => {
+      setVerse(DailyVerseService.getRandomVerse());
       setIsLoading(false);
     }, 500);
   };
@@ -41,34 +44,37 @@ export const BibleVerseCard: React.FC<BibleVerseProps> = ({
       travail: 'info',
       confiance: 'primary',
       courage: 'warning',
-      priorités: 'secondary',
+      priorites: 'secondary',
       force: 'success',
       protection: 'info',
       soutien: 'primary',
       sagesse: 'warning',
-      réconfort: 'success',
-      présence: 'info',
+      reconfort: 'success',
+      presence: 'info',
       paix: 'primary',
       refuge: 'secondary',
       renouvellement: 'success',
       joie: 'warning',
-      bénédiction: 'success',
+      benediction: 'success',
       salut: 'primary',
-      succès: 'info',
+      succes: 'info',
       repos: 'secondary',
       providence: 'success',
-      grâce: 'primary',
-      sécurité: 'info'
-    };
-    return colors[theme as keyof typeof colors] || 'secondary';
+      grace: 'primary',
+      securite: 'info',
+    } as const;
+
+    return colors[normalizeThemeKey(theme) as keyof typeof colors] || 'secondary';
   };
 
   if (!verse) {
     return (
-      <Card className={`bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200 ${className}`}>
+      <Card
+        className={`border border-blue-200/70 bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 ${className}`}
+      >
         <div className="p-4 text-center">
-          <Book className="h-8 w-8 mx-auto mb-2 text-blue-500 animate-pulse" />
-          <p className="text-sm text-blue-600">Chargement du verset du jour...</p>
+          <Book className="mx-auto mb-2 h-8 w-8 animate-pulse text-blue-500 dark:text-blue-300" />
+          <p className="text-sm text-blue-700 dark:text-slate-300">Chargement de la parole du jour...</p>
         </div>
       </Card>
     );
@@ -76,18 +82,18 @@ export const BibleVerseCard: React.FC<BibleVerseProps> = ({
 
   if (compact) {
     return (
-      <Card className={`bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 ${className}`}>
+      <Card
+        className={`border border-blue-200/70 bg-gradient-to-r from-blue-50 via-white to-indigo-50 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 ${className}`}
+      >
         <div className="p-4">
           <div className="flex items-start space-x-3">
-            <Book className="h-5 w-5 text-blue-600 mt-1 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-700 italic leading-relaxed">
+            <Book className="mt-1 h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-300" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm italic leading-relaxed text-slate-700 dark:text-slate-200">
                 "{verse.text}"
               </p>
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-xs font-medium text-blue-700">
-                  — {verse.reference}
-                </p>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{verse.reference}</p>
                 <Badge variant={getThemeColor(verse.theme)} size="sm">
                   {verse.theme}
                 </Badge>
@@ -100,12 +106,14 @@ export const BibleVerseCard: React.FC<BibleVerseProps> = ({
   }
 
   return (
-    <Card className={`bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200 ${className}`}>
+    <Card
+      className={`border border-blue-200/70 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 ${className}`}
+    >
       <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <Book className="h-6 w-6 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Verset du Jour</h3>
+            <Book className="h-6 w-6 text-blue-600 dark:text-blue-300" />
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Verset du jour</h3>
           </div>
           <div className="flex items-center space-x-2">
             <Badge variant={getThemeColor(verse.theme)} size="sm">
@@ -117,31 +125,29 @@ export const BibleVerseCard: React.FC<BibleVerseProps> = ({
                 size="sm"
                 onClick={refreshVerse}
                 disabled={isLoading}
-                className="text-blue-600 hover:text-blue-700"
+                className="text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200"
               >
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
             )}
           </div>
         </div>
-        
-        <blockquote className="text-gray-700 italic text-lg leading-relaxed mb-4 pl-4 border-l-4 border-blue-300">
+
+        <blockquote className="mb-4 border-l-4 border-blue-300 pl-4 text-lg italic leading-relaxed text-slate-700 dark:border-blue-400/50 dark:text-slate-200">
           "{verse.text}"
         </blockquote>
-        
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-blue-700">
-            — {verse.reference}
-          </p>
-          <div className="flex items-center space-x-1 text-blue-600">
+
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium text-blue-700 dark:text-blue-300">{verse.reference}</p>
+          <div className="flex items-center space-x-1 text-blue-600 dark:text-blue-300">
             <Heart className="h-4 w-4" />
             <span className="text-xs">Parole de Dieu</span>
           </div>
         </div>
-        
-        <div className="mt-4 pt-4 border-t border-blue-200">
-          <p className="text-xs text-blue-600 text-center">
-            "Que la Parole de Christ habite parmi vous abondamment" - Colossiens 3:16
+
+        <div className="mt-4 border-t border-blue-200/80 pt-4 dark:border-slate-700">
+          <p className="text-center text-xs text-blue-700 dark:text-slate-300">
+            "Que la parole de Christ habite parmi vous abondamment" - Colossiens 3:16
           </p>
         </div>
       </div>
