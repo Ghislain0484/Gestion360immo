@@ -37,7 +37,7 @@ export const OwnerCard: React.FC<OwnerCardProps> = ({
                 <img src={owner.photo_url} alt={fullName} className="h-full w-full object-cover" />
               ) : (
                 <span className="text-2xl font-black text-primary-600 bg-clip-text">
-                  {initials}
+                  <span>{initials}</span>
                 </span>
               )}
             </div>
@@ -45,7 +45,7 @@ export const OwnerCard: React.FC<OwnerCardProps> = ({
         </div>
         <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
            <Badge variant="secondary" className="bg-white/20 backdrop-blur-md text-white border-0">
-             {owner.city}
+             <span>{owner.city}</span>
            </Badge>
         </div>
       </div>
@@ -54,10 +54,10 @@ export const OwnerCard: React.FC<OwnerCardProps> = ({
         <div className="flex justify-between items-start">
           <div className="min-w-0 pr-2">
             <h3 className="text-xl font-bold text-gray-900 leading-tight group-hover:text-primary-600 transition-colors truncate">
-              {fullName}
+              <span>{fullName}</span>
             </h3>
             <p className="text-xs font-mono text-gray-400 mt-1 uppercase tracking-wider">
-              {owner.business_id || `PROP-${owner.id.slice(0, 8)}`}
+              <span>{owner.business_id || `PROP-${owner.id.slice(0, 8)}`}</span>
             </p>
           </div>
         </div>
@@ -67,14 +67,18 @@ export const OwnerCard: React.FC<OwnerCardProps> = ({
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 group-hover:bg-primary-50 group-hover:border-primary-100 transition-colors">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Patrimoine</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-800">{stats.total}</span>
+              <span className="text-xl font-black text-slate-800"><span>{stats.total}</span></span>
               <span className="text-[10px] font-bold text-slate-400">biens</span>
+            </div>
+            <div className="flex gap-2 mt-1">
+               <span className="text-[9px] text-emerald-600 font-bold"><span>{stats.occupied}</span> Occ.</span>
+               <span className="text-[9px] text-amber-600 font-bold"><span>{stats.vacant}</span> Vac.</span>
             </div>
           </div>
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Locataires</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-800">{tenantCount}</span>
+              <span className="text-xl font-black text-slate-800"><span>{tenantCount}</span></span>
               <span className="text-[10px] font-bold text-slate-400">actifs</span>
             </div>
           </div>
@@ -86,13 +90,13 @@ export const OwnerCard: React.FC<OwnerCardProps> = ({
             <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center mr-3">
               <Phone className="h-3.5 w-3.5 text-emerald-600" />
             </div>
-            {owner.phone}
+            <span>{owner.phone}</span>
           </div>
           <div className="flex items-center text-sm text-gray-600 font-medium">
             <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center mr-3">
               <MapPin className="h-3.5 w-3.5 text-blue-600" />
             </div>
-            {owner.city}
+            <span>{owner.city}</span>
           </div>
         </div>
 
