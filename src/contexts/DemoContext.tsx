@@ -25,13 +25,26 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
            email === 'demo.proprio@gestion360immo.com';
   }, [user, owner]);
 
-  const isDemoMode = isDemoModeManual || isDemoUser;
+  // Un utilisateur REEL (non démo) ne doit JAMAIS pouvoir activer le mode démo
+  const isDemoMode = useMemo(() => {
+    // Si c'est un compte démo explicite, on est en mode démo
+    if (isDemoUser) return true;
+    
+    // Si c'est un utilisateur réel (admin, agence, proprio identifié), on BLOQUE le mode démo
+    if (user?.id || owner?.id) return false;
+
+    // Sinon (visiteur anonyme), on respecte le choix manuel (pour la page de login par ex)
+    return isDemoModeManual;
+  }, [isDemoUser, isDemoModeManual, user, owner]);
 
   useEffect(() => {
     localStorage.setItem('demo_mode', String(isDemoModeManual));
   }, [isDemoModeManual]);
 
-  const toggleDemoMode = () => setIsDemoModeManual(prev => !prev);
+  const toggleDemoMode = () => {
+    if (user?.id || owner?.id) return; // Sécurité
+    setIsDemoModeManual(prev => !prev);
+  };
 
   return (
     <DemoContext.Provider value={{ isDemoMode, isDemoUser, toggleDemoMode }}>
