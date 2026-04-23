@@ -55,47 +55,37 @@ export const OwnersList: React.FC = () => {
     { agency_id: authAgencyId || undefined, limit: 1000 }
   );
 
-  const getPropertyStats = (ownerId: string) => {
-    const ownerProperties = properties?.filter(p => p.owner_id === ownerId) || [];
-    const total = ownerProperties.length;
-    
-    // Calculate occupied by checking active contracts for each property
-    const occupied = ownerProperties.filter(p => 
-      contracts?.some(c => 
-        c.property_id === p.id && 
+  // Pre-calculate stats for all owners at once to avoid O(N^2) complexity in the render loop
+  const ownerStatsMap = useMemo(() => {
+    const statsMap = new Map();
+    if (!owners || !properties || !contracts) return statsMap;
+
+    owners.forEach(owner => {
+      const ownerProperties = properties.filter(p => p.owner_id === owner.id);
+      const total = ownerProperties.length;
+      
+      const activeContracts = contracts.filter(c => 
+        c.owner_id === owner.id && 
         c.status === 'active' && 
-        c.type === 'location'
-      )
-    ).length;
-    
-    const vacant = total - occupied;
-    return { total, occupied, vacant };
-  };
+        c.type === 'location' &&
+        !!c.tenant_id
+      );
 
-  // Returns the number of active rental contracts (= occupied properties) AND distinct tenant count
-  const getOccupancyInfo = (ownerId: string) => {
-    if (!contracts) return { contractCount: 0, tenantCount: 0 };
+      const occupied = ownerProperties.filter(p => 
+        activeContracts.some(c => c.property_id === p.id)
+      ).length;
 
-    // Filter active rental contracts for this owner (with a tenant_id)
-    const ownerContracts = contracts.filter(c =>
-      c.owner_id === ownerId &&
-      c.status === 'active' &&
-      c.type === 'location' &&
-      !!c.tenant_id
-    );
+      const tenantCount = new Set(activeContracts.map(c => c.tenant_id)).size;
 
-    // Cross-reference with properties to ensure data integrity
-    const validContracts = properties
-      ? ownerContracts.filter(c => properties.some(p => p.id === c.property_id))
-      : ownerContracts;
-
-    // Count active contracts (= occupied properties, not deduplicated by tenant)
-    const contractCount = validContracts.length;
-    // Count distinct tenants (a tenant occupying 2 properties counts as 1)
-    const tenantCount = new Set(validContracts.map(c => c.tenant_id)).size;
-
-    return { contractCount, tenantCount };
-  };
+      statsMap.set(owner.id, {
+        total,
+        occupied,
+        vacant: total - occupied,
+        tenantCount
+      });
+    });
+    return statsMap;
+  }, [owners, properties, contracts]);
 
   const debouncedSetSearchTerm = debounce((value: string) => setSearchTerm(value), 300);
 
@@ -108,14 +98,14 @@ export const OwnersList: React.FC = () => {
         owner.phone.includes(lower) ||
         owner.city.toLowerCase().includes(lower);
 
-      const { contractCount } = getOccupancyInfo(owner.id);
+      const stats = ownerStatsMap.get(owner.id) || { total: 0, occupied: 0, vacant: 0, tenantCount: 0 };
       const matchesOccupancy = filterOccupancy === 'all' ||
-        (filterOccupancy === 'active' && contractCount > 0) ||
-        (filterOccupancy === 'free' && contractCount === 0);
+        (filterOccupancy === 'active' && stats.occupied > 0) ||
+        (filterOccupancy === 'free' && stats.occupied === 0);
 
       return matchesSearch && matchesOccupancy;
     });
-  }, [owners, searchTerm, filterOccupancy, properties, contracts]);
+  }, [owners, searchTerm, filterOccupancy, ownerStatsMap]);
 
   const handleExport = () => {
     try {
@@ -320,23 +310,30 @@ export const OwnersList: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {(() => {
-                      const stats = getPropertyStats(owner.id);
-                      const { tenantCount } = getOccupancyInfo(owner.id);
+                      const stats = ownerStatsMap.get(owner.id) || { total: 0, occupied: 0, vacant: 0, tenantCount: 0 };
                       return (
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-slate-200">
                               <span>{stats.total}</span>
                             </Badge>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Biens</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Total</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="primary" className="h-5 min-w-[20px] bg-indigo-600 flex items-center justify-center">
-                              <span>{tenantCount}</span>
-                            </Badge>
-                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-tight">
-                              locataires
-                            </span>
+                          <div className="flex flex-wrap gap-2">
+                            <div className="flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                              <span className="text-[10px] font-bold text-slate-600">{stats.occupied}</span>
+                              <span className="text-[9px] text-slate-400 uppercase tracking-tighter">Occ.</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                              <span className="text-[10px] font-bold text-slate-600">{stats.vacant}</span>
+                              <span className="text-[9px] text-slate-400 uppercase tracking-tighter">Vac.</span>
+                            </div>
+                            <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
+                              <span className="text-[10px] font-bold text-indigo-600">{stats.tenantCount}</span>
+                              <span className="text-[9px] text-slate-400 uppercase tracking-tighter">Loc.</span>
+                            </div>
                           </div>
                         </div>
                       );
@@ -448,8 +445,8 @@ export const OwnersList: React.FC = () => {
             <OwnerCard
               key={owner.id}
               owner={owner}
-              stats={getPropertyStats(owner.id)}
-              tenantCount={getOccupancyInfo(owner.id).tenantCount}
+              stats={ownerStatsMap.get(owner.id) || { total: 0, occupied: 0, vacant: 0, tenantCount: 0 }}
+              tenantCount={ownerStatsMap.get(owner.id)?.tenantCount || 0}
               onNavigate={() => handleRowClick(owner)}
               onEdit={() => {
                 setSelectedOwner(owner);
