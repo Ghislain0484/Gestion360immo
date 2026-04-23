@@ -1,6 +1,7 @@
 import React from 'react';
 import { BarChart3, Building2, DollarSign, Award, Settings, Home, FileText, Users } from 'lucide-react';
 import clsx from 'clsx';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface AdminSidebarProps {
     activeTab: string;
