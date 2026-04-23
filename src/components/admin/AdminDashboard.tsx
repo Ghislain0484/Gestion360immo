@@ -54,7 +54,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="pointer-events-none absolute left-[10%] top-[30%] h-[20%] w-[20%] rounded-full bg-emerald-100/30 blur-[80px] dark:bg-emerald-500/10" />
 
       <div className="relative z-10">
-        <AdminHeader platformStats={headerStats} />
+        <AdminHeader platformStats={headerStats} onNavigate={setActiveTab} />
 
         <div className="flex">
           <AdminSidebar

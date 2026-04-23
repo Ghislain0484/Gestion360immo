@@ -24,6 +24,26 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     onTabChange,
     pendingRequestsCount = 0,
 }) => {
+    const { admin } = useAuth();
+    const permissions = (admin?.permissions as Record<string, boolean>) || {};
+    const isSuperAdmin = admin?.role === 'super_admin';
+
+    const filteredMenuItems = menuItems.filter(item => {
+        if (isSuperAdmin) return true;
+        
+        switch (item.id) {
+            case 'overview': return true;
+            case 'agencies': return permissions.agencies;
+            case 'owners': return permissions.agencies;
+            case 'subscriptions': return permissions.subscriptions;
+            case 'requests': return permissions.agencies;
+            case 'rankings': return permissions.reports;
+            case 'reports': return permissions.reports;
+            case 'settings': return permissions.settings;
+            default: return false;
+        }
+    });
+
     return (
         <aside className="w-72 bg-slate-900 border-r border-slate-800 min-h-screen sticky top-0 z-[60] flex flex-col shadow-2xl">
             {/* Sidebar Branding */}
@@ -43,7 +63,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
             {/* Navigation Section */}
             <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
-                {menuItems.map((item) => {
+                {filteredMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
                     const showBadge = item.badge && pendingRequestsCount > 0;
