@@ -26,9 +26,10 @@ interface AdminHeaderProps {
     todayRevenue: number;
     pendingRequests: number;
   };
+  onNavigate?: (tab: string) => void;
 }
 
-export const AdminHeader: React.FC<AdminHeaderProps> = ({ platformStats }) => {
+export const AdminHeader: React.FC<AdminHeaderProps> = ({ platformStats, onNavigate }) => {
   const { admin, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -252,7 +253,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ platformStats }) => {
                         <User className="h-4 w-4" />
                         Mon profil
                       </button>
-                      <button className="flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">
+                      <button
+                        onClick={() => {
+                          setShowProfile(false);
+                          if (onNavigate) onNavigate('settings');
+                        }}
+                        className="flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
                         <Settings className="h-4 w-4" />
                         Parametres
                       </button>

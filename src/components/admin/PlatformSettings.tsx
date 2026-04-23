@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { dbService } from '../../lib/supabase';
 import { PlatformSetting, AuditLog } from '../../types/db';
 import { useAuth } from '../../contexts/AuthContext';
+import { PlatformAdminManagement } from './profile/PlatformAdminManagement';
 
 interface SettingsState {
   subscription: {
@@ -41,6 +42,7 @@ interface Toast {
 export const PlatformSettings: React.FC = () => {
   const { admin, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'general' | 'admins'>('general');
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [settings, setSettings] = useState<SettingsState>({
@@ -447,22 +449,50 @@ export const PlatformSettings: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Paramètres de la Plateforme</h2>
-        <Button onClick={handleSave} disabled={loading}>
+        <Button onClick={handleSave} disabled={loading || activeTab !== 'general'}>
           Enregistrer les modifications
         </Button>
       </div>
 
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`fixed bottom-4 right-4 p-4 rounded-lg text-white ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-            }`}
+      {/* Internal Tabs */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`px-6 py-3 text-sm font-bold border-b-2 transition-all ${
+            activeTab === 'general'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
         >
-          {toast.message}
-        </div>
-      )}
+          Configuration Générale
+        </button>
+        <button
+          onClick={() => setActiveTab('admins')}
+          className={`px-6 py-3 text-sm font-bold border-b-2 transition-all ${
+            activeTab === 'admins'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Équipe d'Administration
+        </button>
+      </div>
 
-      {/* Subscription Settings */}
+      {activeTab === 'admins' ? (
+        <PlatformAdminManagement />
+      ) : (
+        <>
+          {/* Toast Notification */}
+          {toast && (
+            <div
+              className={`fixed bottom-4 right-4 p-4 rounded-lg text-white ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+                }`}
+            >
+              {toast.message}
+            </div>
+          )}
+
+          {/* Subscription Settings */}
       <Card>
         <div className="p-6">
           <div className="flex items-center mb-4">
@@ -743,6 +773,8 @@ export const PlatformSettings: React.FC = () => {
           </div>
         </div>
       </Card>
+        </>
+      )}
     </div>
   );
 };
