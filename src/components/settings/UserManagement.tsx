@@ -864,7 +864,6 @@ export const UserManagement: React.FC = () => {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 setFormData((prev) => ({ ...prev, first_name: e.target.value }))
               }
-              required
               autoComplete="given-name"
             />
             <Input
@@ -873,7 +872,6 @@ export const UserManagement: React.FC = () => {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 setFormData((prev) => ({ ...prev, last_name: e.target.value }))
               }
-              required
               autoComplete="family-name"
             />
           </div>
@@ -892,7 +890,6 @@ export const UserManagement: React.FC = () => {
               }
             }}
             onBlur={(e) => checkEmail(e.target.value)}
-            required
             autoComplete="email"
             placeholder="email@exemple.com"
             className={checkingEmail ? 'animate-pulse' : ''}
@@ -940,7 +937,6 @@ export const UserManagement: React.FC = () => {
               value={formData.role}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleRoleChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
             >
               <option value="agent">Agent</option>
               <option value="manager">Chef d'agence</option>
