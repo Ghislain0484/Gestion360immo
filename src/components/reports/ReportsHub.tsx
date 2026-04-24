@@ -19,7 +19,7 @@ import { Badge } from '../ui/Badge';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboardStats, useRealtimeData } from '../../hooks/useSupabaseData';
-import { useDemoMode } from '../../hooks/useDemoMode';
+import { useDemoMode } from '../../contexts/DemoContext';
 import { dbService, supabase } from '../../lib/supabase';
 import { Property, Contract, Owner, Tenant } from '../../types/db';
 import { MonthlyRevenueItem } from '../../types/contracts';
