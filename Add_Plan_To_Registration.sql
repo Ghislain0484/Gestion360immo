@@ -4,7 +4,7 @@ ADD COLUMN IF NOT EXISTS selected_plan TEXT,
 ADD COLUMN IF NOT EXISTS billing_cycle TEXT;
 
 -- Mise à jour de la RPC approve_agency_request pour prendre en compte ces choix
-OR REPLACE FUNCTION public.approve_agency_request(p_request_id uuid)
+CREATE OR REPLACE FUNCTION public.approve_agency_request(p_request_id uuid)
 RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -31,12 +31,11 @@ BEGIN
     v_plan := COALESCE(v_request.selected_plan, 'basic');
     v_billing_cycle := COALESCE(v_request.billing_cycle, 'monthly');
 
-    -- Calculer le prix (valeurs par défaut si non trouvé dans settings)
-    -- Dans une vraie implémentation, on lirait platform_settings ici
+    -- Calculer le prix
     v_price := CASE 
         WHEN v_plan = 'basic' THEN 25000
-        WHEN v_plan = 'premium' THEN 35000
-        WHEN v_plan = 'enterprise' THEN 50000
+        WHEN v_plan = 'premium' THEN 50000
+        WHEN v_plan = 'enterprise' THEN 100000
         ELSE 25000
     END;
 
@@ -55,11 +54,24 @@ BEGIN
         v_request.logo_url, v_request.is_accredited, v_request.accreditation_number, 'active'
     ) RETURNING id INTO v_agency_id;
 
-    -- 3. Associer le directeur à l'agence
+    -- 3. Associer le directeur à l'agence dans la table public.users
+    -- On s'assure que l'utilisateur existe (il est créé par auth.signUp lors de l'inscription)
     UPDATE public.users 
     SET agency_id = v_agency_id,
-        role = 'director'
+        role = 'director',
+        is_active = true
     WHERE id = v_request.director_auth_user_id;
+
+    -- 3bis. Ajouter également l'utilisateur dans la table agency_users
+    INSERT INTO public.agency_users (
+        agency_id,
+        user_id,
+        role
+    ) VALUES (
+        v_agency_id,
+        v_request.director_auth_user_id,
+        'admin'
+    ) ON CONFLICT (agency_id, user_id) DO NOTHING;
 
     -- 4. Créer l'abonnement (avec 60 jours d'essai offerts)
     v_next_payment_date := CURRENT_DATE + INTERVAL '60 days';
@@ -81,8 +93,8 @@ BEGIN
     RETURN json_build_object(
         'success', true, 
         'agency_id', v_agency_id,
-        'plan', v_plan,
-        'billing_cycle', v_billing_cycle
+        'user_id', v_request.director_auth_user_id,
+        'plan', v_plan
     );
 EXCEPTION WHEN OTHERS THEN
     RETURN json_build_object('success', false, 'error', SQLERRM);
