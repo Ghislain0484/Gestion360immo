@@ -171,20 +171,24 @@ export const UserManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('🔘 UserManagement: Bouton Enregistrer cliqué');
+    
     if (loading) {
-      console.log('⏳ UserManagement: handleSubmit already in progress, ignoring...');
+      console.log('⏳ UserManagement: handleSubmit déjà en cours, on ignore le clic.');
       return;
     }
 
-    console.log('🚀 UserManagement: handleSubmit triggered', {
+    console.log('🚀 UserManagement: Début du traitement', {
       isExistingUser,
       editingUser: !!editingUser,
-      email: formData.email
+      email: formData.email,
+      role: formData.role,
+      agency_id: user?.agency_id
     });
     setLoading(true);
 
     if (!user?.agency_id) {
-      console.warn('⚠️ UserManagement: No agency_id found in context');
+      console.warn('⚠️ UserManagement: Pas d\'agency_id dans le contexte');
       toast.error('Aucune agence associée. Veuillez attendre l’approbation de votre demande.');
       setLoading(false);
       return;
@@ -193,6 +197,7 @@ export const UserManagement: React.FC = () => {
     try {
       // Vérification du quota pour les nouveaux utilisateurs
       if (!editingUser && !isEnterprise && stats.users.isReached) {
+        console.warn('🚫 UserManagement: Quota atteint !', stats.users);
         setShowQuotaModal(true);
         setLoading(false);
         return;
