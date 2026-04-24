@@ -16,11 +16,11 @@ interface AdminWithProfile extends PlatformAdmin {
 }
 
 const AVAILABLE_PERMISSIONS = [
-    { id: 'agencies', name: 'Gestion des Agences', description: 'Approuver les inscriptions, voir les détails des agences' },
-    { id: 'subscriptions', name: 'Gestion des Abonnements', description: 'Modifier les tarifs, gérer les suspensions' },
-    { id: 'reports', name: 'Rapports Financiers', description: 'Accès aux statistiques de revenus et performances' },
-    { id: 'settings', name: 'Paramètres Système', description: 'Modifier les configurations globales de la plateforme' },
-    { id: 'admins', name: 'Gestion des Administrateurs', description: "Ajouter ou supprimer d'autres super-admins" },
+    { id: `agencies`, name: `Gestion des Agences`, description: `Approuver les inscriptions, voir les détails des agences` },
+    { id: `subscriptions`, name: `Gestion des Abonnements`, description: `Modifier les tarifs, gérer les suspensions` },
+    { id: `reports`, name: `Rapports Financiers`, description: `Accès aux statistiques de revenus et performances` },
+    { id: `settings`, name: `Paramètres Système`, description: `Modifier les configurations globales de la plateforme` },
+    { id: `admins`, name: `Gestion des Administrateurs`, description: `Ajouter ou supprimer d'autres super-admins` },
 ];
 
 export const PlatformAdminManagement: React.FC = () => {
