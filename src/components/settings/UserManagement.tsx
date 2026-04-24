@@ -322,7 +322,6 @@ export const UserManagement: React.FC = () => {
           .single();
         
         finalUserObj = finalUser;
-      }
 
         // 3. Liaison agence
         await dbService.agencyUsers.create({
