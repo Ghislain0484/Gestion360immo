@@ -189,6 +189,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         return;
       }
 
+      console.log("🚀 [Registration] Starting submission...");
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: directorData.email.toLowerCase(),
         password: directorData.password,
@@ -201,9 +202,12 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
           },
         },
       });
+
       if (authError || !authData.user) {
+        console.error("❌ [Registration] Auth signUp failed:", authError);
         throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur");
       }
+      console.log("✅ [Registration] Auth user created:", authData.user.id);
 
       const registrationId = uuidv4();
 
@@ -227,13 +231,16 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         created_at: new Date().toISOString(),
       };
 
+      console.log("📡 [Registration] Inserting registration request...");
       const { error: requestError } = await supabase
         .from('agency_registration_requests')
         .insert([requestData]);
 
       if (requestError) {
+        console.error("❌ [Registration] Request insertion failed:", requestError);
         throw new Error(`agency_registration_requests.insert | code=${requestError.code} | msg=${requestError.message}`);
       }
+      console.log("✅ [Registration] Request inserted successfully");
 
       await logAudit(
         'registration_request_submitted',
@@ -246,6 +253,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         registrationId
       );
 
+      console.log("🏁 [Registration] Finalizing submission...");
       await onSubmit(agencyData, directorData, registrationId);
       
       setSubmittedId(registrationId);
