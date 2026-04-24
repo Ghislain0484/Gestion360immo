@@ -296,81 +296,33 @@ export const UserManagement: React.FC = () => {
         const existsInAuthOnly = globalUser?.source === 'auth';
         console.log('📊 Global Check Result:', { userExistsGlobally, existsInAuthOnly, globalId: globalUser?.id });
 
-        // 2. Validation du mot de passe (UNIQUEMENT si nouveau compte requis)
-        if (!userExistsGlobally && (!formData.password || formData.password.length < 8)) {
-          console.error('❌ Validation failed: Password required for new account');
-          throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+        // 2. Création via RPC (Contourne les limites de vitesse Auth et valide l'email)
+        console.log('🆕 Creating user via Admin RPC...');
+        const { data: rpcResult, error: rpcErr } = await supabase.rpc('admin_create_user_v3', {
+          p_email: emailLower,
+          p_password: formData.password || 'Temporary@123', // Password par défaut si non fourni
+          p_first_name: formData.first_name,
+          p_last_name: formData.last_name,
+          p_agency_id: user.agency_id,
+          p_role: formData.role
+        });
+
+        if (rpcErr || !rpcResult.success) {
+          throw new Error(rpcErr?.message || rpcResult?.error || "Échec de la création via RPC");
         }
 
-        let targetUserId: string;
-        let isNewAccount = false;
-        let finalUserObj: any;
+        targetUserId = rpcResult.user_id;
+        isNewAccount = true;
 
-        if (userExistsGlobally && globalUser && globalUser.source !== 'auth') {
-          targetUserId = globalUser.id;
-          finalUserObj = globalUser;
-          console.log('🔗 Reusing global user ID:', targetUserId);
-
-          // Vérifier doublon agence
-          const { data: checkLink } = await supabase
-            .from('agency_users')
-            .select('user_id')
-            .eq('user_id', targetUserId)
-            .eq('agency_id', user.agency_id)
-            .maybeSingle();
-
-          if (checkLink) throw new Error('Cet utilisateur fait déjà partie de cette agence');
-        } else {
-          // Nouveau compte Auth Requis OU pontage Auth -> Public requis
-          if (existsInAuthOnly && globalUser) {
-            console.log('🔗 Pontage Auth -> Public requis pour:', globalUser.id);
-            targetUserId = globalUser.id;
-          } else {
-            isNewAccount = true;
-            console.log('🆕 Creating new Auth account...');
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-              email: emailLower,
-              password: formData.password!,
-              options: {
-                data: { first_name: formData.first_name, last_name: formData.last_name },
-                emailRedirectTo: `${window.location.origin}/login`,
-              },
-            });
-
-            if (authError || !authData.user) {
-              // Cas particulier : l'utilisateur existe déjà dans Auth mais pas dans public.users
-              if (authError?.message?.includes('already registered')) {
-                console.log('⚠️ Auth: User already registered, attempting recovery via RPC v20...');
-                const { data: recoveryData } = await supabase.rpc('get_user_by_email_v20', { p_email: emailLower });
-                if (recoveryData?.[0]) {
-                  targetUserId = recoveryData[0].id;
-                } else {
-                  throw new Error("L'utilisateur existe dans Auth mais n'a pas pu être localisé.");
-                }
-              } else {
-                throw new Error(authError?.message || "Erreur création compte Auth");
-              }
-            } else {
-              targetUserId = authData.user.id;
-            }
-          }
-
-          console.log('✅ Final Target User ID:', targetUserId);
-
-          // Créer ou Verifier dans public.users
-          const newUser = await dbService.users.create({
-            id: targetUserId,
-            email: emailLower,
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            is_active: formData.is_active,
-            permissions: formData.permissions,
-            agency_id: user.agency_id as string,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-          finalUserObj = newUser;
-        }
+        // Récupérer l'objet utilisateur final pour la mise à jour locale
+        const { data: finalUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', targetUserId)
+          .single();
+        
+        finalUserObj = finalUser;
+      }
 
         // 3. Liaison agence
         await dbService.agencyUsers.create({
