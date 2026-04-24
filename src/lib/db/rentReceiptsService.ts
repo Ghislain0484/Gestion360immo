@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 interface GetAllParams {
   agency_id?: string;
+  limit?: number;
+  offset?: number;
   [key: string]: any;
 }
 
@@ -43,6 +45,10 @@ export const rentReceiptsService = {
     }
     if (params?.contract_id) {
       query = query.eq('contract_id', params.contract_id);
+    }
+    if (params?.limit) {
+      const offset = params.offset || 0;
+      query = query.range(offset, offset + params.limit - 1);
     }
 
     const { data, error } = await query;

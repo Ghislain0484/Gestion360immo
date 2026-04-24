@@ -307,13 +307,14 @@ export function useRealtimeData<T extends AgencyEntity>(
     // Initial fetch
     fetchData(fetchParams);
 
-    // Polling-based refresh every 30 seconds (replaces broken Realtime subscription)
+    // Polling-based refresh every 5 minutes (replaces broken Realtime subscription)
+    // 30 seconds was too aggressive and caused high egress usage.
     const pollInterval = setInterval(() => {
       if (isMountedRef.current && agencyId) {
         log(`🔄 Poll ${tableName}`);
         debouncedRefetch(fetchParams);
       }
-    }, 30000);
+    }, 300000);
 
     return () => {
       isMountedRef.current = false;

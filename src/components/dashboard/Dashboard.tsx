@@ -119,6 +119,7 @@ export const Dashboard: React.FC = () => {
   );
 
   const [recentReceipts, setRecentReceipts] = useState<RentReceipt[]>([]);
+
   const [receiptsLoading, setReceiptsLoading] = useState(true);
   const [receiptsError, setReceiptsError] = useState<string | null>(null);
   const [recentModularTxs, setRecentModularTxs] = useState<ModularTransaction[]>([]);
@@ -126,7 +127,7 @@ export const Dashboard: React.FC = () => {
   const agencyId = realtimeFilters.agency_id;
 
   useEffect(() => {
-    if (!agencyId || !Array.isArray(recentContracts)) {
+    if (!agencyId) {
       setRecentReceipts([]);
       setReceiptsLoading(false);
       return;
@@ -140,7 +141,7 @@ export const Dashboard: React.FC = () => {
         setReceiptsError(null);
         
         const [receipts, modularTxs, chartData] = await Promise.all([
-          dbService.rentReceipts.getAll({ agency_id: agencyId }),
+          dbService.rentReceipts.getAll({ agency_id: agencyId, limit: 200 }),
           dbService.modular.getAgencyTransactions(
             agencyId, 
             new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString(),
@@ -170,7 +171,7 @@ export const Dashboard: React.FC = () => {
     fetchReceipts();
 
     return () => abortController.abort();
-  }, [agencyId, recentContracts]);
+  }, [agencyId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,7 +188,7 @@ export const Dashboard: React.FC = () => {
 
       try {
         const [logs, agencyUsers] = await Promise.all([
-          dbService.auditLogs.getAll(120),
+          dbService.auditLogs.getAll({ limit: 20 }),
           dbService.users.getByAgency(agencyId),
         ]);
 
@@ -223,26 +224,6 @@ export const Dashboard: React.FC = () => {
           setActivitiesError(err instanceof Error ? err.message : 'Impossible de charger les activites recentes.');
           setAgencyActivities([]);
         }
-      } finally {
-        if (!cancelled) {
-          setActivitiesLoading(false);
-        }
-      }
-    };
-
-    loadActivities();
-    const interval = setInterval(loadActivities, 60_000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [agencyId]);
-
-  useEffect(() => {
-    const errors = [statsError, contractsError, receiptsError].filter(Boolean);
-    setError(errors.length > 0 ? errors.join('; ') : null);
-  }, [statsError, contractsError, receiptsError]);
 
   const stats = useMemo(() => {
     if (!dashboardStats) return [];

@@ -231,7 +231,7 @@ export const propertiesService = {
       const { error } = await supabase.storage
         .from('property-images')
         .upload(fileName, file, {
-          cacheControl: '3600',
+          cacheControl: '604800',
           upsert: false
         });
 
