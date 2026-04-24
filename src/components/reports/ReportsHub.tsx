@@ -19,7 +19,8 @@ import { Badge } from '../ui/Badge';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboardStats, useRealtimeData } from '../../hooks/useSupabaseData';
-import { dbService } from '../../lib/supabase';
+import { useDemoMode } from '../../hooks/useDemoMode';
+import { dbService, supabase } from '../../lib/supabase';
 import { Property, Contract, Owner, Tenant } from '../../types/db';
 import { MonthlyRevenueItem } from '../../types/contracts';
 import { jsPDF } from 'jspdf';
@@ -47,11 +48,10 @@ export const ReportsHub: React.FC = () => {
   const [isAdvancedModalOpen, setIsAdvancedModalOpen] = useState(false);
 
   const { user } = useAuth();
+  const { isDemoMode } = useDemoMode();
 
   // Données réelles de l'agence
   const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
-  const { user } = useAuth();
-  const { isDemoMode } = useDemoMode();
 
   // Stats aggregées (très léger)
   const [aggregates, setAggregates] = useState<any>(null);
