@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
-import { Settings, User, Shield, Bell, Palette, Database, Users } from 'lucide-react';
-import { ProfileSettings } from './ProfileSettings';
-import { SecuritySettings } from './SecuritySettings';
-import { NotificationSettings } from './NotificationSettings';
-import { AppearanceSettings } from './AppearanceSettings';
-import { DataSettings } from './DataSettings';
-import { UserManagement } from './UserManagement';
-import { SubscriptionSettings } from './SubscriptionSettings';
+import React, { useState, Suspense, lazy } from 'react';
+import { Settings, User, Shield, Bell, Palette, Database, Users, Loader2 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useAuth } from '../../contexts/AuthContext';
 import { APP_NAME, IS_STANDALONE } from '../../lib/constants';
+
+// Lazy loading of components for better performance on slow networks
+const ProfileSettings = lazy(() => import('./ProfileSettings').then(m => ({ default: m.ProfileSettings })));
+const SecuritySettings = lazy(() => import('./SecuritySettings').then(m => ({ default: m.SecuritySettings })));
+const NotificationSettings = lazy(() => import('./NotificationSettings').then(m => ({ default: m.NotificationSettings })));
+const AppearanceSettings = lazy(() => import('./AppearanceSettings').then(m => ({ default: m.AppearanceSettings })));
+const DataSettings = lazy(() => import('./DataSettings').then(m => ({ default: m.DataSettings })));
+const UserManagement = lazy(() => import('./UserManagement').then(m => ({ default: m.UserManagement })));
+const SubscriptionSettings = lazy(() => import('./SubscriptionSettings').then(m => ({ default: m.SubscriptionSettings })));
+
+const LoadingTab = () => (
+  <Card className="p-8 flex flex-col items-center justify-center">
+    <Loader2 className="h-10 w-10 text-blue-600 animate-spin mb-4" />
+    <p className="text-gray-600">Chargement de la section...</p>
+  </Card>
+);
 
 export const SettingsHub: React.FC = () => {
   const { user } = useAuth();
@@ -66,13 +75,15 @@ export const SettingsHub: React.FC = () => {
 
         {/* Settings Content */}
         <div className="flex-1">
-          {activeTab === 'profile' && <ProfileSettings />}
-          {activeTab === 'security' && <SecuritySettings />}
-          {activeTab === 'notifications' && <NotificationSettings />}
-          {activeTab === 'appearance' && <AppearanceSettings />}
-          {activeTab === 'data' && <DataSettings />}
-          {activeTab === 'users' && <UserManagement />}
-          {activeTab === 'subscription' && <SubscriptionSettings />}
+          <Suspense fallback={<LoadingTab />}>
+            {activeTab === 'profile' && <ProfileSettings />}
+            {activeTab === 'security' && <SecuritySettings />}
+            {activeTab === 'notifications' && <NotificationSettings />}
+            {activeTab === 'appearance' && <AppearanceSettings />}
+            {activeTab === 'data' && <DataSettings />}
+            {activeTab === 'users' && <UserManagement />}
+            {activeTab === 'subscription' && <SubscriptionSettings />}
+          </Suspense>
 
           {/* Other tabs placeholder */}
           {!['profile', 'security', 'notifications', 'appearance', 'data', 'users', 'subscription'].includes(activeTab) && (
