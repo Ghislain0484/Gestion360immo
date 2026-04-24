@@ -927,7 +927,6 @@ export const UserManagement: React.FC = () => {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   setFormData((prev) => ({ ...prev, password: e.target.value }))
                 }
-                required
                 autoComplete="new-password"
               />
               <p className="text-[10px] text-gray-500 italic">
@@ -991,7 +990,11 @@ export const UserManagement: React.FC = () => {
             >
               Annuler
             </Button>
-            <Button type="submit" isLoading={loading}>
+            <Button 
+              type="submit" 
+              isLoading={loading}
+              onClick={() => console.log('🖱️ CLIC DÉTECTÉ SUR LE BOUTON ENREGISTRER')}
+            >
               {editingUser ? 'Mettre à jour' : "Créer l'utilisateur"}
             </Button>
           </div>
