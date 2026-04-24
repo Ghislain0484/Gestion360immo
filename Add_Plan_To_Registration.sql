@@ -70,7 +70,7 @@ BEGIN
     ) VALUES (
         v_agency_id,
         v_request.director_auth_user_id,
-        'admin'
+        'director'
     ) ON CONFLICT (agency_id, user_id) DO NOTHING;
 
     -- 4. Créer l'abonnement (avec 60 jours d'essai offerts)

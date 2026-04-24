@@ -302,8 +302,8 @@ export const UserManagement: React.FC = () => {
         console.log('📊 Global Check Result:', { userExistsGlobally, existsInAuthOnly, globalId: globalUser?.id });
 
         // 2. Création via RPC (Contourne les limites de vitesse Auth et valide l'email)
-        console.log('🆕 Creating user via Admin RPC...');
-        const { data: rpcResult, error: rpcErr } = await supabase.rpc('admin_create_user_v3', {
+        console.log('🆕 Creating user via Admin RPC V4...');
+        const { data: rpcResult, error: rpcErr } = await supabase.rpc('admin_create_user_v4', {
           p_email: emailLower,
           p_password: formData.password || 'Temporary@123', // Password par défaut si non fourni
           p_first_name: formData.first_name,
@@ -312,31 +312,32 @@ export const UserManagement: React.FC = () => {
           p_role: formData.role
         });
 
-        if (rpcErr || !rpcResult.success) {
+        if (rpcErr || !rpcResult?.success) {
+          console.error('❌ RPC V4 Error:', rpcErr || rpcResult?.error);
           throw new Error(rpcErr?.message || rpcResult?.error || "Échec de la création via RPC");
         }
 
-        targetUserId = rpcResult.user_id;
-        isNewAccount = true;
+        const targetUserId = rpcResult.user_id;
+        const isNewAccount = rpcResult.message && rpcResult.message.includes('Nouvel');
+        console.log('✅ User created/linked:', targetUserId);
 
         // Récupérer l'objet utilisateur final pour la mise à jour locale
-        const { data: finalUser } = await supabase
+        const { data: finalUser, error: finalUserErr } = await supabase
           .from('users')
           .select('*')
           .eq('id', targetUserId)
           .single();
         
-        finalUserObj = finalUser;
+        if (finalUserErr) {
+          console.error('❌ Error fetching final user:', finalUserErr);
+          throw new Error("Compte créé mais impossible de récupérer les informations de profil.");
+        }
 
-        // 3. Liaison agence
-        await dbService.agencyUsers.create({
-          user_id: targetUserId,
-          agency_id: user.agency_id,
-          role: formData.role,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+        const finalUserObj = finalUser;
 
+        // 3. Liaison agence (déjà faite par le RPC v4, mais on s'assure par précaution si nécessaire)
+        // Note: admin_create_user_v4 fait déjà l'insertion dans agency_users.
+        
         // Mise à jour locale de la liste
         setRealUsers((prev) => [
           {
