@@ -50,26 +50,77 @@ export const ReportsHub: React.FC = () => {
 
   // Données réelles de l'agence
   const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
-  const { data: properties, initialLoading: propertiesLoading, error: propertiesError } = useRealtimeData<Property>(
-    (params) => dbService.properties.getAll(params),
-    'properties',
-    { agency_id: user?.agency_id ?? undefined } // Handle null to satisfy TS2322
-  );
-  const { data: contracts, initialLoading: contractsLoading, error: contractsError } = useRealtimeData<Contract>(
-    (params) => dbService.contracts.getAll(params),
-    'contracts',
-    { agency_id: user?.agency_id ?? undefined } // Handle null
-  );
-  const { data: owners, initialLoading: ownersLoading, error: ownersError } = useRealtimeData<Owner>(
-    (params) => dbService.owners.getAll(params),
-    'owners',
-    { agency_id: user?.agency_id ?? undefined } // Handle null
-  );
-  const { data: tenants, initialLoading: tenantsLoading, error: tenantsError } = useRealtimeData<Tenant>(
-    (params) => dbService.tenants.getAll(params),
-    'tenants',
-    { agency_id: user?.agency_id ?? undefined } // Handle null
-  );
+  const { user } = useAuth();
+  const { isDemoMode } = useDemoMode();
+
+  // Stats aggregées (très léger)
+  const [aggregates, setAggregates] = useState<any>(null);
+  const [aggregatesLoading, setAggregatesLoading] = useState(true);
+
+  // Listes détaillées (chargées uniquement si nécessaire)
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [owners, setOwners] = useState<Owner[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [listsLoading, setListsLoading] = useState(false);
+
+  // Fetch aggregates on load
+  useEffect(() => {
+    if (user?.agency_id) {
+      setAggregatesLoading(true);
+      supabase.rpc('get_reports_aggregates', { p_agency_id: user.agency_id })
+        .then(({ data, error }) => {
+          if (error) throw error;
+          setAggregates(data);
+        })
+        .catch(err => {
+          console.error('Error fetching aggregates:', err);
+          // Fallback simple si RPC non encore appliqué
+          setAggregates({
+            property_types: {},
+            property_status: { vacant: 0, occupied: 0 },
+            client_counts: { owners: 0, tenants: 0 },
+            contract_types: {}
+          });
+        })
+        .finally(() => setAggregatesLoading(false));
+    }
+  }, [user?.agency_id]);
+
+  // Fetch detailed lists ONLY when specific tabs are selected
+  useEffect(() => {
+    const fetchLists = async () => {
+      if (!user?.agency_id || selectedReport === 'overview') return;
+      
+      setListsLoading(true);
+      try {
+        if (selectedReport === 'properties') {
+          const [p, c] = await Promise.all([
+            dbService.properties.getAll({ agency_id: user.agency_id, limit: 1000 }),
+            dbService.contracts.getAll({ agency_id: user.agency_id, limit: 1000 })
+          ]);
+          setProperties(p);
+          setContracts(c);
+        } else if (selectedReport === 'clients') {
+          const [o, t] = await Promise.all([
+            dbService.owners.getAll({ agency_id: user.agency_id, limit: 1000 }),
+            dbService.tenants.getAll({ agency_id: user.agency_id, limit: 1000 })
+          ]);
+          setOwners(o);
+          setTenants(t);
+        } else if (selectedReport === 'financial') {
+           const c = await dbService.contracts.getAll({ agency_id: user.agency_id, limit: 1000 });
+           setContracts(c);
+        }
+      } catch (err) {
+        console.error('Error fetching detailed lists:', err);
+      } finally {
+        setListsLoading(false);
+      }
+    };
+
+    fetchLists();
+  }, [user?.agency_id, selectedReport]);
 
   // Fetch monthly revenue
   useEffect(() => {
@@ -78,36 +129,26 @@ export const ReportsHub: React.FC = () => {
         .then(setMonthlyRevenue)
         .catch(err => {
           console.error('Erreur chargement revenu mensuel:', err);
-          toast.error('Erreur lors du chargement des revenus mensuels');
         });
     }
   }, [user?.agency_id]);
 
-  // Handle errors
-  useEffect(() => {
-    if (statsError) toast.error(statsError);
-    if (propertiesError) toast.error(propertiesError);
-    if (contractsError) toast.error(contractsError);
-    if (ownersError) toast.error(ownersError);
-    if (tenantsError) toast.error(tenantsError);
-  }, [statsError, propertiesError, contractsError, ownersError, tenantsError]);
-
-  // Calculs basés sur les vraies données
-  const reportData = dashboardStats ? {
+  // Calculs basés sur les agrégats ou les données réelles
+  const reportData = dashboardStats && aggregates ? {
     overview: {
       totalRevenue: dashboardStats.monthlyRevenue,
       expectedRevenue: dashboardStats.expectedRevenue || 0,
       remainingRevenue: dashboardStats.remainingRevenue || 0,
       totalCommissions: monthlyRevenue.length > 0 ? monthlyRevenue[monthlyRevenue.length - 1].commissions : 0,
       activeContracts: dashboardStats.activeContracts,
-      newClients: (owners?.length || 0) + (tenants?.length || 0),
+      newClients: (aggregates.client_counts?.owners || 0) + (aggregates.client_counts?.tenants || 0),
       occupancyRate: dashboardStats.occupancyRate,
     },
     properties: {
-      totalProperties: properties?.length || 0,
-      availableProperties: properties?.filter(p => p.is_available).length || 0,
-      rentedProperties: properties?.filter(p => !p.is_available).length || 0,
-      soldProperties: contracts?.filter(c => c.type === 'vente').length || 0,
+      totalProperties: dashboardStats.totalProperties,
+      availableProperties: aggregates.property_status?.vacant || 0,
+      rentedProperties: aggregates.property_status?.occupied || 0,
+      soldProperties: aggregates.contract_types?.vente || 0,
     },
     financial: {
       monthlyRevenue: monthlyRevenue.length > 0 ? monthlyRevenue : [
@@ -222,7 +263,7 @@ export const ReportsHub: React.FC = () => {
     { id: 'clients', name: 'Clients', icon: Users },
   ];
 
-  const isLoading = statsLoading || propertiesLoading || contractsLoading || ownersLoading || tenantsLoading;
+  const isLoading = statsLoading || aggregatesLoading || (selectedReport !== 'overview' && listsLoading);
 
   // Calcul du taux de collecte (contrats avec au moins un paiement)
   const collectionRate = contracts && contracts.length > 0
