@@ -23,7 +23,7 @@ import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { BibleVerseCard } from '../ui/BibleVerse';
 import { useDashboardStats, useRealtimeData, mapSupabaseError } from '../../hooks/useSupabaseData';
-import { dbService } from '../../lib/supabase';
+import { dbService, supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Contract, RentReceipt, User, Property } from '../../types/db';
 import { PropertyMapCard } from './PropertyMapCard';
@@ -119,7 +119,6 @@ export const Dashboard: React.FC = () => {
   );
 
   const [recentReceipts, setRecentReceipts] = useState<RentReceipt[]>([]);
-
   const [receiptsLoading, setReceiptsLoading] = useState(true);
   const [receiptsError, setReceiptsError] = useState<string | null>(null);
   const [recentModularTxs, setRecentModularTxs] = useState<ModularTransaction[]>([]);
@@ -224,6 +223,26 @@ export const Dashboard: React.FC = () => {
           setActivitiesError(err instanceof Error ? err.message : 'Impossible de charger les activites recentes.');
           setAgencyActivities([]);
         }
+      } finally {
+        if (!cancelled) {
+          setActivitiesLoading(false);
+        }
+      }
+    };
+
+    loadActivities();
+    const interval = setInterval(loadActivities, 300_000); // 5 minutes
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [agencyId]);
+
+  useEffect(() => {
+    const errors = [statsError, contractsError, receiptsError].filter(Boolean);
+    setError(errors.length > 0 ? errors.join('; ') : null);
+  }, [statsError, contractsError, receiptsError]);
 
   const stats = useMemo(() => {
     if (!dashboardStats) return [];
@@ -262,6 +281,7 @@ export const Dashboard: React.FC = () => {
       },
     ];
   }, [dashboardStats]);
+
   const formatCurrency = useCallback(
     (amount: number | null | undefined) =>
       new Intl.NumberFormat('fr-FR', {
@@ -271,10 +291,6 @@ export const Dashboard: React.FC = () => {
       }).format(amount ?? 0),
     []
   );
-
-
-
-  // ... (inside Dashboard component)
 
   const upcomingRentals = useMemo((): DashboardRental[] => {
     if (!Array.isArray(recentContracts)) return [];
@@ -340,24 +356,14 @@ export const Dashboard: React.FC = () => {
 
         let nextDue = createDueDate(baseYear, baseMonth, dueDay, offset);
 
-        // If first payment, we don't skip to today. We want the ACTUAL first due date (entry date).
-        // If it's in the past and they haven't paid, it's OVERDUE.
         if (!isFirstPayment) {
           while (nextDue < startOfToday) {
             offset += 1;
             nextDue = createDueDate(baseYear, baseMonth, dueDay, offset);
           }
-        } else {
-          // For first payment, 'nextDue' is simply start_date (calculated above with offset 0).
-          // We don't fast-forward because "Date d'entrée" is the anchor.
         }
 
         const diffInDays = Math.ceil((nextDue.getTime() - startOfToday.getTime()) / msInDay);
-
-        // Logic: 
-        // Overdue: diff < 0
-        // Warning (5 days before): 0 <= diff <= 5
-        // Upcoming: diff > 5 (we filter these out usually, user said "signaler 5 jours avant")
 
         if (diffInDays > 5) {
           return null; // Too far in future
@@ -425,7 +431,6 @@ export const Dashboard: React.FC = () => {
       }
     });
 
-    // Add modular transactions
     recentModularTxs.forEach((tx) => {
       if (tx.type !== 'income' && tx.type !== 'credit') return;
 
@@ -455,7 +460,7 @@ export const Dashboard: React.FC = () => {
       case 'success':
         return <Badge variant="success">Terminé</Badge>;
       case 'warning':
-        return <Badge variant="warning">5 Jours</Badge>; // Alert explicit
+        return <Badge variant="warning">5 Jours</Badge>; 
       case 'info':
         return <Badge variant="info">Nouveau</Badge>;
       case 'overdue':
@@ -466,7 +471,6 @@ export const Dashboard: React.FC = () => {
         return <Badge variant="secondary">Inconnu</Badge>;
     }
   };
-
 
   const getTimeAgo = (dateString: string) => {
     try {
@@ -590,7 +594,7 @@ export const Dashboard: React.FC = () => {
         label: 'Contrats actifs',
         value: (dashboardStats.activeContracts || dashboardStats.totalContracts || 0).toLocaleString('fr-FR'),
         accent: 'bg-indigo-100/70 text-indigo-600',
-      icon: FileText,
+        icon: FileText,
       },
     ];
   }, [dashboardStats]);
@@ -615,7 +619,6 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="relative min-h-screen">
-      {/* Decorative ambient blobs */}
       <div
         className="pointer-events-none absolute -top-24 right-12 h-96 w-96 rounded-full bg-primary-500/10 blur-[120px] animate-pulse"
         aria-hidden="true"
@@ -757,7 +760,6 @@ export const Dashboard: React.FC = () => {
           </div>
         </section>
 
-        {/* Map Card */}
         <PropertyMapCard
           properties={dashboardProperties ?? []}
           contracts={recentContracts ?? []}
@@ -1188,7 +1190,6 @@ export const Dashboard: React.FC = () => {
           </div>
         </Modal>
 
-        {/* Modal Détails du Paiement */}
         <Modal
           isOpen={showPaymentDetails}
           onClose={() => {
@@ -1295,11 +1296,3 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
-
-
-
-
-
-
-
-
