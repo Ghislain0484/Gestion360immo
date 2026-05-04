@@ -20,10 +20,12 @@ import { OwnerCard } from './OwnerCard';
 import { exportToExcel, formatOwnersForExport } from '../../utils/exportUtils';
 
 import { OwnerPaymentModal } from '../owner-portal/OwnerPaymentModal';
+import { useCanDelete } from '../../hooks/useCanDelete';
 
 export const OwnersList: React.FC = () => {
   const navigate = useNavigate();
   const { agencyId: authAgencyId, user, refreshAuth } = useAuth();
+  const canDelete = useCanDelete();
   const [showForm, setShowForm] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
@@ -396,27 +398,29 @@ export const OwnersList: React.FC = () => {
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
-                            const toastId = toast.loading('Suppression en cours...');
-                            try {
-                              await dbService.owners.safeDelete(owner.id, user?.agency_id || undefined);
-                              refetch();
-                              toast.success('Propriétaire supprimé avec succès', { id: toastId });
-                            } catch (err: any) {
-                              console.error(err);
-                              toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
+                              const toastId = toast.loading('Suppression en cours...');
+                              try {
+                                await dbService.owners.safeDelete(owner.id, user?.agency_id || undefined);
+                                refetch();
+                                toast.success('Propriétaire supprimé avec succès', { id: toastId });
+                              } catch (err: any) {
+                                console.error(err);
+                                toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+                              }
                             }
-                          }
-                        }}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                          }}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                       {owner.subscription_status !== 'active' && (
                         <Button
                           variant="ghost"
@@ -452,7 +456,7 @@ export const OwnersList: React.FC = () => {
                 setSelectedOwner(owner);
                 setShowForm(true);
               }}
-              onDelete={async () => {
+              onDelete={canDelete ? async () => {
                 if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
                   const toastId = toast.loading('Suppression en cours...');
                   try {
@@ -464,7 +468,7 @@ export const OwnersList: React.FC = () => {
                     toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
                   }
                 }
-              }}
+              } : undefined}
             />
           ))}
         </div>

@@ -19,6 +19,7 @@ export interface AgencyInfo {
   enabled_modules?: string[];
   status?: string;
   subscription_status?: string;
+  settings?: any;
 }
 
 export interface AuthUser extends User {
@@ -97,7 +98,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
     if (agencyIds.length > 0) {
       const { data: agenciesData, error: agenciesError } = await supabase
         .from('agencies')
-        .select('id, name, city, logo_url, enabled_modules, status, subscription_status')
+        .select('id, name, city, logo_url, enabled_modules, status, subscription_status, settings')
         .in('id', agencyIds);
 
       if (!agenciesError && agenciesData) {
@@ -114,6 +115,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
               enabled_modules: agencyDetails.enabled_modules || [],
               status: agencyDetails.status,
               subscription_status: agencyDetails.subscription_status,
+              settings: agencyDetails.settings,
             };
           })
           .filter(Boolean) as AgencyInfo[];
@@ -149,7 +151,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
         console.warn('⚠️ AuthContext: agency_users vide, tentative via agencies.director_id...');
         const { data: directorAgencies, error: directorError } = await supabase
           .from('agencies')
-          .select('id, name, city, logo_url, enabled_modules, status, subscription_status')
+          .select('id, name, city, logo_url, enabled_modules, status, subscription_status, settings')
           .eq('director_id', userId)
           .eq('status', 'approved');
 
@@ -163,6 +165,7 @@ const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => 
             enabled_modules: a.enabled_modules || [],
             status: a.status,
             subscription_status: a.subscription_status,
+            settings: a.settings,
           }));
           console.log('✅ AuthContext: Agences trouvées via director_id:', agenciesInfo.length);
 

@@ -126,18 +126,8 @@ export const contractsService = {
     if (error) throw new Error(formatSbError('❌ contracts.deleteAllByAgency', error));
   },
   async findOne(id: string): Promise<Contract | null> {
-    if (id.startsWith('demo-')) {
-      const { MOCK_CONTRACTS, MOCK_PROPERTIES, MOCK_TENANTS, MOCK_OWNERS } = await import('../mockData');
-      const contract = MOCK_CONTRACTS.find(c => c.id === id);
-      if (!contract) return null;
-      
-      return {
-        ...contract,
-        property: MOCK_PROPERTIES.find(p => p.id === contract.property_id),
-        tenant: MOCK_TENANTS.find(t => t.id === contract.tenant_id),
-        owner: MOCK_OWNERS.find(o => o.id === contract.owner_id)
-      } as any;
-    }
+    // We removed the id.startsWith('demo-') check to ensure real accounts never see mock data
+    // Even if someone manually navigates to a demo URL.
 
     const { data, error } = await supabase
       .from('contracts')

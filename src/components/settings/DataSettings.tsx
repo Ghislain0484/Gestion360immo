@@ -5,6 +5,7 @@ import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService } from '../../lib/supabase';
+import { toast } from 'react-hot-toast';
 
 interface AgencyData {
   properties: number;
@@ -17,9 +18,14 @@ interface AgencyData {
 }
 
 export const DataSettings: React.FC = () => {
-  const { user } = useAuth();
+  const { user, agencyId, refreshAuth } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
+  // Extraire les settings de l'agence active depuis le contexte
+  const activeAgency = user?.agencies?.find(a => a.agency_id === agencyId);
+  const [allowDataDeletion, setAllowDataDeletion] = useState(activeAgency?.settings?.allow_data_deletion === true);
   const [agencyData, setAgencyData] = useState<AgencyData>({
     properties: 0,
     owners: 0,
@@ -112,6 +118,33 @@ export const DataSettings: React.FC = () => {
     }
   };
 
+  const handleToggleDataDeletion = async () => {
+    if (!agencyId) return;
+    
+    const newValue = !allowDataDeletion;
+    setSettingsLoading(true);
+    try {
+      // Pour l'agence de démo, on simule la mise à jour
+      if (agencyId === '00000000-0000-0000-0000-000000000000') {
+        // Enregistrer temporairement dans localStorage si besoin
+        localStorage.setItem('demo_agency_allow_delete', String(newValue));
+      } else {
+        const currentSettings = activeAgency?.settings || {};
+        await dbService.agencies.update(agencyId, { 
+          settings: { ...currentSettings, allow_data_deletion: newValue } 
+        });
+      }
+      setAllowDataDeletion(newValue);
+      toast.success(newValue ? 'Suppression activée' : 'Suppression désactivée');
+      await refreshAuth(); // Mettre à jour le contexte avec la nouvelle valeur
+    } catch (error) {
+      toast.error('Erreur lors de la sauvegarde');
+      console.error(error);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Aperçu des données */}
@@ -163,6 +196,35 @@ export const DataSettings: React.FC = () => {
           </div>
 
           <div className="space-y-4">
+            {/* Nouveau: Switch de sécurité global */}
+            <div className="flex items-center justify-between p-4 border border-orange-200 dark:border-orange-800 rounded-lg bg-orange-50 dark:bg-orange-900/20 mb-4">
+              <div>
+                <h4 className="font-medium text-orange-900 dark:text-orange-300">Master Switch : Autoriser les suppressions</h4>
+                <p className="text-sm text-orange-700 dark:text-orange-400">
+                  Débloque les boutons "Supprimer" dans l'application pour le Directeur et le Chef d'agence.
+                </p>
+              </div>
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={handleToggleDataDeletion}
+                  disabled={settingsLoading}
+                  className={`${
+                    allowDataDeletion ? 'bg-orange-600' : 'bg-gray-200 dark:bg-gray-700'
+                  } relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-600 focus:ring-offset-2 ${settingsLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  role="switch"
+                  aria-checked={allowDataDeletion}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`${
+                      allowDataDeletion ? 'translate-x-5' : 'translate-x-0'
+                    } pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+                  />
+                </button>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20">
               <div>
                 <h4 className="font-medium text-red-900 dark:text-red-300">Zone de danger</h4>

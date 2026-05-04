@@ -8,6 +8,7 @@ import { useDemoMode } from '../../contexts/DemoContext';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
+import { useCanDelete } from '../../hooks/useCanDelete';
 import { Tabs } from '../ui/Tabs';
 import { FilterBar } from '../shared/FilterBar';
 import { NewTransactionModal } from './NewTransactionModal';
@@ -46,6 +47,7 @@ export const CaissePage: React.FC = () => {
 
     const [activeTab, setActiveTab] = useState('journal');
     const [owners, setOwners] = useState<Owner[]>([]);
+    const canDelete = useCanDelete();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
 
     // Owner Balance Component
@@ -857,23 +859,25 @@ export const CaissePage: React.FC = () => {
                                                         <button title="Imprimer" onClick={() => handleDownloadReceiptFromTransaction(t, true)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors">
                                                             <Printer className="w-4 h-4" />
                                                         </button>
-                                                        {(user?.role === 'director' || user?.role === 'manager') && (
+                                                        {(user?.role === 'director' || user?.role === 'manager' || user?.role === 'agency_manager') && (
                                                             <>
                                                                 {t.source === 'modular_transaction' && (
                                                                     <button title="Modifier" onClick={() => handleEditTransaction(t)} className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 transition-colors">
                                                                         <Edit className="w-4 h-4" />
                                                                     </button>
                                                                 )}
-                                                                <button 
-                                                                    title="Supprimer" 
-                                                                    onClick={() => {
-                                                                        setTransactionToDelete(t);
-                                                                        setShowDeleteModal(true);
-                                                                    }} 
-                                                                    className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
+                                                                {canDelete && (
+                                                                    <button 
+                                                                        title="Supprimer" 
+                                                                        onClick={() => {
+                                                                            setTransactionToDelete(t);
+                                                                            setShowDeleteModal(true);
+                                                                        }} 
+                                                                        className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
                                                             </>
                                                         )}
                                                     </div>

@@ -187,9 +187,11 @@ export const dbService = {
 
       // 1. Fetch Receipts with date filter
       // 2. Fetch Modular Transactions with same date range
+      // 3. Fetch Contracts to compute expected revenue historically
       const [
         { data: receipts, error: rpcError },
-        modularTransactions
+        modularTransactions,
+        { data: allContracts }
       ] = await Promise.all([
         supabase.rpc('get_rent_receipts_by_agency', {
           p_agency_id: agencyId,
@@ -200,7 +202,8 @@ export const dbService = {
           agencyId,
           startDate.toISOString(),
           endDate.toISOString()
-        )
+        ),
+        supabase.from('contracts').select('id, type, start_date, end_date, monthly_rent, status').eq('agency_id', agencyId)
       ]);
 
       if (rpcError) throw new Error(formatSbError('❌ rent_receipts.rpc', rpcError));
@@ -241,10 +244,34 @@ export const dbService = {
           return isFee ? sum + Number(tx.amount || 0) : sum;
         }, 0);
         
+        // Compute expected revenue
+        const monthStart = new Date(y, m - 1, 1);
+        const monthEnd = new Date(y, m, 0);
+        let expectedRev = 0;
+        
+        if (Array.isArray(allContracts)) {
+          expectedRev = allContracts.reduce((sum, c) => {
+            if (c.type !== 'location' || !c.monthly_rent) return sum;
+            const start = new Date(c.start_date);
+            const end = c.end_date ? new Date(c.end_date) : null;
+            if (start <= monthEnd && (!end || end >= monthStart)) {
+                if (c.status !== 'draft' && c.status !== 'cancelled') {
+                    return sum + c.monthly_rent;
+                }
+            }
+            return sum;
+          }, 0);
+        }
+
+        const totalRev = rentRev + modularRev;
+        const collectionRate = expectedRev > 0 ? Math.round((totalRev / expectedRev) * 100) : 0;
+
         result.push({
           month: monthNames[d.getMonth()],
-          revenue: rentRev + modularRev,
+          revenue: totalRev,
           commissions: rentComms + modularComms,
+          expectedRevenue: expectedRev,
+          collectionRate: collectionRate
         });
       }
 

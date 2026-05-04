@@ -59,6 +59,8 @@ export const rentReceiptsService = {
   },
   async findOne(id: string): Promise<RentReceipt | null> {
     if (id.startsWith('demo-')) {
+      // Note: We keep this for now because findOne doesn't always have agencyId passed.
+      // But we should probably change it to take agencyId as well.
       const { MOCK_RECEIPTS, MOCK_PROPERTIES, MOCK_TENANTS } = await import('../mockData');
       const receipt = MOCK_RECEIPTS.find(r => r.id === id);
       if (!receipt) return null;

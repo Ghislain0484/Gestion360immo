@@ -30,12 +30,13 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Si c'est un compte démo explicite, on est en mode démo
     if (isDemoUser) return true;
     
-    // Si c'est un utilisateur réel (admin, agence, proprio identifié), on BLOQUE le mode démo
+    // Si c'est un utilisateur réel (admin, agence, proprio identifié), on BLOQUE ABSOLUMENT le mode démo
     if (user?.id || owner?.id) return false;
 
-    // Sinon (visiteur anonyme), on respecte le choix manuel (pour la page de login par ex)
+    // Pour un visiteur anonyme, on respecte le choix manuel (ex: page de login)
+    // Mais on s'assure qu'en cas de doute, on ne montre pas de mocks par défaut
     return isDemoModeManual;
-  }, [isDemoUser, isDemoModeManual, user, owner]);
+  }, [isDemoUser, isDemoModeManual, user?.id, owner?.id]);
 
   useEffect(() => {
     localStorage.setItem('demo_mode', String(isDemoModeManual));

@@ -13,7 +13,7 @@ interface GetAllParams {
 
 export const ownersService = {
   async findOne(id: string, agencyId?: string): Promise<Owner | null> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+    if (agencyId === '00000000-0000-0000-0000-000000000000') {
       const { MOCK_OWNERS } = await import('../mockData');
       return MOCK_OWNERS.find(o => o.id === id) || null;
     }
@@ -73,7 +73,7 @@ export const ownersService = {
     return data ?? [];
   },
   async getById(id: string, agencyId?: string): Promise<Owner> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+    if (agencyId === '00000000-0000-0000-0000-000000000000') {
       const { MOCK_OWNERS } = await import('../mockData');
       const owner = MOCK_OWNERS.find(o => o.id === id);
       if (owner) return owner;
@@ -93,7 +93,7 @@ export const ownersService = {
     return data;
   },
   async getBySlugId(id: string, agencyId?: string): Promise<Owner | null> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+    if (agencyId === '00000000-0000-0000-0000-000000000000') {
       const { MOCK_OWNERS } = await import('../mockData');
       return MOCK_OWNERS.find(o => o.id === id || o.business_id === id) || null;
     }

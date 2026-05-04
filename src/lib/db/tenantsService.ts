@@ -77,7 +77,7 @@ export const tenantsService = {
         return true;
     },
     async findOne(id: string, agencyId?: string): Promise<Tenant | null> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-tenant-')) {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
             const { MOCK_TENANTS } = await import('../mockData');
             return MOCK_TENANTS.find(t => t.id === id) || null;
         }
@@ -98,7 +98,7 @@ export const tenantsService = {
         return data;
     },
     async getBySlugId(id: string, agencyId?: string): Promise<Tenant | null> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-tenant-')) {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
             const { MOCK_TENANTS } = await import('../mockData');
             return MOCK_TENANTS.find(t => t.id === id) || null;
         }

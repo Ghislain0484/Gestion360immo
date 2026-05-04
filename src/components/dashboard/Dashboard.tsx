@@ -187,7 +187,7 @@ export const Dashboard: React.FC = () => {
 
       try {
         const [logs, agencyUsers] = await Promise.all([
-          dbService.auditLogs.getAll({ limit: 20 }),
+          dbService.auditLogs.getAll({ agency_id: agencyId, limit: 20 }),
           dbService.users.getByAgency(agencyId),
         ]);
 

@@ -215,7 +215,7 @@ export const financialStatementsService = {
 
     // Specific methods for property and transaction cleanup
     async getTransactionsByProperty(propertyId: string, agencyId?: string): Promise<{ data: any[] | null; error: any }> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000' || propertyId.startsWith('demo-')) {
+        if (agencyId === '00000000-0000-0000-0000-000000000000') {
             const { MOCK_TRANSACTIONS } = await import('../mockData');
             const filtered = MOCK_TRANSACTIONS.filter(tx => tx.related_id === propertyId || (tx as any).property_id === propertyId);
             return { data: filtered, error: null };

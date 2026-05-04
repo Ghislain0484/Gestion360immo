@@ -183,6 +183,7 @@ export type Database = {
           logo_url: string | null
           name: string
           phone: string
+          settings: Json | null
           status: string
           updated_at: string | null
         }
@@ -199,6 +200,7 @@ export type Database = {
           logo_url?: string | null
           name: string
           phone: string
+          settings?: Json | null
           status?: string
           updated_at?: string | null
         }
@@ -215,6 +217,7 @@ export type Database = {
           logo_url?: string | null
           name?: string
           phone?: string
+          settings?: Json | null
           status?: string
           updated_at?: string | null
         }

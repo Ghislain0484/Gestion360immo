@@ -101,6 +101,8 @@ export interface MonthlyRevenueItem {
   month: string;  // Ex. 'Sep'
   revenue: number;
   commissions: number;
+  expectedRevenue?: number;
+  collectionRate?: number;
 }
 
 // Met à jour DashboardStats si needed

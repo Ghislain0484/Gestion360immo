@@ -120,7 +120,7 @@ export const propertiesService = {
     return true;
   },
   async findOne(id: string, agencyId?: string): Promise<Property | null> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+    if (agencyId === '00000000-0000-0000-0000-000000000000') {
       const { MOCK_PROPERTIES } = await import('../mockData');
       return MOCK_PROPERTIES.find(p => p.id === id) || null;
     }
@@ -162,7 +162,7 @@ export const propertiesService = {
     return { data: data ?? [], error: null };
   },
   async getById(id: string, agencyId?: string): Promise<Property> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+    if (agencyId === '00000000-0000-0000-0000-000000000000') {
       const { MOCK_PROPERTIES, MOCK_CONTRACTS, MOCK_TENANTS } = await import('../mockData');
       const property = MOCK_PROPERTIES.find(p => p.id === id);
       if (property) {
@@ -190,7 +190,7 @@ export const propertiesService = {
   },
 
   async getBySlugId(id: string, agencyId?: string): Promise<Property | null> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000' || id.startsWith('demo-')) {
+    if (agencyId === '00000000-0000-0000-0000-000000000000') {
       const { MOCK_PROPERTIES } = await import('../mockData');
       return MOCK_PROPERTIES.find(p => p.id === id || p.business_id === id) || null;
     }

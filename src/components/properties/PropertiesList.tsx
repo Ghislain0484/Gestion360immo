@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { ViewToggle } from '../shared/ViewToggle';
 import { exportToExcel } from '../../utils/exportUtils';
+import { useCanDelete } from '../../hooks/useCanDelete';
 
 export const PropertiesList: React.FC = () => {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export const PropertiesList: React.FC = () => {
   const isDirector = user?.role === 'director';
   const isManager = user?.role === 'manager';
   const isDirectorOrManager = isDirector || isManager;
+  const canDelete = useCanDelete();
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -447,7 +449,7 @@ export const PropertiesList: React.FC = () => {
                 property={property}
                 {...getRentalInfo(property.id)}
                 onClick={() => handlePropertyClick(property)}
-                onDelete={isDirectorOrManager ? () => handleDeleteProperty(property) : undefined}
+                onDelete={canDelete ? () => handleDeleteProperty(property) : undefined}
               />
             ))
           ) : (
@@ -504,7 +506,7 @@ export const PropertiesList: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
                             <button onClick={() => handlePropertyClick(property)} className="text-blue-600 hover:text-blue-900" title="Voir"><Eye className="h-4 w-4" /></button>
-                            {isDirectorOrManager && (
+                            {canDelete && (
                               <button onClick={() => handleDeleteProperty(property)} className="text-red-600 hover:text-red-900" title="Supprimer"><Trash2 className="h-4 w-4" /></button>
                             )}
                           </div>

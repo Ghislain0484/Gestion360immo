@@ -4,25 +4,24 @@ import { formatSbError } from '../helpers';
 import { AuditLog } from "../../types/db";
 
 export const auditLogsService = {
-    async getAll({ table_name, record_id, limit = 50 }: { 
+    async getAll({ table_name, record_id, agency_id, limit = 50 }: { 
         table_name?: string; 
         record_id?: string; 
+        agency_id?: string;
         limit?: number;
     } = {}): Promise<AuditLog[]> {
-        // Simple Demo Guard: if no explicit record_id or specifically for demo
-        // Since audit logs don't always have agency_id, we just return mock logs if we're feeling "demo-y"
-        // Actually, we can check a global state or just ignore for now if not critical.
-        // But let's add it for completeness if we can detect the agency.
-        // For now, let's just return [] to avoid errors, or mock data if we want.
-        
+        // Enforce agency filtering if provided, or return empty if we want to be strict
         let query = supabase
             .from('audit_logs')
             .select('*')
             .order('created_at', { ascending: false });
         
+        if (agency_id) query = query.eq('agency_id', agency_id);
         if (table_name) query = query.eq('table_name', table_name);
         if (record_id) query = query.eq('record_id', record_id);
-        // Note: audit_logs doesn't have agency_id in current schema, we might need it or rely on record_id
+        
+        // Safety: if no agency_id and not an admin, we might want to return nothing
+        // but for now let's just use what's passed.
         
         if (limit > 0) {
             query = query.limit(limit);

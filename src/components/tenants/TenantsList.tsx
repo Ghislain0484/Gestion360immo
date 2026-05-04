@@ -21,6 +21,7 @@ import { clsx } from 'clsx';
 import { ViewToggle } from '../shared/ViewToggle';
 import { TenantCard } from './TenantCard';
 import { exportToExcel, formatTenantsForExport } from '../../utils/exportUtils';
+import { useCanDelete } from '../../hooks/useCanDelete';
 
 const PAGE_SIZE = 100;
 
@@ -39,6 +40,7 @@ const getAvatarColor = (name: string) => avatarColors[name.charCodeAt(0) % avata
 
 export const TenantsList: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
+  const canDelete = useCanDelete();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [showReceiptGenerator, setShowReceiptGenerator] = useState(false);
@@ -286,7 +288,9 @@ export const TenantsList: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
                           <button onClick={() => handleEditClick(tenant)} className="text-indigo-600 hover:text-indigo-900"><Edit className="h-4 w-4" /></button>
-                          <button onClick={() => handleDeleteTenant(tenant.id)} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button>
+                          {canDelete && (
+                            <button onClick={() => handleDeleteTenant(tenant.id)} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button>
+                          )}
                         </div>
                       </td>
                     </tr>

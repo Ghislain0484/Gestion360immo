@@ -265,9 +265,9 @@ export const ReportsHub: React.FC = () => {
 
   const isLoading = statsLoading || aggregatesLoading || (selectedReport !== 'overview' && listsLoading);
 
-  // Calcul du taux de collecte (contrats avec au moins un paiement)
-  const collectionRate = contracts && contracts.length > 0
-    ? Math.round((contracts.filter(c => c.status === 'active').length / contracts.length) * 100)
+  // Calcul du taux de collecte
+  const collectionRate = reportData && reportData.overview.expectedRevenue > 0
+    ? Math.round((reportData.overview.totalRevenue / reportData.overview.expectedRevenue) * 100)
     : 0;
 
   // avgRooms non calculable car PropertyDetails ne contient pas rooms
@@ -696,6 +696,8 @@ export const ReportsHub: React.FC = () => {
                         <tr className="border-b border-gray-200">
                           <th className="text-left py-3 px-4 font-semibold text-gray-600">Mois</th>
                           <th className="text-right py-3 px-4 font-semibold text-gray-600">Revenus</th>
+                          <th className="text-right py-3 px-4 font-semibold text-gray-600">Attendu</th>
+                          <th className="text-right py-3 px-4 font-semibold text-gray-600">Taux</th>
                           <th className="text-right py-3 px-4 font-semibold text-gray-600">Commissions</th>
                           <th className="text-right py-3 px-4 font-semibold text-gray-600">Net propriétaires</th>
                         </tr>
@@ -705,12 +707,18 @@ export const ReportsHub: React.FC = () => {
                           <tr key={m.month} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="py-3 px-4 font-medium text-gray-900">{m.month}</td>
                             <td className="py-3 px-4 text-right text-green-700 font-semibold">{formatCurrency(m.revenue)}</td>
+                            <td className="py-3 px-4 text-right text-gray-600 font-medium">{formatCurrency(m.expectedRevenue || 0)}</td>
+                            <td className="py-3 px-4 text-right">
+                              <Badge variant={(m.collectionRate || 0) >= 80 ? 'success' : (m.collectionRate || 0) >= 50 ? 'warning' : 'danger'}>
+                                {m.collectionRate || 0}%
+                              </Badge>
+                            </td>
                             <td className="py-3 px-4 text-right text-blue-700">{formatCurrency(m.commissions)}</td>
                             <td className="py-3 px-4 text-right text-gray-600">{formatCurrency(m.revenue - m.commissions)}</td>
                           </tr>
                         ))}
                         {monthlyRevenue.length === 0 && (
-                          <tr><td colSpan={4} className="py-8 text-center text-gray-400">Aucune donnée financière disponible</td></tr>
+                          <tr><td colSpan={6} className="py-8 text-center text-gray-400">Aucune donnée financière disponible</td></tr>
                         )}
                       </tbody>
                     </table>
