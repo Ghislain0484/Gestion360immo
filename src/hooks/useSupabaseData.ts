@@ -343,7 +343,7 @@ export function useRealtimeData<T extends AgencyEntity>(
 import { DashboardStats } from '../types/platform';
 
 // ... (vers ligne 237)
-export function useDashboardStats() {
+export function useDashboardStats(monthStr?: string) {
   const { user } = useAuth();
   const { isDemoMode } = useDemoMode();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -382,7 +382,7 @@ export function useDashboardStats() {
         return;
       }
 
-      const result = await dbService.getDashboardStats(user.agency_id);
+      const result = await dbService.getDashboardStats(user.agency_id, monthStr);
       if (!signal.aborted) setStats(result);
     } catch (err) {
       if (signal.aborted) return;
@@ -404,7 +404,7 @@ export function useDashboardStats() {
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, [user?.agency_id]);
+  }, [user?.agency_id, monthStr]);
 
   useEffect(() => {
     const abortController = new AbortController();

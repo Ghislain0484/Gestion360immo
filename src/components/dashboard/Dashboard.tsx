@@ -255,28 +255,24 @@ export const Dashboard: React.FC = () => {
         title: 'Proprietes gerees',
         value: dashboardStats.totalProperties.toString(),
         icon: Building2,
-        trend: { value: 0, isPositive: true },
         color: 'blue' as const,
       },
       {
         title: 'Proprietaires',
         value: dashboardStats.totalOwners.toString(),
         icon: Users,
-        trend: { value: 0, isPositive: true },
         color: 'green' as const,
       },
       {
         title: 'Total locataires',
         value: dashboardStats.totalTenants.toString(),
         icon: UserCheck,
-        trend: { value: 0, isPositive: true },
         color: 'yellow' as const,
       },
       {
         title: 'Contrats actifs',
         value: activeContractsCount.toString(),
         icon: FileText,
-        trend: { value: 0, isPositive: true },
         color: 'red' as const,
       },
     ];

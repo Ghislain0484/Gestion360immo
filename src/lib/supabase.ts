@@ -73,13 +73,18 @@ export const propertyExpensesService = {
 };
 
 export const dbService = {
-  async getDashboardStats(agencyId: string): Promise<DashboardStats> {
+  async getDashboardStats(agencyId: string, monthStr?: string): Promise<DashboardStats> {
     try {
       if (!agencyId) {
         throw new Error('agencyId manquant');
       }
 
-      // Utilisation du nouveau RPC optimisé pour tout récupérer en une seule requête
+      // Si un mois spécifique est demandé, on utilise la méthode legacy car la RPC v3 est sur le mois courant
+      if (monthStr) {
+        return this.getDashboardStatsLegacy(agencyId, monthStr);
+      }
+
+      // Utilisation du nouveau RPC optimisé pour tout récupérer en une seule requête (Mois courant par défaut)
       const { data, error } = await supabase.rpc('get_dashboard_stats_v3', {
         p_agency_id: agencyId
       });
@@ -101,9 +106,18 @@ export const dbService = {
    * Ancienne méthode de calcul (Backend Fallback)
    * À conserver temporairement pendant la migration
    */
-  async getDashboardStatsLegacy(agencyId: string): Promise<DashboardStats> {
-    const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+  async getDashboardStatsLegacy(agencyId: string, monthStr?: string): Promise<DashboardStats> {
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (monthStr) {
+        const [year, month] = monthStr.split('-').map(Number);
+        startDate = new Date(year, month - 1, 1);
+        endDate = new Date(year, month, 0);
+    } else {
+        startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        endDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+    }
 
     const [
       { count: totalProperties },

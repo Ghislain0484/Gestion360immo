@@ -41,7 +41,11 @@ ChartJS.register(
 );
 
 export const ReportsHub: React.FC = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState('month');
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    return `${d.getFullYear()}-${month}`;
+  });
   const [selectedReport, setSelectedReport] = useState('overview');
   //const [monthlyRevenue, setMonthlyRevenue] = useState<{ month: string; revenue: number; commissions: number }[]>([]);
   const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenueItem[]>([]);
@@ -51,7 +55,7 @@ export const ReportsHub: React.FC = () => {
   const { isDemoMode } = useDemoMode();
 
   // Données réelles de l'agence
-  const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats();
+  const { stats: dashboardStats, loading: statsLoading, error: statsError } = useDashboardStats(selectedMonth);
 
   // Stats aggregées (très léger)
   const [aggregates, setAggregates] = useState<any>(null);
@@ -273,14 +277,11 @@ export const ReportsHub: React.FC = () => {
   // avgRooms non calculable car PropertyDetails ne contient pas rooms
   const avgRooms = 0; // Champ non disponible dans le schéma actuel
 
-  const getPeriodLabel = (p: string) => {
-    switch (p) {
-      case 'week': return 'Cette semaine';
-      case 'month': return 'Ce mois';
-      case 'quarter': return 'Ce trimestre';
-      case 'year': return 'Cette année';
-      default: return p;
-    }
+  const getPeriodLabel = (mStr: string) => {
+    if (!mStr) return '';
+    const [year, month] = mStr.split('-');
+    const date = new Date(Number(year), Number(month) - 1, 1);
+    return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   };
 
   const sanitizeCurrency = (val: string) => {
@@ -301,7 +302,7 @@ export const ReportsHub: React.FC = () => {
       const reportName = reportTypes.find(r => r.id === selectedReport)?.name || 'Rapport';
       doc.text(`RAPPORT : ${reportName.toUpperCase()}`, pageWidth / 2, y, { align: 'center' }); y += 8;
       doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
-      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Période : ${getPeriodLabel(selectedPeriod)}`, pageWidth / 2, y, { align: 'center' }); y += 12;
+      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} - Période : ${getPeriodLabel(selectedMonth)}`, pageWidth / 2, y, { align: 'center' }); y += 12;
       doc.setDrawColor(200, 200, 200); doc.line(20, y, pageWidth - 20, y); y += 8;
 
       const writeRow = (label: string, val: string) => {
@@ -359,16 +360,13 @@ export const ReportsHub: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="week">Cette semaine</option>
-            <option value="month">Ce mois</option>
-            <option value="quarter">Ce trimestre</option>
-            <option value="year">Cette année</option>
-          </select>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 font-medium"
+            title="Choisir le mois de référence pour les statistiques"
+          />
           <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
             PDF Simple
