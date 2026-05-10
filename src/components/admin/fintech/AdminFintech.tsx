@@ -5,6 +5,8 @@ import { getGlobalFintechData } from '../../../lib/adminApi';
 import { formatAmount } from '../../../utils/format';
 import { LoadingSpinner } from '../../ui/LoadingSpinner';
 import { downloadAgencyInvoicePDF } from '../../../utils/agencyInvoicing';
+import { supabase } from '../../../lib/config';
+import { toast } from 'react-hot-toast';
 
 export const AdminFintech: React.FC = () => {
     const [data, setData] = useState<{ wallets: any[], transactions: any[], pendingFees: any[] }>({ wallets: [], transactions: [], pendingFees: [] });
