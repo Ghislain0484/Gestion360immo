@@ -58,12 +58,20 @@ export const AdminStats: React.FC<AdminStatsProps> = ({ stats, loading, pendingR
             trend: stats.todayRevenue > 0 ? 'positive' : null,
         },
         {
-            label: 'Potentiel Mensuel (MRR)',
-            value: formatCurrency(stats.subscriptionRevenue),
-            secondary: `Projection annuelle: ${formatCurrency(stats.subscriptionRevenue * 12)}`,
+            label: 'Potentiel Global (MRR)',
+            value: formatCurrency(stats.globalPotential || stats.subscriptionRevenue),
+            secondary: `Projection annuelle: ${formatCurrency((stats.globalPotential || stats.subscriptionRevenue) * 12)}`,
             icon: TrendingUp,
             gradient: 'from-amber-500 to-orange-600',
             bgLight: 'bg-amber-500/10',
+        },
+        {
+            label: 'Commissions GESTION360IMMO (1%)',
+            value: formatCurrency(stats.globalCommissions || (stats.subscriptionRevenue * 0.01)),
+            secondary: 'Total dû par les agences',
+            icon: DollarSign,
+            gradient: 'from-rose-500 to-pink-600',
+            bgLight: 'bg-rose-500/10',
         },
         {
             label: 'Activité Plateforme',
@@ -98,7 +106,7 @@ export const AdminStats: React.FC<AdminStatsProps> = ({ stats, loading, pendingR
             )}
 
             {/* Metrics Grid */}
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
                 {metrics.map((metric) => (
                     <div
                         key={metric.label}

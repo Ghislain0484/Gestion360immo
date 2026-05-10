@@ -9,7 +9,25 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     throw error;
   }
 
-  return data as PlatformStats;
+  const stats = data as PlatformStats;
+
+  // Calcul du potentiel global et des commissions (1%)
+  try {
+    const { data: contracts, error: contractError } = await supabase
+      .from('contracts')
+      .select('monthly_rent')
+      .in('status', ['active', 'renewed']);
+    
+    if (!contractError && contracts) {
+      const globalPotential = contracts.reduce((sum, c) => sum + (c.monthly_rent || 0), 0);
+      stats.globalPotential = globalPotential;
+      stats.globalCommissions = globalPotential * 0.01;
+    }
+  } catch (err) {
+    console.warn('Could not fetch global contract data for stats:', err);
+  }
+
+  return stats;
 }
 
 export async function listPendingRegistrationRequests(limit = 100) {

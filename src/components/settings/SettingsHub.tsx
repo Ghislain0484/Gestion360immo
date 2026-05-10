@@ -38,8 +38,7 @@ export const SettingsHub: React.FC = () => {
     { id: 'data', name: 'Données', icon: Database },
     ...(user?.role === 'director' ? [
       { id: 'users', name: 'Utilisateurs', icon: Users },
-      { id: 'templates', name: 'Modèles de Contrats', icon: FileText },
-      ...(!IS_STANDALONE ? [{ id: 'subscription', name: 'Abonnement', icon: Settings }] : [])
+      { id: 'templates', name: 'Modèles de Contrats', icon: FileText }
     ] : [])
   ];
 
@@ -88,11 +87,10 @@ export const SettingsHub: React.FC = () => {
             { activeTab === 'data' && <DataSettings /> }
             {activeTab === 'users' && <UserManagement />}
             {activeTab === 'templates' && <ContractTemplates />}
-            {activeTab === 'subscription' && <SubscriptionSettings />}
           </Suspense>
 
           {/* Other tabs placeholder */}
-          {!['profile', 'security', 'notifications', 'appearance', 'wallet', 'data', 'users', 'templates', 'subscription'].includes(activeTab) && (
+          {!['profile', 'security', 'notifications', 'appearance', 'wallet', 'data', 'users', 'templates'].includes(activeTab) && (
             <Card className="p-8 text-center">
               <Settings className="h-16 w-16 mx-auto mb-4 text-gray-400" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">

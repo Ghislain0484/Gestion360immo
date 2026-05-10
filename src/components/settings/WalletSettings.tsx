@@ -83,7 +83,7 @@ export const WalletSettings: React.FC = () => {
         <Card className="p-6 bg-white border border-gray-100 shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-rose-500 text-sm font-black uppercase tracking-wider">Commission GICO (1%)</p>
+              <p className="text-rose-500 text-sm font-black uppercase tracking-wider">Commission GESTION360IMMO (1%)</p>
               <h3 className="text-3xl font-black mt-1 text-gray-900">{formatAmount(platformFee)} <span className="text-lg">FCFA</span></h3>
             </div>
             <div className="p-3 bg-rose-50 rounded-2xl">

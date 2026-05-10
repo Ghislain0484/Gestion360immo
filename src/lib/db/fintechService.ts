@@ -9,7 +9,7 @@ export const FintechService = {
       .from('contracts')
       .select('monthly_rent')
       .eq('agency_id', agencyId)
-      .eq('status', 'active');
+      .in('status', ['active', 'renewed']);
     
     if (error) {
       console.error('Error calculating monthly potential:', error);
