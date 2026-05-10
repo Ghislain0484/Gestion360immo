@@ -103,6 +103,55 @@ export const WalletSettings: React.FC = () => {
     }
   };
 
+  const handlePayCommission = () => {
+    if (!user || platformFee <= 0) return;
+
+    const config = getFlutterwaveConfig({
+      amount: platformFee,
+      email: user.email || '',
+      phone: (user as any).phone || '',
+      name: `${user.first_name || ''} ${user.last_name || ''}`,
+      title: `Paiement Commission GESTION360IMMO`,
+      description: `Règlement de la commission mensuelle de 1%`,
+      tx_ref: `COM-${Date.now()}-${user.id.slice(0, 8)}`,
+      payment_type: 'subscription',
+    });
+
+    const fwConfig = {
+      ...config,
+      callback: async (response: any) => {
+        if (response.status === 'successful') {
+          try {
+            const targetAgencyId = agencyId || user?.agency_id;
+            if (!targetAgencyId) throw new Error('No agency ID');
+
+            await supabase.from('wallet_transactions').insert({
+              agency_id: targetAgencyId,
+              amount: -platformFee,
+              type: 'commission',
+              description: `Paiement de la commission mensuelle (1%)`,
+              reference: response.transaction_id.toString(),
+              metadata: { response }
+            });
+
+            toast.success(`Votre commission de ${formatAmount(platformFee)} FCFA a été réglée avec succès.`);
+            loadFintechData();
+          } catch (err) {
+            toast.error("Paiement réussi mais erreur d'enregistrement.");
+          }
+        }
+        closePaymentModal();
+      },
+      onClose: () => {},
+    };
+
+    if ((window as any).FlutterwaveCheckout) {
+      (window as any).FlutterwaveCheckout(fwConfig);
+    } else {
+      toast.error("Le module de paiement n'est pas encore chargé.");
+    }
+  };
+
   const platformFee = FintechService.calculatePlatformFee(potential);
 
   if (loading) return <div className="flex justify-center p-12"><LoadingSpinner size="lg" color="indigo" /></div>;
@@ -155,7 +204,11 @@ export const WalletSettings: React.FC = () => {
               <CreditCard className="w-6 h-6 text-rose-600" />
             </div>
           </div>
-          <button className="mt-4 w-full py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all">
+          <button 
+            onClick={handlePayCommission}
+            disabled={platformFee <= 0}
+            className="mt-4 w-full py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             Régler la commission
           </button>
         </Card>
