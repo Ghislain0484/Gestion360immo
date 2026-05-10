@@ -29,7 +29,6 @@ import { Contract, RentReceipt, User, Property } from '../../types/db';
 import { PropertyMapCard } from './PropertyMapCard';
 import { AuditLog } from '../../types/platform';
 import { AgencyUserRole } from '../../types/enums';
-import { AgencySubscriptionStatus } from './AgencySubscriptionStatus';
 import { DashboardCharts } from './DashboardCharts';
 import { MonthlyRevenueItem } from '../../types/contracts';
 import { ModularTransaction } from '../../types/modular';
@@ -645,7 +644,6 @@ export const Dashboard: React.FC = () => {
           </Card>
         )}
 
-        <AgencySubscriptionStatus />
 
         <div className="grid items-stretch gap-8 grid-cols-1">
           <motion.div 
