@@ -19,11 +19,15 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ stats, loading }) =>
     const revenueData = useMemo(() => {
         if (!stats) return null;
 
+        const potential = stats.globalPotential || stats.subscriptionRevenue || 0;
+        const commissions = stats.globalCommissions || (potential * 0.01);
+
         return {
             total: stats.totalRevenue,
-            subscription: stats.subscriptionRevenue,
+            potential: potential,
+            commissions: commissions,
             growth: stats.monthlyGrowth,
-            avgPerAgency: stats.activeAgencies > 0 ? stats.subscriptionRevenue / stats.activeAgencies : 0,
+            avgPerAgency: stats.activeAgencies > 0 ? potential / stats.activeAgencies : 0,
         };
     }, [stats]);
 
@@ -74,19 +78,20 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ stats, loading }) =>
                 </div>
 
                 {/* Statistiques détaillées */}
+                {/* Statistiques détaillées */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-50 rounded-xl p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
                             Potentiel Brut Agences
                         </p>
-                        <p className="text-lg font-semibold text-slate-900">{formatCurrency(revenueData.subscription)}</p>
-                        <p className="text-xs text-slate-500 mt-1">Volume total géré</p>
+                        <p className="text-lg font-semibold text-slate-900">{formatCurrency(revenueData.potential)}</p>
+                        <p className="text-xs text-slate-500 mt-1">Volume total baux actifs</p>
                     </div>
                     <div className="bg-slate-50 rounded-xl p-4 border-2 border-emerald-100">
                         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-1">
                             Commission Due (1%)
                         </p>
-                        <p className="text-lg font-semibold text-emerald-700">{formatCurrency(revenueData.subscription * 0.01)}</p>
+                        <p className="text-lg font-semibold text-emerald-700">{formatCurrency(revenueData.commissions)}</p>
                         <p className="text-xs text-emerald-500 mt-1">Revenu plateforme prévu</p>
                     </div>
                 </div>
@@ -94,18 +99,18 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ stats, loading }) =>
                 {/* Barre de progression visuelle */}
                 <div className="mt-6">
                     <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
-                        <span>Progression vers l'objectif</span>
+                        <span>Progression vers l'objectif de commission</span>
                         <span className="font-semibold">
-                            {Math.min(100, Math.round((revenueData.subscription / 10000000) * 100))}%
+                            {Math.min(100, Math.round((revenueData.commissions / 1000000) * 100))}%
                         </span>
                     </div>
                     <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(100, (revenueData.subscription / 10000000) * 100)}%` }}
+                            style={{ width: `${Math.min(100, (revenueData.commissions / 1000000) * 100)}%` }}
                         />
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">Objectif mensuel : 10,000,000 FCFA</p>
+                    <p className="text-xs text-slate-500 mt-1">Objectif mensuel : 1,000,000 FCFA de commissions</p>
                 </div>
             </div>
         </Card>
