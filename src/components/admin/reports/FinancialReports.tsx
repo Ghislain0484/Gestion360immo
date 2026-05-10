@@ -6,6 +6,7 @@ import { Button } from '../../ui/Button';
 import { dbService } from '../../../lib/supabase';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
+import { LoadingSpinner } from '../../ui/LoadingSpinner';
 
 interface ReportData {
     totalRevenue: number;

@@ -11,6 +11,7 @@ import { toast } from 'react-hot-toast';
 export const AdminFintech: React.FC = () => {
     const [data, setData] = useState<{ wallets: any[], transactions: any[], pendingFees: any[] }>({ wallets: [], transactions: [], pendingFees: [] });
     const [loading, setLoading] = useState(true);
+    const [generating, setGenerating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
@@ -41,6 +42,7 @@ export const AdminFintech: React.FC = () => {
 
     const handleGenerateFees = async () => {
         try {
+            setGenerating(true);
             // Appelle la fonction SQL qui calcule les 1% pour toutes les agences
             const { error } = await supabase.rpc('process_monthly_fintech_commissions');
             if (error) throw error;
@@ -48,6 +50,8 @@ export const AdminFintech: React.FC = () => {
             loadData();
         } catch (error: any) {
             toast.error('Erreur de génération : ' + error.message);
+        } finally {
+            setGenerating(false);
         }
     };
 
@@ -99,10 +103,20 @@ export const AdminFintech: React.FC = () => {
                     </p>
                     <button 
                         onClick={handleGenerateFees}
-                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                        disabled={generating}
+                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <DollarSign className="w-5 h-5" />
-                        Générer les commissions (1%)
+                        {generating ? (
+                            <>
+                                <LoadingSpinner size="sm" color="white" />
+                                Génération...
+                            </>
+                        ) : (
+                            <>
+                                <DollarSign className="w-5 h-5" />
+                                Générer les commissions (1%)
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
