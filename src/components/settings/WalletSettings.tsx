@@ -91,7 +91,7 @@ export const WalletSettings: React.FC = () => {
     if ((window as any).FlutterwaveCheckout) {
       (window as any).FlutterwaveCheckout(fwConfig);
     } else {
-      toast.error('Le module de paiement n'est pas encore chargé.');
+      toast.error("Le module de paiement n'est pas encore chargé.");
     }
   };
 
