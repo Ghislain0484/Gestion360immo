@@ -37,6 +37,7 @@ export const RentRollMatrix: React.FC = () => {
     setLoading(true);
     try {
       // 1. Fetch active contracts with deep joins
+      // Use table names for joins to be safe
       const { data: contractsData, error: contractsError } = await supabase
         .from('contracts')
         .select(`
@@ -44,80 +45,92 @@ export const RentRollMatrix: React.FC = () => {
           monthly_rent, 
           start_date,
           status,
-          property:properties(id, title, owner:owners(id, first_name, last_name)),
-          tenant:tenants(id, first_name, last_name)
+          properties(id, title, owners(id, first_name, last_name)),
+          tenants(id, first_name, last_name)
         `)
         .eq('agency_id', user.agency_id)
-        .in('status', ['active', 'notice']); // only active or ending contracts
+        .in('status', ['active', 'notice']);
 
       if (contractsError) throw contractsError;
 
       // 2. Fetch all rent receipts for this agency for the selected year
+      // Use direct agency_id filter since we added it to the table
       const { data: receiptsData, error: receiptsError } = await supabase
         .from('rent_receipts')
-        .select(`
-          contract_id, 
-          period_month,
-          contract:contracts!inner(agency_id)
-        `)
-        .eq('contract.agency_id', user.agency_id)
+        .select('contract_id, period_month')
+        .eq('agency_id', user.agency_id)
         .eq('period_year', selectedYear);
 
-      if (receiptsError) throw receiptsError;
-
-      // Create a map of contract_id -> Set of paid months
-      const receiptMap: Record<string, Set<number>> = {};
-      receiptsData?.forEach((r: any) => {
-        if (!receiptMap[r.contract_id]) {
-          receiptMap[r.contract_id] = new Set();
-        }
-        receiptMap[r.contract_id].add(r.period_month);
-      });
-
-      // 3. Group by Owner
-      const ownerMap = new Map<string, MatrixData>();
-
-      contractsData?.forEach(c => {
-        const prop = Array.isArray(c.property) ? c.property[0] : c.property;
-        const ten = Array.isArray(c.tenant) ? c.tenant[0] : c.tenant;
-        const own = prop?.owner;
-
-        if (!prop || !ten || !own) return;
-
-        const ownerId = own.id;
-        if (!ownerMap.has(ownerId)) {
-          ownerMap.set(ownerId, {
-            owner_id: ownerId,
-            owner_name: `${own.first_name} ${own.last_name}`,
-            contracts: []
-          });
-        }
-
-        const ownerGroup = ownerMap.get(ownerId)!;
+      if (receiptsError) {
+        console.warn('Could not fetch receipts with direct agency_id, trying fallback...', receiptsError);
+        // Fallback if agency_id column is not yet present on rent_receipts in this specific environment
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('rent_receipts')
+          .select('contract_id, period_month, contracts!inner(agency_id)')
+          .eq('contracts.agency_id', user.agency_id)
+          .eq('period_year', selectedYear);
         
-        // Build the receipts object
-        const receiptsObj: Record<number, boolean> = {};
-        for (let i = 1; i <= 12; i++) {
-          receiptsObj[i] = receiptMap[c.id]?.has(i) || false;
-        }
-
-        ownerGroup.contracts.push({
-          contract_id: c.id,
-          tenant_name: `${ten.first_name} ${ten.last_name}`,
-          property_title: prop.title || 'Bien inconnu',
-          monthly_rent: c.monthly_rent || 0,
-          start_date: c.start_date,
-          receipts: receiptsObj
-        });
-      });
-
-      setMatrixData(Array.from(ownerMap.values()));
+        if (fallbackError) throw fallbackError;
+        setMatrixDataFromResults(contractsData, fallbackData);
+      } else {
+        setMatrixDataFromResults(contractsData, receiptsData);
+      }
     } catch (err: any) {
       console.error('Error fetching Rent Roll:', err);
-      toast.error('Erreur lors du chargement du tableau matriciel');
+      toast.error('Erreur lors du chargement des données');
     } finally {
       setLoading(false);
     }
+  };
+
+  const setMatrixDataFromResults = (contracts: any[], receipts: any[]) => {
+    // Create a map of contract_id -> Set of paid months
+    const receiptMap: Record<string, Set<number>> = {};
+    receipts?.forEach(r => {
+      if (!receiptMap[r.contract_id]) {
+        receiptMap[r.contract_id] = new Set();
+      }
+      receiptMap[r.contract_id].add(r.period_month);
+    });
+
+    // Group by Owner
+    const ownerMap = new Map<string, MatrixData>();
+
+    contracts?.forEach(c => {
+      // Supabase joins can return arrays or objects
+      const prop = Array.isArray(c.properties) ? c.properties[0] : c.properties;
+      const ten = Array.isArray(c.tenants) ? c.tenants[0] : c.tenants;
+      const own = prop && (Array.isArray(prop.owners) ? prop.owners[0] : prop.owners);
+
+      if (!prop || !ten || !own) return;
+
+      const ownerId = own.id;
+      if (!ownerMap.has(ownerId)) {
+        ownerMap.set(ownerId, {
+          owner_id: ownerId,
+          owner_name: `${own.first_name} ${own.last_name}`,
+          contracts: []
+        });
+      }
+
+      const ownerGroup = ownerMap.get(ownerId)!;
+      
+      const receiptsObj: Record<number, boolean> = {};
+      for (let i = 1; i <= 12; i++) {
+        receiptsObj[i] = receiptMap[c.id]?.has(i) || false;
+      }
+
+      ownerGroup.contracts.push({
+        contract_id: c.id,
+        tenant_name: `${ten.first_name} ${ten.last_name}`,
+        property_title: prop.title || 'Bien inconnu',
+        monthly_rent: c.monthly_rent || 0,
+        start_date: c.start_date,
+        receipts: receiptsObj
+      });
+    });
+
+    setMatrixData(Array.from(ownerMap.values()));
   };
 
   const handleExportPDF = () => {
