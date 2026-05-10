@@ -37,7 +37,6 @@ export const RentRollMatrix: React.FC = () => {
     setLoading(true);
     try {
       // 1. Fetch active contracts with deep joins
-      // Use table names for joins to be safe
       const { data: contractsData, error: contractsError } = await supabase
         .from('contracts')
         .select(`
@@ -49,12 +48,11 @@ export const RentRollMatrix: React.FC = () => {
           tenants(id, first_name, last_name)
         `)
         .eq('agency_id', user.agency_id)
-        .in('status', ['active', 'notice']);
+        .in('status', ['active', 'renewed', 'notice']);
 
       if (contractsError) throw contractsError;
 
       // 2. Fetch all rent receipts for this agency for the selected year
-      // Use direct agency_id filter since we added it to the table
       const { data: receiptsData, error: receiptsError } = await supabase
         .from('rent_receipts')
         .select('contract_id, period_month')
@@ -62,18 +60,16 @@ export const RentRollMatrix: React.FC = () => {
         .eq('period_year', selectedYear);
 
       if (receiptsError) {
-        console.warn('Could not fetch receipts with direct agency_id, trying fallback...', receiptsError);
-        // Fallback if agency_id column is not yet present on rent_receipts in this specific environment
-        const { data: fallbackData, error: fallbackError } = await supabase
+        // Fallback for older schema
+        const { data: fallbackData } = await supabase
           .from('rent_receipts')
           .select('contract_id, period_month, contracts!inner(agency_id)')
           .eq('contracts.agency_id', user.agency_id)
           .eq('period_year', selectedYear);
         
-        if (fallbackError) throw fallbackError;
-        setMatrixDataFromResults(contractsData, fallbackData);
+        setMatrixDataFromResults(contractsData || [], fallbackData || []);
       } else {
-        setMatrixDataFromResults(contractsData, receiptsData);
+        setMatrixDataFromResults(contractsData || [], receiptsData || []);
       }
     } catch (err: any) {
       console.error('Error fetching Rent Roll:', err);
@@ -84,7 +80,6 @@ export const RentRollMatrix: React.FC = () => {
   };
 
   const setMatrixDataFromResults = (contracts: any[], receipts: any[]) => {
-    // Create a map of contract_id -> Set of paid months
     const receiptMap: Record<string, Set<number>> = {};
     receipts?.forEach(r => {
       if (!receiptMap[r.contract_id]) {
@@ -93,22 +88,23 @@ export const RentRollMatrix: React.FC = () => {
       receiptMap[r.contract_id].add(r.period_month);
     });
 
-    // Group by Owner
     const ownerMap = new Map<string, MatrixData>();
 
     contracts?.forEach(c => {
-      // Supabase joins can return arrays or objects
+      // Support both object and array results from Supabase joins
       const prop = Array.isArray(c.properties) ? c.properties[0] : c.properties;
       const ten = Array.isArray(c.tenants) ? c.tenants[0] : c.tenants;
-      const own = prop && (Array.isArray(prop.owners) ? prop.owners[0] : prop.owners);
+      
+      if (!prop || !ten) return;
 
-      if (!prop || !ten || !own) return;
+      const own = Array.isArray(prop.owners) ? prop.owners[0] : prop.owners;
+      const ownerId = own?.id || 'unknown-owner';
+      const ownerName = own ? `${own.first_name || ''} ${own.last_name || ''}`.trim() || 'Propriétaire sans nom' : 'Propriétaire inconnu';
 
-      const ownerId = own.id;
       if (!ownerMap.has(ownerId)) {
         ownerMap.set(ownerId, {
           owner_id: ownerId,
-          owner_name: `${own.first_name} ${own.last_name}`,
+          owner_name: ownerName,
           contracts: []
         });
       }
@@ -122,7 +118,7 @@ export const RentRollMatrix: React.FC = () => {
 
       ownerGroup.contracts.push({
         contract_id: c.id,
-        tenant_name: `${ten.first_name} ${ten.last_name}`,
+        tenant_name: `${ten.first_name || ''} ${ten.last_name || ''}`.trim() || 'Locataire inconnu',
         property_title: prop.title || 'Bien inconnu',
         monthly_rent: c.monthly_rent || 0,
         start_date: c.start_date,
