@@ -28,13 +28,40 @@ interface ActionMenuProps {
   onDownload: () => void;
   onTerminate: () => void;
   onDelete: () => void;
+  customTemplates: any[];
 }
 
 const ActionMenu: React.FC<ActionMenuProps> = ({
-  contract, onPreview, onEdit, onRegenerate, onRenew, onPrint, onDownload, onTerminate, onDelete
+  contract, onPreview, onEdit, onRegenerate, onRenew, onPrint, onDownload, onTerminate, onDelete, customTemplates
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const handleCustomPrint = async (template: any) => {
+    const { user } = useAuth();
+    if (!user?.agency_id) return;
+    
+    try {
+      const fullAgency = await dbService.agencies.getById(user.agency_id);
+      // Need to fetch full objects for property, owner, tenant
+      const { data: prop } = await supabase.from('properties').select('*, owner:owners(*)').eq('id', contract.property_id).single();
+      const { data: ten } = await supabase.from('tenants').select('*').eq('id', contract.tenant_id).single();
+      const { data: own } = await supabase.from('owners').select('*').eq('id', contract.owner_id).single();
+
+      const clientData = contract.type === 'gestion' ? own : ten;
+      
+      if (fullAgency && clientData) {
+        const templateData = OHADAContractGenerator.prepareTemplateData(contract, fullAgency, clientData, prop);
+        const customTerms = OHADAContractGenerator.replaceVariables(template.content, templateData);
+        
+        // Temporarily override terms for printing
+        const tempContract = { ...contract, terms: customTerms };
+        await OHADAContractGenerator.printContract(tempContract, fullAgency, clientData, prop);
+      }
+    } catch (err) {
+      toast.error("Erreur lors de la génération avec le modèle personnalisé");
+    }
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -62,6 +89,18 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
             <Eye className="h-4 w-4 text-blue-500" />
             Aperçu OHADA
           </button>
+
+          {/* Custom Templates */}
+          {customTemplates?.filter((t: any) => t.type === contract.type || (contract.type === 'location' && t.type === 'bail')).map((template: any) => (
+            <button
+              key={template.id}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-blue-700 hover:bg-blue-50 transition-colors font-bold"
+              onClick={() => { handleCustomPrint(template); setOpen(false); }}
+            >
+              <FileText className="h-4 w-4 text-blue-600" />
+              Imprimer : {template.name}
+            </button>
+          ))}
           <button
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
             onClick={() => { onEdit(); setOpen(false); }}
@@ -168,6 +207,11 @@ export const ContractsList: React.FC = () => {
     () => dbService.tenants.getAll({ agency_id: user?.agency_id, limit: 1000 }),
     'tenants',
     { agency_id: user?.agency_id, limit: 1000 }
+  );
+  const { data: customTemplates = [] } = useRealtimeData<any>(
+    () => supabase.from('contract_templates').select('*').eq('agency_id', user?.agency_id).eq('is_active', true),
+    'contract_templates',
+    { agency_id: user?.agency_id }
   );
 
   const { create: createContract } = useSupabaseCreate<Contract>(dbService.contracts.create, {
@@ -563,6 +607,7 @@ export const ContractsList: React.FC = () => {
                   </div>
                   <ActionMenu
                     contract={contract}
+                    customTemplates={customTemplates}
                     onPreview={async () => {
                       if (!user?.agency_id) return;
                       const fullAgency = await dbService.agencies.getById(user.agency_id);

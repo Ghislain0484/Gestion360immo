@@ -1,5 +1,5 @@
 import React, { useState, Suspense, lazy } from 'react';
-import { Settings, User, Shield, Bell, Palette, Database, Users, Loader2 } from 'lucide-react';
+import { Settings, User, Shield, Bell, Palette, Database, Users, Loader2, FileText } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useAuth } from '../../contexts/AuthContext';
 import { APP_NAME, IS_STANDALONE } from '../../lib/constants';
@@ -12,6 +12,7 @@ const AppearanceSettings = lazy(() => import('./AppearanceSettings').then(m => (
 const DataSettings = lazy(() => import('./DataSettings').then(m => ({ default: m.DataSettings })));
 const UserManagement = lazy(() => import('./UserManagement').then(m => ({ default: m.UserManagement })));
 const SubscriptionSettings = lazy(() => import('./SubscriptionSettings').then(m => ({ default: m.SubscriptionSettings })));
+const ContractTemplates = lazy(() => import('./ContractTemplates').then(m => ({ default: m.ContractTemplates })));
 
 const LoadingTab = () => (
   <Card className="p-8 flex flex-col items-center justify-center">
@@ -35,6 +36,7 @@ export const SettingsHub: React.FC = () => {
     { id: 'data', name: 'Données', icon: Database },
     ...(user?.role === 'director' ? [
       { id: 'users', name: 'Utilisateurs', icon: Users },
+      { id: 'templates', name: 'Modèles de Contrats', icon: FileText },
       ...(!IS_STANDALONE ? [{ id: 'subscription', name: 'Abonnement', icon: Settings }] : [])
     ] : [])
   ];
@@ -82,11 +84,12 @@ export const SettingsHub: React.FC = () => {
             {activeTab === 'appearance' && <AppearanceSettings />}
             {activeTab === 'data' && <DataSettings />}
             {activeTab === 'users' && <UserManagement />}
+            {activeTab === 'templates' && <ContractTemplates />}
             {activeTab === 'subscription' && <SubscriptionSettings />}
           </Suspense>
 
           {/* Other tabs placeholder */}
-          {!['profile', 'security', 'notifications', 'appearance', 'data', 'users', 'subscription'].includes(activeTab) && (
+          {!['profile', 'security', 'notifications', 'appearance', 'data', 'users', 'templates', 'subscription'].includes(activeTab) && (
             <Card className="p-8 text-center">
               <Settings className="h-16 w-16 mx-auto mb-4 text-gray-400" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">

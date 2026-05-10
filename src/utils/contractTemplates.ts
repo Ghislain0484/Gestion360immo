@@ -9,6 +9,37 @@ export interface ContractTemplate {
 }
 
 export class OHADAContractGenerator {
+  // Helper to replace tags like {{tag}} with data
+  static replaceVariables(content: string, data: Record<string, string>): string {
+    return content.replace(/\{\{(.*?)\}\}/g, (match, tag) => {
+      const value = data[tag.trim()];
+      return value !== undefined ? value : match;
+    });
+  }
+
+  // Prepares data for variable replacement
+  static prepareTemplateData(contract: any, agency: any, client: any, property: any): Record<string, string> {
+    const isOwner = contract.type === 'gestion';
+    const owner = isOwner ? client : (property?.owner || {});
+    const tenant = !isOwner ? client : {};
+
+    return {
+      'agence_nom': agency.name || '',
+      'agence_adresse': agency.address || '',
+      'agence_telephone': agency.phone || '',
+      'proprietaire_nom': `${owner.first_name || ''} ${owner.last_name || ''}`.trim(),
+      'proprietaire_adresse': owner.address || '',
+      'locataire_nom': `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim(),
+      'locataire_telephone': tenant.phone || '',
+      'bien_titre': property?.title || '',
+      'bien_adresse': `${property?.location?.commune || ''} ${property?.location?.quartier || ''}`.trim(),
+      'bien_loyer': (contract.monthly_rent || 0).toLocaleString(),
+      'contrat_debut': contract.start_date ? new Date(contract.start_date).toLocaleDateString('fr-FR') : '',
+      'contrat_fin': contract.end_date ? new Date(contract.end_date).toLocaleDateString('fr-FR') : '',
+      'contrat_caution': (contract.deposit || 0).toLocaleString(),
+    };
+  }
+
   // Template de contrat de gestion (Agence - Propriétaire)
   static generateManagementContract(agencyData: any, ownerData: any, commissionRate: number = 10): string {
     const data = {
