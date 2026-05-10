@@ -10,9 +10,7 @@ import { PlatformAdminManagement } from './profile/PlatformAdminManagement';
 
 interface SettingsState {
   subscription: {
-    basicPrice: number;
-    premiumPrice: number;
-    enterprisePrice: number;
+    fintechCommissionRate: number;
     trialDays: number;
     gracePeriodDays: number;
   };
@@ -47,9 +45,7 @@ export const PlatformSettings: React.FC = () => {
   const [toast, setToast] = useState<Toast | null>(null);
   const [settings, setSettings] = useState<SettingsState>({
     subscription: {
-      basicPrice: 25000,
-      premiumPrice: 50000,
-      enterprisePrice: 100000,
+      fintechCommissionRate: 1,
       trialDays: 30,
       gracePeriodDays: 7,
     },
@@ -115,9 +111,7 @@ export const PlatformSettings: React.FC = () => {
 
       setSettings({
         subscription: {
-          basicPrice: Number(settingsMap['subscription_basic_price']) || 25000,
-          premiumPrice: Number(settingsMap['subscription_premium_price']) || 50000,
-          enterprisePrice: Number(settingsMap['subscription_enterprise_price']) || 100000,
+          fintechCommissionRate: Number(settingsMap['fintech_commission_rate']) || 1,
           trialDays: Number(settingsMap['subscription_trial_days']) || 30,
           gracePeriodDays: Number(settingsMap['subscription_grace_period_days']) || 7,
         },
@@ -219,34 +213,12 @@ export const PlatformSettings: React.FC = () => {
 
       const settingsToSave: PlatformSetting[] = [
         {
-          id: settingsMap['subscription_basic_price']?.id || crypto.randomUUID(),
-          setting_key: 'subscription_basic_price',
-          setting_value: settings.subscription.basicPrice,
-          description: 'Prix mensuel du plan Basique',
+          id: settingsMap['fintech_commission_rate']?.id || crypto.randomUUID(),
+          setting_key: 'fintech_commission_rate',
+          setting_value: settings.subscription.fintechCommissionRate,
+          description: 'Taux de commission de la plateforme sur le potentiel agence (%)',
           category: 'subscription',
-          is_public: false,
-          updated_by: admin?.id || null,
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: settingsMap['subscription_premium_price']?.id || crypto.randomUUID(),
-          setting_key: 'subscription_premium_price',
-          setting_value: settings.subscription.premiumPrice,
-          description: 'Prix mensuel du plan Premium',
-          category: 'subscription',
-          is_public: false,
-          updated_by: admin?.id || null,
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: settingsMap['subscription_enterprise_price']?.id || crypto.randomUUID(),
-          setting_key: 'subscription_enterprise_price',
-          setting_value: settings.subscription.enterprisePrice,
-          description: 'Prix mensuel du plan Entreprise',
-          category: 'subscription',
-          is_public: false,
+          is_public: true,
           updated_by: admin?.id || null,
           updated_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
@@ -497,37 +469,31 @@ export const PlatformSettings: React.FC = () => {
         <div className="p-6">
           <div className="flex items-center mb-4">
             <DollarSign className="h-5 w-5 text-green-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Paramètres d'abonnement</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Paramètres Fintech (Commission)</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <Input
-              label="Plan Basique (FCFA/mois)"
-              type="number"
-              value={settings.subscription.basicPrice}
-              onChange={(e) => updateSetting('subscription', 'basicPrice', parseInt(e.target.value) || 0)}
-              min={0}
-            />
-            <Input
-              label="Plan Premium (FCFA/mois)"
-              type="number"
-              value={settings.subscription.premiumPrice}
-              onChange={(e) => updateSetting('subscription', 'premiumPrice', parseInt(e.target.value) || 0)}
-              min={0}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <Input
-              label="Plan Entreprise (FCFA/mois)"
-              type="number"
-              value={settings.subscription.enterprisePrice}
-              onChange={(e) => updateSetting('subscription', 'enterprisePrice', parseInt(e.target.value) || 0)}
-              min={0}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="p-4 bg-green-50 border border-green-100 rounded-2xl">
+              <label className="block text-sm font-bold text-green-800 mb-2 uppercase tracking-wide">Taux de Commission Plateforme (%)</label>
+              <div className="flex items-center space-x-3">
+                <Input
+                  type="number"
+                  value={settings.subscription.fintechCommissionRate}
+                  onChange={(e) => updateSetting('subscription', 'fintechCommissionRate', parseFloat(e.target.value) || 0)}
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  className="bg-white border-green-200 text-2xl font-black text-green-700"
+                />
+                <span className="text-2xl font-bold text-green-600">%</span>
+              </div>
+              <p className="text-[10px] text-green-600 font-bold mt-2">Ce taux s'applique au potentiel brut des baux de chaque agence.</p>
+            </div>
+
             <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
               <Input
                 label="Prix Portail Propriétaire (FCFA/mois)"
                 type="number"
-                value={settings.subscription.ownerSubscriptionPrice}
+                value={settings.subscription.ownerSubscriptionPrice || 5000}
                 onChange={(e) => updateSetting('subscription', 'ownerSubscriptionPrice', parseInt(e.target.value) || 0)}
                 min={0}
                 className="bg-white border-indigo-200 focus:border-indigo-500"
@@ -744,33 +710,14 @@ export const PlatformSettings: React.FC = () => {
         </div>
       </Card>
 
-      {/* Preview of Changes */}
+      {/* Info Fintech */}
       <Card>
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Aperçu des tarifs</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Plan Basique</h4>
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(settings.subscription.basicPrice)}
-                <span className="text-sm font-normal text-gray-500">/mois</span>
-              </div>
-            </div>
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Plan Premium</h4>
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(settings.subscription.premiumPrice)}
-                <span className="text-sm font-normal text-gray-500">/mois</span>
-              </div>
-            </div>
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Plan Entreprise</h4>
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(settings.subscription.enterprisePrice)}
-                <span className="text-sm font-normal text-gray-500">/mois</span>
-              </div>
-            </div>
-          </div>
+        <div className="p-6 bg-slate-50">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Note sur le modèle Fintech</h3>
+          <p className="text-sm text-gray-600">
+            La plateforme Gestion360 utilise désormais un modèle basé sur la performance. 
+            La commission de {settings.subscription.fintechCommissionRate}% est calculée sur le potentiel brut mensuel (loyers + charges) de chaque agence.
+          </p>
         </div>
       </Card>
         </>

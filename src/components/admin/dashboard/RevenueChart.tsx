@@ -77,17 +77,17 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ stats, loading }) =>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-50 rounded-xl p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                            Potentiel Mensuel (MRR)
+                            Potentiel Brut Agences
                         </p>
                         <p className="text-lg font-semibold text-slate-900">{formatCurrency(revenueData.subscription)}</p>
-                        <p className="text-xs text-slate-500 mt-1">Revenus récurrents prévus</p>
+                        <p className="text-xs text-slate-500 mt-1">Volume total géré</p>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-4">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                            Moyenne par agence
+                    <div className="bg-slate-50 rounded-xl p-4 border-2 border-emerald-100">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-1">
+                            Commission Due (1%)
                         </p>
-                        <p className="text-lg font-semibold text-slate-900">{formatCurrency(revenueData.avgPerAgency)}</p>
-                        <p className="text-xs text-slate-500 mt-1">Facturation moyenne</p>
+                        <p className="text-lg font-semibold text-emerald-700">{formatCurrency(revenueData.subscription * 0.01)}</p>
+                        <p className="text-xs text-emerald-500 mt-1">Revenu plateforme prévu</p>
                     </div>
                 </div>
 

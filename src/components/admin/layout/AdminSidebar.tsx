@@ -12,7 +12,7 @@ interface AdminSidebarProps {
 const menuItems = [
     { id: 'overview', name: 'Vue d\'ensemble', icon: Home },
     { id: 'agencies', name: 'Agences', icon: Building2 },
-    { id: 'fintech', name: 'Portefeuille Global', icon: DollarSign },
+    { id: 'fintech', name: 'Revenus Fintech (1%)', icon: DollarSign },
     { id: 'owners', name: 'Propriétaires', icon: Users },
     { id: 'requests', name: 'Demandes', icon: FileText, badge: true },
     { id: 'rankings', name: 'Classements', icon: Award },
@@ -36,7 +36,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             case 'overview': return true;
             case 'agencies': return permissions.agencies;
             case 'owners': return permissions.agencies;
-            case 'subscriptions': return permissions.subscriptions;
+            case 'fintech': return permissions.reports || permissions.subscriptions;
             case 'requests': return permissions.agencies;
             case 'rankings': return permissions.reports;
             case 'reports': return permissions.reports;

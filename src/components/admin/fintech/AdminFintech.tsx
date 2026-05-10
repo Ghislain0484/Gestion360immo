@@ -89,8 +89,8 @@ export const AdminFintech: React.FC = () => {
                 </Card>
 
                 <Card className="p-6 bg-white dark:bg-slate-900 shadow-sm border-slate-100">
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Commissions Estimées</p>
-                    <h3 className="text-3xl font-black mt-2 text-slate-900 dark:text-white">{formatAmount(stats.totalDeposit * 0.1)} FCFA</h3>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Commissions Estimées (1%)</p>
+                    <h3 className="text-3xl font-black mt-2 text-slate-900 dark:text-white">{formatAmount(stats.totalDeposit * 0.01)} FCFA</h3>
                     <div className="mt-4 flex items-center gap-2 text-indigo-500 text-xs font-bold">
                         <DollarSign className="w-4 h-4" />
                         Revenus plateforme

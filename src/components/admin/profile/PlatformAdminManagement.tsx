@@ -8,7 +8,7 @@ import { PlatformAdmin } from '../../../types/db';
 import { toast } from 'react-hot-toast';
 
 interface AdminWithProfile extends PlatformAdmin {
-    user: {
+    users: {
         email: string;
         first_name: string;
         last_name: string;
@@ -43,7 +43,7 @@ export const PlatformAdminManagement: React.FC = () => {
         try {
             const { data, error } = await supabase
                 .from('platform_admins')
-                .select('*, user:users(email, first_name, last_name)')
+                .select('*, users!platform_admins_user_id_fkey(email, first_name, last_name)')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -180,10 +180,10 @@ export const PlatformAdminManagement: React.FC = () => {
                                     </div>
                                     <div>
                                         <p className="font-bold text-slate-900 dark:text-white">
-                                            {admin.user?.first_name} {admin.user?.last_name}
+                                            {admin.users?.first_name} {admin.users?.last_name}
                                             {admin.role === 'super_admin' && <span className="ml-2 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] text-purple-700 font-bold uppercase">Super Admin</span>}
                                         </p>
-                                        <p className="text-sm text-slate-500">{admin.user?.email}</p>
+                                        <p className="text-sm text-slate-500">{admin.users?.email}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -285,8 +285,8 @@ export const PlatformAdminManagement: React.FC = () => {
                         </div>
 
                         <div className="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                            <p className="font-bold text-slate-900">{editingAdmin.user?.first_name} {editingAdmin.user?.last_name}</p>
-                            <p className="text-sm text-slate-500">{editingAdmin.user?.email}</p>
+                            <p className="font-bold text-slate-900">{editingAdmin.users?.first_name} {editingAdmin.users?.last_name}</p>
+                            <p className="text-sm text-slate-500">{editingAdmin.users?.email}</p>
                         </div>
 
                         <div className="mb-6">
