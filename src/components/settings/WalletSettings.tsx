@@ -6,6 +6,9 @@ import { FintechService } from '../../lib/db/fintechService';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { formatAmount } from '../../utils/format';
 import { toast } from 'react-hot-toast';
+import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
+import { getFlutterwaveConfig } from '../../lib/flutterwave';
+import { supabase } from '../../lib/supabase';
 
 export const WalletSettings: React.FC = () => {
   const { user } = useAuth();
@@ -13,6 +16,7 @@ export const WalletSettings: React.FC = () => {
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [potential, setPotential] = useState(0);
+  const [selectedPack, setSelectedPack] = useState<any>(null);
 
   useEffect(() => {
     loadFintechData();
@@ -35,6 +39,59 @@ export const WalletSettings: React.FC = () => {
       toast.error('Erreur lors du chargement des données financières');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRecharge = (pack: { qty: number; price: number; bonus: number }) => {
+    if (!user) return;
+    
+    const config = getFlutterwaveConfig({
+      amount: pack.price,
+      email: user.email || '',
+      phone: (user as any).phone || '',
+      name: `${user.first_name || ''} ${user.last_name || ''}`,
+      title: `Recharge ${pack.qty + pack.bonus} Crédits`,
+      description: `Achat de crédits pour la plateforme GESTION360IMMO`,
+      tx_ref: `WAL-${Date.now()}-${user.id.slice(0, 8)}`,
+      payment_type: 'subscription',
+    });
+
+    // Flutterwave script global logic
+    const fwConfig = {
+      ...config,
+      callback: async (response: any) => {
+        if (response.status === 'successful') {
+          try {
+            const creditsToAdd = pack.qty + pack.bonus;
+            const { data: currentWallet } = await supabase.from('agency_wallets').select('balance').eq('agency_id', user.agency_id).single();
+            const newBalance = (currentWallet?.balance || 0) + pack.price;
+
+            await supabase.from('agency_wallets').update({ balance: newBalance }).eq('agency_id', user.agency_id);
+            await supabase.from('wallet_transactions').insert({
+              agency_id: user.agency_id,
+              amount: pack.price,
+              type: 'deposit',
+              description: `Recharge de ${creditsToAdd} crédits`,
+              reference: response.transaction_id.toString(),
+              metadata: { response }
+            });
+
+            toast.success(`Félicitations ! ${creditsToAdd} crédits ont été ajoutés.`);
+            loadFintechData();
+          } catch (err) {
+            toast.error('Paiement réussi mais erreur de mise à jour.');
+          }
+        }
+        closePaymentModal();
+      },
+      onClose: () => {},
+    };
+
+    // Use window.FlutterwaveCheckout if hook is tricky with dynamic amounts
+    if ((window as any).FlutterwaveCheckout) {
+      (window as any).FlutterwaveCheckout(fwConfig);
+    } else {
+      toast.error('Le module de paiement n'est pas encore chargé.');
     }
   };
 
@@ -110,9 +167,10 @@ export const WalletSettings: React.FC = () => {
               ].map((pack, i) => (
                 <button 
                   key={i}
-                  className="w-full p-4 border-2 border-gray-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition-all flex justify-between items-center group"
+                  onClick={() => handleRecharge(pack)}
+                  className="w-full p-4 border-2 border-gray-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition-all flex justify-between items-center group text-left"
                 >
-                  <div className="text-left">
+                  <div>
                     <p className="font-black text-gray-900">{pack.qty + pack.bonus} Crédits</p>
                     <p className="text-xs text-gray-500">{formatAmount(pack.price)} FCFA</p>
                   </div>

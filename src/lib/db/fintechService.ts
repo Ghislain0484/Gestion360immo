@@ -7,16 +7,19 @@ export const FintechService = {
   async getMonthlyPotential(agencyId: string): Promise<number> {
     const { data, error } = await supabase
       .from('contracts')
-      .select('monthly_rent')
+      .select('monthly_rent, charges, type, status')
       .eq('agency_id', agencyId)
-      .in('status', ['active', 'renewed']);
+      .in('status', ['active', 'renewed'])
+      .eq('type', 'location');
     
     if (error) {
-      console.error('Error calculating monthly potential:', error);
+      console.error('❌ Error calculating monthly potential:', error);
       return 0;
     }
     
-    return data?.reduce((sum, c) => sum + (c.monthly_rent || 0), 0) || 0;
+    const potential = data?.reduce((sum, c) => sum + (Number(c.monthly_rent) || 0) + (Number(c.charges) || 0), 0) || 0;
+    console.log(`✅ Potentiel calculé: ${potential} FCFA (${data?.length || 0} baux actifs)`);
+    return potential;
   },
 
   /**
