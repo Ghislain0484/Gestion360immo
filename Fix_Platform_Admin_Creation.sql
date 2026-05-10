@@ -2,6 +2,9 @@
 -- GESTION DES ADMINISTRATEURS PLATEFORME (Standard & Super Admin)
 -- ==============================================================================
 
+-- Supprimer l'ancienne version pour éviter l'erreur de type de retour
+DROP FUNCTION IF EXISTS public.create_platform_admin(text,text,text,text,text,jsonb);
+
 CREATE OR REPLACE FUNCTION public.create_platform_admin(
     p_email TEXT,
     p_password TEXT,
