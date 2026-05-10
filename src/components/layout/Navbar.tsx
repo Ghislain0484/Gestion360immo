@@ -17,7 +17,9 @@ import {
   ClipboardCheck,
   FileText,
   Zap,
-  ZapOff
+  ZapOff,
+  Shield,
+  Table2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
@@ -84,16 +86,18 @@ export const Navbar: React.FC = () => {
     ...(checkModule('hotel') ? [{ name: 'Hotel', href: '/hotel', icon: Building }] : []),
     ...(checkModule('residences') ? [{ name: 'Residences', href: '/residences', icon: Building2 }] : []),
     ...(checkModule('travaux') ? [{ name: 'Travaux', href: '/travaux', icon: Settings }] : []),
+    { name: 'Rapports', href: '/rapports', icon: BarChart3 },
   ];
 
   const moreNavigation = [
     ...(checkModule('collaboration') && !checkModule('internal_mode')
       ? [{ name: 'Collaboration', href: '/collaboration', icon: Users }]
       : []),
-    { name: 'Rapports', href: '/rapports', icon: BarChart3 },
+    { name: 'Matrice des Loyers', href: '/rapports', icon: Table2 },
     ...(!IS_STANDALONE
       ? [{ name: 'Parametres', href: '/parametres', icon: Settings }]
       : [{ name: 'Application', href: '/parametres', icon: Settings }]),
+    { name: "Journal d'Audit", href: '/admin/audit', icon: Shield },
   ];
 
   const isActiveLink = (path: string) => {

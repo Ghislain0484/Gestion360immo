@@ -26,7 +26,8 @@ import { MonthlyRevenueItem } from '../../types/contracts';
 import { jsPDF } from 'jspdf';
 import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from '../../utils/agencyBranding';
 import { MultiSectionReportModal } from '../admin/reports/MultiSectionReportModal';
-import { Layout } from 'lucide-react';
+import { Layout, Table2 } from 'lucide-react';
+import { RentRollMatrix } from './RentRollMatrix';
 
 ChartJS.register(
   CategoryScale,
@@ -262,6 +263,7 @@ export const ReportsHub: React.FC = () => {
 
   const reportTypes = [
     { id: 'overview', name: 'Vue d\'ensemble', icon: BarChart3 },
+    { id: 'matrix', name: 'Matrice des Loyers', icon: Table2 },
     { id: 'properties', name: 'Propriétés', icon: Home },
     { id: 'financial', name: 'Financier', icon: DollarSign },
     { id: 'clients', name: 'Clients', icon: Users },
@@ -789,10 +791,18 @@ export const ReportsHub: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Matrice des loyers (Rent Roll) */}
+          {selectedReport === 'matrix' && (
+            <div className="space-y-6 animate-fade-in">
+              <RentRollMatrix />
+            </div>
+          )}
         </>
       )}
 
-      <MultiSectionReportModal 
+ 
+      <MultiSectionReportModal
         isOpen={isAdvancedModalOpen} 
         onClose={() => setIsAdvancedModalOpen(false)} 
       />

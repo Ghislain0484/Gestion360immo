@@ -333,7 +333,13 @@ export const UserManagement: React.FC = () => {
           throw new Error("Compte créé mais impossible de récupérer les informations de profil.");
         }
 
-        const finalUserObj = finalUser;
+        // Sauvegarder les permissions sélectionnées pour ce nouvel utilisateur !
+        await dbService.users.update(targetUserId, {
+          permissions: formData.permissions,
+          updated_at: new Date().toISOString(),
+        });
+
+        const finalUserObj = { ...finalUser, permissions: formData.permissions };
 
         // 3. Liaison agence (déjà faite par le RPC v4, mais on s'assure par précaution si nécessaire)
         // Note: admin_create_user_v4 fait déjà l'insertion dans agency_users.

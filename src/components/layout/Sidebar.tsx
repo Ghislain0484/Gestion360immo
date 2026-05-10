@@ -63,15 +63,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     },
     { name: 'Collaboration', href: '/collaboration', icon: Users, module: 'collaboration' },
     { name: 'Rapports', href: '/rapports', icon: BarChart3 },
+    { name: 'Matrice des Loyers', href: '/rapports', icon: BarChart3 }, // This is a temporary way to link to the reports page
     { name: 'Notifications', href: '/notifications', icon: Bell },
     { 
       name: IS_STANDALONE ? 'Application' : 'Paramètres', 
       href: '/parametres', 
       icon: Settings 
     },
-    ...(user?.role === 'director' || user?.role === 'manager' ? [
-      { name: "Journal d'Audit", href: '/admin/audit', icon: Shield }
-    ] : []),
+    { name: "Journal d'Audit", href: '/admin/audit', icon: Shield },
   ];
 
   const checkModule = (mod?: string) => {
