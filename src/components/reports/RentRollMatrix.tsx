@@ -290,84 +290,126 @@ export const RentRollMatrix: React.FC = () => {
               {MONTHS.map((month) => (
                 <th key={month} className="px-2 py-4 text-center min-w-[60px]">{month}</th>
               ))}
+              <th className="px-4 py-4 text-right bg-slate-900 sticky right-0 z-10">Total Encaissé</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredMatrixData.length === 0 ? (
               <tr>
-                <td colSpan={14} className="px-6 py-12 text-center text-gray-500 bg-gray-50">
+                <td colSpan={15} className="px-6 py-12 text-center text-gray-500 bg-gray-50">
                   Aucun contrat actif trouvé pour cette sélection.
                 </td>
               </tr>
             ) : (
-              filteredMatrixData.map((ownerGroup) => (
-                <React.Fragment key={ownerGroup.owner_id}>
-                  {/* Owner Header Row */}
-                  <tr className="bg-slate-100 border-t-4 border-slate-300">
-                    <td colSpan={14} className="px-6 py-3 font-bold text-slate-800 sticky left-0 bg-slate-100">
-                      Propriétaire : {ownerGroup.owner_name}
-                    </td>
-                  </tr>
-                  
-                  {/* Contracts Rows */}
-                  {ownerGroup.contracts.map((contract) => {
-                    const contractStart = new Date(contract.start_date);
+              <>
+                {filteredMatrixData.map((ownerGroup) => (
+                  <React.Fragment key={ownerGroup.owner_id}>
+                    {/* Owner Header Row */}
+                    <tr className="bg-slate-100 border-t-4 border-slate-300">
+                      <td colSpan={15} className="px-6 py-3 font-bold text-slate-800 sticky left-0 bg-slate-100">
+                        Propriétaire : {ownerGroup.owner_name}
+                      </td>
+                    </tr>
                     
+                    {/* Contracts Rows */}
+                    {ownerGroup.contracts.map((contract) => {
+                      const contractStart = new Date(contract.start_date);
+                      let rowTotal = 0;
+                      
+                      return (
+                        <tr key={contract.contract_id} className="hover:bg-blue-50/50 transition-colors bg-white">
+                          <td className="px-6 py-3 sticky left-0 bg-white border-r border-gray-100">
+                            <p className="font-semibold text-gray-900 truncate max-w-[200px]" title={contract.tenant_name}>
+                              {contract.tenant_name}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate max-w-[200px] mt-0.5" title={contract.property_title}>
+                              {contract.property_title}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50/50">
+                            {formatAmount(contract.monthly_rent)}
+                          </td>
+                          
+                          {/* Month Cells */}
+                          {[...Array(12)].map((_, i) => {
+                            const monthNum = i + 1;
+                            const isPaid = contract.receipts[monthNum];
+                            if (isPaid) rowTotal += contract.monthly_rent;
+                            
+                            const cellDate = new Date(selectedYear, i, 1);
+                            const isBeforeContract = cellDate < new Date(contractStart.getFullYear(), contractStart.getMonth(), 1);
+                            
+                            if (isBeforeContract) {
+                              return (
+                                <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
+                                  <div className="w-6 h-6 mx-auto rounded-full bg-gray-100 flex items-center justify-center" title="Contrat non démarré">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+                                  </div>
+                                </td>
+                              );
+                            }
+                            
+                            if (isPaid) {
+                              return (
+                                <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
+                                  <div className="w-7 h-7 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm" title="Payé">
+                                    <Check className="w-4 h-4 stroke-[3]" />
+                                  </div>
+                                </td>
+                              );
+                            }
+                            
+                            return (
+                              <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
+                                <div className="w-7 h-7 mx-auto rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shadow-sm" title="Impayé">
+                                  <X className="w-4 h-4 stroke-[3]" />
+                                </div>
+                              </td>
+                            );
+                          })}
+                          
+                          {/* Row Total */}
+                          <td className="px-4 py-3 text-right font-black text-indigo-700 bg-indigo-50/30 sticky right-0 border-l-2 border-indigo-100">
+                            {formatAmount(rowTotal)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+
+                {/* Footer Totals Row */}
+                <tr className="bg-slate-900 text-white font-bold border-t-2 border-white">
+                  <td className="px-6 py-4 sticky left-0 bg-slate-900 z-10">TOTAL GÉNÉRAL</td>
+                  <td className="px-4 py-4 bg-slate-800">
+                    {formatAmount(filteredMatrixData.reduce((sum, owner) => 
+                      sum + owner.contracts.reduce((cSum, c) => cSum + c.monthly_rent, 0), 0
+                    ))}
+                  </td>
+                  {[...Array(12)].map((_, i) => {
+                    const monthNum = i + 1;
+                    const monthTotal = filteredMatrixData.reduce((sum, owner) => 
+                      sum + owner.contracts.reduce((cSum, c) => 
+                        cSum + (c.receipts[monthNum] ? c.monthly_rent : 0), 0
+                      ), 0
+                    );
                     return (
-                      <tr key={contract.contract_id} className="hover:bg-blue-50/50 transition-colors bg-white">
-                        <td className="px-6 py-3 sticky left-0 bg-white border-r border-gray-100">
-                          <p className="font-semibold text-gray-900 truncate max-w-[200px]" title={contract.tenant_name}>
-                            {contract.tenant_name}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate max-w-[200px] mt-0.5" title={contract.property_title}>
-                            {contract.property_title}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50/50">
-                          {formatAmount(contract.monthly_rent)}
-                        </td>
-                        
-                        {/* Month Cells */}
-                        {[...Array(12)].map((_, i) => {
-                          const monthNum = i + 1;
-                          const isPaid = contract.receipts[monthNum];
-                          
-                          const cellDate = new Date(selectedYear, i, 1);
-                          const isBeforeContract = cellDate < new Date(contractStart.getFullYear(), contractStart.getMonth(), 1);
-                          
-                          if (isBeforeContract) {
-                            return (
-                              <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
-                                <div className="w-6 h-6 mx-auto rounded-full bg-gray-100 flex items-center justify-center" title="Contrat non démarré">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                </div>
-                              </td>
-                            );
-                          }
-                          
-                          if (isPaid) {
-                            return (
-                              <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
-                                <div className="w-7 h-7 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm" title="Payé">
-                                  <Check className="w-4 h-4 stroke-[3]" />
-                                </div>
-                              </td>
-                            );
-                          }
-                          
-                          return (
-                            <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
-                              <div className="w-7 h-7 mx-auto rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shadow-sm" title="Impayé">
-                                <X className="w-4 h-4 stroke-[3]" />
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
+                      <td key={monthNum} className="px-2 py-4 text-center bg-slate-800">
+                        <span className={monthTotal > 0 ? "text-emerald-400" : "text-slate-400"}>
+                          {formatAmount(monthTotal)}
+                        </span>
+                      </td>
                     );
                   })}
-                </React.Fragment>
-              ))
+                  <td className="px-4 py-4 text-right bg-slate-900 sticky right-0 z-10 text-emerald-400 text-base">
+                    {formatAmount(filteredMatrixData.reduce((sum, owner) => 
+                      sum + owner.contracts.reduce((cSum, c) => 
+                        cSum + Object.values(c.receipts).filter(Boolean).length * c.monthly_rent, 0
+                      ), 0
+                    ))}
+                  </td>
+                </tr>
+              </>
             )}
           </tbody>
         </table>
