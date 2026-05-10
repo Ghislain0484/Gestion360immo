@@ -11,7 +11,7 @@ import { getFlutterwaveConfig } from '../../lib/flutterwave';
 import { supabase } from '../../lib/supabase';
 
 export const WalletSettings: React.FC = () => {
-  const { user } = useAuth();
+  const { user, agencyId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -20,23 +20,28 @@ export const WalletSettings: React.FC = () => {
 
   useEffect(() => {
     loadFintechData();
-  }, [user?.agency_id]);
+  }, [agencyId, user?.id]);
 
   const loadFintechData = async () => {
-    if (!user?.agency_id) return;
+    const targetAgencyId = agencyId || user?.agency_id;
+    if (!targetAgencyId) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const [walletData, txs, pot] = await Promise.all([
-        FintechService.getWallet(user.agency_id),
-        FintechService.getTransactions(user.agency_id),
-        FintechService.getMonthlyPotential(user.agency_id)
+        FintechService.getWallet(targetAgencyId),
+        FintechService.getTransactions(targetAgencyId),
+        FintechService.getMonthlyPotential(targetAgencyId)
       ]);
       setWallet(walletData);
       setTransactions(txs);
       setPotential(pot);
     } catch (err) {
       console.error('Error loading fintech data:', err);
-      toast.error('Erreur lors du chargement des données financières');
+      // toast.error('Erreur lors du chargement des données financières');
     } finally {
       setLoading(false);
     }
@@ -62,13 +67,16 @@ export const WalletSettings: React.FC = () => {
       callback: async (response: any) => {
         if (response.status === 'successful') {
           try {
+            const targetAgencyId = agencyId || user?.agency_id;
+            if (!targetAgencyId) throw new Error('No agency ID');
+
             const creditsToAdd = pack.qty + pack.bonus;
-            const { data: currentWallet } = await supabase.from('agency_wallets').select('balance').eq('agency_id', user.agency_id).single();
+            const { data: currentWallet } = await supabase.from('agency_wallets').select('balance').eq('agency_id', targetAgencyId).single();
             const newBalance = (currentWallet?.balance || 0) + pack.price;
 
-            await supabase.from('agency_wallets').update({ balance: newBalance }).eq('agency_id', user.agency_id);
+            await supabase.from('agency_wallets').update({ balance: newBalance }).eq('agency_id', targetAgencyId);
             await supabase.from('wallet_transactions').insert({
-              agency_id: user.agency_id,
+              agency_id: targetAgencyId,
               amount: pack.price,
               type: 'deposit',
               description: `Recharge de ${creditsToAdd} crédits`,
