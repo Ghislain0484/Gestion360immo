@@ -89,7 +89,8 @@ export const AdminFintech: React.FC = () => {
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">
                         Financial Oversight
                     </span>
-                                <h2 className="mb-4 text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                </div>
+                <h2 className="mb-4 text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                     Portefeuille <span className="text-indigo-600">Global</span>
                 </h2>
                 <div className="flex flex-wrap items-center justify-between gap-4">
