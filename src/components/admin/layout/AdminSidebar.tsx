@@ -12,6 +12,7 @@ interface AdminSidebarProps {
 const menuItems = [
     { id: 'overview', name: 'Vue d\'ensemble', icon: Home },
     { id: 'agencies', name: 'Agences', icon: Building2 },
+    { id: 'fintech', name: 'Portefeuille Global', icon: DollarSign },
     { id: 'owners', name: 'Propriétaires', icon: Users },
     { id: 'requests', name: 'Demandes', icon: FileText, badge: true },
     { id: 'rankings', name: 'Classements', icon: Award },

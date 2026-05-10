@@ -67,3 +67,18 @@ export async function approveAndCreateAgency(request: any) {
   if (error) throw error;
   return true;
 }
+
+export async function getGlobalFintechData() {
+  const [wallets, transactions] = await Promise.all([
+    supabase.from('agency_wallets').select('*, agencies(name, city)'),
+    supabase.from('wallet_transactions').select('*, agencies(name)').order('created_at', { ascending: false })
+  ]);
+
+  if (wallets.error) throw wallets.error;
+  if (transactions.error) throw transactions.error;
+
+  return {
+    wallets: wallets.data || [],
+    transactions: transactions.data || []
+  };
+}

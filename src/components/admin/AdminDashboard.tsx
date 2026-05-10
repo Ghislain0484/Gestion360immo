@@ -15,6 +15,7 @@ import { AgencyRankingsEnhanced } from './rankings/AgencyRankingsEnhanced';
 import { FinancialReports } from './reports/FinancialReports';
 import { PlatformOwnersList } from './owners/PlatformOwnersList';
 import { PlatformSettings } from './PlatformSettings';
+import { AdminFintech } from './fintech/AdminFintech';
 import { Agency } from '../../types/db';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useAgencies } from '../../hooks/useAdminQueries';
@@ -217,6 +218,8 @@ export const AdminDashboard: React.FC = () => {
                         <PlatformOwnersList />
                       </div>
                     )}
+
+                    {activeTab === 'fintech' && <AdminFintech />}
 
                     {activeTab === 'rankings' && <div className="animate-slide-up"><AgencyRankingsEnhanced /></div>}
                     {activeTab === 'reports' && <div className="animate-slide-up"><FinancialReports /></div>}
