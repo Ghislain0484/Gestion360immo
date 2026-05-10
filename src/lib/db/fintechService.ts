@@ -67,5 +67,41 @@ export const FintechService = {
    */
   calculatePlatformFee(potential: number): number {
     return potential * 0.01;
+  },
+
+  /**
+   * Utilise un crédit de collaboration
+   */
+  async useCollaborationCredit(agencyId: string): Promise<boolean> {
+    const wallet = await this.getWallet(agencyId);
+    
+    if (wallet.bonus_credits <= 0 && wallet.balance < 1000) { // Supposons 1000 FCFA par crédit si solde monétaire utilisé
+      throw new Error("Crédits insuffisants. Veuillez recharger votre portefeuille.");
+    }
+
+    let updates: any = {};
+    if (wallet.bonus_credits > 0) {
+      updates.bonus_credits = wallet.bonus_credits - 1;
+    } else {
+      updates.balance = wallet.balance - 1000;
+    }
+
+    const { error } = await supabase
+      .from('agency_wallets')
+      .update(updates)
+      .eq('agency_id', agencyId);
+
+    if (error) throw error;
+
+    // Enregistrer la transaction
+    await supabase.from('wallet_transactions').insert([{
+      agency_id: agencyId,
+      amount: wallet.bonus_credits > 0 ? 0 : -1000,
+      type: 'sollicitation',
+      description: 'Utilisation d\'un crédit de collaboration inter-agence',
+      status: 'completed'
+    }]);
+
+    return true;
   }
 };

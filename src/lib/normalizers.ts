@@ -369,6 +369,7 @@ export const normalizeMessage = (m: Partial<Message>) => ({
     sender_id: nilIfEmpty(m.sender_id),
     receiver_id: nilIfEmpty(m.receiver_id),
     agency_id: nilIfEmpty(m.agency_id),
+    receiver_agency_id: nilIfEmpty((m as any).receiver_agency_id),
     property_id: nilIfEmpty(m.property_id),
     announcement_id: nilIfEmpty(m.announcement_id),
     subject: nilIfEmpty(m.subject),

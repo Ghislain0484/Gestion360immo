@@ -158,10 +158,6 @@ export const WalletSettings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Debug Section - A enlever apres fix */}
-      <div className="p-2 bg-gray-100 rounded text-[10px] font-mono text-gray-500">
-        UID: {user?.id} | AID: {agencyId} | UAID: {user?.agency_id} | Potential: {potential}
-      </div>
 
       {/* KPI Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

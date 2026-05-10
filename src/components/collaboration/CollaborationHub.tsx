@@ -11,6 +11,7 @@ import { OwnerHistorySearch } from './OwnerHistorySearch';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
 import { dbService } from '../../lib/supabase';
+import { FintechService } from '../../lib/db/fintechService';
 import toast from 'react-hot-toast';
 
 import { Upload, FileText, X } from 'lucide-react';
@@ -38,6 +39,7 @@ export const CollaborationHub: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'location' | 'vente'>('all');
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [wallet, setWallet] = useState<any>(null);
   const [allAgencies, setAllAgencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,11 +96,11 @@ export const CollaborationHub: React.FC = () => {
         }
         setAnnouncements(announcementsData ?? []);
 
-        // Fetch messages (own messages + messages received + public messages)
+        // Fetch messages (Strictly for current active agency)
         const { data: messagesData, error: messagesError } = await supabase
           .from('messages')
           .select('*, sender:users!messages_sender_id_fkey(first_name, last_name), agency:agencies!messages_agency_id_fkey(name)')
-          .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id},receiver_id.is.null`)
+          .or(`agency_id.eq.${authAgencyId},receiver_agency_id.eq.${authAgencyId}`)
           .order('created_at', { ascending: false });
 
         if (messagesError) {
@@ -119,27 +121,15 @@ export const CollaborationHub: React.FC = () => {
         }
 
         // Fetch collaboration requests
-        try {
-          const { data: requestsData, error: requestsError } = await supabase
-            .from('collaboration_requests')
-            .select('*, requester_agency:agencies!collaboration_requests_requester_agency_id_fkey(name), requester:users!collaboration_requests_requester_id_fkey(first_name, last_name)')
-            .eq('target_agency_id', authAgencyId)
-            .order('created_at', { ascending: false });
+        const { data: requestsData } = await supabase
+          .from('collaboration_requests')
+          .select('*, requester_agency:agencies!collaboration_requests_requester_agency_id_fkey(name), requester:users!collaboration_requests_requester_id_fkey(first_name, last_name)')
+          .eq('target_agency_id', authAgencyId)
+          .order('created_at', { ascending: false });
 
-          if (requestsError) {
-            console.warn('⚠️ Table collaboration_requests non trouvée ou inaccessible:', requestsError.message);
-            setCollaborationRequests([]);
-          } else {
-            setCollaborationRequests(requestsData ?? []);
-          }
-        } catch (tableErr) {
-          console.error('Erreur silencieuse collaboration_requests:', tableErr);
-          setCollaborationRequests([]);
-        }
+        setCollaborationRequests(requestsData ?? []);
       } catch (err: any) {
-        console.error('Erreur chargement données:', err);
-        setError(err.message || 'Erreur lors du chargement des données');
-        toast.error(err.message || 'Erreur lors du chargement des données');
+        console.error('Erreur collaboration_requests:', err);
       } finally {
         setLoading(false);
       }
@@ -147,6 +137,15 @@ export const CollaborationHub: React.FC = () => {
 
     loadData();
   }, [user?.id, authAgencyId, authLoading]);
+
+  // Chargement indépendant du portefeuille pour les crédits
+  useEffect(() => {
+    if (authAgencyId) {
+      FintechService.getWallet(authAgencyId)
+        .then(setWallet)
+        .catch(err => console.error('Erreur chargement portefeuille:', err));
+    }
+  }, [authAgencyId]);
 
   // Load agency properties when modal opens
   const openAnnouncementForm = async () => {
@@ -382,6 +381,7 @@ export const CollaborationHub: React.FC = () => {
         sender_id: user.id,
         receiver_id: messageForm.isPublic ? undefined : (targetRecipientId || undefined),
         agency_id: authAgencyId,
+        receiver_agency_id: messageForm.recipientAgencyId || undefined,
         subject: messageForm.subject || 'Nouveau message',
         content: messageForm.content.trim(),
         is_read: false,
@@ -449,12 +449,25 @@ export const CollaborationHub: React.FC = () => {
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Barre de Crédits Flashy */}
+      <div className="flex justify-end">
+        {wallet ? (
+          <div className="bg-amber-400 text-amber-950 px-4 py-2 rounded-full font-bold shadow-lg flex items-center space-x-2 border-2 border-amber-500">
+            <Shield className="h-5 w-5" />
+            <span>{wallet.bonus_credits} CRÉDITS OFFERTS</span>
+            {wallet.balance > 0 && <span className="ml-2 border-l border-amber-600 pl-2">SOLDE: {wallet.balance}</span>}
+          </div>
+        ) : (
+          <div className="text-amber-600 text-sm animate-pulse">Vérification des crédits...</div>
+        )}
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Collaboration Inter-Agences</h1>
+          <h1 className="text-2xl font-bold text-gray-900 uppercase">Collaboration Inter-Agences</h1>
           <p className="text-gray-600 mt-1">Partagez et découvrez des opportunités immobilières</p>
         </div>
-        <Button onClick={openAnnouncementForm} className="flex items-center space-x-2">
+        <Button onClick={openAnnouncementForm} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700">
           <Megaphone className="h-4 w-4" />
           <span>Publier une annonce</span>
         </Button>
@@ -582,7 +595,7 @@ export const CollaborationHub: React.FC = () => {
                       <div className="flex items-center space-x-4 text-sm text-gray-500">
                         <span className="flex items-center">
                           <Users className="h-3 w-3 mr-1" />
-                          {announcement.agency?.name || (announcement.agency_id ? `Agence # ${announcement.agency_id.slice(0, 8)}` : 'Agence inconnue')}
+                          {announcement.agency?.name || (announcement.agency_id ? `Agence # ${announcement.agency_id?.slice(0, 8)}` : 'Agence inconnue')}
                         </span>
                         <span>•</span>
                         <span>{announcement.views} vues</span>
@@ -666,7 +679,7 @@ export const CollaborationHub: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-gray-600">
-                      Souhaite accéder au dossier {request.tier_type === 'tenant' ? 'du locataire' : 'du propriétaire'} (ID: {request.tier_id.slice(0, 8)})
+                      Souhaite accéder au dossier {request.tier_type === 'tenant' ? 'du locataire' : 'du propriétaire'} (ID: {request.tier_id?.slice(0, 8) || 'N/A'})
                     </p>
                     <p className="text-xs text-gray-500">
                       Reçue le {new Date(request.created_at).toLocaleDateString('fr-FR')}
@@ -764,11 +777,11 @@ export const CollaborationHub: React.FC = () => {
                     <p className="text-gray-600 mb-2">{message.content}</p>
                     <div className="text-sm text-gray-500 flex flex-wrap items-center gap-x-2">
                       <span className="font-medium text-blue-700">
-                        De: {message.sender ? `${message.sender.first_name} ${message.sender.last_name}` : 'Système'}
+                        De: {message.sender ? `${message.sender.first_name || ''} ${message.sender.last_name || ''}` : 'Système'}
                       </span>
                       {message.agency && (
                         <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider py-0 px-1 bg-gray-50">
-                          {message.agency.name}
+                          {message.agency.name || 'Agence'}
                         </Badge>
                       )}
                       <span className="text-gray-400"> • </span>

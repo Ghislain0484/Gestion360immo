@@ -55,6 +55,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
     id_card_url: initialData?.id_card_url || '',
     payment_status: initialData?.payment_status || 'bon',
     agency_id: user?.agency_id || '',
+    status: initialData?.status || 'actif',
   });
 
   const maritalStatusOptions = [
@@ -95,6 +96,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
         id_card_url: initialData?.id_card_url || '',
         payment_status: initialData?.payment_status || 'bon',
         agency_id: user?.agency_id || '',
+        status: initialData?.status || 'actif',
       });
       // Reset rental wizard state
       setAssignProperty(false);
@@ -350,6 +352,19 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
                     {nationality}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Statut du dossier</label>
+              <select
+                value={formData.status || 'actif'}
+                onChange={(e) => updateFormData({ status: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="actif">Actif</option>
+                <option value="en_attente">En attente</option>
+                <option value="suspendu">Suspendu</option>
+                <option value="litige">Litige</option>
               </select>
             </div>
           </div>

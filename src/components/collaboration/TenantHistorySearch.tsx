@@ -9,6 +9,7 @@ import { Tenant, Contract } from '../../types/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
 import { dbService } from '../../lib/supabase';
+import { FintechService } from '../../lib/db/fintechService';
 import toast from 'react-hot-toast';
 
 interface TenantHistory extends Tenant {
@@ -85,7 +86,10 @@ export const TenantHistorySearch: React.FC = () => {
 
     setRequestingAccess(true);
     try {
-      // 1. Créer la demande formelle
+      // 1. Débiter un crédit
+      await FintechService.useCollaborationCredit(authAgencyId);
+
+      // 2. Créer la demande formelle
       const { error: reqError } = await supabase
         .from('collaboration_requests')
         .insert({
@@ -111,9 +115,10 @@ export const TenantHistorySearch: React.FC = () => {
         await dbService.messages.create({
           sender_id: user.id,
           receiver_id: director.user_id,
-          agency_id: result.agency_id,
+          agency_id: authAgencyId,
+          receiver_agency_id: result.agency_id,
           subject: `Demande d'informations : Locataire trouvé`,
-          content: `Bonjour, nous avons trouvé un candidat (ID: ${result.id.slice(0, 8)}) ayant un historique dans votre agence. Pourriez-vous nous autoriser l'accès à son dossier complet ?`,
+          content: `Bonjour, nous avons trouvé un candidat (ID: ${result.id?.slice(0, 8) || 'N/A'}) ayant un historique dans votre agence. Pourriez-vous nous autoriser l'accès à son dossier complet ?`,
           is_read: false,
           created_at: new Date().toISOString()
         });
@@ -395,7 +400,9 @@ export const TenantHistorySearch: React.FC = () => {
                 />
               ) : (
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                  <UserCheck className="h-8 w-8 text-blue-600" />
+                  <span className="text-blue-600 font-semibold text-xl">
+                    {selectedTenant.first_name?.[0] || ''}{selectedTenant.last_name?.[0] || ''}
+                  </span>
                 </div>
               )}
               <div>

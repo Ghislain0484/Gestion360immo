@@ -1,0 +1,12 @@
+-- Extract all RLS policies to a JSON format
+SELECT 
+    schemaname, 
+    tablename, 
+    policyname, 
+    permissive, 
+    roles, 
+    cmd, 
+    qual, 
+    with_check 
+FROM pg_policies 
+WHERE schemaname = 'public';

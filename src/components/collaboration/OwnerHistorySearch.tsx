@@ -9,6 +9,7 @@ import { Owner } from '../../types/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
 import { dbService } from '../../lib/supabase';
+import { FintechService } from '../../lib/db/fintechService';
 import toast from 'react-hot-toast';
 
 interface OwnerHistory extends Owner {
@@ -83,6 +84,10 @@ export const OwnerHistorySearch: React.FC = () => {
 
     setRequestingAccess(true);
     try {
+      // 1. Débiter un crédit
+      await FintechService.useCollaborationCredit(authAgencyId);
+
+      // 2. Créer la demande formelle
       const { error: reqError } = await supabase
         .from('collaboration_requests')
         .insert({
@@ -107,9 +112,10 @@ export const OwnerHistorySearch: React.FC = () => {
         await dbService.messages.create({
           sender_id: user.id,
           receiver_id: director.user_id,
-          agency_id: result.agency_id,
+          agency_id: authAgencyId, // Mon agence est l'expéditeur
+          receiver_agency_id: result.agency_id, // Son agence est le destinataire
           subject: `Demande d'informations : Propriétaire trouvé`,
-          content: `Bonjour, nous avons trouvé un propriétaire (ID: ${result.id.slice(0, 8)}) ayant un historique dans votre agence. Pourriez-vous nous autoriser l'accès à son dossier ?`,
+          content: `Bonjour, nous avons trouvé un propriétaire (ID: ${result.id?.slice(0, 8) || 'N/A'}) ayant un historique dans votre agence. Pourriez-vous nous autoriser l'accès à son dossier ?`,
           is_read: false,
           created_at: new Date().toISOString()
         });
@@ -389,7 +395,7 @@ export const OwnerHistorySearch: React.FC = () => {
             <div className="flex items-center space-x-4">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
                 <span className="text-green-600 font-semibold text-xl">
-                  {selectedOwner.first_name[0]}{selectedOwner.last_name[0]}
+                  {selectedOwner.first_name?.[0] || ''}{selectedOwner.last_name?.[0] || ''}
                 </span>
               </div>
               <div>

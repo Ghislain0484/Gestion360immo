@@ -90,6 +90,8 @@ export interface PlatformStats {
   // 👉 nouveaux champs by AOC
   pendingRequests: number;
   approvedAgencies: number;
+  globalPotential?: number;
+  globalCommissions?: number;
 }
 
 // AJOUT By AOC
