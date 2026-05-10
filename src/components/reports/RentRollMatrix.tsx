@@ -36,7 +36,8 @@ export const RentRollMatrix: React.FC = () => {
     if (!user?.agency_id) return;
     setLoading(true);
     try {
-      // 1. Fetch active contracts with deep joins
+      // 1. Fetch contracts with deep joins using standard aliases
+      // We use the same join pattern as in contractsService.ts for consistency
       const { data: contractsData, error: contractsError } = await supabase
         .from('contracts')
         .select(`
@@ -44,13 +45,20 @@ export const RentRollMatrix: React.FC = () => {
           monthly_rent, 
           start_date,
           status,
-          properties(id, title, owners(id, first_name, last_name)),
-          tenants(id, first_name, last_name)
+          property:properties(id, title, owner:owners(id, first_name, last_name)),
+          tenant:tenants(id, first_name, last_name)
         `)
-        .eq('agency_id', user.agency_id)
-        .in('status', ['active', 'renewed', 'notice']);
+        .eq('agency_id', user.agency_id);
+        // Temporarily removed status filter to see all data
 
       if (contractsError) throw contractsError;
+
+      if (!contractsData || contractsData.length === 0) {
+        console.log('No contracts found for agency:', user.agency_id);
+        setMatrixData([]);
+        setLoading(false);
+        return;
+      }
 
       // 2. Fetch all rent receipts for this agency for the selected year
       const { data: receiptsData, error: receiptsError } = await supabase
@@ -60,20 +68,20 @@ export const RentRollMatrix: React.FC = () => {
         .eq('period_year', selectedYear);
 
       if (receiptsError) {
-        // Fallback for older schema
+        // Fallback for older schema if agency_id is missing on receipts
         const { data: fallbackData } = await supabase
           .from('rent_receipts')
           .select('contract_id, period_month, contracts!inner(agency_id)')
           .eq('contracts.agency_id', user.agency_id)
           .eq('period_year', selectedYear);
         
-        setMatrixDataFromResults(contractsData || [], fallbackData || []);
+        setMatrixDataFromResults(contractsData, fallbackData || []);
       } else {
-        setMatrixDataFromResults(contractsData || [], receiptsData || []);
+        setMatrixDataFromResults(contractsData, receiptsData || []);
       }
     } catch (err: any) {
       console.error('Error fetching Rent Roll:', err);
-      toast.error('Erreur lors du chargement des données');
+      toast.error('Erreur de chargement');
     } finally {
       setLoading(false);
     }
@@ -90,16 +98,16 @@ export const RentRollMatrix: React.FC = () => {
 
     const ownerMap = new Map<string, MatrixData>();
 
-    contracts?.forEach(c => {
-      // Support both object and array results from Supabase joins
-      const prop = Array.isArray(c.properties) ? c.properties[0] : c.properties;
-      const ten = Array.isArray(c.tenants) ? c.tenants[0] : c.tenants;
+    contracts.forEach(c => {
+      // Robust extraction based on aliases
+      const prop = c.property;
+      const ten = c.tenant;
       
       if (!prop || !ten) return;
 
-      const own = Array.isArray(prop.owners) ? prop.owners[0] : prop.owners;
+      const own = prop.owner || c.owner; // Some schemas have owner on contract directly
       const ownerId = own?.id || 'unknown-owner';
-      const ownerName = own ? `${own.first_name || ''} ${own.last_name || ''}`.trim() || 'Propriétaire sans nom' : 'Propriétaire inconnu';
+      const ownerName = own ? `${own.first_name || ''} ${own.last_name || ''}`.trim() : 'Propriétaire inconnu';
 
       if (!ownerMap.has(ownerId)) {
         ownerMap.set(ownerId, {
