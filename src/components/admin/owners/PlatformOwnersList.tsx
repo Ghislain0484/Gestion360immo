@@ -12,7 +12,6 @@ import toast from 'react-hot-toast';
 import { AdminOwnerSubscriptionModal } from './AdminOwnerSubscriptionModal';
 
 export const PlatformOwnersList: React.FC = () => {
-    const [ownerSubscriptionPrice, setOwnerSubscriptionPrice] = useState(10000);
     const { data: agencies = [], isLoading: loadingAgencies } = useAgencies();
     const [owners, setOwners] = useState<Owner[]>([]);
     const [loadingOwners, setLoadingOwners] = useState(true);
@@ -20,17 +19,6 @@ export const PlatformOwnersList: React.FC = () => {
     const [selectedAgencyId, setSelectedAgencyId] = useState<string>('all');
     const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-
-    const loadSettings = React.useCallback(async () => {
-        const { data, error } = await supabase
-            .from('platform_settings')
-            .select('setting_value')
-            .eq('setting_key', 'subscription_owner_price')
-            .single();
-        if (!error && data) {
-            setOwnerSubscriptionPrice(Number(data.setting_value));
-        }
-    }, []);
 
     const loadAllOwners = React.useCallback(async () => {
         setLoadingOwners(true);
@@ -53,10 +41,9 @@ export const PlatformOwnersList: React.FC = () => {
     }, [selectedAgencyId]);
 
     React.useEffect(() => {
-        loadSettings();
         loadAllOwners();
-    }, [loadSettings, loadAllOwners]);
-
+    }, [loadAllOwners]);
+    
     const filteredOwners = useMemo(() => {
         return owners.filter(o => 
             `${o.first_name} ${o.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -79,7 +66,7 @@ export const PlatformOwnersList: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card className="p-6 bg-gradient-to-br from-indigo-500 to-indigo-600 border-none text-white overflow-hidden relative">
                     <div className="relative z-10">
                         <p className="text-white/70 text-xs font-black uppercase tracking-widest mb-1">Total Propriétaires</p>
@@ -88,15 +75,9 @@ export const PlatformOwnersList: React.FC = () => {
                     <UserIcon className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/10 rotate-12" />
                 </Card>
                 <Card className="p-6 bg-white border-slate-100 shadow-sm">
-                    <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Revenus Mensuels Estimés</p>
+                    <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Agences Gestionnaires</p>
                     <h3 className="text-4xl font-black text-slate-900">
-                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(owners.filter(o => o.subscription_status === 'active').length * ownerSubscriptionPrice)}
-                    </h3>
-                </Card>
-                <Card className="p-6 bg-white border-slate-100 shadow-sm">
-                    <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Taux d'Activation</p>
-                    <h3 className="text-4xl font-black text-emerald-600">
-                        {owners.length > 0 ? Math.round((owners.filter(o => o.subscription_status === 'active').length / owners.length) * 100) : 0}%
+                        {new Set(owners.map(o => o.agency_id)).size}
                     </h3>
                 </Card>
             </div>

@@ -42,12 +42,22 @@ export const PlatformAdminManagement: React.FC = () => {
         setLoading(true);
         try {
             const { data, error } = await supabase
-                .from('platform_admins')
-                .select('*, users!platform_admins_user_id_fkey(email, first_name, last_name)')
+                .from('view_platform_admins')
+                .select('*')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setAdmins(data as AdminWithProfile[]);
+            
+            // Transformer les données pour correspondre à l'interface (aplatir users)
+            const formattedAdmins = (data as any[]).map(admin => ({
+                ...admin,
+                users: {
+                    email: admin.email,
+                    first_name: admin.first_name,
+                    last_name: admin.last_name
+                }
+            }));
+            setAdmins(formattedAdmins);
         } catch (error: any) {
             toast.error('Erreur lors du chargement des administrateurs');
             console.error(error);

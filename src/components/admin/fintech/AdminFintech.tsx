@@ -4,9 +4,10 @@ import { Card } from '../../ui/Card';
 import { getGlobalFintechData } from '../../../lib/adminApi';
 import { formatAmount } from '../../../utils/format';
 import { LoadingSpinner } from '../../ui/LoadingSpinner';
+import { downloadAgencyInvoicePDF } from '../../../utils/agencyInvoicing';
 
 export const AdminFintech: React.FC = () => {
-    const [data, setData] = useState<{ wallets: any[], transactions: any[] }>({ wallets: [], transactions: [] });
+    const [data, setData] = useState<{ wallets: any[], transactions: any[], pendingFees: any[] }>({ wallets: [], transactions: [], pendingFees: [] });
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -18,7 +19,17 @@ export const AdminFintech: React.FC = () => {
         setLoading(true);
         try {
             const fintechData = await getGlobalFintechData();
-            setData(fintechData);
+            
+            // Récupérer aussi les dettes de commission
+            const { data: fees } = await supabase
+                .from('agency_fintech_fees')
+                .select('*, agencies(name)')
+                .order('created_at', { ascending: false });
+
+            setData({
+                ...fintechData,
+                pendingFees: fees || []
+            });
         } catch (err) {
             console.error('Error loading admin fintech data:', err);
         } finally {
@@ -26,6 +37,32 @@ export const AdminFintech: React.FC = () => {
         }
     };
 
+    const handleGenerateFees = async () => {
+        try {
+            // Appelle la fonction SQL qui calcule les 1% pour toutes les agences
+            const { error } = await supabase.rpc('process_monthly_fintech_commissions');
+            if (error) throw error;
+            toast.success('Commissions du mois générées ! Les agences peuvent maintenant payer.');
+            loadData();
+        } catch (error: any) {
+            toast.error('Erreur de génération : ' + error.message);
+        }
+    };
+
+    const handleDownloadInvoice = (tx: any) => {
+        downloadAgencyInvoicePDF({
+            invoiceNumber: tx.reference || `TX-${tx.id.substring(0, 8)}`,
+            date: new Date(tx.created_at).toLocaleDateString('fr-FR'),
+            agencyName: tx.agencies?.name || 'Agence',
+            agencyCity: tx.agencies?.city,
+            amount: Math.abs(tx.amount),
+            type: tx.type === 'deposit' ? 'deposit' : 'commission',
+            description: tx.description || (tx.type === 'deposit' ? 'Rechargement de compte' : 'Commission Fintech 1%'),
+            potentialRevenue: tx.type === 'usage' ? Math.abs(tx.amount) * 100 : undefined
+        });
+    };
+    
+    // ... stats logic ...
     const stats = {
         totalBalance: data.wallets.reduce((sum, w) => sum + Number(w.balance || 0), 0),
         totalTransactions: data.transactions.length,
@@ -43,23 +80,30 @@ export const AdminFintech: React.FC = () => {
 
     return (
         <div className="animate-slide-up space-y-10">
-            {/* Header section */}
+            {/* ... header and stats grid ... */}
             <div>
                 <div className="mb-3 flex items-center gap-2">
                     <span className="h-1.5 w-8 rounded-full bg-indigo-500" />
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">
                         Financial Oversight
                     </span>
-                </div>
-                <h2 className="mb-4 text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                                <h2 className="mb-4 text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                     Portefeuille <span className="text-indigo-600">Global</span>
                 </h2>
-                <p className="max-w-2xl text-lg text-slate-500 dark:text-slate-300">
-                    Consultez l'état financier de toutes les agences et l'historique des paiements vers GESTION360IMMO.
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <p className="max-w-2xl text-lg text-slate-500 dark:text-slate-300">
+                        Consultez l'état financier de toutes les agences et l'historique des paiements vers GESTION360IMMO.
+                    </p>
+                    <button 
+                        onClick={handleGenerateFees}
+                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                    >
+                        <DollarSign className="w-5 h-5" />
+                        Générer les commissions (1%)
+                    </button>
+                </div>
             </div>
 
-            {/* Stats Grid */}
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 <Card className="p-6 border-none bg-indigo-600 text-white shadow-xl">
                     <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider">Trésorerie Globale</p>
@@ -89,16 +133,57 @@ export const AdminFintech: React.FC = () => {
                 </Card>
 
                 <Card className="p-6 bg-white dark:bg-slate-900 shadow-sm border-slate-100">
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Commissions Estimées (1%)</p>
-                    <h3 className="text-3xl font-black mt-2 text-slate-900 dark:text-white">{formatAmount(stats.totalDeposit * 0.01)} FCFA</h3>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Commissions Perçues</p>
+                    <h3 className="text-3xl font-black mt-2 text-slate-900 dark:text-white">
+                        {formatAmount(data.transactions.filter(t => t.type === 'usage').reduce((sum, t) => sum + Math.abs(t.amount), 0))} FCFA
+                    </h3>
                     <div className="mt-4 flex items-center gap-2 text-indigo-500 text-xs font-bold">
                         <DollarSign className="w-4 h-4" />
-                        Revenus plateforme
+                        Revenus plateforme réels
                     </div>
                 </Card>
             </div>
 
-            {/* Transactions Table */}
+            {/* Commissions en attente */}
+            {data.pendingFees.length > 0 && (
+                <Card className="overflow-hidden border-none shadow-premium bg-amber-50 dark:bg-amber-900/10 border-2 border-amber-100">
+                    <div className="p-6 border-b border-amber-100 dark:border-amber-800/50 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                                <DollarSign className="h-6 w-6 text-amber-600" />
+                            </div>
+                            <h4 className="font-bold text-amber-900">Paiements en attente des agences</h4>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-amber-100/50 text-amber-700 text-[10px] uppercase font-black">
+                                <tr>
+                                    <th className="px-6 py-3 text-left">Agence</th>
+                                    <th className="px-6 py-3 text-left">Période</th>
+                                    <th className="px-6 py-3 text-right">Potentiel</th>
+                                    <th className="px-6 py-3 text-right">Commission Due</th>
+                                    <th className="px-6 py-3 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.pendingFees.filter(f => f.status === 'pending').map(fee => (
+                                    <tr key={fee.id} className="border-t border-amber-100">
+                                        <td className="px-6 py-4 font-bold text-amber-900 uppercase tracking-tighter">{fee.agencies?.name}</td>
+                                        <td className="px-6 py-4 text-amber-700">{fee.period_month}</td>
+                                        <td className="px-6 py-4 text-right font-medium">{formatAmount(fee.potential_revenue)} FCFA</td>
+                                        <td className="px-6 py-4 text-right font-black text-amber-600">{formatAmount(fee.commission_amount)} FCFA</td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="px-2 py-1 bg-amber-200 text-amber-800 rounded-lg text-[10px] font-black uppercase tracking-widest">En attente</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            )}
+
             <Card className="overflow-hidden border-none shadow-premium bg-white dark:bg-slate-900">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
                     <div className="relative flex-1 min-w-[300px]">
@@ -116,6 +201,7 @@ export const AdminFintech: React.FC = () => {
                         Exporter CSV
                     </button>
                 </div>
+         </div>
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -126,12 +212,13 @@ export const AdminFintech: React.FC = () => {
                                 <th className="px-6 py-4 text-left">Description</th>
                                 <th className="px-6 py-4 text-left">Type</th>
                                 <th className="px-6 py-4 text-right">Montant</th>
+                                <th className="px-6 py-4 text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {filteredTransactions.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-20 text-center text-slate-400 italic">
+                                    <td colSpan={6} className="px-6 py-20 text-center text-slate-400 italic">
                                         Aucune transaction enregistrée.
                                     </td>
                                 </tr>
@@ -157,16 +244,25 @@ export const AdminFintech: React.FC = () => {
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
                                                 tx.type === 'deposit' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
-                                                tx.type === 'usage' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400' :
-                                                'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400'
+                                                tx.type === 'usage' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400' :
+                                                'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
                                             }`}>
-                                                {tx.type}
+                                                {tx.type === 'deposit' ? 'RECHARGEMENT' : tx.type === 'usage' ? 'PRÉLÈVEMENT' : tx.type}
                                             </span>
                                         </td>
                                         <td className={`px-6 py-4 text-right font-black ${
                                             tx.amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                                         }`}>
                                             {tx.amount > 0 ? '+' : ''}{formatAmount(tx.amount)} FCFA
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <button 
+                                                onClick={() => handleDownloadInvoice(tx)}
+                                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                title="Télécharger la facture"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))

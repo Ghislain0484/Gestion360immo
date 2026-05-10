@@ -29,21 +29,23 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     const permissions = (admin?.permissions as Record<string, boolean>) || {};
     const isSuperAdmin = admin?.role === 'super_admin';
 
-    const filteredMenuItems = menuItems.filter(item => {
+    const canAccess = (itemId: string) => {
         if (isSuperAdmin) return true;
         
-        switch (item.id) {
+        switch (itemId) {
             case 'overview': return true;
             case 'agencies': return permissions.agencies;
             case 'owners': return permissions.agencies;
-            case 'fintech': return permissions.reports || permissions.subscriptions;
             case 'requests': return permissions.agencies;
+            case 'fintech': return permissions.reports || permissions.subscriptions;
             case 'rankings': return permissions.reports;
             case 'reports': return permissions.reports;
             case 'settings': return permissions.settings;
             default: return false;
         }
-    });
+    };
+
+    const filteredMenuItems = menuItems.filter(item => canAccess(item.id));
 
     return (
         <aside className="w-72 bg-slate-900 border-r border-slate-800 min-h-screen sticky top-0 z-[60] flex flex-col shadow-2xl">
