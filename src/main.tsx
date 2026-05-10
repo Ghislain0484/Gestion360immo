@@ -11,6 +11,13 @@ OfflineSyncManager.init();
 // --- SILENCIEUX DE PANIQUE ULTIME (RÉACT) ---
 // On intercepte TOUT ce qui pourrait bloquer l'UI suite au bug Supabase/Antivirus
 if (typeof window !== 'undefined') {
+  // --- SURCHARGE GLOBALE DU FORMATAGE DES NOMBRES (Points pour les milliers) ---
+  const originalNumberToLocale = Number.prototype.toLocaleString;
+  Number.prototype.toLocaleString = function(locale, options) {
+    // On force le style allemand (de-DE) qui utilise des points pour les milliers
+    return originalNumberToLocale.call(this, 'de-DE', options);
+  };
+
   const universalSilencer = (e: any) => {
     const error = e.error || e.reason || e.message || e;
     const msg = (typeof error === 'string' ? error : (error.message || error.stack || "") || "").toLowerCase();

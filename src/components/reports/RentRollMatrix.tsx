@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { Check, X, Calendar, Download } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toast } from 'react-hot-toast';
+import { formatAmount } from '../../utils/format';
 
 interface MatrixData {
   owner_id: string;
@@ -27,6 +28,7 @@ export const RentRollMatrix: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [matrixData, setMatrixData] = useState<MatrixData[]>([]);
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string>('all');
 
   useEffect(() => {
     fetchMatrixData();
@@ -137,8 +139,15 @@ export const RentRollMatrix: React.FC = () => {
     setMatrixData(Array.from(ownerMap.values()));
   };
 
+  const filteredMatrixData = selectedOwnerId === 'all' 
+    ? matrixData 
+    : matrixData.filter(o => o.owner_id === selectedOwnerId);
+
+  const ownersList = matrixData.map(o => ({ id: o.owner_id, name: o.owner_name }));
+
   const handleExportPDF = () => {
     try {
+      const dataToExport = filteredMatrixData;
       const doc = new jsPDF('landscape');
       doc.setFontSize(16);
       doc.text(`Tableau Matriciel des Loyers - ${selectedYear}`, 14, 20);
@@ -146,7 +155,7 @@ export const RentRollMatrix: React.FC = () => {
       doc.setFontSize(10);
       let y = 30;
       
-      matrixData.forEach(owner => {
+      dataToExport.forEach(owner => {
         if (y > 180) { doc.addPage(); y = 20; }
         
         doc.setFont('helvetica', 'bold');
@@ -176,7 +185,7 @@ export const RentRollMatrix: React.FC = () => {
           const label = `${contract.tenant_name} (${contract.property_title})`;
           doc.text(label.substring(0, 40), x, y);
           x += 60;
-          doc.text(`${contract.monthly_rent.toLocaleString()}F`, x, y);
+          doc.text(`${formatAmount(contract.monthly_rent)}F`, x, y);
           x += 20;
           
           for (let i = 1; i <= 12; i++) {
@@ -230,25 +239,45 @@ export const RentRollMatrix: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Vision radar instantanée de la santé de votre parc immobilier</p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <select 
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-semibold focus:ring-2 focus:ring-indigo-500"
-          >
-            {[...Array(5)].map((_, i) => {
-              const year = new Date().getFullYear() - i;
-              return <option key={year} value={year}>{year}</option>;
-            })}
-          </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 uppercase ml-1 mb-1">Filtrer par Propriétaire</span>
+            <select 
+              value={selectedOwnerId}
+              onChange={(e) => setSelectedOwnerId(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm font-semibold focus:ring-2 focus:ring-indigo-500 min-w-[200px]"
+            >
+              <option value="all">Tous les propriétaires</option>
+              {ownersList.map(o => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 uppercase ml-1 mb-1">Année</span>
+            <select 
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-semibold focus:ring-2 focus:ring-indigo-500"
+            >
+              {[...Array(5)].map((_, i) => {
+                const year = new Date().getFullYear() - i;
+                return <option key={year} value={year}>{year}</option>
+              })}
+            </select>
+          </div>
           
-          <button 
-            onClick={handleExportPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium rounded-lg transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Exporter PDF
-          </button>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-transparent ml-1 mb-1">Actions</span>
+            <button 
+              onClick={handleExportPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium rounded-lg transition-colors border border-indigo-100"
+            >
+              <Download className="w-4 h-4" />
+              Exporter PDF
+            </button>
+          </div>
         </div>
       </div>
 
@@ -264,14 +293,14 @@ export const RentRollMatrix: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {matrixData.length === 0 ? (
+            {filteredMatrixData.length === 0 ? (
               <tr>
                 <td colSpan={14} className="px-6 py-12 text-center text-gray-500 bg-gray-50">
-                  Aucun contrat actif trouvé pour cette année.
+                  Aucun contrat actif trouvé pour cette sélection.
                 </td>
               </tr>
             ) : (
-              matrixData.map((ownerGroup) => (
+              filteredMatrixData.map((ownerGroup) => (
                 <React.Fragment key={ownerGroup.owner_id}>
                   {/* Owner Header Row */}
                   <tr className="bg-slate-100 border-t-4 border-slate-300">
@@ -295,7 +324,7 @@ export const RentRollMatrix: React.FC = () => {
                           </p>
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50/50">
-                          {contract.monthly_rent.toLocaleString()}
+                          {formatAmount(contract.monthly_rent)}
                         </td>
                         
                         {/* Month Cells */}
