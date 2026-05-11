@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Wallet, DollarSign, ArrowUpRight, History, Search, Download, Building2 } from 'lucide-react';
+import clsx from 'clsx';
 import { Card } from '../../ui/Card';
 import { getGlobalFintechData } from '../../../lib/adminApi';
 import { formatAmount } from '../../../utils/format';

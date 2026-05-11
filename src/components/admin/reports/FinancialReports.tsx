@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, DollarSign, Download, Calendar, FileText, Building2, PieChart } from 'lucide-react';
+import { BarChart3, TrendingUp, DollarSign, Download, Calendar, FileText, Building2, PieChart, Shield } from 'lucide-react';
+import clsx from 'clsx';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
