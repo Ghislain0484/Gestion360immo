@@ -178,113 +178,141 @@ export const FinancialReports: React.FC = () => {
     if (!reportData) return null;
 
     return (
-        <div className="space-y-8 animate-slide-up">
-            <Card className="border-none bg-slate-900 shadow-xl overflow-hidden relative">
-                <div className="absolute top-0 right-0 p-8 opacity-10">
-                    <TrendingUp size={120} className="text-white" />
-                </div>
-                <div className="p-8 relative z-10">
-                    <div className="flex flex-wrap items-center justify-between gap-6">
-                        <div>
-                            <h3 className="text-3xl font-black text-white mb-2">Rapports Financiers</h3>
-                            <p className="text-slate-400 font-medium">Analyse des revenus Fintech GESTION360 (1%)</p>
+        <div className="animate-fade-in space-y-12 pb-20">
+            {/* Premium Header */}
+            <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-[2rem] blur opacity-10 group-hover:opacity-20 transition duration-1000"></div>
+                <div className="relative bg-slate-900 p-10 rounded-[2rem] shadow-2xl overflow-hidden">
+                    <div className="absolute top-0 right-0 p-12 opacity-5">
+                        <TrendingUp size={180} className="text-white" />
+                    </div>
+                    
+                    <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="h-2 w-12 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400"></div>
+                                <span className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-400">Financial Intelligence</span>
+                            </div>
+                            <h2 className="text-5xl font-black tracking-tighter text-white leading-tight">
+                                Rapports de <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Performance</span>
+                            </h2>
+                            <p className="text-slate-400 font-medium text-lg leading-relaxed max-w-xl">
+                                Analyse chirurgicale des revenus Fintech <span className="text-white">GESTION360</span> et du volume d'affaires global généré.
+                            </p>
                         </div>
-                        <div className="flex gap-4">
+
+                        <div className="flex items-center gap-4">
                             <select
                                 value={period}
                                 onChange={(e) => setPeriod(e.target.value as any)}
-                                className="px-5 py-2.5 bg-slate-800 border-none text-white rounded-xl focus:ring-2 ring-indigo-500 font-bold"
+                                className="px-6 py-4 bg-slate-800/50 backdrop-blur-md border border-slate-700 text-white rounded-2xl focus:ring-2 ring-emerald-500 font-bold text-sm appearance-none cursor-pointer hover:bg-slate-800 transition-all"
                             >
                                 <option value="month">Mensuel</option>
                                 <option value="quarter">Trimestriel</option>
                                 <option value="year">Annuel</option>
                             </select>
-                            <Button
-                                variant="primary"
+                            <button
                                 onClick={exportToPDF}
-                                className="bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/20"
+                                className="flex items-center gap-3 px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-900/40 transition-all active:scale-95"
                             >
-                                <Download className="h-4 w-4 mr-2" />
+                                <Download className="h-5 w-5" />
                                 Exporter PDF
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 </div>
-            </Card>
-
-            <div className="grid md:grid-cols-3 gap-6">
-                <Card className="p-8 border-none bg-white shadow-premium">
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                            <DollarSign className="h-8 w-8 text-emerald-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Commissions Réelles</p>
-                            <p className="text-2xl font-black text-slate-900">{formatCurrency(reportData.fintechCommission)}</p>
-                        </div>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500" style={{ width: '75%' }} />
-                    </div>
-                    <p className="text-xs text-slate-500 mt-4 font-bold">+{reportData.growthRate.toFixed(1)}% de croissance</p>
-                </Card>
-
-                <Card className="p-8 border-none bg-white shadow-premium">
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="h-14 w-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center">
-                            <Building2 className="h-8 w-8 text-indigo-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Agences Actives</p>
-                            <p className="text-2xl font-black text-slate-900">{reportData.activeAgencies}</p>
-                        </div>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500" style={{ width: '60%' }} />
-                    </div>
-                    <p className="text-xs text-slate-500 mt-4 font-bold">+{reportData.newAgencies} nouvelles agences</p>
-                </Card>
-
-                <Card className="p-8 border-none bg-white shadow-premium">
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="h-14 w-14 rounded-2xl bg-purple-500/10 flex items-center justify-center">
-                            <PieChart className="h-8 w-8 text-purple-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Performance Moyenne</p>
-                            <p className="text-2xl font-black text-slate-900">{formatCurrency(reportData.avgCommissionPerAgency)}</p>
-                        </div>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-500" style={{ width: '45%' }} />
-                    </div>
-                    <p className="text-xs text-slate-500 mt-4 font-bold">Par agence partenaire</p>
-                </Card>
             </div>
 
-            <Card className="p-8 border-none bg-white shadow-premium">
-                <h4 className="text-xl font-black text-slate-900 mb-8">Analyse du Volume Géré</h4>
-                <div className="space-y-6">
-                    <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
-                        <div>
-                            <p className="font-black text-slate-900 text-lg">Volume d'affaires global (Loyers)</p>
-                            <p className="text-sm text-slate-500 font-medium italic">Base de calcul de la commission 1%</p>
+            {/* Main Metrics Grid */}
+            <div className="grid md:grid-cols-3 gap-8">
+                {[
+                    { label: 'Commissions Réelles', value: formatCurrency(reportData.fintechCommission), sub: `+${reportData.growthRate.toFixed(1)}% de croissance`, icon: DollarSign, color: 'emerald' },
+                    { label: 'Agences Partenaires', value: reportData.activeAgencies, sub: `+${reportData.newAgencies} nouvelles agences`, icon: Building2, color: 'indigo' },
+                    { label: 'Revenu / Agence', value: formatCurrency(reportData.avgCommissionPerAgency), sub: 'Performance moyenne brute', icon: PieChart, color: 'purple' }
+                ].map((metric, i) => (
+                    <Card key={i} className="p-8 border-none bg-white dark:bg-slate-900 shadow-2xl shadow-slate-200/50 dark:shadow-none hover:shadow-indigo-500/5 transition-all duration-500">
+                        <div className="flex items-center gap-5 mb-8">
+                            <div className={`h-16 w-16 rounded-[1.25rem] bg-${metric.color}-500/10 flex items-center justify-center`}>
+                                <metric.icon className={`h-8 w-8 text-${metric.color}-600`} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{metric.label}</p>
+                                <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">{metric.value}</p>
+                            </div>
                         </div>
-                        <p className="text-3xl font-black text-indigo-600">{formatCurrency(reportData.revenueByCategory.rent)}</p>
+                        <div className="space-y-3">
+                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div className={`h-full bg-${metric.color}-500 rounded-full`} style={{ width: '65%' }} />
+                            </div>
+                            <p className={`text-xs font-bold text-${metric.color}-600`}>{metric.sub}</p>
+                        </div>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Analysis Section */}
+            <div className="grid lg:grid-cols-3 gap-8">
+                <Card className="lg:col-span-2 p-10 border-none bg-white dark:bg-slate-900 shadow-2xl">
+                    <div className="flex items-center gap-3 mb-10">
+                        <div className="h-8 w-1.5 bg-indigo-500 rounded-full"></div>
+                        <h4 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Analyse du Volume Stratégique</h4>
                     </div>
-                    
-                    <div className="grid md:grid-cols-2 gap-6">
-                         <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
-                            <p className="text-xs font-black text-emerald-600 uppercase mb-2">Rétention Agences</p>
-                            <p className="text-2xl font-black text-emerald-900">{(100 - reportData.churnRate).toFixed(1)}%</p>
-                         </div>
-                         <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
-                            <p className="text-xs font-black text-blue-600 uppercase mb-2">Revenu Moyen / Agence</p>
-                            <p className="text-2xl font-black text-blue-900">{formatCurrency(reportData.avgCommissionPerAgency)}</p>
-                         </div>
+
+                    <div className="space-y-8">
+                        <div className="group relative p-8 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden transition-all hover:scale-[1.01] duration-500 shadow-xl shadow-slate-900/20">
+                            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                                <div className="space-y-2">
+                                    <p className="text-xs font-black text-indigo-400 uppercase tracking-widest">Volume d'affaires global (Loyers)</p>
+                                    <p className="text-sm text-slate-400 font-medium italic">Somme totale des baux actifs sous gestion GESTION360</p>
+                                </div>
+                                <p className="text-4xl font-black tracking-tighter">{formatCurrency(reportData.revenueByCategory.rent)}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="p-8 rounded-3xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/20 group hover:bg-emerald-100/50 transition-colors">
+                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3">Taux de Rétention</p>
+                                <p className="text-3xl font-black text-emerald-900 dark:text-emerald-400">{(100 - reportData.churnRate).toFixed(1)}%</p>
+                                <p className="text-xs text-emerald-600/60 mt-2 font-medium">Fidélité des agences partenaires</p>
+                            </div>
+                            <div className="p-8 rounded-3xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 group hover:bg-blue-100/50 transition-colors">
+                                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-3">ARPA (Average Revenue)</p>
+                                <p className="text-3xl font-black text-blue-900 dark:text-blue-400">{formatCurrency(reportData.avgCommissionPerAgency)}</p>
+                                <p className="text-xs text-blue-600/60 mt-2 font-medium">Revenu moyen par agence</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </Card>
+                </Card>
+
+                <Card className="p-10 border-none bg-gradient-to-br from-indigo-600 to-purple-700 text-white shadow-2xl">
+                    <div className="flex items-center gap-3 mb-8">
+                        <Shield className="h-6 w-6 text-indigo-200" />
+                        <h4 className="text-xl font-black tracking-tight">Objectifs Fintech</h4>
+                    </div>
+                    <div className="space-y-8">
+                        {[
+                            { label: 'Collecte Commissions', progress: 85 },
+                            { label: 'Expansion Réseau', progress: 62 },
+                            { label: 'Optimisation Flux', progress: 94 }
+                        ].map((item, i) => (
+                            <div key={i} className="space-y-3">
+                                <div className="flex justify-between text-xs font-black uppercase tracking-widest opacity-80">
+                                    <span>{item.label}</span>
+                                    <span>{item.progress}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                                    <div className="h-full bg-white rounded-full" style={{ width: `${item.progress}%` }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-12 p-6 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20">
+                        <p className="text-sm font-medium leading-relaxed italic opacity-90">
+                            "Le modèle 1% assure une scalabilité infinie sans barrière à l'entrée pour les nouvelles agences."
+                        </p>
+                    </div>
+                </Card>
+            </div>
         </div>
     );
 };

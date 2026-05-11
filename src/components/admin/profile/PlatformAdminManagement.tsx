@@ -224,7 +224,7 @@ export const PlatformAdminManagement: React.FC = () => {
             {/* Modale d'ajout */}
             {showAddModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                    <Card className="max-w-2xl w-full p-6 animate-in fade-in zoom-in duration-200">
+                    <Card className="max-w-2xl w-full p-6 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-xl font-bold text-slate-900 dark:text-white">Nouvel Administrateur</h3>
                             <button onClick={() => setShowAddModal(false)}><X className="h-6 w-6 text-slate-400 hover:text-slate-600" /></button>
@@ -288,7 +288,7 @@ export const PlatformAdminManagement: React.FC = () => {
             {/* Modale d'édition */}
             {editingAdmin && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                    <Card className="max-w-xl w-full p-6 animate-in fade-in zoom-in duration-200">
+                    <Card className="max-w-xl w-full p-6 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-xl font-bold text-slate-900 dark:text-white">Modifier les permissions</h3>
                             <button onClick={() => setEditingAdmin(null)}><X className="h-6 w-6 text-slate-400 hover:text-slate-600" /></button>
