@@ -36,14 +36,14 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // ✅ useAuth() au niveau du composant, pas dans un callback
+  const { user } = useAuth();
 
   const handleCustomPrint = async (template: any) => {
-    const { user } = useAuth();
     if (!user?.agency_id) return;
     
     try {
       const fullAgency = await dbService.agencies.getById(user.agency_id);
-      // Need to fetch full objects for property, owner, tenant
       const { data: prop } = await supabase.from('properties').select('*, owner:owners(*)').eq('id', contract.property_id).single();
       const { data: ten } = await supabase.from('tenants').select('*').eq('id', contract.tenant_id).single();
       const { data: own } = await supabase.from('owners').select('*').eq('id', contract.owner_id).single();
@@ -53,8 +53,6 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
       if (fullAgency && clientData) {
         const templateData = OHADAContractGenerator.prepareTemplateData(contract, fullAgency, clientData, prop);
         const customTerms = OHADAContractGenerator.replaceVariables(template.content, templateData);
-        
-        // Temporarily override terms for printing
         const tempContract = { ...contract, terms: customTerms };
         await OHADAContractGenerator.printContract(tempContract, fullAgency, clientData, prop);
       }
@@ -209,7 +207,16 @@ export const ContractsList: React.FC = () => {
     { agency_id: user?.agency_id, limit: 1000 }
   );
   const { data: customTemplates = [] } = useRealtimeData<any>(
-    () => supabase.from('contract_templates').select('*').eq('agency_id', user?.agency_id).eq('is_active', true),
+    async () => {
+      if (!user?.agency_id) return [];
+      const { data, error } = await supabase
+        .from('contract_templates')
+        .select('*')
+        .eq('agency_id', user.agency_id)
+        .eq('is_active', true);
+      if (error) { console.warn('contract_templates fetch error:', error.message); return []; }
+      return data || [];
+    },
     'contract_templates',
     { agency_id: user?.agency_id }
   );
