@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Plus, Trash2, Calculator, DollarSign, TrendingDown, ArrowRight } from 'lucide-react';
+import { Calendar, Plus, Trash2, Calculator, DollarSign, TrendingDown, ArrowRight, History, AlertCircle } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { dbService, supabase } from '../../lib/supabase';
 import { RentReceipt } from '../../types/db';
@@ -56,6 +56,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
 
     const [startDate, setStartDate] = useState(firstDayOfMonth.toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(lastDayOfMonth.toISOString().split('T')[0]);
+    const [allHistoryMode, setAllHistoryMode] = useState(false); // Mode solde global
     const [fees, setFees] = useState<DeductibleFee[]>([]);
     const [newFee, setNewFee] = useState({ description: '', amount: 0, category: 'autre' as const });
 
@@ -93,6 +94,11 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
 
     // Filter payments and manual transactions by selected period
     const periodPayments = useMemo(() => {
+        // En mode "Tout l'historique", on prend TOUS les paiements sans filtre de date
+        if (allHistoryMode) {
+            return { receipts: allPayments, manual: allManual };
+        }
+
         const start = new Date(startDate);
         const end = new Date(endDate);
         start.setHours(0, 0, 0, 0);
@@ -111,7 +117,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         });
 
         return { receipts: filteredReceipts, manual: filteredManual };
-    }, [allPayments, allManual, startDate, endDate]);
+    }, [allPayments, allManual, startDate, endDate, allHistoryMode]);
 
     // Calculate totals and transaction breakdown
     const calculations = useMemo(() => {
@@ -224,13 +230,55 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
                 <div>
                     <h3 className="text-lg font-semibold text-gray-900">Calculateur de reversement</h3>
                     <p className="text-sm text-gray-600 mt-1">
-                        Période : {formatPeriod()}
+                        {allHistoryMode ? 'Mode : Tout l\'historique des encaissements' : `Période : ${formatPeriod()}`}
                     </p>
                 </div>
                 <Calculator className="w-8 h-8 text-indigo-600" />
             </div>
 
-            {/* Period Selector */}
+            {/* Mode Toggle: Mois vs Tout l'historique */}
+            <div className="flex gap-3">
+                <button
+                    type="button"
+                    onClick={() => setAllHistoryMode(false)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                        !allHistoryMode
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                            : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                    }`}
+                >
+                    <Calendar className="w-4 h-4" />
+                    Par période
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setAllHistoryMode(true)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                        allHistoryMode
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                            : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                    }`}
+                >
+                    <History className="w-4 h-4" />
+                    Solde global (tout encaissé)
+                </button>
+            </div>
+
+            {allHistoryMode && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                    <div>
+                        <p className="text-sm font-bold text-emerald-900">Mode : Solde Global Cumulé</p>
+                        <p className="text-xs text-emerald-700 mt-1">
+                            Tous les loyers encaissés depuis le début sont inclus, sans filtre de date. 
+                            Idéal quand un locataire a payé plusieurs mois d'avance et que le propriétaire souhaite tout récupérer maintenant.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Period Selector — only shown in period mode */}
+            {!allHistoryMode && (
             <Card className="p-4">
                 <div className="flex items-center gap-2 mb-3">
                     <Calendar className="w-5 h-5 text-gray-500" />
@@ -263,6 +311,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
                     </p>
                 )}
             </Card>
+            )}
 
             {/* Detailed Transactions List */}
             {calculations.transactions.length > 0 && (

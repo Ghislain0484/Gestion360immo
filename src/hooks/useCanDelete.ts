@@ -5,14 +5,14 @@ export const useCanDelete = () => {
 
   if (!user || !agencyId) return false;
 
-  // 1. Vérification du rôle
+  // Seuls directeur et chef d'agence ont le droit de supprimer
   const hasDeleteRole = user.role === 'director' || user.role === 'agency_manager';
-  
   if (!hasDeleteRole) return false;
 
-  // 2. Vérification du Master Switch de l'agence active
-  const activeAgency = user.agencies.find(a => a.agency_id === agencyId);
-  const allowDataDeletion = activeAgency?.settings?.allow_data_deletion === true;
+  // Si le switch allow_data_deletion est explicitement défini à false, on le respecte
+  // Sinon, par défaut les rôles autorisés peuvent supprimer
+  const activeAgency = user.agencies?.find(a => a.agency_id === agencyId);
+  const explicitlyDisabled = activeAgency?.settings?.allow_data_deletion === false;
 
-  return allowDataDeletion;
+  return !explicitlyDisabled;
 };
