@@ -103,5 +103,27 @@ export const FintechService = {
     }]);
 
     return true;
+  },
+
+  /**
+   * Ajoute un crédit bonus à l'agence (récompense partage d'historique)
+   */
+  async addBonusCredit(agencyId: string, reason: string = 'Récompense collaboration'): Promise<void> {
+    const wallet = await this.getWallet(agencyId);
+
+    const { error } = await supabase
+      .from('agency_wallets')
+      .update({ bonus_credits: (wallet.bonus_credits || 0) + 1 })
+      .eq('agency_id', agencyId);
+
+    if (error) throw error;
+
+    await supabase.from('wallet_transactions').insert([{
+      agency_id: agencyId,
+      amount: 0,
+      type: 'reward',
+      description: reason,
+      status: 'completed'
+    }]);
   }
 };

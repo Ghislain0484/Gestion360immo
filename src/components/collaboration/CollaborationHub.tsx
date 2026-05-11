@@ -6,8 +6,7 @@ import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Announcement, AnnouncementInterest, Message, Notification, Property } from '../../types/db';
-import { TenantHistorySearch } from './TenantHistorySearch';
-import { OwnerHistorySearch } from './OwnerHistorySearch';
+import { TenantCandidatureSearch } from './TenantCandidatureSearch';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/config';
 import { dbService } from '../../lib/supabase';
@@ -32,7 +31,7 @@ interface FormData {
 
 export const CollaborationHub: React.FC = () => {
   const { user, agencyId: authAgencyId, isLoading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'announcements' | 'messages' | 'tenant_history' | 'owner_history' | 'requests'>('announcements');
+  const [activeTab, setActiveTab] = useState<'announcements' | 'messages' | 'candidature' | 'requests'>('announcements');
   const [collaborationRequests, setCollaborationRequests] = useState<any[]>([]);
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -498,14 +497,14 @@ export const CollaborationHub: React.FC = () => {
             <span>Annonces ({announcements.length})</span>
           </button>
           <button
-            onClick={() => setActiveTab('tenant_history')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'tenant_history'
+            onClick={() => setActiveTab('candidature')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === 'candidature'
               ? 'border-blue-500 text-blue-600'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <UserCheck className="h-4 w-4" />
-            <span>Historique Locataires</span>
+            <span>Candidature Location</span>
           </button>
           <button
             onClick={() => setActiveTab('owner_history')}
@@ -665,9 +664,7 @@ export const CollaborationHub: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'tenant_history' && <TenantHistorySearch onCreditUsed={refreshWallet} />}
-
-      {activeTab === 'owner_history' && <OwnerHistorySearch onCreditUsed={refreshWallet} />}
+      {activeTab === 'candidature' && <TenantCandidatureSearch onCreditUsed={refreshWallet} />}
 
       {activeTab === 'requests' && (
         <div className="space-y-6">
@@ -707,10 +704,33 @@ export const CollaborationHub: React.FC = () => {
                               .from('collaboration_requests')
                               .update({ status: 'approved', updated_at: new Date().toISOString() })
                               .eq('id', request.id);
-
                             if (error) throw error;
 
-                            toast.success('Demande approuvée');
+                            // 💰 Créditer l'agence qui partage l'information (+0.5 crédit bonus)
+                            try {
+                              const { data: wallet } = await supabase
+                                .from('agency_wallets')
+                                .select('bonus_credits')
+                                .eq('agency_id', authAgencyId)
+                                .single();
+                              if (wallet) {
+                                await supabase.from('agency_wallets')
+                                  .update({ bonus_credits: (wallet.bonus_credits || 0) + 1 })
+                                  .eq('agency_id', authAgencyId);
+                                await supabase.from('wallet_transactions').insert([{
+                                  agency_id: authAgencyId,
+                                  amount: 0,
+                                  type: 'reward',
+                                  description: 'Récompense collaboration : partage d\'historique locataire approuvé',
+                                  status: 'completed'
+                                }]);
+                                refreshWallet();
+                              }
+                            } catch (rewardErr) {
+                              console.warn('Reward credit error (non-blocking):', rewardErr);
+                            }
+
+                            toast.success('✅ Demande approuvée — +1 crédit ajouté à votre portefeuille !');
                             setCollaborationRequests(prev =>
                               prev.map(r => r.id === request.id ? { ...r, status: 'approved' } : r)
                             );
@@ -1132,6 +1152,11 @@ export const CollaborationHub: React.FC = () => {
               </select>
             </div>
           )}
+          {/* Avertissement légal */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+            <p className="font-bold mb-1">⚖️ Rappel légal — Loi n°2013-450 (Côte d'Ivoire)</p>
+            <p>N'incluez jamais de données personnelles de locataires (nom, CNI, coordonnées) dans les messages. Les échanges sont réservés aux informations professionnelles inter-agences (biens, mandats, disponibilités).</p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Sujet</label>
             <Input
