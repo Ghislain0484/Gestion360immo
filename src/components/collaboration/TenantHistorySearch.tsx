@@ -20,7 +20,7 @@ interface TenantHistory extends Tenant {
   contract_count: number;
 }
 
-export const TenantHistorySearch: React.FC = () => {
+export const TenantHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ onCreditUsed }) => {
   const { user, agencyId: authAgencyId } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'bon' | 'irregulier' | 'mauvais'>('all');
@@ -127,6 +127,7 @@ export const TenantHistorySearch: React.FC = () => {
       toast.success('Demande d\'accès envoyée avec succès !');
       setShowRequestModal(false);
       await fetchMyRequests(); // Rafraîchir
+      onCreditUsed?.(); // ✅ Notifier le parent pour rafraîchir le wallet
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -493,6 +494,14 @@ export const TenantHistorySearch: React.FC = () => {
           <p className="text-sm text-gray-600">
             Une fois validée, vous pourrez voir l'historique de paiement complet, les contrats passés et les notes de gestion.
           </p>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-3">
+            <span className="text-2xl">🎫</span>
+            <div>
+              <p className="text-sm font-bold text-amber-900">1 crédit sera débité</p>
+              <p className="text-xs text-amber-700">Un crédit de collaboration (offert ou acheté) sera prélevé de votre portefeuille agence.</p>
+            </div>
+          </div>
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t">
             <Button

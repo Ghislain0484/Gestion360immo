@@ -139,12 +139,16 @@ export const CollaborationHub: React.FC = () => {
   }, [user?.id, authAgencyId, authLoading]);
 
   // Chargement indépendant du portefeuille pour les crédits
-  useEffect(() => {
+  const refreshWallet = () => {
     if (authAgencyId) {
       FintechService.getWallet(authAgencyId)
         .then(setWallet)
         .catch(err => console.error('Erreur chargement portefeuille:', err));
     }
+  };
+
+  useEffect(() => {
+    refreshWallet();
   }, [authAgencyId]);
 
   // Load agency properties when modal opens
@@ -454,8 +458,15 @@ export const CollaborationHub: React.FC = () => {
         {wallet ? (
           <div className="bg-amber-400 text-amber-950 px-4 py-2 rounded-full font-bold shadow-lg flex items-center space-x-2 border-2 border-amber-500">
             <Shield className="h-5 w-5" />
-            <span>{wallet.bonus_credits} CRÉDITS OFFERTS</span>
-            {wallet.balance > 0 && <span className="ml-2 border-l border-amber-600 pl-2">SOLDE: {wallet.balance}</span>}
+            <span>🎫 {wallet.bonus_credits} CRÉDIT{wallet.bonus_credits > 1 ? 'S' : ''} OFFERT{wallet.bonus_credits > 1 ? 'S' : ''}</span>
+            {wallet.balance > 0 && <span className="ml-2 border-l border-amber-600 pl-2">+ SOLDE: {wallet.balance.toLocaleString('fr-FR')} F</span>}
+            <button
+              onClick={refreshWallet}
+              className="ml-1 text-amber-800 hover:text-amber-950 text-xs underline"
+              title="Actualiser le solde"
+            >
+              ↺
+            </button>
           </div>
         ) : (
           <div className="text-amber-600 text-sm animate-pulse">Vérification des crédits...</div>
@@ -654,9 +665,9 @@ export const CollaborationHub: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'tenant_history' && <TenantHistorySearch />}
+      {activeTab === 'tenant_history' && <TenantHistorySearch onCreditUsed={refreshWallet} />}
 
-      {activeTab === 'owner_history' && <OwnerHistorySearch />}
+      {activeTab === 'owner_history' && <OwnerHistorySearch onCreditUsed={refreshWallet} />}
 
       {activeTab === 'requests' && (
         <div className="space-y-6">

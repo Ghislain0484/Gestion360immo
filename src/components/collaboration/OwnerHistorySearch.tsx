@@ -19,7 +19,7 @@ interface OwnerHistory extends Owner {
   contract_count: number;
 }
 
-export const OwnerHistorySearch: React.FC = () => {
+export const OwnerHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ onCreditUsed }) => {
   const { user, agencyId: authAgencyId } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [owners, setOwners] = useState<OwnerHistory[]>([]);
@@ -124,6 +124,7 @@ export const OwnerHistorySearch: React.FC = () => {
       toast.success('Demande d\'accès envoyée !');
       setShowRequestModal(false);
       await fetchMyRequests();
+      onCreditUsed?.(); // ✅ Rafraîchir le solde de crédits dans CollaborationHub
     } catch (err: any) {
       toast.error(err.message);
     } finally {

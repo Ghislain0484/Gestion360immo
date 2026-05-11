@@ -7,6 +7,8 @@ import { Navbar } from './Navbar';
 import { QuotaBanner } from '../shared/QuotaBanner';
 import { LoadingBar } from '../shared/LoadingBar';
 import { WifiOff } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeMessageWatcher } from '../../hooks/useNotificationSound';
 
 const NetworkStatus: React.FC = () => {
   const [isOnline, setIsOnline] = useState(window.navigator.onLine);
@@ -39,6 +41,10 @@ const NetworkStatus: React.FC = () => {
 export const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { agencyId } = useAuth();
+
+  // 🔔 Surveillance temps-réel : son + toast visuel à chaque nouveau message/notification
+  useRealtimeMessageWatcher(agencyId);
 
   return (
     <div className="min-h-screen bg-mesh font-sans text-gray-900 dark:text-slate-100 transition-colors duration-500 overflow-x-hidden text-sm uppercase font-bold">
