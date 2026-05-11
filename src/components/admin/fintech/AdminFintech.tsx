@@ -82,7 +82,9 @@ export const AdminFintech: React.FC = () => {
         t.reference?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    if (loading) return <div className="flex h-96 items-center justify-center"><LoadingSpinner size="lg" color="indigo" /></    return (
+    if (loading) return <div className="flex h-96 items-center justify-center"><LoadingSpinner size="lg" color="indigo" /></div>;
+
+    return (
         <div className="animate-fade-in space-y-12 pb-20">
             {/* Header Section */}
             <div className="relative group">
