@@ -9,10 +9,17 @@ export const useCanDelete = () => {
   const hasDeleteRole = user.role === 'director' || user.role === 'agency_manager';
   if (!hasDeleteRole) return false;
 
-  // Si le switch allow_data_deletion est explicitement défini à false, on le respecte
-  // Sinon, par défaut les rôles autorisés peuvent supprimer
-  const activeAgency = user.agencies?.find(a => a.agency_id === agencyId);
-  const explicitlyDisabled = activeAgency?.settings?.allow_data_deletion === false;
+  // 1. Vérifier localStorage en priorité (sauvegarde locale immédiate du toggle)
+  const localKey = `agency_allow_delete_${agencyId}`;
+  const storedLocal = localStorage.getItem(localKey);
+  if (storedLocal !== null) {
+    return storedLocal === 'true';
+  }
 
+  // 2. Fallback : lire depuis le contexte Auth (settings Supabase)
+  const activeAgency = user.agencies?.find(a => a.agency_id === agencyId);
+  // Si le switch est explicitement à false en base, on le respecte
+  // Sinon, par défaut les rôles autorisés peuvent supprimer
+  const explicitlyDisabled = activeAgency?.settings?.allow_data_deletion === false;
   return !explicitlyDisabled;
 };
