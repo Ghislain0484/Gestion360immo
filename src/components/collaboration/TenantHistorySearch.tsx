@@ -414,7 +414,7 @@ export const TenantHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ o
         </div>
       )}
 
-      {!loading && tenants.length === 0 && searchTerm && (
+      {!loading && tenants.length === 0 && (formData.nom || formData.phone) && (
         <Card className="p-8 text-center">
           <UserCheck className="h-16 w-16 mx-auto mb-4 text-gray-400" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
