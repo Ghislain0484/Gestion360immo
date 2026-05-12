@@ -51,6 +51,7 @@ export const PlatformOwnersList: React.FC = () => {
             `${o.first_name} ${o.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
             o.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             o.phone.includes(searchTerm)
+        );
     }, [owners, searchTerm]);
 
     const totalPages = Math.ceil(filteredOwners.length / PAGE_SIZE);
