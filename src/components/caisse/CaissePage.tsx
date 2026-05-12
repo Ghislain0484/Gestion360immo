@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, Calendar, TrendingUp, Wallet, ArrowRightLeft, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
+import { Download, ArrowRightLeft, Wallet, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
 import { supabase, dbService } from '../../lib/supabase';
 import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,6 +14,8 @@ import { FilterBar } from '../shared/FilterBar';
 import { NewTransactionModal } from './NewTransactionModal';
 import { PayoutModal } from './PayoutModal';
 import { TenantCollectionModal } from './TenantCollectionModal';
+import { CaisseMetrics } from './CaisseMetrics';
+import { fetchCaisseData, Transaction, CaisseFilters, TRANSACTION_CATEGORIES } from './caisseService';
 import { clsx } from 'clsx';
 import { toast } from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
@@ -25,19 +27,6 @@ interface Owner {
     business_id?: string;
     first_name: string;
     last_name: string;
-}
-
-interface Transaction {
-    id: string;
-    date: string;
-    type: 'credit' | 'debit';
-    amount: number;
-    category: string;
-    description: string;
-    payment_method: string;
-    source: 'rent_receipt' | 'modular_transaction';
-    reference_id: string;
-    details?: any;
 }
 
 export const CaissePage: React.FC = () => {
@@ -181,239 +170,62 @@ export const CaissePage: React.FC = () => {
         fetchOwners();
     }, [user]);
 
-    // Fetch data
-    const fetchData = async () => {
+    // Fetch data — using parallel queries via caisseService
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            // 1. Fetch Real Transactions (Always if agencyId exists)
-            let allRealTransactions: Transaction[] = [];
-            
-            if (user?.agency_id) {
-                // a. Fetch Rent Receipts (Credits)
-                let receiptsQuery = supabase
-                    .from('rent_receipts')
-                    .select(`
-                        *,
-                        tenant:tenants(first_name, last_name, business_id),
-                        property:properties(title, business_id, owner_id)
-                    `)
-                    .eq('agency_id', user.agency_id);
-
-                if (filters.ownerId !== 'all') {
-                    receiptsQuery = receiptsQuery.eq('owner_id', filters.ownerId);
-                }
-                
-                if (filters.period && filters.period !== 'all') {
-                    const [year, month] = filters.period.split('-');
-                    const startDate = `${year}-${month}-01`;
-                    const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
-                    receiptsQuery = receiptsQuery.gte('payment_date', startDate).lte('payment_date', endDate);
-                }
-
-                const { data: receipts } = await receiptsQuery;
-
-                // b. Fetch Manual Transactions
-                let cashQuery = supabase
-                    .from('modular_transactions')
-                    .select('*')
-                    .eq('agency_id', user.agency_id);
-
-                if (filters.ownerId !== 'all') {
-                    cashQuery = cashQuery.eq('related_owner_id', filters.ownerId);
-                }
-                if (filters.period && filters.period !== 'all') {
-                    const [year, month] = filters.period.split('-');
-                    const startDate = `${year}-${month}-01`;
-                    const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
-                    cashQuery = cashQuery.gte('transaction_date', startDate).lte('transaction_date', endDate);
-                }
-
-                const { data: cashTrans } = await cashQuery;
-
-                // c. Fetch Property Expenses
-                let expenseQuery = supabase
-                    .from('property_expenses')
-                    .select('*, property:properties(title)')
-                    .eq('agency_id', user.agency_id);
-
-                if (filters.ownerId !== 'all') {
-                    expenseQuery = expenseQuery.eq('owner_id', filters.ownerId);
-                }
-                if (filters.period && filters.period !== 'all') {
-                    const [year, month] = filters.period.split('-');
-                    const startDate = `${year}-${month}-01`;
-                    const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().slice(0, 10);
-                    expenseQuery = expenseQuery.gte('expense_date', startDate).lte('expense_date', endDate);
-                }
-
-                const { data: workExpenses } = await expenseQuery;
-
-                // --- FETCH GLOBAL DATA FOR METRICS (Ignore owner filter) ---
-                const { data: globalReceipts } = await supabase
-                    .from('rent_receipts')
-                    .select('amount_paid, total_amount')
-                    .eq('agency_id', user.agency_id);
-                
-                const { data: globalManual } = await supabase
-                    .from('modular_transactions')
-                    .select('amount, type')
-                    .eq('agency_id', user.agency_id);
-
-                const { data: globalExpenses } = await supabase
-                    .from('property_expenses')
-                    .select('amount')
-                    .eq('agency_id', user.agency_id);
-                
-                const globalCredits = (globalReceipts?.reduce((s, r) => s + (Number(r.amount_paid ?? r.total_amount) || 0), 0) || 0) +
-                                     (globalManual?.filter(t => ['income', 'credit', 'deposit'].includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0) || 0);
-                
-                const globalDebits = (globalManual?.filter(t => !['income', 'credit', 'deposit'].includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0) || 0) +
-                                    (globalExpenses?.reduce((s, e) => s + Number(e.amount || 0), 0) || 0);
-
-                // Map & Merge Filtered Data for Table
-                const mappedReceipts: Transaction[] = (receipts || []).map(r => ({
-                    id: `receipt-${r.id}`,
-                    date: r.payment_date,
-                    type: 'credit',
-                    category: 'rent_payment',
-                    amount: r.amount_paid ?? r.total_amount,
-                    description: `Loyer ${r.property?.title || 'Bien'} - ${r.tenant?.first_name || ''} ${r.tenant?.last_name || ''}`,
-                    payment_method: r.payment_method,
-                    source: 'rent_receipt',
-                    reference_id: r.receipt_number,
-                    details: r
-                }));
-
-                const mappedManual: Transaction[] = (cashTrans || []).map(t => {
-                    let ownerPayment = 0;
-                    if (t.category === 'owner_payout') ownerPayment = t.amount;
-                    else if (t.category === 'caution') ownerPayment = t.amount;
-                    else if (t.category === 'rent_payment') {
-                        const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
-                        ownerPayment = match ? Number(match[1]) : (t.amount * 0.9);
-                    }
-
-                    return {
-                        id: t.id,
-                        date: t.transaction_date,
-                        type: (t.type === 'income' || t.type === 'credit' || t.type === 'deposit') ? 'credit' : 'debit',
-                        amount: t.amount,
-                        category: t.category,
-                        description: t.description || 'N/A',
-                        payment_method: t.payment_method,
-                        source: 'modular_transaction',
-                        reference_id: '',
-                        details: { ...t, owner_payment: ownerPayment }
-                    };
-                });
-
-                const mappedExpenses: Transaction[] = (workExpenses || []).map(e => ({
-                    id: `expense-${e.id}`,
-                    date: e.expense_date,
-                    type: 'debit',
-                    amount: e.amount,
-                    category: e.category || 'maintenance',
-                    description: `Travaux - ${e.description || 'Intervention'} (${e.property?.title || 'Bien'})`,
-                    payment_method: 'especes',
-                    source: 'modular_transaction',
-                    reference_id: '',
-                    details: e
-                }));
-
-                allRealTransactions = [...mappedReceipts, ...mappedManual, ...mappedExpenses];
-            }
-
-            // 2. Add Mock Data if in Demo Mode
-            let allDisplayTransactions = [...allRealTransactions];
-
             if (isDemoMode) {
-                const { MOCK_RECEIPTS, MOCK_TRANSACTIONS, MOCK_PROPERTIES, MOCK_TENANTS } = await import('../../lib/mockData');
-                
+                // Demo mode: load mock data
+                const { MOCK_RECEIPTS, MOCK_TRANSACTIONS, MOCK_PROPERTIES, MOCK_TENANTS, MOCK_CONTRACTS } = await import('../../lib/mockData');
+
                 const mockReceipts: Transaction[] = MOCK_RECEIPTS.map((r: any) => {
-                    const prop = MOCK_PROPERTIES.find(p => p.id === r.property_id);
-                    const tenant = MOCK_TENANTS.find(t => t.id === r.tenant_id);
+                    const prop = MOCK_PROPERTIES.find((p: any) => p.id === r.property_id);
+                    const tenant = MOCK_TENANTS.find((t: any) => t.id === r.tenant_id);
                     return {
-                        id: `mock-r-${r.id}`,
-                        date: r.payment_date,
-                        type: 'credit',
-                        amount: r.total_amount,
-                        category: 'rent_payment',
+                        id: `mock-r-${r.id}`, date: r.payment_date, type: 'credit',
+                        amount: r.total_amount, category: 'rent_payment',
                         description: `[DÉMO] Loyer - ${prop?.title || 'N/A'} (${tenant?.first_name} ${tenant?.last_name})`,
-                        payment_method: r.payment_method,
-                        source: 'rent_receipt',
-                        reference_id: r.receipt_number,
-                        details: r
+                        payment_method: r.payment_method, source: 'rent_receipt', reference_id: r.receipt_number, details: r,
                     };
                 });
-
                 const mockManual: Transaction[] = MOCK_TRANSACTIONS.map((t: any) => ({
-                    id: `mock-t-${t.id}`,
-                    date: t.transaction_date,
+                    id: `mock-t-${t.id}`, date: t.transaction_date,
                     type: (t.type === 'income' || t.type === 'deposit') ? 'credit' : 'debit',
-                    amount: t.amount,
-                    category: t.category,
+                    amount: t.amount, category: t.category,
                     description: `[DÉMO] ${t.description || 'N/A'}`,
-                    payment_method: t.payment_method,
-                    source: 'modular_transaction',
-                    reference_id: '',
-                    details: t
+                    payment_method: t.payment_method, source: 'modular_transaction', reference_id: '', details: t,
                 }));
-
-                allDisplayTransactions = [...allRealTransactions, ...mockReceipts, ...mockManual];
-            }
-
-            const sortedTrans = allDisplayTransactions.sort((a, b) => {
-                const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
-                if (dateDiff !== 0) return dateDiff;
-                const aTime = a.details?.created_at ? new Date(a.details.created_at).getTime() : 0;
-                const bTime = b.details?.created_at ? new Date(b.details.created_at).getTime() : 0;
-                return bTime - aTime;
-            });
-            
-            setTransactions(sortedTrans);
-
-            // Calculate Metrics
-            if (isDemoMode) {
-                const { MOCK_PROPERTIES, MOCK_CONTRACTS } = await import('../../lib/mockData');
+                const all = [...mockReceipts, ...mockManual].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                setTransactions(all);
                 const potential = MOCK_PROPERTIES.reduce((s: number, p: any) => s + (Number(p.monthly_rent) || 0), 0);
                 const expected = MOCK_CONTRACTS.filter((c: any) => c.status === 'active').reduce((s: number, c: any) => s + (Number(c.monthly_rent) || 0), 0);
-                const collected = sortedTrans.filter(t => t.category === 'rent_payment' && t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-                const allCredits = sortedTrans.filter(t => t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-                const allDebits = sortedTrans.filter(t => t.type === 'debit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-
-                setMetrics({
-                    potential,
-                    expected,
-                    collected,
-                    remaining: Math.max(0, expected - collected),
-                    balance: allCredits - allDebits
-                });
-            } else {
-                const { data: props } = await supabase.from('properties').select('monthly_rent').eq('agency_id', user?.agency_id);
-                const { data: contracts } = await supabase.from('contracts').select('monthly_rent').eq('agency_id', user?.agency_id).eq('status', 'active');
-                
-                const potential = props?.reduce((s: number, p: any) => s + (Number(p.monthly_rent) || 0), 0) || 0;
-                const expected = contracts?.reduce((s: number, c: any) => s + (Number(c.monthly_rent) || 0), 0) || 0;
-                const collected = allRealTransactions.filter(t => t.category === 'rent_payment' && t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-                const allCredits = allRealTransactions.filter(t => t.type === 'credit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-                const allDebits = allRealTransactions.filter(t => t.type === 'debit').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-
-                setMetrics({
-                    potential,
-                    expected,
-                    collected,
-                    remaining: Math.max(0, expected - collected),
-                    balance: globalCredits - globalDebits // Use global balance here!
-                });
+                const collected = mockReceipts.filter(t => t.category === 'rent_payment').reduce((s, t) => s + Number(t.amount || 0), 0);
+                const allCredits = all.filter(t => t.type === 'credit').reduce((s, t) => s + Number(t.amount || 0), 0);
+                const allDebits = all.filter(t => t.type === 'debit').reduce((s, t) => s + Number(t.amount || 0), 0);
+                setMetrics({ potential, expected, collected, remaining: Math.max(0, expected - collected), balance: allCredits - allDebits });
+                return;
             }
 
+            if (!user?.agency_id) return;
+
+            const { transactions: txns, globalCredits, globalDebits, potential, expected, collected } =
+                await fetchCaisseData(user.agency_id, filters);
+
+            setTransactions(txns);
+            setMetrics({
+                potential,
+                expected,
+                collected,
+                remaining: Math.max(0, expected - collected),
+                balance: globalCredits - globalDebits,
+            });
         } catch (error) {
-            console.error(error);
-            toast.error("Erreur lors du chargement des données");
+            console.error('CaissePage fetchData error:', error);
+            toast.error('Erreur lors du chargement des données de caisse');
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [filters.ownerId, filters.period, user?.agency_id, isDemoMode]);
 
     useEffect(() => {
         fetchData();
@@ -662,43 +474,7 @@ export const CaissePage: React.FC = () => {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <Card className="p-4 bg-gradient-to-br from-indigo-50 to-blue-50 border-indigo-100">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-indigo-800">Potentiel Mensuel</span>
-                        <TrendingUp className="w-4 h-4 text-indigo-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-indigo-700">{metrics.potential.toLocaleString('fr-FR')} FCFA</p>
-                </Card>
-                <Card className="p-4 bg-gradient-to-br from-blue-50 to-sky-50 border-blue-100">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-blue-800">Loyers Attendus</span>
-                        <Calendar className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-blue-700">{metrics.expected.toLocaleString('fr-FR')} FCFA</p>
-                </Card>
-                <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-100">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-green-800">Encaissés Réels</span>
-                        <TrendingUp className="w-4 h-4 text-green-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-green-700">{metrics.collected.toLocaleString('fr-FR')} FCFA</p>
-                </Card>
-                <Card className="p-4 bg-gradient-to-br from-orange-50 to-amber-50 border-orange-100">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-orange-800">Restes à Percevoir</span>
-                        <Wallet className="w-4 h-4 text-orange-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-orange-700">{metrics.remaining.toLocaleString('fr-FR')} FCFA</p>
-                </Card>
-                <Card className="p-4 bg-slate-900 text-white border-slate-800 shadow-xl shadow-slate-200">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-slate-300">Solde de Caisse</span>
-                        <Wallet className="w-4 h-4 text-emerald-400" />
-                    </div>
-                    <p className="text-2xl font-black text-white">{metrics.balance.toLocaleString('fr-FR')} FCFA</p>
-                </Card>
-            </div>
+            <CaisseMetrics metrics={metrics} isLoading={isLoading} />
 
             <Tabs
                 tabs={[

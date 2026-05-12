@@ -663,18 +663,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const logout = useCallback(async () => {
-    console.log('🔄 AuthContext: logout');
-    setIsLoading(true);
     try {
       await supabase.auth.signOut();
       setUser(null);
       setAdmin(null);
       setOwner(null);
       setActiveAgencyId(null);
-      // NE PAS effacer localStorage pour mémoriser la préférence
+      // Clear the stored active agency to prevent session leakage between users
+      localStorage.removeItem(ACTIVE_AGENCY_KEY);
     } finally {
       setIsLoading(false);
-      console.log('✅ AuthContext: logout terminé, isLoading:', false);
     }
   }, []);
 

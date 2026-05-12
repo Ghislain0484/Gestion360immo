@@ -86,13 +86,13 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   const [selectedCommune, setSelectedCommune] = useState<string | null>(null);
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  const isApiKeyMissing = !apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY_HERE';
+  const isApiKeyMissing = !apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY_HERE' || apiKey.trim() === '';
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: isApiKeyMissing ? '' : apiKey,
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
+  const { isLoaded, loadError } = useJsApiLoader(
+    isApiKeyMissing
+      ? { id: 'google-map-disabled', googleMapsApiKey: '', libraries: GOOGLE_MAPS_LIBRARIES }
+      : { id: 'google-map-script', googleMapsApiKey: apiKey, libraries: GOOGLE_MAPS_LIBRARIES }
+  );
 
   const activeContractsByProperty = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -204,41 +204,46 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   };
 
   if (loadError || isApiKeyMissing) {
+    // Fallback: afficher une carte SVG statique avec les communes
     return (
       <div className="flex h-[500px] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-elegant dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/10">
-              <AlertCircle className="h-5 w-5 text-amber-600" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-sm">
+              <MapPin className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Google Maps - Configuration requise</h3>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Cle API manquante ou invalide</p>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Répartition des biens</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {properties.length} bien{properties.length > 1 ? 's' : ''} · taux d'occupation global {globalRate}%
+              </p>
             </div>
           </div>
         </div>
-        <div className="flex flex-1 flex-col items-center justify-center bg-slate-50 p-8 text-center dark:bg-slate-950/70">
-          <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <MapPin className="mx-auto mb-4 h-12 w-12 text-slate-300" />
-            <p className="mb-6 font-medium text-slate-600 dark:text-slate-300">
-              Pour afficher la carte interactive Google Maps, vous devez configurer votre cle API dans le fichier{' '}
-              <code className="rounded bg-slate-100 px-1 text-red-500 dark:bg-slate-800 dark:text-red-300">.env</code>.
-            </p>
-            <div className="mb-6 overflow-x-auto rounded-xl bg-slate-900 p-4 text-left text-xs font-mono text-slate-100 shadow-inner">
-              VITE_GOOGLE_MAPS_API_KEY=votre_cle_api_ici
-            </div>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Vous pouvez obtenir une cle sur la{' '}
-              <a
-                href="https://console.cloud.google.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 underline transition-colors hover:text-blue-600"
+        {/* Fallback: Commune legend as visual map */}
+        <div className="flex flex-1 flex-col overflow-auto p-6">
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 text-center">
+            {isApiKeyMissing ? '🗺️ Carte interactive non disponible — Configurez VITE_GOOGLE_MAPS_API_KEY dans .env' : '⚠️ Erreur de chargement de la carte'}
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {legendData.map(item => (
+              <div
+                key={item.key}
+                className="flex items-center gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2"
               >
-                Google Cloud Console
-              </a>
-              .
-            </p>
+                <span className="h-3 w-3 flex-shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{item.count} bien{item.count > 1 ? 's' : ''} · {item.occupied} occupé{item.occupied > 1 ? 's' : ''}</p>
+                </div>
+              </div>
+            ))}
+            {legendData.length === 0 && (
+              <div className="col-span-full flex flex-col items-center justify-center py-8 text-slate-400">
+                <Building2 className="h-8 w-8 mb-2" />
+                <p className="text-sm">Aucun bien avec une localisation connue</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
