@@ -78,7 +78,6 @@ export const OwnerMaintenance: React.FC = () => {
       } finally {
         setLoading(false);
       }
-    }
   }, [owner?.id, isDemoMode]);
 
   useEffect(() => {
