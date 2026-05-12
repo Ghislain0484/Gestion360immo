@@ -379,11 +379,16 @@ export const TenantCandidatureSearch: React.FC<{ onCreditUsed?: () => void }> = 
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <Badge variant={getStatusVariant(result.payment_status)} size="sm">
-                      {getStatusLabel(result.payment_status)}
-                    </Badge>
+                    {/* Reputation badge removed to preserve privacy until access is granted */}
                     {existingRequest?.status === 'approved' ? (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">✅ Accès accordé</span>
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">✅ Accès accordé</span>
+                          <Badge variant={getStatusVariant(result.payment_status)} size="sm">
+                            {getStatusLabel(result.payment_status)}
+                          </Badge>
+                        </div>
+                      </div>
                     ) : existingRequest?.status === 'pending' ? (
                       <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg">⏳ Demande en attente</span>
                     ) : (
@@ -393,6 +398,12 @@ export const TenantCandidatureSearch: React.FC<{ onCreditUsed?: () => void }> = 
                     )}
                   </div>
                 </div>
+                {existingRequest?.status === 'approved' && existingRequest.observation && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-900">
+                    <p className="font-bold mb-1">Observation de l'agence :</p>
+                    <p className="italic">"{existingRequest.observation}"</p>
+                  </div>
+                )}
               </Card>
             );
           })}
@@ -415,7 +426,7 @@ export const TenantCandidatureSearch: React.FC<{ onCreditUsed?: () => void }> = 
           <p className="text-sm"><span className="font-bold text-gray-600">Candidat :</span> {form.first_name} {form.last_name}</p>
           <p className="text-sm"><span className="font-bold text-gray-600">N° pièce :</span> {form.id_type.toUpperCase()} — {form.id_number}</p>
           <p className="text-sm"><span className="font-bold text-gray-600">Agence cible :</span> {selectedResult?.agency_name}</p>
-          <p className="text-sm"><span className="font-bold text-gray-600">Score actuel :</span> {selectedResult ? getStatusLabel(selectedResult.payment_status) : ''}</p>
+          {/* Score is hidden until access is granted */}
         </div>
 
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">

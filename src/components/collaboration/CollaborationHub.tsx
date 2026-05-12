@@ -14,6 +14,7 @@ export const CollaborationHub: React.FC = () => {
   const [collaborationRequests, setCollaborationRequests] = useState<any[]>([]);
   const [wallet, setWallet] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [observations, setObservations] = useState<Record<string, string>>({});
 
   // Load wallet and requests
   const loadData = async () => {
@@ -140,11 +141,24 @@ export const CollaborationHub: React.FC = () => {
                 </div>
 
                 {request.status === 'pending' && (
-                  <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-100">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-red-600 border-red-200 hover:bg-red-50"
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Observation ou note interne (visible uniquement par l'agence demandeuse)
+                      </label>
+                      <textarea
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        rows={2}
+                        placeholder="Ex: Excellent locataire, loyers toujours payés à l'avance..."
+                        value={observations[request.id] || ''}
+                        onChange={(e) => setObservations(prev => ({ ...prev, [request.id]: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex justify-end space-x-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
                       onClick={async () => {
                         try {
                           const { error } = await supabase
@@ -169,7 +183,11 @@ export const CollaborationHub: React.FC = () => {
                         try {
                           const { error } = await supabase
                             .from('collaboration_requests')
-                            .update({ status: 'approved', updated_at: new Date().toISOString() })
+                            .update({ 
+                              status: 'approved', 
+                              observation: observations[request.id] || null,
+                              updated_at: new Date().toISOString() 
+                            })
                             .eq('id', request.id);
                           if (error) throw error;
 
@@ -206,6 +224,7 @@ export const CollaborationHub: React.FC = () => {
                       Approuver & Gagner 1 Crédit
                     </Button>
                   </div>
+                </div>
                 )}
               </Card>
             ))
