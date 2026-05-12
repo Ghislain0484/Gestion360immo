@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { 
   Wrench, Search, AlertTriangle, Clock, CheckCircle2, 
   PauseCircle, Calendar, MapPin, 
@@ -41,11 +41,10 @@ export const OwnerMaintenance: React.FC = () => {
   const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
-  useEffect(() => {
+  const loadTickets = useCallback(async () => {
     if (!owner?.id) return;
-    const load = async () => {
-      setLoading(true);
-      try {
+    setLoading(true);
+    try {
         if (isDemoMode) {
           const { MOCK_PROPERTIES, MOCK_TICKETS } = await import('../../lib/mockData');
           const demoOwnerId = 'demo-owner-1';
@@ -79,9 +78,12 @@ export const OwnerMaintenance: React.FC = () => {
       } finally {
         setLoading(false);
       }
-    };
-    load();
+    }
   }, [owner?.id, isDemoMode]);
+
+  useEffect(() => {
+    loadTickets();
+  }, [loadTickets]);
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
