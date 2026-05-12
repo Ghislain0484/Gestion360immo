@@ -657,7 +657,7 @@ export const CaissePage: React.FC = () => {
                                                         <button title="Imprimer" onClick={() => handleDownloadReceiptFromTransaction(t, true)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors">
                                                             <Printer className="w-4 h-4" />
                                                         </button>
-                                                        {(user?.role === 'director' || user?.role === 'manager' || user?.role === 'agency_manager') && (
+                                                        {(user?.role === 'director' || user?.role === 'manager') && (
                                                             <>
                                                                 {t.source === 'modular_transaction' && (
                                                                     <button title="Modifier" onClick={() => handleEditTransaction(t)} className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 transition-colors">

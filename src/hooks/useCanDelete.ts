@@ -6,7 +6,7 @@ export const useCanDelete = () => {
   if (!user || !agencyId) return false;
 
   // Seuls directeur et chef d'agence ont le droit de supprimer
-  const hasDeleteRole = user.role === 'director' || user.role === 'agency_manager';
+  const hasDeleteRole = user.role === 'director' || user.role === 'manager';
   if (!hasDeleteRole) return false;
 
   // 1. Vérifier localStorage en priorité (sauvegarde locale immédiate du toggle)
