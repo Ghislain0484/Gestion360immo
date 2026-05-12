@@ -248,7 +248,29 @@ export const CaissePage: React.FC = () => {
 
                 const { data: workExpenses } = await expenseQuery;
 
-                // Map & Merge Real Data
+                // --- FETCH GLOBAL DATA FOR METRICS (Ignore owner filter) ---
+                const { data: globalReceipts } = await supabase
+                    .from('rent_receipts')
+                    .select('amount_paid, total_amount')
+                    .eq('agency_id', user.agency_id);
+                
+                const { data: globalManual } = await supabase
+                    .from('modular_transactions')
+                    .select('amount, type')
+                    .eq('agency_id', user.agency_id);
+
+                const { data: globalExpenses } = await supabase
+                    .from('property_expenses')
+                    .select('amount')
+                    .eq('agency_id', user.agency_id);
+                
+                const globalCredits = (globalReceipts?.reduce((s, r) => s + (Number(r.amount_paid ?? r.total_amount) || 0), 0) || 0) +
+                                     (globalManual?.filter(t => ['income', 'credit', 'deposit'].includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0) || 0);
+                
+                const globalDebits = (globalManual?.filter(t => !['income', 'credit', 'deposit'].includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0) || 0) +
+                                    (globalExpenses?.reduce((s, e) => s + Number(e.amount || 0), 0) || 0);
+
+                // Map & Merge Filtered Data for Table
                 const mappedReceipts: Transaction[] = (receipts || []).map(r => ({
                     id: `receipt-${r.id}`,
                     date: r.payment_date,
@@ -381,7 +403,7 @@ export const CaissePage: React.FC = () => {
                     expected,
                     collected,
                     remaining: Math.max(0, expected - collected),
-                    balance: allCredits - allDebits
+                    balance: globalCredits - globalDebits // Use global balance here!
                 });
             }
 

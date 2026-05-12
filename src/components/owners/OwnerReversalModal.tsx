@@ -105,6 +105,23 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                 });
 
             if (error) throw error;
+            
+            // 💰 Sync with Caisse (modular_transactions)
+            // This ensures the payout impacts the agency cash balance
+            await supabase
+                .from('modular_transactions')
+                .insert({
+                    agency_id: user.agency_id,
+                    created_by: user.id,
+                    type: 'expense',
+                    amount: reversalData.montant,
+                    category: 'owner_payout',
+                    description: `Reversement propriétaire: ${ownerName} ${reversalData.reference ? '(' + reversalData.reference + ')' : ''}`,
+                    transaction_date: new Date().toISOString().split('T')[0],
+                    payment_method: reversalData.mode_paiement,
+                    related_owner_id: ownerId,
+                    module_type: 'owner'
+                });
 
             if (onSuccess) onSuccess();
             onClose();
