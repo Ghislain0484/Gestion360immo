@@ -57,7 +57,7 @@ USING (
     agency_id IN (
         SELECT agency_id FROM public.agency_users
         WHERE user_id = auth.uid()
-        AND role IN ('director', 'agency_chef')
+        AND role IN ('director', 'manager')
     )
 );
 
@@ -75,7 +75,7 @@ USING (
     agency_id IN (
         SELECT agency_id FROM public.agency_users
         WHERE user_id = auth.uid()
-        AND role IN ('director', 'agency_chef')
+        AND role IN ('director', 'manager')
     )
 );
 
@@ -93,7 +93,7 @@ USING (
     agency_id IN (
         SELECT agency_id FROM public.agency_users
         WHERE user_id = auth.uid()
-        AND role IN ('director', 'agency_chef')
+        AND role IN ('director', 'manager')
     )
 );
 
