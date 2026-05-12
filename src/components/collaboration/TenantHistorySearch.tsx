@@ -22,9 +22,15 @@ interface TenantHistory extends Tenant {
 
 export const TenantHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ onCreditUsed }) => {
   const { user, agencyId: authAgencyId } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [formData, setFormData] = useState({
+    nom: '',
+    prenoms: '',
+    phone: '',
+    idType: 'cni',
+    idNumber: ''
+  });
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'bon' | 'irregulier' | 'mauvais'>('all');
-  const [tenants, setTenants] = useState<TenantHistory[]>([]);
+  const [tenants, setTenants] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<any | null>(null);
@@ -50,8 +56,8 @@ export const TenantHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ o
 
 
   const searchTenants = async () => {
-    if (!searchTerm.trim() || !authAgencyId) {
-      toast.error('Veuillez entrer un email ou un numéro de téléphone');
+    if ((!formData.nom.trim() && !formData.phone.trim()) || !authAgencyId) {
+      toast.error('Veuillez entrer au moins un nom ou un numéro de téléphone');
       return;
     }
 
@@ -61,10 +67,12 @@ export const TenantHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ o
       // 1. Charger les dernières demandes pour avoir les statuts à jour
       await fetchMyRequests();
 
-      // 2. Utiliser le nouveau RPC V22 pour une recherche anonymisée
-      const { data, error } = await supabase.rpc('check_tier_reputation_v22', {
-        p_search: searchTerm.trim(),
-        p_type: 'tenant'
+      // 2. Utiliser le nouveau RPC V23 pour une recherche anonymisée précise
+      const { data, error } = await supabase.rpc('check_tier_reputation_v23', {
+        p_nom: formData.nom.trim(),
+        p_prenoms: formData.prenoms.trim(),
+        p_phone: formData.phone.trim(),
+        p_id_number: formData.idNumber.trim()
       });
 
       if (error) throw error;
@@ -220,34 +228,66 @@ export const TenantHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ o
             </h3>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Rechercher par nom, téléphone..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && searchTenants()}
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+              <Input
+                type="text"
+                placeholder="Nom de famille"
+                value={formData.nom}
+                onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+              />
             </div>
-
-            <select
-              value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value as 'all' | 'bon' | 'irregulier' | 'mauvais')}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="bon">Bons payeurs</option>
-              <option value="irregulier">Payeurs irréguliers</option>
-              <option value="mauvais">Mauvais payeurs</option>
-            </select>
-
-            <Button onClick={searchTenants} disabled={loading || !searchTerm.trim() || !authAgencyId}>
-              {loading ? 'Recherche...' : 'Rechercher'}
-            </Button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prénoms</label>
+              <Input
+                type="text"
+                placeholder="Prénoms"
+                value={formData.prenoms}
+                onChange={(e) => setFormData({ ...formData, prenoms: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
+              <Input
+                type="text"
+                placeholder="Numéro de téléphone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type de pièce</label>
+              <select
+                value={formData.idType}
+                onChange={(e) => setFormData({ ...formData, idType: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="cni">CNI</option>
+                <option value="passport">Passeport</option>
+                <option value="permis">Permis de conduire</option>
+                <option value="consulaire">Carte consulaire</option>
+                <option value="attestation">Attestation d'identité</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Numéro de pièce</label>
+              <Input
+                type="text"
+                placeholder="N° de la pièce"
+                value={formData.idNumber}
+                onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={searchTenants} 
+                disabled={loading || (!formData.phone.trim() && !formData.nom.trim()) || !authAgencyId}
+                className="w-full h-[42px]"
+              >
+                {loading ? 'Recherche...' : 'Rechercher'}
+              </Button>
+            </div>
           </div>
 
           <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -297,6 +337,11 @@ export const TenantHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ o
                         <Building2 className="h-3 w-3 mr-1" />
                         <span>Agence : {tenant.agency_name}</span>
                       </div>
+                      {tenant.contract_period && (
+                        <div className="flex items-center text-xs text-gray-500 mt-1 font-mono">
+                           <span>Période : {tenant.contract_period}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

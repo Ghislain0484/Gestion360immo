@@ -208,7 +208,7 @@ export const CaissePage: React.FC = () => {
 
             if (!user?.agency_id) return;
 
-            const { transactions: txns, globalCredits, globalDebits, potential, expected, collected } =
+            const { transactions: txns, globalCredits, globalDebits, potential, expected, collected, collectedThisMonth } =
                 await fetchCaisseData(user.agency_id, filters);
 
             setTransactions(txns);
@@ -216,7 +216,7 @@ export const CaissePage: React.FC = () => {
                 potential,
                 expected,
                 collected,
-                remaining: Math.max(0, expected - collected),
+                remaining: Math.max(0, expected - (collectedThisMonth || 0)),
                 balance: globalCredits - globalDebits,
             });
         } catch (error) {
