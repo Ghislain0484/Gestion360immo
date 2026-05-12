@@ -27,6 +27,8 @@ export const PropertiesList: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [currentPage, setCurrentPage] = useState(0);
+  const PAGE_SIZE = 50;
   const [filters, setFilters] = useState({
     standing: 'all',
     type: 'all',
@@ -200,6 +202,11 @@ export const PropertiesList: React.FC = () => {
       return matchesSearch && matchesStanding && matchesType && matchesCommune && matchesStatus;
     });
   }, [properties, searchTerm, filters, contracts, tenants, filterStatus]);
+
+  const totalPages = Math.ceil(filteredProperties.length / PAGE_SIZE);
+  const paginatedProperties = useMemo(() => {
+    return filteredProperties.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  }, [filteredProperties, currentPage]);
 
   const handlePropertyClick = (property: Property) => {
     // Generate human-readable slug using business_id if available, otherwise fallback to id
@@ -443,7 +450,7 @@ export const PropertiesList: React.FC = () => {
       ) : (
         <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"}>
           {viewMode === 'grid' ? (
-            filteredProperties.map((property: Property) => (
+            paginatedProperties.map((property: Property) => (
               <PropertyCard
                 key={property.id}
                 property={property}
@@ -465,7 +472,7 @@ export const PropertiesList: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredProperties.map((property: Property) => {
+                  {paginatedProperties.map((property: Property) => {
                     const info = getRentalInfo(property.id);
                     const isOccupied = info.isOccupied;
                     const isAvailable = property.is_available && !isOccupied;
@@ -518,6 +525,20 @@ export const PropertiesList: React.FC = () => {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-3 mt-6">
+          <Button variant="outline" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>
+            Précédent
+          </Button>
+          <span className="text-sm text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg">
+            {currentPage + 1} / {totalPages}
+          </span>
+          <Button variant="outline" disabled={currentPage >= totalPages - 1} onClick={() => setCurrentPage(p => p + 1)}>
+            Suivant
+          </Button>
         </div>
       )}
 

@@ -53,6 +53,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
     nationality: initialData?.nationality || 'Ivoirienne',
     photo_url: initialData?.photo_url || '',
     id_card_url: initialData?.id_card_url || '',
+    id_card_number: initialData?.id_card_number || '',
     payment_status: initialData?.payment_status || 'bon',
     agency_id: user?.agency_id || '',
   });
@@ -93,6 +94,7 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
         nationality: initialData?.nationality || 'Ivoirienne',
         photo_url: initialData?.photo_url || '',
         id_card_url: initialData?.id_card_url || '',
+        id_card_number: initialData?.id_card_number || '',
         payment_status: initialData?.payment_status || 'bon',
         agency_id: user?.agency_id || '',
       });
@@ -352,6 +354,14 @@ export const TenantForm: React.FC<TenantFormProps> = ({ isOpen, onClose, onSubmi
                 ))}
               </select>
             </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <Input
+              label="N° Pièce d'Identité (CNI, Passeport...)"
+              value={formData.id_card_number || ''}
+              onChange={(e) => updateFormData({ id_card_number: e.target.value })}
+              placeholder="Numéro de pièce d'identité"
+            />
           </div>
         </Card>
 

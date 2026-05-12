@@ -23,7 +23,7 @@ import { TenantCard } from './TenantCard';
 import { exportToExcel, formatTenantsForExport } from '../../utils/exportUtils';
 import { useCanDelete } from '../../hooks/useCanDelete';
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
 
 const paymentConfig = {
   bon: { label: 'Bon payeur', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
@@ -71,13 +71,12 @@ export const TenantsList: React.FC = () => {
   const fetchTenants = useCallback(
     () => dbService.tenants.getAll({
       agency_id: user?.agency_id ?? undefined,
-      limit: PAGE_SIZE,
-      offset: currentPage * PAGE_SIZE,
+      limit: 1000,
       search: searchTerm,
       marital_status: filters.maritalStatus === 'all' ? undefined : filters.maritalStatus as Tenant['marital_status'],
       payment_status: filters.paymentStatus === 'all' ? undefined : filters.paymentStatus as Tenant['payment_status']
     }),
-    [user?.agency_id, currentPage, searchTerm, filters]
+    [user?.agency_id, searchTerm, filters]
   );
 
   const { data: tenants, initialLoading, error, setData, refetch } = useRealtimeData<Tenant>(fetchTenants, 'tenants');
@@ -185,7 +184,10 @@ export const TenantsList: React.FC = () => {
     });
   }, [tenants, searchTerm, filters, filterOccupancy]);
 
-  const totalPages = Math.ceil((tenants?.length || 0) / PAGE_SIZE);
+  const totalPages = Math.ceil(filteredTenants.length / PAGE_SIZE);
+  const paginatedTenants = useMemo(() => {
+    return filteredTenants.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  }, [filteredTenants, currentPage]);
 
   if (authLoading) return <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent" /></div>;
   if (error) return <div className="text-center py-12"><p className="text-red-600 mb-4">{error}</p><Button onClick={refetch}>Réessayer</Button></div>;
@@ -245,7 +247,7 @@ export const TenantsList: React.FC = () => {
           <div className="text-center py-16 bg-white rounded-xl border border-gray-100 italic text-gray-400">Aucun locataire trouvé</div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTenants.map((tenant) => (
+            {paginatedTenants.map((tenant) => (
               <TenantCard
                 key={tenant.id}
                 tenant={tenant}
@@ -269,7 +271,7 @@ export const TenantsList: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTenants.map(tenant => {
+                {paginatedTenants.map(tenant => {
                   const pCfg = paymentConfig[tenant.payment_status] ?? paymentConfig.bon;
                   return (
                     <tr key={tenant.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/locataires/${generateSlug(tenant.business_id || tenant.id, `${tenant.first_name} ${tenant.last_name}`)}`)}>

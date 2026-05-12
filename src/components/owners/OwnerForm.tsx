@@ -42,6 +42,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     children_count: 0,
     agency_id: '',
     photo_url: null,
+    id_card_number: null,
     status: 'actif',
   });
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -118,6 +119,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       children_count: 0,
       agency_id: authAgencyId || '',
       photo_url: null,
+      id_card_number: null,
       ...(initialData || {}),
     }),
     [initialData, authAgencyId]
@@ -208,6 +210,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
         property_title_details: formData.property_title_details?.trim() || null,
         spouse_name: formData.spouse_name?.trim() || null,
         spouse_phone: formData.spouse_phone?.trim() || null,
+        id_card_number: formData.id_card_number?.trim() || null,
         status: formData.status || 'actif',
       };
 
@@ -372,6 +375,14 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
                     <option value="litige">Litige</option>
                   </select>
                 </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 mt-4">
+                <Input
+                  label="N° Pièce d'Identité (CNI, Passeport...)"
+                  value={formData.id_card_number || ''}
+                  onChange={(e) => updateFormData({ id_card_number: e.target.value })}
+                  placeholder="Numéro de pièce d'identité"
+                />
               </div>
             </div>
           </Card>

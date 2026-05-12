@@ -19,6 +19,8 @@ export const PlatformOwnersList: React.FC = () => {
     const [selectedAgencyId, setSelectedAgencyId] = useState<string>('all');
     const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [currentPage, setCurrentPage] = useState(0);
+    const PAGE_SIZE = 50;
 
     const loadAllOwners = React.useCallback(async () => {
         setLoadingOwners(true);
@@ -49,8 +51,12 @@ export const PlatformOwnersList: React.FC = () => {
             `${o.first_name} ${o.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
             o.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             o.phone.includes(searchTerm)
-        );
     }, [owners, searchTerm]);
+
+    const totalPages = Math.ceil(filteredOwners.length / PAGE_SIZE);
+    const paginatedOwners = useMemo(() => {
+        return filteredOwners.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+    }, [filteredOwners, currentPage]);
 
     const getAgencyName = (id: string) => {
         return agencies.find(a => a.id === id)?.name || 'Agence Inconnue';
@@ -130,7 +136,7 @@ export const PlatformOwnersList: React.FC = () => {
                                 <td colSpan={5} className="py-20 text-center text-slate-400 font-bold italic">Aucun propriétaire trouvé</td>
                             </tr>
                         ) : (
-                            filteredOwners.map(o => (
+                            paginatedOwners.map(o => (
                                 <tr key={o.id} className="group hover:bg-slate-50/80 transition-all duration-300">
                                     <td className="px-8 py-6">
                                         <div className="flex items-center gap-4">
@@ -185,6 +191,20 @@ export const PlatformOwnersList: React.FC = () => {
                     </tbody>
                 </table>
             </div>
+
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-3 mt-4">
+                    <Button variant="outline" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>
+                        Précédent
+                    </Button>
+                    <span className="text-sm text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold">
+                        {currentPage + 1} / {totalPages}
+                    </span>
+                    <Button variant="outline" disabled={currentPage >= totalPages - 1} onClick={() => setCurrentPage(p => p + 1)}>
+                        Suivant
+                    </Button>
+                </div>
+            )}
 
             {selectedOwner && (
                 <AdminOwnerSubscriptionModal 

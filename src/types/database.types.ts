@@ -1172,6 +1172,7 @@ export type Database = {
           email: string | null
           first_name: string
           id: string
+          id_card_number: string | null
           last_name: string
           marital_status: Database["public"]["Enums"]["marital_status"]
           phone: string
@@ -1190,6 +1191,7 @@ export type Database = {
           email?: string | null
           first_name: string
           id?: string
+          id_card_number?: string | null
           last_name: string
           marital_status: Database["public"]["Enums"]["marital_status"]
           phone: string
@@ -1208,6 +1210,7 @@ export type Database = {
           email?: string | null
           first_name?: string
           id?: string
+          id_card_number?: string | null
           last_name?: string
           marital_status?: Database["public"]["Enums"]["marital_status"]
           phone?: string
@@ -1630,6 +1633,7 @@ export type Database = {
           first_name: string
           id: string
           id_card_url: string | null
+          id_card_number: string | null
           last_name: string
           marital_status: Database["public"]["Enums"]["marital_status"]
           nationality: string
@@ -1651,6 +1655,7 @@ export type Database = {
           first_name: string
           id?: string
           id_card_url?: string | null
+          id_card_number?: string | null
           last_name: string
           marital_status: Database["public"]["Enums"]["marital_status"]
           nationality: string
@@ -1672,6 +1677,7 @@ export type Database = {
           first_name?: string
           id?: string
           id_card_url?: string | null
+          id_card_number?: string | null
           last_name?: string
           marital_status?: Database["public"]["Enums"]["marital_status"]
           nationality?: string
