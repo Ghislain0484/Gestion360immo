@@ -108,7 +108,7 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
             
             // 💰 Sync with Caisse (modular_transactions)
             // This ensures the payout impacts the agency cash balance
-            await supabase
+            const { error: syncError } = await supabase
                 .from('modular_transactions')
                 .insert({
                     agency_id: user.agency_id,
@@ -122,6 +122,11 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                     related_owner_id: ownerId,
                     module_type: 'owner'
                 });
+
+            if (syncError) {
+                console.error('Erreur synchronisation caisse:', syncError);
+                throw syncError;
+            }
 
             if (onSuccess) onSuccess();
             onClose();

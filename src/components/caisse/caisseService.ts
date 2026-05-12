@@ -59,6 +59,7 @@ export const fetchCaisseData = async (
   potential: number;
   expected: number;
   collected: number;
+  collectedThisMonth: number;
 }> => {
   // ── Date range helper ──
   const getDateRange = (period: string) => {
@@ -105,8 +106,16 @@ export const fetchCaisseData = async (
       supabase.from('property_expenses').select('amount').eq('agency_id', agencyId),
 
       // KPI data
-      supabase.from('properties').select('monthly_rent').eq('agency_id', agencyId),
-      supabase.from('contracts').select('monthly_rent').eq('agency_id', agencyId).eq('status', 'active'),
+      (() => {
+        let q = supabase.from('properties').select('monthly_rent').eq('agency_id', agencyId);
+        if (filters.ownerId !== 'all') q = q.eq('owner_id', filters.ownerId);
+        return q;
+      })(),
+      (() => {
+        let q = supabase.from('contracts').select('monthly_rent, property_id, properties!inner(owner_id)').eq('agency_id', agencyId).eq('status', 'active');
+        if (filters.ownerId !== 'all') q = q.eq('properties.owner_id', filters.ownerId);
+        return q;
+      })(),
     ]);
 
   const receipts = receiptsRes.data ?? [];
@@ -192,5 +201,21 @@ export const fetchCaisseData = async (
     .filter(t => t.category === 'rent_payment' && t.type === 'credit')
     .reduce((s, t) => s + Number(t.amount || 0), 0);
 
-  return { transactions: allTransactions, globalCredits, globalDebits, potential, expected, collected };
+  // Pour "Reste à percevoir", on se base sur les encaissements du mois en cours
+  // car 'expected' représente le loyer mensuel attendu.
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  
+  const collectedThisMonth = mappedReceipts
+    .filter(t => {
+      if (t.category !== 'rent_payment' || t.type !== 'credit') return false;
+      // Si on a filtré sur une période spécifique, on utilise les encaissements de la période pour le calcul
+      if (filters.period && filters.period !== 'all') return true; 
+      // Sinon, on extrait uniquement les encaissements du mois courant
+      return t.date.startsWith(currentMonthStr);
+    })
+    .reduce((s, t) => s + Number(t.amount || 0), 0);
+
+  return { transactions: allTransactions, globalCredits, globalDebits, potential, expected, collected, collectedThisMonth };
 };
+
