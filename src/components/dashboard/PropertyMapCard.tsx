@@ -89,11 +89,11 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const isApiKeyMissing = !apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY_HERE' || apiKey.trim() === '';
 
-  const { isLoaded, loadError } = useJsApiLoader(
-    isApiKeyMissing
-      ? { id: 'google-map-disabled', googleMapsApiKey: '', libraries: GOOGLE_MAPS_LIBRARIES }
-      : { id: 'google-map-script', googleMapsApiKey: apiKey, libraries: GOOGLE_MAPS_LIBRARIES }
-  );
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: isApiKeyMissing ? '' : apiKey,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
 
   const activeContractsByProperty = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -204,8 +204,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
     ],
   };
 
-  if (loadError || isApiKeyMissing) {
-    // Fallback: afficher une carte SVG statique avec les communes
+  if (loadError || isApiKeyMissing || !isLoaded) {
     return (
       <div className="flex h-[500px] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-elegant dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-700">
@@ -221,40 +220,31 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
             </div>
           </div>
         </div>
-        {/* Fallback: Commune legend as visual map */}
-        <div className="flex flex-1 flex-col overflow-auto p-6">
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 text-center">
-            {isApiKeyMissing ? '🗺️ Carte interactive non disponible — Configurez VITE_GOOGLE_MAPS_API_KEY dans .env' : '⚠️ Erreur de chargement de la carte'}
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {legendData.map(item => (
-              <div
-                key={item.key}
-                className="flex items-center gap-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2"
-              >
-                <span className="h-3 w-3 flex-shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{item.count} bien{item.count > 1 ? 's' : ''} · {item.occupied} occupé{item.occupied > 1 ? 's' : ''}</p>
+        <div className="flex flex-1 items-center justify-center bg-slate-50 p-6 dark:bg-slate-950/20">
+          <div className="text-center">
+            {(!isLoaded && !loadError && !isApiKeyMissing) ? (
+              <>
+                <Loader className="mx-auto h-8 w-8 animate-spin text-blue-500" />
+                <p className="mt-2 text-sm text-slate-500">Chargement de la carte...</p>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="mx-auto h-8 w-8 text-amber-500" />
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                  {isApiKeyMissing ? 'Clé Google Maps manquante (VITE_GOOGLE_MAPS_API_KEY)' : 'Erreur de chargement de la carte'}
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-left">
+                  {legendData.slice(0, 4).map(item => (
+                    <div key={item.key} className="flex items-center gap-2 rounded-lg bg-white p-2 shadow-sm dark:bg-slate-800">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-[10px] font-bold truncate">{item.name}: {item.count}</span>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-            {legendData.length === 0 && (
-              <div className="col-span-full flex flex-col items-center justify-center py-8 text-slate-400">
-                <Building2 className="h-8 w-8 mb-2" />
-                <p className="text-sm">Aucun bien avec une localisation connue</p>
-              </div>
+              </>
             )}
           </div>
         </div>
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return (
-      <div className="flex h-[500px] items-center justify-center rounded-2xl bg-slate-50 animate-pulse dark:bg-slate-900/70">
-        <div className="font-medium text-slate-400 dark:text-slate-500">Chargement de la carte...</div>
       </div>
     );
   }
