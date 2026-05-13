@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Building2, TrendingUp, Info, AlertCircle } from 'lucide-react';
+import { MapPin, Building2, TrendingUp, Info, AlertCircle, Loader } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
 import type { Libraries } from '@react-google-maps/api';
 import { Property } from '../../types/db';
