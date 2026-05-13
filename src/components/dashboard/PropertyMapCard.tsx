@@ -204,6 +204,25 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
     ],
   };
 
+  // Auto-center map on markers
+  React.useEffect(() => {
+    if (mapInstance && markers.length > 0) {
+      const bounds = new window.google.maps.LatLngBounds();
+      markers.forEach(marker => {
+        bounds.extend(marker.position);
+      });
+      mapInstance.fitBounds(bounds);
+      
+      // Prevent zooming too much if there's only one marker
+      if (markers.length === 1) {
+        const listener = window.google.maps.event.addListener(mapInstance, 'idle', () => {
+          mapInstance.setZoom(15);
+          window.google.maps.event.removeListener(listener);
+        });
+      }
+    }
+  }, [mapInstance, markers]);
+
   if (loadError || isApiKeyMissing || !isLoaded) {
     return (
       <div className="flex h-[500px] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-elegant dark:border-slate-700 dark:bg-slate-900">
