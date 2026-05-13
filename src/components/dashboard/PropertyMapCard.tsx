@@ -84,6 +84,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   const navigate = useNavigate();
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [selectedCommune, setSelectedCommune] = useState<string | null>(null);
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const isApiKeyMissing = !apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY_HERE' || apiKey.trim() === '';
@@ -281,8 +282,10 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
             center={ABIDJAN_CENTER}
             zoom={12}
             options={mapOptions}
+            onLoad={(map) => setMapInstance(map)}
+            onUnmount={() => setMapInstance(null)}
           >
-            {markers.map((marker) => (
+            {mapInstance && markers.map((marker) => (
               <MarkerF
                 key={marker.id}
                 position={marker.position}
@@ -295,7 +298,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
               />
             ))}
 
-            {selectedPropertyId && selectedProperty && (
+            {mapInstance && selectedPropertyId && selectedProperty && (
               <InfoWindowF
                 position={markers.find((marker) => marker.id === selectedPropertyId)?.position || ABIDJAN_CENTER}
                 onCloseClick={() => setSelectedPropertyId(null)}
