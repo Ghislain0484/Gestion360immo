@@ -170,7 +170,7 @@ export const AuditLogsPage: React.FC = () => {
                                 <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-3">
                                     <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                                     <div>
-                                        <p className="text-xs text-blue-900 font-bold mb-1 italic">Conformité GICO</p>
+                                        <p className="text-xs text-blue-900 font-bold mb-1 italic">Conformité Gestion360immo</p>
                                         <p className="text-[10px] text-blue-700 leading-relaxed">
                                             Ce log constitue une preuve numérique de l'action effectuée par un administrateur. 
                                             L'IP source est masquée pour la démo mais active en production.

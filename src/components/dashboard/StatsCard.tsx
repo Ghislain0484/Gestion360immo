@@ -52,10 +52,10 @@ export const StatsCard: React.FC<StatsCardProps> = ({
         </div>
         
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-500 transition-colors">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500/80 group-hover:text-primary-600 transition-colors">
             {title}
           </p>
-          <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+          <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight font-display">
             {value ?? '0'}
           </h3>
         </div>

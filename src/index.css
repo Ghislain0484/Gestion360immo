@@ -7,7 +7,7 @@
 /* 🎨 Advanced Design System Tokens */
 :root {
   /* Day Mode - Refined Palette */
-  --p-h: 221; /* Primary Hue (Blue) */
+  --p-h: 221; /* Primary Hue (Blue/Indigo) */
   --p-s: 83%;
   --p-l: 53%;
   
@@ -21,13 +21,13 @@
   --text-main: hsl(215, 25%, 27%);
   --text-muted: hsl(215, 16%, 47%);
   
-  --glass-blur: 12px;
+  --glass-blur: 16px;
   --glass-saturate: 180%;
   
-  --radius-premium: 1.25rem;
+  --radius-premium: 1.5rem;
   --spring-easing: cubic-bezier(0.16, 1, 0.3, 1);
   --safe-area-inset-bottom: env(safe-area-inset-bottom);
-  --header-height: 64px;
+  --header-height: 72px;
 }
 
 .dark {
@@ -138,10 +138,11 @@ h1, h2, h3, .font-display {
     -webkit-tap-highlight-color: transparent;
     height: -webkit-fill-available;
     scroll-behavior: smooth;
+    font-size: 15px; /* Slightly larger base font for luxury feel */
   }
   
   body {
-    @apply bg-slate-50 text-slate-900 antialiased selection:bg-primary-100 selection:text-primary-900;
+    @apply bg-slate-50 text-slate-800 antialiased selection:bg-primary-100 selection:text-primary-900;
     min-height: 100vh;
     min-height: 100dvh;
   }

@@ -47,7 +47,7 @@ export const Layout: React.FC = () => {
   useRealtimeMessageWatcher(agencyId);
 
   return (
-    <div className="min-h-screen bg-mesh font-sans text-gray-900 dark:text-slate-100 transition-colors duration-500 overflow-x-hidden text-sm uppercase font-bold">
+    <div className="min-h-screen bg-mesh font-sans text-slate-900 dark:text-slate-100 transition-colors duration-500 overflow-x-hidden antialiased">
       <LoadingBar />
       <Navbar />
       <QuotaBanner />

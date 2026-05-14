@@ -23,9 +23,9 @@ export const Card: React.FC<CardProps> = ({
   };
 
   const variantClasses = {
-    default: 'bg-white dark:bg-slate-800 shadow-elegant border border-gray-100 dark:border-slate-600',
+    default: 'bg-white/80 backdrop-blur-md dark:bg-slate-800/80 shadow-elegant border border-slate-100 dark:border-slate-700',
     glass: 'card-glass',
-    hover: 'bg-white dark:bg-slate-800 shadow-elegant border border-gray-100 dark:border-slate-600 card-hover',
+    hover: 'bg-white/80 backdrop-blur-md dark:bg-slate-800/80 shadow-elegant border border-slate-100 dark:border-slate-700 hover:shadow-xl hover:-translate-y-1',
   };
 
   return (

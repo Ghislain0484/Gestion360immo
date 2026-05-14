@@ -130,7 +130,7 @@ export const Navbar: React.FC = () => {
   }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-40 hidden border-b border-gray-200 bg-white/80 backdrop-blur-xl shadow-glass transition-all duration-500 dark:border-slate-800 dark:bg-slate-900/80 lg:block">
+    <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-40 hidden w-[95%] max-w-[1700px] border border-white/20 bg-white/70 backdrop-blur-xl shadow-elegant rounded-2xl transition-all duration-500 dark:border-slate-800/50 dark:bg-slate-900/70 lg:block">
       <div className="mx-auto max-w-[1700px] px-4 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">

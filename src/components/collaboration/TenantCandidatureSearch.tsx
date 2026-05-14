@@ -190,7 +190,7 @@ export const TenantCandidatureSearch: React.FC<{ onCreditUsed?: () => void }> = 
           <div>
             <h2 className="text-xl font-black uppercase tracking-tight">Candidature à la Location</h2>
             <p className="text-blue-100 text-sm mt-1">
-              Vérifiez l'historique locatif d'un candidat via le réseau inter-agences GICO.
+              Vérifiez l'historique locatif d'un candidat via le réseau inter-agences Gestion360immo.
               La recherche s'effectue sur la base du numéro de pièce d'identité.
             </p>
           </div>
@@ -356,7 +356,7 @@ export const TenantCandidatureSearch: React.FC<{ onCreditUsed?: () => void }> = 
         <Card className="p-10 text-center">
           <Shield className="h-16 w-16 mx-auto mb-4 text-gray-300" />
           <h3 className="text-lg font-bold text-gray-700">Aucun historique trouvé</h3>
-          <p className="text-gray-500 mt-2 text-sm">Ce candidat n'a pas de dossier dans les agences partenaires GICO.</p>
+          <p className="text-gray-500 mt-2 text-sm">Ce candidat n'a pas de dossier dans les agences partenaires Gestion360immo.</p>
           <Button onClick={() => setStep('form')} className="mt-6" variant="outline">Retour</Button>
         </Card>
       ) : (
