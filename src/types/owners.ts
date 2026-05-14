@@ -15,6 +15,8 @@ export interface Owner extends AgencyEntity {
   property_title_details?: string | null;
   marital_status: MaritalStatus;
   photo_url?: string | null;
+  id_card_url?: string | null;
+  id_card_number?: string | null;
   spouse_name?: string | null;
   spouse_phone?: string | null;
   children_count: number;

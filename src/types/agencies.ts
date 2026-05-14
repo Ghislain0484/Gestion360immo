@@ -92,11 +92,13 @@ export interface SubscriptionPayment {
 export interface Reward {
   id: string;
   title: string;
-  type: 'cash_bonus' | 'discount';
+  type: 'cash_bonus' | 'discount' | 'badge';
   value: number;
   description: string;
-  validUntil: string;
+  validUntil: string | Date;
 }
+
+export type AgencyReward = Reward;
 
 export interface AgencyRanking extends AgencyEntity {
   id: string; // UUID

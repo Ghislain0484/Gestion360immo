@@ -154,7 +154,7 @@ export const WalletSettings: React.FC = () => {
 
   const platformFee = FintechService.calculatePlatformFee(potential);
 
-  if (loading) return <div className="flex justify-center p-12"><LoadingSpinner size="lg" color="indigo" /></div>;
+  if (loading) return <div className="flex justify-center p-12"><LoadingSpinner size="lg" color="primary" /></div>;
 
   return (
     <div className="space-y-6">

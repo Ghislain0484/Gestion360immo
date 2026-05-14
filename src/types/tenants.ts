@@ -18,6 +18,7 @@ export interface Tenant extends AgencyEntity {
   nationality: string;
   photo_url?: string | null;
   id_card_url?: string | null;
+  id_card_number?: string | null;
   payment_status: PaymentReliability;
   created_at: string; // timestamptz
   updated_at: string; // timestamptz

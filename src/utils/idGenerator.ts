@@ -1,3 +1,5 @@
+import { AgencyReward } from "../types/agencies";
+
 export class AgencyIdGenerator {
   private static getAgencyCode(agencyName: string): string {
     // Générer un code à partir du nom de l'agence

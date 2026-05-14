@@ -44,6 +44,8 @@ export interface PlatformStats {
 
   pendingRequests: number;
   approvedAgencies: number;
+  globalPotential?: number;
+  globalCommissions?: number;
 }
 
 export interface DashboardStats {

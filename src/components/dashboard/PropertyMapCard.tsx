@@ -98,7 +98,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
 
   const activeContractsByProperty = useMemo(() => {
     const map = new Map<string, boolean>();
-    contracts.forEach((contract) => {
+    (contracts || []).forEach((contract) => {
       if (contract.status === 'active' && contract.type === 'location') {
         if (contract.property_id) {
           map.set(contract.property_id, true);
@@ -111,7 +111,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   const communeData = useMemo(() => {
     const groups: Record<string, { properties: Property[]; occupied: number }> = {};
 
-    properties.forEach((property) => {
+    (properties || []).forEach((property) => {
       const commune = normalize(property.location?.commune || '');
       if (!commune) return;
       if (!groups[commune]) groups[commune] = { properties: [], occupied: 0 };
@@ -162,8 +162,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   const globalRate = properties.length ? Math.round((totalOccupied / properties.length) * 100) : 0;
 
   const markers = useMemo<MapMarker[]>(() => {
-    return properties
-      .map((property) => {
+    return (properties || []).map((property) => {
         const communeKey = normalize(property.location?.commune || '');
         const fallback = COMMUNE_COORDS[communeKey];
 
