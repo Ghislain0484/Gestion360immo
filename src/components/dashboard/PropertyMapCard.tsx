@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Building2, TrendingUp, Info, AlertCircle, Loader } from 'lucide-react';
+import { MapPin, Building2, TrendingUp, Info, AlertCircle, Loader, Crosshair } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
 import type { Libraries } from '@react-google-maps/api';
 import { Property } from '../../types/db';
@@ -67,11 +67,11 @@ const Legend: React.FC<{
           <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
           <span className="truncate font-medium">{item.name}</span>
         </div>
-        <div className="ml-2 flex flex-shrink-0 items-center gap-2">
-          <span className="text-xs font-bold">{item.count}</span>
-          {item.occupied > 0 && (
-            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
-              {item.occupied}x
+        <div className="ml-2 flex flex-shrink-0 items-center gap-3">
+          <span className="text-xs font-bold text-slate-500">{item.count}</span>
+          {item.count > 0 && (
+            <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-100 dark:border-emerald-500/20">
+              {Math.round((item.occupied / item.count) * 100)}%
             </span>
           )}
         </div>
@@ -227,19 +227,43 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   React.useEffect(() => {
     if (isMapReady && mapRef.current && markers.length > 0 && window.google) {
       const bounds = new window.google.maps.LatLngBounds();
-      markers.forEach(marker => {
-        bounds.extend(marker.position);
-      });
-      mapRef.current.fitBounds(bounds);
+      let hasValidMarker = false;
       
-      if (markers.length === 1) {
-        const listener = mapRef.current.addListener('idle', () => {
-          mapRef.current?.setZoom(15);
-          window.google.maps.event.removeListener(listener);
-        });
+      markers.forEach(marker => {
+        if (!isNaN(marker.position.lat) && !isNaN(marker.position.lng)) {
+          bounds.extend(marker.position);
+          hasValidMarker = true;
+        }
+      });
+      
+      if (hasValidMarker) {
+        mapRef.current.fitBounds(bounds);
+        
+        // Handle zoom levels for single marker or close markers
+        if (markers.length === 1) {
+          const listener = mapRef.current.addListener('idle', () => {
+            mapRef.current?.setZoom(15);
+            window.google.maps.event.removeListener(listener);
+          });
+        }
+      } else {
+        // Fallback to Abidjan if no valid markers
+        mapRef.current.setCenter(ABIDJAN_CENTER);
+        mapRef.current.setZoom(12);
       }
     }
   }, [isMapReady, markers]);
+
+  const handleRecenter = () => {
+    if (mapRef.current && markers.length > 0 && window.google) {
+      const bounds = new window.google.maps.LatLngBounds();
+      markers.forEach(m => bounds.extend(m.position));
+      mapRef.current.fitBounds(bounds);
+    } else if (mapRef.current) {
+      mapRef.current.setCenter(ABIDJAN_CENTER);
+      mapRef.current.setZoom(12);
+    }
+  };
 
   if (loadError || isApiKeyMissing || !isLoaded) {
     return (
@@ -330,6 +354,17 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
                 }
               />
             ))}
+
+            {/* Recenter Button Overlay */}
+            <div className="absolute bottom-4 left-4 z-10">
+              <button
+                onClick={handleRecenter}
+                className="flex items-center gap-2 rounded-xl bg-white/90 px-4 py-2.5 text-xs font-bold text-slate-900 shadow-xl backdrop-blur-sm transition-all hover:bg-white hover:scale-105 active:scale-95 border border-slate-100 dark:bg-slate-800/90 dark:text-white dark:border-slate-700"
+              >
+                <Crosshair className="h-4 w-4 text-blue-500" />
+                Recentrer la vue
+              </button>
+            </div>
 
             {isMapReady && selectedPropertyId && selectedProperty && (
               <InfoWindowF

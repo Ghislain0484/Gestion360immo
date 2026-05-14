@@ -137,7 +137,7 @@ export const dbService = {
         p_start_date: startDate.toISOString(),
         p_end_date: endDate.toISOString(),
       }),
-      supabase.from('contracts').select('property_id, monthly_rent, type', { count: 'exact' })
+      supabase.from('contracts').select('property_id, monthly_rent, type')
         .eq('agency_id', agencyId).in('status', ['active', 'renewed']),
       modularService.getAgencyTransactions(agencyId, startDate.toISOString(), endDate.toISOString()),
     ]);
@@ -180,7 +180,7 @@ export const dbService = {
       monthlyRevenue: rentRevenue + modularRevenue,
       expectedRevenue,
       remainingRevenue: Math.max(0, expectedRevenue - rentRevenue),
-      activeContracts: activeContractsCount || 0,
+      activeContracts: new Set((activeContractsData || []).map((c: any) => c.property_id)).size,
       occupancyRate: Number((safeTotalProperties > 0 ? (safeOccupiedProperties / safeTotalProperties) * 100 : 0).toFixed(2)),
       totalDeposits,
       agencyEarnings: rentEarnings + modularEarnings,
