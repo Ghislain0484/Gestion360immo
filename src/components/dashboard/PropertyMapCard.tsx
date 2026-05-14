@@ -84,7 +84,8 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   const navigate = useNavigate();
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [selectedCommune, setSelectedCommune] = useState<string | null>(null);
-  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const mapRef = React.useRef<google.maps.Map | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const isApiKeyMissing = !apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY_HERE' || apiKey.trim() === '';
@@ -206,22 +207,21 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
 
   // Auto-center map on markers
   React.useEffect(() => {
-    if (mapInstance && markers.length > 0) {
+    if (isMapReady && mapRef.current && markers.length > 0 && window.google) {
       const bounds = new window.google.maps.LatLngBounds();
       markers.forEach(marker => {
         bounds.extend(marker.position);
       });
-      mapInstance.fitBounds(bounds);
+      mapRef.current.fitBounds(bounds);
       
-      // Prevent zooming too much if there's only one marker
       if (markers.length === 1) {
-        const listener = window.google.maps.event.addListener(mapInstance, 'idle', () => {
-          mapInstance.setZoom(15);
+        const listener = mapRef.current.addListener('idle', () => {
+          mapRef.current?.setZoom(15);
           window.google.maps.event.removeListener(listener);
         });
       }
     }
-  }, [mapInstance, markers]);
+  }, [isMapReady, markers]);
 
   if (loadError || isApiKeyMissing || !isLoaded) {
     return (
@@ -291,10 +291,16 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
             center={ABIDJAN_CENTER}
             zoom={12}
             options={mapOptions}
-            onLoad={(map) => setMapInstance(map)}
-            onUnmount={() => setMapInstance(null)}
+            onLoad={(map) => {
+              mapRef.current = map;
+              setIsMapReady(true);
+            }}
+            onUnmount={() => {
+              mapRef.current = null;
+              setIsMapReady(false);
+            }}
           >
-            {mapInstance && markers.map((marker) => (
+            {isMapReady && markers.map((marker) => (
               <MarkerF
                 key={marker.id}
                 position={marker.position}
@@ -307,7 +313,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
               />
             ))}
 
-            {mapInstance && selectedPropertyId && selectedProperty && (
+            {isMapReady && selectedPropertyId && selectedProperty && (
               <InfoWindowF
                 position={markers.find((marker) => marker.id === selectedPropertyId)?.position || ABIDJAN_CENTER}
                 onCloseClick={() => setSelectedPropertyId(null)}
