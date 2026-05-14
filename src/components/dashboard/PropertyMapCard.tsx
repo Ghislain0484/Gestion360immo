@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Building2, TrendingUp, Info, AlertCircle, Loader } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
@@ -194,7 +194,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   }, [properties, activeContractsByProperty]);
 
   // Diagnostic log for the map
-  useEffect(() => {
+  React.useEffect(() => {
     if (isLoaded) {
       console.log("📍 Diagnostic Carte:", {
         markersCount: markers.length,
