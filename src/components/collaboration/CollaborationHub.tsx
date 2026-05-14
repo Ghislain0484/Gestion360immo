@@ -61,7 +61,7 @@ export const CollaborationHub: React.FC = () => {
             Collaboration <span className="text-blue-600">Inter-Agences</span>
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            Propulsez votre agence grâce au réseau GICO : partagez, collaborez, gagnez.
+            Propulsez votre agence grâce au réseau Gestion360immo : partagez, collaborez, gagnez.
           </p>
         </div>
 

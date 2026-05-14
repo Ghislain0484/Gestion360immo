@@ -174,8 +174,11 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
         return {
           id: property.id,
           position:
-            property.location?.coordinates?.lat && property.location?.coordinates?.lng
-              ? { lat: Number(property.location.coordinates.lat), lng: Number(property.location.coordinates.lng) }
+            (property.location?.coordinates?.lat && property.location?.coordinates?.lng)
+              ? { 
+                  lat: Number(property.location.coordinates.lat), 
+                  lng: Number(property.location.coordinates.lng) 
+                }
               : fallback
                 ? { lat: fallback.lat + jitterLat, lng: fallback.lng + jitterLng }
                 : null,
@@ -183,8 +186,24 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
           isOccupied: activeContractsByProperty.get(property.id),
         };
       })
-      .filter((marker): marker is MapMarker => marker.position !== null);
+      .filter((marker): marker is MapMarker => 
+        marker.position !== null && 
+        !isNaN(marker.position.lat) && 
+        !isNaN(marker.position.lng)
+      );
   }, [properties, activeContractsByProperty]);
+
+  // Diagnostic log for the map
+  useEffect(() => {
+    if (isLoaded) {
+      console.log("📍 Diagnostic Carte:", {
+        markersCount: markers.length,
+        isLoaded,
+        apiKeyPresent: !!apiKey,
+        firstMarker: markers[0]?.position
+      });
+    }
+  }, [isLoaded, markers, apiKey]);
 
   const selectedProperty = useMemo(
     () => properties.find((property) => property.id === selectedPropertyId),

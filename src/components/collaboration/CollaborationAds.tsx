@@ -112,7 +112,7 @@ export const CollaborationAds: React.FC = () => {
               Annonces Inter-Agences
             </h2>
             <p className="text-blue-100 font-medium">
-              Le Marketplace exclusif GICO. Partagez vos opportunités de vente ou location et trouvez des partenaires d'affaires en un clic.
+              Le Marketplace exclusif Gestion360immo. Partagez vos opportunités de vente ou location et trouvez des partenaires d'affaires en un clic.
             </p>
           </div>
           <Button 
@@ -316,7 +316,7 @@ export const CollaborationAds: React.FC = () => {
                 <Megaphone className="h-10 w-10 text-slate-200" />
               </div>
               <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Le Marketplace est vide</h3>
-              <p className="text-slate-500 mb-8 max-w-sm mx-auto">Soyez la première agence à dynamiser le réseau GICO en publiant votre opportunité !</p>
+              <p className="text-slate-500 mb-8 max-w-sm mx-auto">Soyez la première agence à dynamiser le réseau Gestion360immo en publiant votre opportunité !</p>
               <Button onClick={() => setShowAddForm(true)} className="btn-premium">
                 Publier ma première annonce
               </Button>
@@ -324,9 +324,6 @@ export const CollaborationAds: React.FC = () => {
           )}
         </div>
       )}
-    </div>
-  );
-};
     </div>
   );
 };
