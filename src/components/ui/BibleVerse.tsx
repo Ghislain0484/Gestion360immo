@@ -25,8 +25,28 @@ export const BibleVerseCard: React.FC<BibleVerseProps> = ({
 }) => {
   const [verse, setVerse] = useState<BibleVerse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
+    // Check setting from localStorage (synced with AppearanceSettings)
+    const getSetting = () => {
+      try {
+        // Find agency_id from any storage or context if possible
+        // For now, look at all appearance_settings keys or just check if any is false
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith('appearance_settings_')) {
+            const settings = JSON.parse(localStorage.getItem(key) || '{}');
+            if (settings.showBibleVerses === false) return false;
+          }
+        }
+      } catch (e) {
+        console.error('Error reading bible setting', e);
+      }
+      return true;
+    };
+    
+    setIsVisible(getSetting());
     setVerse(DailyVerseService.getDailyVerse());
   }, []);
 
@@ -66,6 +86,8 @@ export const BibleVerseCard: React.FC<BibleVerseProps> = ({
 
     return colors[normalizeThemeKey(theme) as keyof typeof colors] || 'secondary';
   };
+
+  if (!isVisible) return null;
 
   if (!verse) {
     return (

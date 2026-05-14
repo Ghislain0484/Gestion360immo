@@ -21,8 +21,8 @@
   --text-main: hsl(215, 25%, 27%);
   --text-muted: hsl(215, 16%, 47%);
   
-  --glass-blur: 16px;
-  --glass-saturate: 180%;
+  --glass-blur: 8px;
+  --glass-saturate: 150%;
   
   --radius-premium: 1.5rem;
   --spring-easing: cubic-bezier(0.16, 1, 0.3, 1);
@@ -42,7 +42,7 @@
   --text-main: hsl(210, 40%, 98%);
   --text-muted: hsl(215, 20%, 65%);
   
-  --glass-blur: 20px;
+  --glass-blur: 12px;
 }
 
 /* ✨ Global Refinements */
@@ -86,7 +86,7 @@ body {
     radial-gradient(circle at 80% 70%, hsla(280, 80%, 60%, 0.1), transparent 40%),
     radial-gradient(circle at 50% 10%, hsla(160, 80%, 60%, 0.05), transparent 40%);
   background-size: 200% 200%;
-  animation: mesh 20s ease infinite;
+  animation: mesh 30s ease infinite;
 }
 
 /* 🔘 Dynamic Buttons */
