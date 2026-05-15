@@ -105,14 +105,14 @@ export const CollaborationAds: React.FC = () => {
         </div>
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="max-w-2xl">
-            <h2 className="text-2xl font-black text-white flex items-center gap-3 mb-2">
-              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
-                <Megaphone className="h-6 w-6 text-white" />
+            <h2 className="text-3xl font-black text-white flex items-center gap-3 mb-3">
+              <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-md border border-white/10 shadow-inner">
+                <Megaphone className="h-7 w-7 text-white" />
               </div>
               Annonces Inter-Agences
             </h2>
-            <p className="text-blue-100 font-medium">
-              Le Marketplace exclusif Gestion360immo. Partagez vos opportunités de vente ou location et trouvez des partenaires d'affaires en un clic.
+            <p className="text-white font-medium text-lg max-w-xl opacity-95 leading-relaxed">
+              Le Marketplace exclusif <span className="font-black underline decoration-white/30 underline-offset-4">Gestion360immo</span>. Partagez vos opportunités de vente ou location et trouvez des partenaires d'affaires en un clic.
             </p>
           </div>
           <Button 
