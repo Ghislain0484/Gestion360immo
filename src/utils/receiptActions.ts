@@ -117,10 +117,22 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
       y += 8;
     };
 
-    drawRow("Charges :", `${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA`);
-    drawRow("Loyer total dû :", `${receipt.total_amount.toLocaleString('fr-FR')} FCFA`);
+    // Calcul des lignes détaillées (Loi 2+2 Côte d'Ivoire)
+    const monthlyRent = receipt.rent_amount || 0;
+    const caution = receipt.deposit_amount || 0;
+    const currentRent = monthlyRent;
+    const surplus = amountPaid - (currentRent + caution + (receipt.charges || 0));
+    const advance = surplus > 0 ? surplus : 0;
 
-    // On ne montre PAS la part propriétaire sur la quittance remise au locataire
+    drawRow("Loyer mensuel :", `${monthlyRent.toLocaleString('fr-FR')} FCFA`);
+    if (caution > 0) {
+      drawRow("Caution (Séquestre) :", `${caution.toLocaleString('fr-FR')} FCFA`);
+    }
+    if (advance > 0) {
+      drawRow("Avance de loyer :", `${advance.toLocaleString('fr-FR')} FCFA`);
+    }
+    drawRow("Charges :", `${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA`);
+    drawRow("TOTAL DÛ :", `${receipt.total_amount.toLocaleString('fr-FR')} FCFA`, true);
 
     doc.setDrawColor(59, 130, 246);
     doc.line(col1, y, pageWidth - 20, y);
@@ -267,9 +279,13 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
 
   <div class="section-title">DÉTAIL DU PAIEMENT</div>
   <table class="payment-table">
-    <tr><td>Loyer mensuel</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    ${receipt.rent_amount > 0 ? `<tr><td>Loyer mensuel</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
+    ${receipt.deposit_amount && receipt.deposit_amount > 0 ? `<tr><td>Caution (S&eacute;questre)</td><td style="text-align:right">${receipt.deposit_amount.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
+    ${(amountPaid - (receipt.rent_amount + (receipt.deposit_amount || 0) + (receipt.charges || 0))) > 0 
+      ? `<tr><td>Avance de loyer</td><td style="text-align:right">${(amountPaid - (receipt.rent_amount + (receipt.deposit_amount || 0) + (receipt.charges || 0))).toLocaleString('fr-FR')} FCFA</td></tr>` 
+      : ''}
     <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
-    <tr><td>Loyer total dû</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
+    <tr><td>TOTAL D&Ucirc;</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
     <tr class="total-row"><td>${amountPaid < receipt.total_amount ? 'MONTANT PER&Ccedil;U (ACOMPTE)' : 'MONTANT VERS&Eacute;'}</td><td style="text-align:right;color:${amountPaidColor};">${amountPaid.toLocaleString('fr-FR')} FCFA</td></tr>
     ${amountPaid < receipt.total_amount ? `<tr><td style="color:#dc2626;font-weight:bold">Solde restant &agrave; payer</td><td style="text-align:right;color:#dc2626;font-weight:bold">${(receipt.total_amount - amountPaid).toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
     <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>

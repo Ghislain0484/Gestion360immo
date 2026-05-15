@@ -234,17 +234,40 @@ export function useRealtimeData<T extends AgencyEntity>(
     log(`🔍 Fetch ${tableName} avec params:`, params);
 
     try {
+      // Logic de cache offline : charger du localStorage si on est au premier fetch
+      const cacheKey = `gb360_cache_${tableName}_${agencyId}`;
+      if (initialLoading) {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) {
+              setData(parsed);
+              log(`📦 [offline] Chargement cache pour ${tableName}`);
+            }
+          } catch (e) {
+            log(`⚠️ Erreur lecture cache ${tableName}`);
+          }
+        }
+      }
+
       const result = await fetchFunction(params);
       if (!isMountedRef.current) return;
       setData(result);
+      
+      // Mettre à jour le cache
+      localStorage.setItem(cacheKey, JSON.stringify(result));
+      
       log(`[info] ${tableName} mis à jour: ${result.length} items`);
     } catch (err) {
       if (!isMountedRef.current) return;
       const msg = mapSupabaseError(err, `Erreur chargement ${tableName}`);
       setError(msg);
       options?.onError?.(msg);
-      toast.error(msg);
-      setData([]);
+      // Ne pas spammer le toast si on est offline, l'utilisateur le sait déjà via mapSupabaseError
+      if (!msg.includes('Impossible de joindre le serveur')) {
+        toast.error(msg);
+      }
       log(`[error] Erreur fetch ${tableName}:`, err);
     } finally {
       if (!isMountedRef.current) return;
@@ -253,7 +276,7 @@ export function useRealtimeData<T extends AgencyEntity>(
       setFetching(false);
       log(`[info] Fetch ${tableName} termine`);
     }
-  }, [fetchFunction, tableName, options, isDemoMode]); // Added isDemoMode to deps
+  }, [fetchFunction, tableName, options, isDemoMode, agencyId, initialLoading]); // Added agencyId and initialLoading to deps
 
   // ---------------------------------------
   // Inteception pour le mode démo (Sync simple)
@@ -307,19 +330,34 @@ export function useRealtimeData<T extends AgencyEntity>(
     // Initial fetch
     fetchData(fetchParams);
 
-    // Polling-based refresh every 5 minutes (replaces broken Realtime subscription)
-    // 30 seconds was too aggressive and caused high egress usage.
-    const pollInterval = setInterval(() => {
-      if (isMountedRef.current && agencyId) {
-        log(`🔄 Poll ${tableName}`);
+    // ECOSYSTÈME TEMPS RÉEL GESTION360 (Event-driven Refresh)
+    // Au lieu de pollings coûteux ou d'abonnements Supabase fragiles, 
+    // on utilise un bus d'événements interne. 
+    // Toute création/modif propage un signal global pour rafraîchir les UI concernées.
+    const handleGlobalRefetch = (e: any) => {
+      // Soit on refetch tout, soit on cible par table
+      if (!e.detail || e.detail.table === tableName || e.detail.table === 'all') {
+        log(`⚡ [realtime] Signal recu pour ${tableName}`);
         debouncedRefetch(fetchParams);
       }
-    }, 300000);
+    };
+
+    window.addEventListener('gestion360:refetch' as any, handleGlobalRefetch);
+    window.addEventListener('online', () => debouncedRefetch(fetchParams));
+
+    // Polling de sécurité beaucoup plus espacé (10 minutes)
+    const pollInterval = setInterval(() => {
+      if (isMountedRef.current && agencyId && navigator.onLine) {
+        log(`🔄 [sync] Poll de securite pour ${tableName}`);
+        debouncedRefetch(fetchParams);
+      }
+    }, 600000);
 
     return () => {
       isMountedRef.current = false;
       clearInterval(pollInterval);
-      // Clean up any leftover channel from previous renders
+      window.removeEventListener('gestion360:refetch' as any, handleGlobalRefetch);
+      window.removeEventListener('online', () => debouncedRefetch(fetchParams));
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -409,7 +447,19 @@ export function useDashboardStats(monthStr?: string) {
   useEffect(() => {
     const abortController = new AbortController();
     fetchStats(abortController.signal);
-    return () => abortController.abort();
+
+    // Écouter les événements globaux de mise à jour pour rafraîchir les stats du dashboard
+    const handleGlobalRefetch = () => {
+      log('⚡ [stats] Signal de mise à jour recu');
+      fetchStats(new AbortController().signal);
+    };
+
+    window.addEventListener('gestion360:refetch' as any, handleGlobalRefetch);
+    
+    return () => {
+      abortController.abort();
+      window.removeEventListener('gestion360:refetch' as any, handleGlobalRefetch);
+    };
   }, [fetchStats]);
 
   const refetch = useCallback(() => {
@@ -443,6 +493,12 @@ export function useSupabaseCreate<T extends Entity>(
 
     try {
       const result = await createFunction(data);
+      
+      // ⚡ Propager le signal de mise à jour immédiate
+      window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+        detail: { table: 'all', action: 'create' } 
+      }));
+
       options?.onSuccess?.(result);
       if (options?.successMessage) toast.success(options.successMessage);
       setSuccess(true);
@@ -491,6 +547,12 @@ export function useSupabaseUpdate<T extends Entity>(
 
     try {
       const result = await updateFunction(id, data);
+
+      // ⚡ Propager le signal de mise à jour immédiate
+      window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+        detail: { table: 'all', action: 'update' } 
+      }));
+
       options?.onSuccess?.(result);
       if (options?.successMessage) toast.success(options.successMessage);
       setSuccess(true);
@@ -538,6 +600,12 @@ export function useSupabaseDelete(
 
     try {
       await deleteFunction(id);
+      
+      // ⚡ Propager le signal de mise à jour immédiate
+      window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+        detail: { table: 'all', action: 'delete' } 
+      }));
+
       setSuccess(true);
       options?.onSuccess?.();
       if (options?.successMessage) toast.success(options.successMessage);
