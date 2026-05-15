@@ -151,9 +151,9 @@ export const fetchCaisseData = async (
     const end = c.end_date ? new Date(c.end_date) : null;
     
     const wasActive = start <= endOfPeriod && (!end || end >= startOfPeriod);
-    const isValidStatus = ['active', 'renewed', 'terminated', 'archived'].includes(c.status);
+    const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'actif', 'renouvelé', 'terminé', 'archivé'].includes(c.status);
     
-    if (wasActive && isValidStatus && c.status !== 'cancelled' && c.status !== 'draft') {
+    if (wasActive && isValidStatus && c.status !== 'cancelled' && c.status !== 'draft' && c.status !== 'annulé') {
       return s + (Number(c.monthly_rent) || 0);
     }
     return s;

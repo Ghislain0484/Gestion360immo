@@ -351,21 +351,21 @@ export const RentRollMatrix: React.FC = () => {
                             const isBeforeContract = cellDate < new Date(contractStart.getFullYear(), contractStart.getMonth(), 1);
                             const isAfterContract = contractEnd && cellDate > new Date(contractEnd.getFullYear(), contractEnd.getMonth(), 1);
                             
+                            if (isPaid) {
+                              return (
+                                <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
+                                  <div className="w-7 h-7 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm" title="Payé (Avance/Arriéré)">
+                                    <Check className="w-4 h-4 stroke-[3]" />
+                                  </div>
+                                </td>
+                              );
+                            }
+
                             if (isBeforeContract || isAfterContract) {
                               return (
                                 <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
                                   <div className="w-6 h-6 mx-auto rounded-full bg-gray-100 flex items-center justify-center" title="Contrat non démarré">
                                     <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                  </div>
-                                </td>
-                              );
-                            }
-                            
-                            if (isPaid) {
-                              return (
-                                <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
-                                  <div className="w-7 h-7 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm" title="Payé">
-                                    <Check className="w-4 h-4 stroke-[3]" />
                                   </div>
                                 </td>
                               );

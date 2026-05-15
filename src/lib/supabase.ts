@@ -137,9 +137,10 @@ export const dbService = {
         p_start_date: startDate.toISOString(),
         p_end_date: endDate.toISOString(),
       }),
-      supabase.from('contracts').select('property_id, monthly_rent, type, start_date, end_date, status', { count: 'exact' })
+      supabase.from('contracts')
+        .select('property_id, monthly_rent, type, start_date, end_date, status')
         .eq('agency_id', agencyId)
-        .or(`status.in.("active","renewed","terminated","archived")`),
+        .in('status', ['active', 'renewed', 'terminated', 'archived', 'actif', 'renouvelé', 'terminé', 'archivé']),
       modularService.getAgencyTransactions(agencyId, startDate.toISOString(), endDate.toISOString()),
     ]);
 
@@ -180,7 +181,7 @@ export const dbService = {
           }
           
           // Ensure it's not a cancelled contract
-          if (c.status === 'cancelled' || c.status === 'draft') {
+          if (c.status === 'cancelled' || c.status === 'draft' || c.status === 'annulé') {
               return sum;
           }
 
@@ -199,7 +200,7 @@ export const dbService = {
       monthlyRevenue: rentRevenue + modularRevenue,
       expectedRevenue,
       remainingRevenue: Math.max(0, expectedRevenue - rentRevenue),
-      activeContracts: activeContractsCount || 0,
+      activeContracts: activeContractsData?.length || 0,
       occupancyRate: Number((safeTotalProperties > 0 ? (safeOccupiedProperties / safeTotalProperties) * 100 : 0).toFixed(2)),
       totalDeposits,
       agencyEarnings: rentEarnings + modularEarnings,
@@ -278,8 +279,8 @@ export const dbService = {
         }, 0);
         
         // Compute expected revenue
-        const monthStart = new Date(y, m - 1, 1);
-        const monthEnd = new Date(y, m, 0);
+        const startOfMonth = new Date(y, m - 1, 1);
+        const endOfMonth = new Date(y, m, 0);
         let expectedRev = 0;
         
         if (Array.isArray(allContracts)) {
@@ -287,10 +288,12 @@ export const dbService = {
             if (c.type !== 'location' || !c.monthly_rent) return sum;
             const start = new Date(c.start_date);
             const end = c.end_date ? new Date(c.end_date) : null;
-            if (start <= monthEnd && (!end || end >= monthStart)) {
-                if (c.status !== 'draft' && c.status !== 'cancelled') {
-                    return sum + c.monthly_rent;
-                }
+            
+            const wasActive = start <= endOfMonth && (!end || end >= startOfMonth);
+            const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'actif', 'renouvelé', 'terminé', 'archivé'].includes(c.status);
+            
+            if (wasActive && isValidStatus && c.status !== 'cancelled' && c.status !== 'draft' && c.status !== 'annulé') {
+              return sum + (Number(c.monthly_rent) || 0);
             }
             return sum;
           }, 0);
