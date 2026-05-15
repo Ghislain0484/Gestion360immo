@@ -147,13 +147,15 @@ export const fetchCaisseData = async (
 
   const expected = (contractsRes.data ?? []).reduce((s, c) => {
     // Only count rent if the contract was active during the period
-    const start = new Date(c.start_date);
-    const end = c.end_date ? new Date(c.end_date) : null;
+    const startStr = c.start_date;
+    const endStr = c.end_date || '9999-12-31';
+    const periodStartStr = startOfPeriod.toISOString().split('T')[0];
+    const periodEndStr = endOfPeriod.toISOString().split('T')[0];
     
-    const wasActive = start <= endOfPeriod && (!end || end >= startOfPeriod);
-    const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'actif', 'renouvelé', 'terminé', 'archivé'].includes(c.status);
+    const wasActive = startStr <= periodEndStr && endStr >= periodStartStr;
+    const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'expired', 'actif', 'renouvelé', 'terminé', 'archivé', 'expiré'].includes(c.status);
     
-    if (wasActive && isValidStatus && c.status !== 'cancelled' && c.status !== 'draft' && c.status !== 'annulé') {
+    if (wasActive && isValidStatus && !['cancelled', 'draft', 'annulé'].includes(c.status)) {
       return s + (Number(c.monthly_rent) || 0);
     }
     return s;

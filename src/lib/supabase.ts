@@ -140,7 +140,7 @@ export const dbService = {
       supabase.from('contracts')
         .select('property_id, monthly_rent, type, start_date, end_date, status')
         .eq('agency_id', agencyId)
-        .in('status', ['active', 'renewed', 'terminated', 'archived', 'actif', 'renouvelé', 'terminé', 'archivé']),
+        .in('status', ['active', 'renewed', 'terminated', 'archived', 'expired', 'actif', 'renouvelé', 'terminé', 'archivé', 'expiré']),
       modularService.getAgencyTransactions(agencyId, startDate.toISOString(), endDate.toISOString()),
     ]);
 
@@ -171,18 +171,17 @@ export const dbService = {
       ? activeContractsData.reduce((sum: number, c: any) => {
           if (c.type !== 'location' || !c.monthly_rent) return sum;
           
-          // Check if contract was active during the requested month
-          const start = new Date(c.start_date);
-          const end = c.end_date ? new Date(c.end_date) : null;
+          // Robust string-based date comparison (YYYY-MM-DD)
+          const startStr = c.start_date;
+          const endStr = c.end_date || '9999-12-31';
+          const periodStartStr = startDate.toISOString().split('T')[0];
+          const periodEndStr = endDate.toISOString().split('T')[0];
           
-          // If contract started after the end of month or ended before the start of month, skip
-          if (start > endDate || (end && end < startDate)) {
-              return sum;
-          }
+          const wasActive = startStr <= periodEndStr && endStr >= periodStartStr;
+          const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'expired', 'actif', 'renouvelé', 'terminé', 'archivé', 'expiré'].includes(c.status);
           
-          // Ensure it's not a cancelled contract
-          if (c.status === 'cancelled' || c.status === 'draft' || c.status === 'annulé') {
-              return sum;
+          if (wasActive && isValidStatus && !['cancelled', 'draft', 'annulé'].includes(c.status)) {
+              return sum + (Number(c.monthly_rent) || 0);
           }
 
           return sum + (c.monthly_rent || 0);
@@ -286,13 +285,15 @@ export const dbService = {
         if (Array.isArray(allContracts)) {
           expectedRev = allContracts.reduce((sum, c) => {
             if (c.type !== 'location' || !c.monthly_rent) return sum;
-            const start = new Date(c.start_date);
-            const end = c.end_date ? new Date(c.end_date) : null;
+            const startStr = c.start_date;
+            const endStr = c.end_date || '9999-12-31';
+            const periodStartStr = startOfMonth.toISOString().split('T')[0];
+            const periodEndStr = endOfMonth.toISOString().split('T')[0];
             
-            const wasActive = start <= endOfMonth && (!end || end >= startOfMonth);
-            const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'actif', 'renouvelé', 'terminé', 'archivé'].includes(c.status);
+            const wasActive = startStr <= periodEndStr && endStr >= periodStartStr;
+            const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'expired', 'actif', 'renouvelé', 'terminé', 'archivé', 'expiré'].includes(c.status);
             
-            if (wasActive && isValidStatus && c.status !== 'cancelled' && c.status !== 'draft' && c.status !== 'annulé') {
+            if (wasActive && isValidStatus && !['cancelled', 'draft', 'annulé'].includes(c.status)) {
               return sum + (Number(c.monthly_rent) || 0);
             }
             return sum;
