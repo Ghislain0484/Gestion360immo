@@ -112,7 +112,7 @@ export const fetchCaisseData = async (
         return q;
       })(),
       (() => {
-        let q = supabase.from('contracts').select('monthly_rent, property_id, properties!inner(owner_id)').eq('agency_id', agencyId).eq('status', 'active');
+        let q = supabase.from('contracts').select('monthly_rent, start_date, end_date, property_id, status, properties!inner(owner_id)').eq('agency_id', agencyId);
         if (filters.ownerId !== 'all') q = q.eq('properties.owner_id', filters.ownerId);
         return q;
       })(),
@@ -136,7 +136,28 @@ export const fetchCaisseData = async (
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
   const potential = (propsRes.data ?? []).reduce((s, p) => s + (Number(p.monthly_rent) || 0), 0);
-  const expected = (contractsRes.data ?? []).reduce((s, c) => s + (Number(c.monthly_rent) || 0), 0);
+  
+  // Refined expected calculation based on period context
+  const targetDateRange = dateRange || { 
+    startDate: new Date().toISOString().slice(0, 10), 
+    endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10) 
+  };
+  const startOfPeriod = new Date(targetDateRange.startDate);
+  const endOfPeriod = new Date(targetDateRange.endDate);
+
+  const expected = (contractsRes.data ?? []).reduce((s, c) => {
+    // Only count rent if the contract was active during the period
+    const start = new Date(c.start_date);
+    const end = c.end_date ? new Date(c.end_date) : null;
+    
+    const wasActive = start <= endOfPeriod && (!end || end >= startOfPeriod);
+    const isValidStatus = ['active', 'renewed', 'terminated', 'archived'].includes(c.status);
+    
+    if (wasActive && isValidStatus && c.status !== 'cancelled' && c.status !== 'draft') {
+      return s + (Number(c.monthly_rent) || 0);
+    }
+    return s;
+  }, 0);
 
   // ── Map to normalized Transaction objects ────────────────────────────────────
   const mappedReceipts: Transaction[] = receipts.map(r => ({

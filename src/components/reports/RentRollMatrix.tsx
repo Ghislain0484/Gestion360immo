@@ -343,6 +343,7 @@ export const RentRollMatrix: React.FC = () => {
                           {/* Month Cells */}
                           {[...Array(12)].map((_, i) => {
                             const monthNum = i + 1;
+                            const cellDate = new Date(selectedYear, i, 1);
                             const isPaid = contract.receipts[monthNum];
                             if (isPaid) rowTotal += contract.monthly_rent;
                             

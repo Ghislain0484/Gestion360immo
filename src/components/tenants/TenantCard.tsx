@@ -24,8 +24,8 @@ export const TenantCard: React.FC<TenantCardProps> = ({
   tenant, onNavigate, onEdit, onReceipt, onLink, onFinancials
 }) => {
   const pCfg = paymentConfig[tenant.payment_status] ?? paymentConfig.bon;
-  const fullName = `${tenant.first_name} ${tenant.last_name}`;
-  const initials = `${tenant.first_name[0] ?? ''}${tenant.last_name[0] ?? ''}`.toUpperCase();
+  const fullName = `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim();
+  const initials = `${tenant.first_name?.[0] || ''}${tenant.last_name?.[0] || ''}`.toUpperCase() || '??';
   const activeContract = tenant.active_contracts?.[0];
 
   return (
