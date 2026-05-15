@@ -17,6 +17,7 @@ interface MatrixData {
     property_title: string;
     monthly_rent: number;
     start_date: string;
+    end_date?: string;
     receipts: Record<number, boolean>; // key: month (1-12), value: true if paid
   }[];
 }
@@ -46,6 +47,7 @@ export const RentRollMatrix: React.FC = () => {
           id, 
           monthly_rent, 
           start_date,
+          end_date,
           status,
           property:properties(id, title, owner:owners(id, first_name, last_name)),
           tenant:tenants(id, first_name, last_name)
@@ -132,6 +134,7 @@ export const RentRollMatrix: React.FC = () => {
         property_title: prop.title || 'Bien inconnu',
         monthly_rent: c.monthly_rent || 0,
         start_date: c.start_date,
+        end_date: c.end_date,
         receipts: receiptsObj
       });
     });
@@ -189,22 +192,29 @@ export const RentRollMatrix: React.FC = () => {
           x += 20;
           
           for (let i = 1; i <= 12; i++) {
-             if (contract.receipts[i]) {
-                doc.setTextColor(0, 150, 0);
-                doc.text('PAYE', x, y);
-             } else {
-                const contractStart = new Date(contract.start_date);
-                const currentMonthDate = new Date(selectedYear, i - 1, 1);
-                if (currentMonthDate >= new Date(contractStart.getFullYear(), contractStart.getMonth(), 1)) {
-                  doc.setTextColor(200, 0, 0);
-                  doc.text('IMPAYE', x, y);
-                } else {
-                  doc.setTextColor(150, 150, 150);
-                  doc.text('-', x, y);
-                }
-             }
-             doc.setTextColor(0, 0, 0);
-             x += 15;
+            const cellDate = new Date(selectedYear, i - 1, 1);
+            const isPaid = contract.receipts[i];
+            
+            if (isPaid) {
+               doc.setTextColor(0, 150, 0);
+               doc.text('PAYE', x, y);
+            } else {
+               const contractStart = new Date(contract.start_date);
+               const contractEnd = contract.end_date ? new Date(contract.end_date) : null;
+               
+               const isBeforeContract = cellDate < new Date(contractStart.getFullYear(), contractStart.getMonth(), 1);
+               const isAfterContract = contractEnd && cellDate > new Date(contractEnd.getFullYear(), contractEnd.getMonth(), 1);
+               
+               if (isBeforeContract || isAfterContract) {
+                 doc.setTextColor(150, 150, 150);
+                 doc.text('-', x, y);
+               } else {
+                 doc.setTextColor(200, 0, 0);
+                 doc.text('IMPAYE', x, y);
+               }
+            }
+            doc.setTextColor(0, 0, 0);
+            x += 15;
           }
           y += 6;
         });
@@ -336,10 +346,11 @@ export const RentRollMatrix: React.FC = () => {
                             const isPaid = contract.receipts[monthNum];
                             if (isPaid) rowTotal += contract.monthly_rent;
                             
-                            const cellDate = new Date(selectedYear, i, 1);
+                            const contractEnd = contract.end_date ? new Date(contract.end_date) : null;
                             const isBeforeContract = cellDate < new Date(contractStart.getFullYear(), contractStart.getMonth(), 1);
+                            const isAfterContract = contractEnd && cellDate > new Date(contractEnd.getFullYear(), contractEnd.getMonth(), 1);
                             
-                            if (isBeforeContract) {
+                            if (isBeforeContract || isAfterContract) {
                               return (
                                 <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
                                   <div className="w-6 h-6 mx-auto rounded-full bg-gray-100 flex items-center justify-center" title="Contrat non démarré">
@@ -403,9 +414,11 @@ export const RentRollMatrix: React.FC = () => {
                   })}
                   <td className="px-4 py-4 text-right bg-slate-900 sticky right-0 z-10 text-emerald-400 text-base">
                     {formatAmount(filteredMatrixData.reduce((sum, owner) => 
-                      sum + owner.contracts.reduce((cSum, c) => 
-                        cSum + Object.values(c.receipts).filter(Boolean).length * c.monthly_rent, 0
-                      ), 0
+                      sum + owner.contracts.reduce((cSum, c) => {
+                        // Sum up only PAID months
+                        const paidMonthsCount = Object.values(c.receipts).filter(Boolean).length;
+                        return cSum + paidMonthsCount * c.monthly_rent;
+                      }, 0), 0
                     ))}
                   </td>
                 </tr>

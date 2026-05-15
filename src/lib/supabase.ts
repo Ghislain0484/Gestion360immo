@@ -137,8 +137,9 @@ export const dbService = {
         p_start_date: startDate.toISOString(),
         p_end_date: endDate.toISOString(),
       }),
-      supabase.from('contracts').select('property_id, monthly_rent, type', { count: 'exact' })
-        .eq('agency_id', agencyId).in('status', ['active', 'renewed']),
+      supabase.from('contracts').select('property_id, monthly_rent, type, start_date, end_date, status', { count: 'exact' })
+        .eq('agency_id', agencyId)
+        .or(`status.in.("active","renewed","terminated","archived")`),
       modularService.getAgencyTransactions(agencyId, startDate.toISOString(), endDate.toISOString()),
     ]);
 
@@ -166,7 +167,25 @@ export const dbService = {
     }, 0);
 
     const expectedRevenue = Array.isArray(activeContractsData)
-      ? activeContractsData.filter((c: any) => c.type === 'location').reduce((sum: number, c: any) => sum + (c.monthly_rent || 0), 0)
+      ? activeContractsData.reduce((sum: number, c: any) => {
+          if (c.type !== 'location' || !c.monthly_rent) return sum;
+          
+          // Check if contract was active during the requested month
+          const start = new Date(c.start_date);
+          const end = c.end_date ? new Date(c.end_date) : null;
+          
+          // If contract started after the end of month or ended before the start of month, skip
+          if (start > endDate || (end && end < startDate)) {
+              return sum;
+          }
+          
+          // Ensure it's not a cancelled contract
+          if (c.status === 'cancelled' || c.status === 'draft') {
+              return sum;
+          }
+
+          return sum + (c.monthly_rent || 0);
+      }, 0)
       : 0;
 
     const safeTotalProperties = totalProperties ?? 0;
