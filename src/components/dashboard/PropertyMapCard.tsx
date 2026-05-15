@@ -25,7 +25,7 @@ interface MapMarker {
 }
 
 const ABIDJAN_CENTER = { lat: 5.3484, lng: -4.0305 };
-const GOOGLE_MAPS_LIBRARIES: Libraries = ['places', 'marker'];
+const GOOGLE_MAPS_LIBRARIES: Libraries = ['places'];
 
 const COMMUNE_COORDS: Record<string, { lat: number; lng: number; label: string; color: string }> = {
   cocody: { lat: 5.3484, lng: -3.9897, label: 'Cocody', color: '#6366f1' },

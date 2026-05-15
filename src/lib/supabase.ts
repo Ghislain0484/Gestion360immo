@@ -139,8 +139,7 @@ export const dbService = {
       }),
       supabase.from('contracts')
         .select('property_id, monthly_rent, type, start_date, end_date, status')
-        .eq('agency_id', agencyId)
-        .in('status', ['active', 'renewed', 'terminated', 'archived', 'expired', 'actif', 'renouvelé', 'terminé', 'archivé', 'expiré']),
+        .eq('agency_id', agencyId),
       modularService.getAgencyTransactions(agencyId, startDate.toISOString(), endDate.toISOString()),
     ]);
 
@@ -166,7 +165,6 @@ export const dbService = {
       const isFee = ['agency_fees', 'commission', 'fees', 'honoraires', 'frais'].includes((tx.category || '').toLowerCase());
       return isFee ? sum + Number(tx.amount || 0) : sum;
     }, 0);
-
     const expectedRevenue = Array.isArray(activeContractsData)
       ? activeContractsData.reduce((sum: number, c: any) => {
           if (c.type !== 'location' || !c.monthly_rent) return sum;
@@ -178,13 +176,12 @@ export const dbService = {
           const periodEndStr = endDate.toISOString().split('T')[0];
           
           const wasActive = startStr <= periodEndStr && endStr >= periodStartStr;
-          const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'expired', 'actif', 'renouvelé', 'terminé', 'archivé', 'expiré'].includes(c.status);
+          const isInvalidStatus = ['cancelled', 'draft', 'annulé', 'brouillon'].includes(String(c.status).toLowerCase());
           
-          if (wasActive && isValidStatus && !['cancelled', 'draft', 'annulé'].includes(c.status)) {
+          if (wasActive && !isInvalidStatus) {
               return sum + (Number(c.monthly_rent) || 0);
           }
-
-          return sum + (c.monthly_rent || 0);
+          return sum;
       }, 0)
       : 0;
 
@@ -291,9 +288,9 @@ export const dbService = {
             const periodEndStr = endOfMonth.toISOString().split('T')[0];
             
             const wasActive = startStr <= periodEndStr && endStr >= periodStartStr;
-            const isValidStatus = ['active', 'renewed', 'terminated', 'archived', 'expired', 'actif', 'renouvelé', 'terminé', 'archivé', 'expiré'].includes(c.status);
+            const isInvalidStatus = ['cancelled', 'draft', 'annulé', 'brouillon'].includes(String(c.status).toLowerCase());
             
-            if (wasActive && isValidStatus && !['cancelled', 'draft', 'annulé'].includes(c.status)) {
+            if (wasActive && !isInvalidStatus) {
               return sum + (Number(c.monthly_rent) || 0);
             }
             return sum;
