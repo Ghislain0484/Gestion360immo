@@ -42,6 +42,9 @@ const COMMUNE_COORDS: Record<string, { lat: number; lng: number; label: string; 
   anyama: { lat: 5.4884, lng: -4.0514, label: 'Anyama', color: '#a855f7' },
   songon: { lat: 5.3284, lng: -4.2614, label: 'Songon', color: '#64748b' },
   bonoua: { lat: 5.2714, lng: -3.5914, label: 'Bonoua', color: '#d97706' },
+  adiake: { lat: 5.2863, lng: -3.3040, label: 'Adiaké', color: '#059669' },
+  'grand-bassam': { lat: 5.2100, lng: -3.7380, label: 'Grand-Bassam', color: '#0891b2' },
+  aboisso: { lat: 5.4680, lng: -3.2080, label: 'Aboisso', color: '#7c3aed' },
 };
 
 const normalize = (value: string) =>
@@ -126,7 +129,7 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
   }, [properties, activeContractsByProperty]);
 
   const legendData = useMemo(() => {
-    return Object.entries(COMMUNE_COORDS)
+    const knownZones = Object.entries(COMMUNE_COORDS)
       .map(([key, config]) => {
         const data = communeData[key];
         return {
@@ -137,8 +140,30 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
           key,
         };
       })
-      .filter((entry) => entry.count > 0)
-      .sort((a, b) => b.count - a.count);
+      .filter((entry) => entry.count > 0);
+
+    // Collect unknown zones
+    const unknownCount = Object.entries(communeData).reduce((sum, [key, data]) => {
+      if (!COMMUNE_COORDS[key]) return sum + data.properties.length;
+      return sum;
+    }, 0);
+
+    const unknownOccupied = Object.entries(communeData).reduce((sum, [key, data]) => {
+      if (!COMMUNE_COORDS[key]) return sum + data.occupied;
+      return sum;
+    }, 0);
+
+    if (unknownCount > 0) {
+      knownZones.push({
+        name: 'Autres zones',
+        color: '#94a3b8',
+        count: unknownCount,
+        occupied: unknownOccupied,
+        key: 'others',
+      });
+    }
+
+    return knownZones.sort((a, b) => b.count - a.count);
   }, [communeData]);
 
   const selectedCommuneInfo = useMemo(() => {
@@ -328,6 +353,36 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
 
       <div className="flex flex-col lg:flex-row">
         <div className="relative min-h-[450px] flex-1 bg-slate-50 dark:bg-slate-950/60">
+          {!isLoaded ? (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm dark:bg-slate-900/80">
+              {loadError || isApiKeyMissing ? (
+                <div className="max-w-md p-6 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                    <AlertCircle className="h-8 w-8" />
+                  </div>
+                  <h4 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">Configuration de la carte</h4>
+                  <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+                    {isApiKeyMissing 
+                      ? "La clé API Google Maps n'est pas configurée dans les paramètres d'environnement (VITE_GOOGLE_MAPS_API_KEY)." 
+                      : "Une erreur est survenue lors du chargement de Google Maps. Veuillez vérifier la validité de votre clé API et les restrictions de domaine."}
+                  </p>
+                  <Button 
+                    variant="primary" 
+                    onClick={() => window.location.reload()}
+                    className="w-full"
+                  >
+                    Réessayer
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Loader className="mb-4 h-10 w-10 animate-spin text-blue-600" />
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Chargement de la carte...</p>
+                </>
+              )}
+            </div>
+          ) : null}
+
           <GoogleMap
             mapContainerStyle={{ width: '100%', height: '100%', minHeight: '450px' }}
             center={ABIDJAN_CENTER}
