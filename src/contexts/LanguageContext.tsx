@@ -19,32 +19,48 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.contracts': 'Contrats',
     'nav.reports': 'Rapports',
     'nav.settings': 'Paramètres',
+    'nav.audit': "Journal d'Audit",
+    'nav.notifications': 'Notifications',
     'collab.title': 'Collaboration Inter-Agences',
     'collab.marketplace': 'Place de marché',
     'stats.total_properties': 'Total des biens',
     'stats.occupancy_rate': "Taux d'occupation",
+    'stats.expected_rent': 'Loyer Attendu',
+    'stats.collected_rent': 'Loyer Perçu',
     'common.save': 'Enregistrer',
     'common.cancel': 'Annuler',
     'common.loading': 'Chargement...',
-    // Ajoutez d'autres clés ici
+    'common.search': 'Rechercher...',
+    'common.add': 'Ajouter',
+    'common.edit': 'Modifier',
+    'common.delete': 'Supprimer',
+    'common.print': 'Imprimer',
   },
   en: {
     'nav.dashboard': 'Dashboard',
     'nav.caisse': 'Cash Desk',
-    'nav.owners': 'Owners',
+    'nav.owners': 'Property Owners',
     'nav.properties': 'Properties',
     'nav.tenants': 'Tenants',
     'nav.contracts': 'Contracts',
     'nav.reports': 'Reports',
     'nav.settings': 'Settings',
-    'collab.title': 'Inter-Agency Collaboration',
+    'nav.audit': 'Audit Logs',
+    'nav.notifications': 'Notifications',
+    'collab.title': 'B2B Collaboration',
     'collab.marketplace': 'Marketplace',
     'stats.total_properties': 'Total Properties',
     'stats.occupancy_rate': 'Occupancy Rate',
+    'stats.expected_rent': 'Expected Rent',
+    'stats.collected_rent': 'Collected Rent',
     'common.save': 'Save',
     'common.cancel': 'Cancel',
     'common.loading': 'Loading...',
-    // Add other keys here
+    'common.search': 'Search...',
+    'common.add': 'Add New',
+    'common.edit': 'Edit',
+    'common.delete': 'Delete',
+    'common.print': 'Print',
   }
 };
 
@@ -80,6 +96,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [user?.agency_id]);
 
   const t = (key: string): string => {
+    if (!translations[language]) return translations['fr'][key] || key;
     return translations[language][key] || translations['fr'][key] || key;
   };
 

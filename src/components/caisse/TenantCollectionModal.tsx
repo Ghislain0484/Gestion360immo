@@ -89,13 +89,13 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             const selectedProp = properties.find(p => p.id === data.property_id);
             const selectedTenant = tenants.find(t => t.id === data.tenant_id);
 
-            // Fetch contract to get commission rate
+            // Fetch contract to get commission rate (any non-terminated contract)
             const { data: contract } = await supabase
                 .from('contracts')
-                .select('id, commission_rate, start_date')
+                .select('id, commission_rate, start_date, status')
                 .eq('property_id', data.property_id)
                 .eq('tenant_id', data.tenant_id)
-                .eq('status', 'active')
+                .neq('status', 'terminated')
                 .maybeSingle();
 
             const commissionRate = contract?.commission_rate || 10;
@@ -150,14 +150,29 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             const { error: transError } = await supabase.from('modular_transactions').insert(transactions);
             if (transError) throw transError;
 
-            // Update Tenant Next Payment Date in Contract
-            if (data.advance_months > 0 && contract) {
+            // 🔄 SYNCHRONISATION : Activer le contrat et marquer le bien comme occupé
+            if (contract) {
                 const start = new Date(contract.start_date);
-                start.setMonth(start.getMonth() + Number(data.advance_months));
-                await supabase
-                    .from('contracts')
-                    .update({ next_payment_date: start.toISOString().split('T')[0] })
-                    .eq('id', contract.id);
+                if (data.advance_months > 0) {
+                    start.setMonth(start.getMonth() + Number(data.advance_months));
+                }
+                
+                await Promise.all([
+                    // 1. Activer le contrat et mettre à jour l'échéance
+                    supabase
+                        .from('contracts')
+                        .update({ 
+                            status: 'active',
+                            next_payment_date: start.toISOString().split('T')[0] 
+                        })
+                        .eq('id', contract.id),
+                    
+                    // 2. Marquer le bien comme occupé
+                    supabase
+                        .from('properties')
+                        .update({ is_available: false })
+                        .eq('id', data.property_id)
+                ]);
             }
 
             toast.success('Encaissement global réussi !');

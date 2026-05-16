@@ -134,7 +134,7 @@ export const CollaborationAds: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <label className="block text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Type d'opération</label>
+                <label className="block text-[10px] font-black text-slate-900 dark:text-slate-200 uppercase tracking-widest mb-1.5">Type d'opération</label>
                 <div className="flex gap-4 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
                   <button 
                     type="button"
@@ -149,7 +149,7 @@ export const CollaborationAds: React.FC = () => {
                 </div>
               </div>
               <div className="space-y-3">
-                <label className="block text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Catégorie</label>
+                <label className="block text-[10px] font-black text-slate-900 dark:text-slate-200 uppercase tracking-widest mb-1.5">Catégorie</label>
                 <select 
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                   value={formData.category}
@@ -163,7 +163,7 @@ export const CollaborationAds: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              <label className="block text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Titre de l'annonce</label>
+              <label className="block text-[10px] font-black text-slate-900 dark:text-slate-200 uppercase tracking-widest mb-1.5">Titre de l'annonce</label>
               <input 
                 type="text" required placeholder="Ex: Splendide Villa 5P avec piscine - Riviera 4"
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
@@ -173,7 +173,7 @@ export const CollaborationAds: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              <label className="block text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Description & Conditions</label>
+              <label className="block text-[10px] font-black text-slate-900 dark:text-slate-200 uppercase tracking-widest mb-1.5">Description & Conditions</label>
               <textarea 
                 rows={4} placeholder="Décrivez le bien, les commodités, les conditions de visite..."
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
@@ -184,7 +184,7 @@ export const CollaborationAds: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-3">
-                <label className="block text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Prix (F CFA)</label>
+                <label className="block text-[10px] font-black text-slate-900 dark:text-slate-200 uppercase tracking-widest mb-1.5">Prix (F CFA)</label>
                 <input 
                   type="number" placeholder="Ex: 500000"
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
@@ -193,7 +193,7 @@ export const CollaborationAds: React.FC = () => {
                 />
               </div>
               <div className="space-y-3">
-                <label className="block text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Localisation Exacte</label>
+                <label className="block text-[10px] font-black text-slate-900 dark:text-slate-200 uppercase tracking-widest mb-1.5">Localisation Exacte</label>
                 <input 
                   type="text" placeholder="Ex: Cocody, Beverly Hills"
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
@@ -202,7 +202,7 @@ export const CollaborationAds: React.FC = () => {
                 />
               </div>
               <div className="space-y-3">
-                <label className="block text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Contact Direct</label>
+                <label className="block text-[10px] font-black text-slate-900 dark:text-slate-200 uppercase tracking-widest mb-1.5">Contact Direct</label>
                 <input 
                   type="text" placeholder="Ex: +225 07..."
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
@@ -233,8 +233,8 @@ export const CollaborationAds: React.FC = () => {
             onClick={() => setFilterType(f.id as any)}
             className={`whitespace-nowrap px-6 py-2 rounded-full text-xs font-black uppercase tracking-tighter transition-all ${
               filterType === f.id 
-                ? 'bg-slate-900 text-white shadow-lg' 
-                : 'bg-white text-slate-500 border border-slate-100 hover:border-slate-300'
+                ? 'bg-slate-900 text-white shadow-lg ring-2 ring-slate-900' 
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-400 hover:bg-slate-50'
             }`}
           >
             {f.label}

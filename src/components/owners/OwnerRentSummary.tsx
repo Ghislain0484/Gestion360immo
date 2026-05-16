@@ -3,7 +3,7 @@ import { TrendingUp, CheckCircle, AlertTriangle, Clock, Building2, Calendar, Use
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService, supabase } from '../../lib/supabase';
-import { Property, RentReceipt } from '../../types/db';
+import { Property, RentReceipt, Tenant } from '../../types/db';
 import { Contract } from '../../types/contracts';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
@@ -96,6 +96,18 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         { owner_id: ownerId }
     );
 
+    // --- Fetch all tenants for the agency ---
+    const fetchTenants = React.useCallback(async () => {
+        if (!agencyId) return [];
+        return dbService.tenants.getAll({ agency_id: agencyId, limit: 1000 });
+    }, [agencyId]);
+
+    const { data: tenants = [], initialLoading: loadingTenants } = useRealtimeData<Tenant>(
+        fetchTenants,
+        'tenants',
+        { agency_id: agencyId || undefined, limit: 1000 }
+    );
+
     // --- Computations ---
     const stats = useMemo(() => {
         const thirtyDaysAgo = new Date();
@@ -156,6 +168,22 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const paid = propReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0) +
                         propManual.reduce((sum, m) => sum + Number(m.amount), 0);
 
+            // Si le bien est "Vacant" mais a un paiement, on cherche le locataire concerné dans les quittances
+            let tenantName = '';
+            if (!isOccupied && paid > 0) {
+                const firstReceipt = propReceipts[0];
+                if (firstReceipt?.tenant_id) {
+                    const tenant = tenants.find(t => t.id === firstReceipt.tenant_id);
+                    if (tenant) tenantName = `${tenant.first_name} ${tenant.last_name}`;
+                } else {
+                    const firstManual = propManual[0];
+                    if (firstManual?.related_tenant_id) {
+                        const tenant = tenants.find(t => t.id === firstManual.related_tenant_id);
+                        if (tenant) tenantName = `${tenant.first_name} ${tenant.last_name}`;
+                    }
+                }
+            }
+
             let status: 'paid' | 'partial' | 'unpaid' | 'no_contract' = 'unpaid';
             if (!contract) status = 'no_contract';
             else if (paid >= monthlyRentContract && monthlyRentContract > 0) status = 'paid';
@@ -167,7 +195,8 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                 amountPaid: paid,
                 balanceDue: Math.max(0, monthlyRentContract - paid),
                 status,
-                isOccupied
+                isOccupied,
+                tenantName
             };
         });
 
@@ -185,9 +214,9 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             vacantCount: ownerProperties.length - occupiedCount,
             totalPotential: ownerProperties.reduce((sum, p) => sum + (p.monthly_rent || 0), 0)
         };
-    }, [ownerContracts, allReceipts, allManual, allReversals, ownerProperties, selectedMonth, selectedYear]);
+    }, [ownerContracts, allReceipts, allManual, allReversals, ownerProperties, selectedMonth, selectedYear, tenants]);
 
-    if (loadingContracts || loadingReceipts || loadingManual || loadingReversals) {
+    if (loadingContracts || loadingReceipts || loadingManual || loadingReversals || loadingTenants) {
         return <div className="flex justify-center py-8"><LoadingSpinner size="md" label="Chargement des données..." /></div>;
     }
 
@@ -401,6 +430,12 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                                                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                                         <span className="text-slate-300">•</span> {prop.details?.type || 'Catégorie N/A'}
                                                         <span className="text-slate-300">•</span> {prop.location?.commune || 'Sans commune'}
+                                                        {tenantName && (
+                                                            <>
+                                                                <span className="text-slate-300">•</span> 
+                                                                <span className="text-blue-600 font-black">Locataire : {tenantName}</span>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -419,7 +454,14 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                                                     )}
                                                 </div>
                                             ) : (
-                                                <span className="text-slate-300 italic text-xs font-medium">Non loué</span>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-slate-300 italic text-xs font-medium">Non loué</span>
+                                                    {amountPaid > 0 && (
+                                                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded mt-1">
+                                                            ⚠️ Encaissement hors contrat
+                                                        </span>
+                                                    )}
+                                                </div>
                                             )}
                                         </td>
                                         <td className="px-4 py-4 text-right">

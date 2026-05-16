@@ -139,7 +139,8 @@ export const dbService = {
       }),
       supabase.from('contracts')
         .select('property_id, monthly_rent, type, start_date, end_date, status')
-        .eq('agency_id', agencyId),
+        .eq('agency_id', agencyId)
+        .limit(1000),
       modularService.getAgencyTransactions(agencyId, startDate.toISOString(), endDate.toISOString()),
     ]);
 
