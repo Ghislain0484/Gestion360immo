@@ -16,6 +16,10 @@ export const SMSService = {
    * Envoie un SMS (Actuellement configuré pour utiliser une Edge Function Supabase ou un log console en dev)
    * Pour la production, connectez un fournisseur comme Twilio, Vonage ou Infobip.
    */
+  async sendSMS(payload: SMSPayload): Promise<boolean> {
+    try {
+      console.log('📱 [SMS Service] Envoi en cours...', payload);
+
       // 1. Vérifier si l'agence a activé les notifications SMS et possède assez de crédits
       const { data: agency } = await supabase
         .from('agencies')
@@ -133,5 +137,52 @@ export const SMSService = {
   async sendReceiptNotification(to: string, amount: number, period: string, agencyId: string) {
     const message = `Gestion360 : Votre quittance de loyer pour ${period} d'un montant de ${amount.toLocaleString('fr-FR')} FCFA est disponible dans votre espace.`;
     return this.sendSMS({ to, message, agency_id: agencyId });
+  },
+
+  /**
+   * Modèle de SMS pour fin de bail
+   */
+  async sendLeaseEndAlert(directorPhone: string, tenantName: string, propertyTitle: string, endDate: string, agencyId: string) {
+    const message = `G360 - Alerte Fin de Bail : Le contrat de ${tenantName} (${propertyTitle}) se termine le ${endDate}. Pensez au renouvellement.`;
+    return this.sendSMS({ to: directorPhone, message, agency_id: agencyId });
+  },
+
+  /**
+   * Vérifie les baux arrivant à échéance (prochains 30 jours) et alerte le directeur
+   */
+  async checkAndNotifyExpiringLeases(agencyId: string) {
+    try {
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      const today = new Date().toISOString().split('T')[0];
+
+      const { data: contracts } = await supabase
+        .from('contracts')
+        .select('*, tenant:tenants(first_name, last_name), property:properties(title)')
+        .eq('agency_id', agencyId)
+        .eq('status', 'active')
+        .lte('end_date', thirtyDaysFromNow.toISOString().split('T')[0])
+        .gte('end_date', today);
+
+      if (!contracts || contracts.length === 0) return;
+
+      // Récupérer le numéro du directeur
+      const { data: agencyUsers } = await supabase
+        .from('agency_users')
+        .select('user:users(phone)')
+        .eq('agency_id', agencyId)
+        .eq('role', 'director');
+
+      const phones = agencyUsers?.map((au: any) => au.user?.phone).filter(Boolean) || [];
+
+      for (const contract of contracts) {
+        const tenantName = `${contract.tenant?.first_name} ${contract.tenant?.last_name}`;
+        for (const phone of phones) {
+          await this.sendLeaseEndAlert(phone, tenantName, contract.property?.title || 'Bien', contract.end_date, agencyId);
+        }
+      }
+    } catch (err) {
+      console.error('⚠️ [SMS] Échec vérification fin de baux:', err);
+    }
   }
 };
