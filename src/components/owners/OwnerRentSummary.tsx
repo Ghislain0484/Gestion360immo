@@ -417,7 +417,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {stats.propertyRows.map(({ prop, monthlyRentContract, status, amountPaid, balanceDue, isOccupied }) => (
+                                {stats.propertyRows.map(({ prop, monthlyRentContract, status, amountPaid, balanceDue, isOccupied, tenantName }) => (
                                     <tr key={prop.id} className={`hover:bg-blue-50/20 transition-colors ${!isOccupied ? 'bg-slate-50/20' : ''}`}>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-4">
