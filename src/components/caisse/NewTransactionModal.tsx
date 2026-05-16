@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Modal } from '../ui/Modal';
 import { toast } from 'react-hot-toast';
+import { SMSService } from '../../services/smsService';
 
 interface NewTransactionModalProps {
     isOpen: boolean;
@@ -101,6 +102,13 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                     throw error;
                 }
                 toast.success('Transaction enregistrée');
+
+                // 📱 Alerte SMS au Directeur
+                SMSService.notifyDirectorOfOperation(
+                    user.agency_id, 
+                    payload.amount, 
+                    payload.type === 'income' ? 'Encaissement' : 'Décaissement'
+                );
             }
 
             reset();

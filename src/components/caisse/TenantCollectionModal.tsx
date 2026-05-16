@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { Building2, User, Calculator, Info } from 'lucide-react';
 import { Property } from '../../types/properties';
 import { Tenant } from '../../types/tenants';
+import { SMSService } from '../../services/smsService';
 
 interface TenantCollectionModalProps {
     isOpen: boolean;
@@ -160,6 +161,15 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             }
 
             toast.success('Encaissement global réussi !');
+
+            // 📱 Alerte SMS au Directeur (Total perçu)
+            if (user?.agency_id) {
+                SMSService.notifyDirectorOfOperation(
+                    user.agency_id, 
+                    totalAmount, 
+                    'Encaissement Global (Nouveau Locataire)'
+                );
+            }
             reset();
             onSuccess();
             onClose();

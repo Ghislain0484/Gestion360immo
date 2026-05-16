@@ -16,45 +16,106 @@ export const SMSService = {
    * Envoie un SMS (Actuellement configuré pour utiliser une Edge Function Supabase ou un log console en dev)
    * Pour la production, connectez un fournisseur comme Twilio, Vonage ou Infobip.
    */
-  async sendSMS(payload: SMSPayload): Promise<boolean> {
-    try {
-      console.log('📱 [SMS Service] Envoi en cours...', payload);
-
-      // 1. Vérifier si l'agence a activé les notifications SMS dans ses paramètres
+      // 1. Vérifier si l'agence a activé les notifications SMS et possède assez de crédits
       const { data: agency } = await supabase
         .from('agencies')
-        .select('settings')
+        .select('settings, name')
         .eq('id', payload.agency_id)
         .single();
 
+      const { data: wallet } = await supabase
+        .from('agency_wallets')
+        .select('bonus_credits')
+        .eq('agency_id', payload.agency_id)
+        .single();
+
       const smsEnabled = agency?.settings?.notifications?.sms !== false;
+      const hasCredits = (wallet?.bonus_credits || 0) > 0;
       
       if (!smsEnabled) {
         console.warn('⚠️ [SMS Service] SMS désactivés pour cette agence.');
         return false;
       }
 
-      // 2. Appel à l'infrastructure d'envoi (Edge Function recommendée)
-      // Note: On simule l'envoi réussi pour le moment.
-      // Une fois que le client aura configuré ses clés API (Twilio/etc), 
-      // cet appel sera dirigé vers l'API du fournisseur.
-      
-      /* 
-      const { error } = await supabase.functions.invoke('send-sms', {
-        body: payload
+      if (!hasCredits) {
+        console.warn('⚠️ [SMS Service] Crédits SMS insuffisants.');
+        toast.error('Solde SMS insuffisant pour ' + (agency?.name || 'l\'agence'));
+        return false;
+      }
+
+      // 2. Appel à l'API Orange Business (Simulation d'intégration)
+      // Orange Business nécessite généralement un token d'accès et un appel POST
+      /*
+      const ORANGE_API_URL = 'https://api.orange.com/smsmessaging/v1/outbound/...';
+      const response = await fetch(ORANGE_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.ORANGE_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          outboundSMSMessageRequest: {
+            address: `tel:${payload.to}`,
+            outboundSMSTextMessage: { message: payload.message }
+          }
+        })
       });
-      if (error) throw error;
       */
+
+      // 3. Déduire 1 crédit du portefeuille de l'agence
+      await supabase.rpc('decrement_agency_credits', { 
+        p_agency_id: payload.agency_id, 
+        p_amount: 1 
+      });
 
       // Simulation de délai
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      toast.success('Notification SMS envoyée avec succès');
+      toast.success('Notification SMS envoyée');
       return true;
     } catch (error: any) {
       console.error('❌ [SMS Service] Erreur:', error);
-      toast.error('Échec de l\'envoi du SMS : ' + error.message);
       return false;
+    }
+  },
+
+  /**
+   * Notification pour le Directeur d'agence (Opération de caisse)
+   */
+  async sendDirectorOperationAlert(directorPhone: string, amount: number, type: string, agencyName: string, agencyId: string) {
+    const message = `G360 - Alerte Caisse (${agencyName}) : Une opération de ${type} d'un montant de ${amount.toLocaleString('fr-FR')} FCFA vient d'être effectuée.`;
+    return this.sendSMS({ to: directorPhone, message, agency_id: agencyId });
+  },
+
+  /**
+   * Notifie tous les directeurs d'une agence d'un mouvement de caisse
+   */
+  async notifyDirectorOfOperation(agencyId: string, amount: number, type: string) {
+    try {
+      // 1. Récupérer le nom de l'agence
+      const { data: agency } = await supabase.from('agencies').select('name').eq('id', agencyId).single();
+      
+      // 2. Trouver les directeurs avec un numéro de téléphone
+      const { data: directors } = await supabase
+        .from('users')
+        .select('phone')
+        .contains('permissions', { role: 'director' }) // Note: adjust based on actual permissions structure
+        .eq('is_active', true);
+        
+      // Alternative: if the schema uses a junction table or specific field
+      const { data: agencyUsers } = await supabase
+        .from('agency_users')
+        .select('user:users(phone)')
+        .eq('agency_id', agencyId)
+        .eq('role', 'director');
+
+      const phones = agencyUsers?.map((au: any) => au.user?.phone).filter(Boolean) || [];
+
+      for (const phone of phones) {
+        await this.sendDirectorOperationAlert(phone, amount, type, agency?.name || 'Agence', agencyId);
+      }
+    } catch (err) {
+      console.error('⚠️ [SMS] Échec notification directeur:', err);
     }
   },
 
