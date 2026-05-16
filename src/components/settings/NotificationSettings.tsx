@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { Bell, Mail, Smartphone, MessageSquare, AlertTriangle, Home, Calendar, Users, Cpu, CheckCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
