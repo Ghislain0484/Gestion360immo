@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Bell, Mail, Smartphone, MessageSquare, AlertTriangle, Home, Calendar, Users } from 'lucide-react';
+import { Bell, Mail, Smartphone, MessageSquare, AlertTriangle, Home, Calendar, Users, Cpu, CheckCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { toast } from 'react-hot-toast';
 
 interface NotificationPreferences {
   email: boolean;
@@ -17,7 +19,9 @@ interface NotificationPreferences {
 }
 
 export const NotificationSettings: React.FC = () => {
+  const { agencyId, user, refreshAuth } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     email: true,
     push: true,
@@ -30,18 +34,54 @@ export const NotificationSettings: React.FC = () => {
     rentalAlerts: true,
   });
 
+  // Charger les préférences réelles depuis la base de données
+  React.useEffect(() => {
+    const loadPrefs = async () => {
+      if (!agencyId) return;
+      setFetching(true);
+      try {
+        const { data, error } = await supabase
+          .from('agencies')
+          .select('settings')
+          .eq('id', agencyId)
+          .single();
+        
+        if (data?.settings?.notifications) {
+          setPreferences(prev => ({
+            ...prev,
+            ...data.settings.notifications
+          }));
+        }
+      } catch (err) {
+        console.error('Erreur chargement notifications:', err);
+      } finally {
+        setFetching(false);
+      }
+    };
+    loadPrefs();
+  }, [agencyId]);
+
   const updatePreference = (key: keyof NotificationPreferences, value: boolean) => {
     setPreferences(prev => ({ ...prev, [key]: value }));
   };
 
   const handleSave = async () => {
+    if (!agencyId) return;
     setLoading(true);
     try {
-      // Save preferences to database
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      alert('Préférences de notification mises à jour !');
+      // 2. Appel RPC sécurisé pour mettre à jour les settings
+      const { error } = await supabase.rpc('update_agency_settings', {
+        p_agency_id: agencyId,
+        p_settings: { notifications: preferences }
+      });
+
+      if (error) throw error;
+
+      toast.success('Préférences de notification enregistrées !');
+      await refreshAuth();
     } catch (error) {
-      alert('Erreur lors de la sauvegarde');
+      console.error('Erreur sauvegarde notifications:', error);
+      toast.error('Erreur lors de la sauvegarde');
     } finally {
       setLoading(false);
     }
@@ -161,6 +201,51 @@ export const NotificationSettings: React.FC = () => {
                 </label>
               </div>
             ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* SMS Business / Orange Activation */}
+      <Card className="border-orange-200 bg-orange-50/30">
+        <div className="p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <Cpu className="h-6 w-6 text-orange-600" />
+            <div>
+              <h3 className="text-lg font-bold text-orange-900">Module SMS Business (Orange)</h3>
+              <p className="text-sm text-orange-700">Activez les notifications SMS avancées pour votre agence.</p>
+            </div>
+            <Badge variant={preferences.sms ? 'success' : 'warning'} className="ml-auto">
+              {preferences.sms ? 'Activé' : 'Désactivé'}
+            </Badge>
+          </div>
+          
+          <div className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="font-semibold text-gray-900">Service Orange Business API</h4>
+                <p className="text-xs text-gray-500 italic">Forfait SMS requis auprès d'Orange Côte d'Ivoire</p>
+              </div>
+              <Button 
+                size="sm" 
+                variant={preferences.sms ? 'danger' : 'premium'}
+                onClick={() => updatePreference('sms', !preferences.sms)}
+              >
+                {preferences.sms ? 'Désactiver' : 'Activer le Service'}
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Statut du Forfait</p>
+                <div className="flex items-center text-green-600 font-bold">
+                  <CheckCircle className="h-4 w-4 mr-1" /> Connecté
+                </div>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Crédits Restants</p>
+                <div className="text-lg font-black text-gray-800">500 SMS</div>
+              </div>
+            </div>
           </div>
         </div>
       </Card>

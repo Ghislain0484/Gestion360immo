@@ -54,12 +54,12 @@ export const DataSettings: React.FC = () => {
       try {
         console.log('🔍 DataSettings: Chargement des données pour agency_id:', user.agency_id);
 
-        // Charger les données depuis Supabase avec getAll
+        // Charger les données depuis Supabase avec getAll (limite augmentée pour cohérence)
         const [propertiesRes, ownersRes, tenantsRes, contractsRes] = await Promise.all([
-          dbService.properties.getAll({ agency_id: user.agency_id }),
-          dbService.owners.getAll({ agency_id: user.agency_id }),
-          dbService.tenants.getAll({ agency_id: user.agency_id }),
-          dbService.contracts.getAll({ agency_id: user.agency_id }),
+          dbService.properties.getAll({ agency_id: user.agency_id, limit: 1000 }),
+          dbService.owners.getAll({ agency_id: user.agency_id, limit: 1000 }),
+          dbService.tenants.getAll({ agency_id: user.agency_id, limit: 1000 }),
+          dbService.contracts.getAll({ agency_id: user.agency_id, limit: 1000 }),
         ]);
 
         // Toujours utiliser des tableaux pour éviter les erreurs TS
