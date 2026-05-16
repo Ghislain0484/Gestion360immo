@@ -99,7 +99,7 @@ export const CollaborationAds: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="card-glass p-8 bg-blue-600 dark:bg-blue-600/20 border-none relative overflow-hidden group">
+      <div className="p-8 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-2xl border-none relative overflow-hidden group shadow-xl">
         <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
           <Megaphone className="h-32 w-32 text-white" />
         </div>

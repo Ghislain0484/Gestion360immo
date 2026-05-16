@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { clsx } from 'clsx';
 import { APP_NAME, IS_STANDALONE, FORCED_STANDALONE_MODULES } from '../../lib/constants';
 
@@ -32,23 +33,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { pathname } = useLocation();
   const { logout, user, agencyId, agencies, switchAgency } = useAuth();
   const { isDemoMode, isDemoUser, toggleDemoMode } = useDemoMode();
+  const { t } = useLanguage();
 
   const currentAgency = agencies.find(a => a.agency_id === agencyId);
   console.log('🐞 Sidebar: user role:', user?.role, 'agencies count:', agencies.length, 'agencyId:', agencyId);
 
   // Updated navigation structure matching redesign
   const navigation = [
-    { name: 'Tableau de bord', href: '/', icon: LayoutDashboard, module: 'dashboard' },
-    { name: 'Caisse', href: '/caisse', icon: Wallet, module: 'caisse' },
-    { name: 'Propriétaires', href: '/proprietaires', icon: Building, module: 'owners' },
-    { name: 'Propriétés', href: '/proprietes', icon: Building2, module: 'properties' },
-    { name: 'Locataires', href: '/locataires', icon: Key, module: 'tenants' },
+    { name: t('nav.dashboard'), href: '/', icon: LayoutDashboard, module: 'dashboard' },
+    { name: t('nav.caisse'), href: '/caisse', icon: Wallet, module: 'caisse' },
+    { name: t('nav.owners'), href: '/proprietaires', icon: Building, module: 'owners' },
+    { name: t('nav.properties'), href: '/proprietes', icon: Building2, module: 'properties' },
+    { name: t('nav.tenants'), href: '/locataires', icon: Key, module: 'tenants' },
     { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'etats-des-lieux' },
     { name: 'Travaux', href: '/travaux', icon: LayoutDashboard, module: 'travaux' },
   ];
 
   const secondaryNavigation = [
-    { name: 'Contrats', href: '/contrats', icon: FileText, module: 'contracts' },
+    { name: t('nav.contracts'), href: '/contrats', icon: FileText, module: 'contracts' },
     { 
       name: 'G. Hôtelière', 
       href: '/hotel', 
@@ -61,12 +63,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       icon: Building2, 
       module: 'residences' 
     },
-    { name: 'Candidatures Locatives', href: '/collaboration', icon: Users, module: 'collaboration' },
-    { name: 'Rapports', href: '/rapports', icon: BarChart3 },
-    { name: 'Matrice des Loyers', href: '/rapports', icon: BarChart3 }, // This is a temporary way to link to the reports page
+    { name: t('collab.title'), href: '/collaboration', icon: Users, module: 'collaboration' },
+    { name: t('nav.reports'), href: '/rapports', icon: BarChart3 },
+    { name: 'Matrice des Loyers', href: '/rapports', icon: BarChart3 }, 
     { name: 'Notifications', href: '/notifications', icon: Bell },
     { 
-      name: IS_STANDALONE ? 'Application' : 'Paramètres', 
+      name: IS_STANDALONE ? 'Application' : t('nav.settings'), 
       href: '/parametres', 
       icon: Settings 
     },

@@ -32,6 +32,7 @@ import { AgencyPicker } from './components/layout/AgencyPicker';
 import { HotelDashboard } from './components/hotel/HotelDashboard';
 import { ResidencesDashboard } from './components/residences/ResidencesDashboard';
 import { DemoProvider } from './contexts/DemoContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 import { OwnerLayout } from './components/owner-portal/OwnerLayout';
 import { OwnerDashboard } from './components/owner-portal/OwnerDashboard';
@@ -271,13 +272,15 @@ function App() {
     <ThemeProvider>
       <LoadingProvider>
         <AuthProvider>
-          <DemoProvider>
-            <AdminProvider>
-              <ErrorBoundary>
-                <AppContent />
-              </ErrorBoundary>
-            </AdminProvider>
-          </DemoProvider>
+          <LanguageProvider>
+            <DemoProvider>
+              <AdminProvider>
+                <ErrorBoundary>
+                  <AppContent />
+                </ErrorBoundary>
+              </AdminProvider>
+            </DemoProvider>
+          </LanguageProvider>
         </AuthProvider>
       </LoadingProvider>
     </ThemeProvider>

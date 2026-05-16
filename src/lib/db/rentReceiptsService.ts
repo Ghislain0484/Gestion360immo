@@ -3,6 +3,7 @@ import { normalizeRentReceipt } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { RentReceipt } from '../../types/db';
 import { v4 as uuidv4 } from 'uuid';
+import { SMSService } from '../../services/smsService';
 
 interface GetAllParams {
   agency_id?: string;
@@ -127,6 +128,24 @@ export const rentReceiptsService = {
     }
 
     console.log('✅ Service: Receipt created successfully:', data);
+
+    // 📱 Activer la notification SMS automatique si un numéro de téléphone est disponible
+    if (data.tenant_id && clean.agency_id) {
+      // On récupère les infos du locataire pour avoir son numéro
+      supabase.from('tenants').select('phone, first_name, last_name').eq('id', data.tenant_id).single()
+        .then(({ data: tenantData }) => {
+          if (tenantData?.phone) {
+            SMSService.sendReceiptNotification(
+              tenantData.phone, 
+              data.amount_paid || 0, 
+              data.period_month + ' ' + data.period_year,
+              clean.agency_id!
+            );
+          }
+        })
+        .catch(err => console.error('⚠️ [SMS] Échec récupération locataire:', err));
+    }
+
     return data;
   },
   async update(id: string, updates: Partial<RentReceipt>): Promise<RentReceipt> {

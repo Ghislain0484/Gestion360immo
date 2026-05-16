@@ -6,10 +6,12 @@ import { Badge } from '../ui/Badge';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export const AppearanceSettings: React.FC = () => {
   const { user } = useAuth();
   const { theme, setTheme: setGlobalTheme } = useTheme();
+  const { setLanguage } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({
     theme: theme,
@@ -90,6 +92,9 @@ export const AppearanceSettings: React.FC = () => {
     
     if (key === 'theme') {
       setGlobalTheme(value);
+    } else if (key === 'language') {
+      setLanguage(value);
+      applySettings(newSettings);
     } else {
       applySettings(newSettings);
     }
