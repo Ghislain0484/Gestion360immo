@@ -35,10 +35,17 @@ export const ResidencesDashboard: React.FC = () => {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showPolicyModal, setShowPolicyModal] = useState(false);
 
+    const savedThreshold = localStorage.getItem('residence_long_stay_threshold') 
+        ? Number(localStorage.getItem('residence_long_stay_threshold')) 
+        : 15;
+    const savedDiscount = localStorage.getItem('residence_long_stay_discount') 
+        ? Number(localStorage.getItem('residence_long_stay_discount')) 
+        : 20;
+
     const { formatPrice } = usePriceCalculator({
         shortStayPrice: 85000,
-        longStayThreshold: 15,
-        longStayDiscount: 20
+        longStayThreshold: savedThreshold,
+        longStayDiscount: savedDiscount
     });
 
     useEffect(() => {

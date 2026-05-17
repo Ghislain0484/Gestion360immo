@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plane, CheckCircle, Smartphone as Mobile, Info, Clock } from 'lucide-react';
+import { Plane, CheckCircle, Smartphone as Mobile, Info, Clock, Percent, Sparkles, Save, Shield } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -122,49 +122,131 @@ export const MobileMoneyModal: React.FC<ModalProps> = ({ onClose }) => {
 };
 
 export const PricingPolicyModal: React.FC<ModalProps> = ({ onClose }) => {
+    const [threshold, setThreshold] = useState<number>(() => {
+        const saved = localStorage.getItem('residence_long_stay_threshold');
+        return saved ? Number(saved) : 15;
+    });
+    const [discount, setDiscount] = useState<number>(() => {
+        const saved = localStorage.getItem('residence_long_stay_discount');
+        return saved ? Number(saved) : 20;
+    });
+
+    const handleSave = () => {
+        if (threshold <= 0) {
+            toast.error('Le seuil doit être d\'au moins 1 nuité');
+            return;
+        }
+        if (discount < 0 || discount > 100) {
+            toast.error('Le pourcentage de réduction doit être compris entre 0 et 100%');
+            return;
+        }
+
+        localStorage.setItem('residence_long_stay_threshold', String(threshold));
+        localStorage.setItem('residence_long_stay_discount', String(discount));
+        
+        toast.success('Règles de tarification enregistrées !');
+        onClose();
+        
+        // Refresh dynamically to reload the context of all active panels
+        setTimeout(() => {
+            window.location.reload();
+        }, 500);
+    };
+
     return (
-        <Card className="p-8 border-0 shadow-2xl bg-white max-w-md mx-auto">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-indigo-100 rounded-2xl text-indigo-600">
-                    <Clock size={24} />
+        <Card className="p-8 border-0 shadow-2xl bg-white dark:bg-gray-900 max-w-md mx-auto relative overflow-hidden rounded-3xl">
+            {/* Elegant glowing background element */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex items-center gap-4 mb-8 relative z-10">
+                <div className="p-3.5 bg-gradient-to-tr from-indigo-650 to-indigo-500 rounded-2xl text-white shadow-md shadow-indigo-100 dark:shadow-none">
+                    <Clock size={24} className="animate-pulse" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black uppercase tracking-tight italic">Politique de Prix</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Règles automatiques de réduction</p>
+                    <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">Configuration PMS</span>
+                    <h3 className="text-xl font-black uppercase tracking-tight italic text-slate-855 dark:text-gray-150 mt-0.5">Politique de Prix</h3>
                 </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-6 relative z-10">
                 <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div>
-                            <p className="font-black text-slate-900">Seuil Long Séjour</p>
+                    {/* Seuil Long Séjour Card */}
+                    <div className="flex items-center justify-between p-4.5 bg-slate-50 dark:bg-gray-800/60 rounded-2xl border-2 border-slate-100/80 dark:border-gray-800 hover:border-indigo-200 dark:hover:border-indigo-900/40 focus-within:border-indigo-500 transition-all duration-300">
+                        <div className="space-y-1 pr-2">
+                            <p className="font-extrabold text-sm text-slate-800 dark:text-gray-205 flex items-center gap-1.5">
+                                <Shield size={14} className="text-indigo-500" />
+                                Seuil Long Séjour
+                            </p>
                             <p className="text-[10px] font-bold text-slate-400 uppercase italic">Nombres de nuitées minimum</p>
                         </div>
-                        <input type="number" defaultValue="15" className="w-16 bg-white border-2 border-slate-200 rounded-xl px-2 py-2 text-center font-black focus:border-indigo-500 outline-none" />
+                        <input 
+                            type="number" 
+                            min="1"
+                            value={threshold} 
+                            onChange={(e) => setThreshold(Number(e.target.value))}
+                            className="w-18 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-xl px-2 py-2.5 text-center text-lg font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" 
+                        />
                     </div>
-                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div>
-                            <p className="font-black text-slate-900">Réduction (%)</p>
+
+                    {/* Pourcentage de Réduction Card */}
+                    <div className="flex items-center justify-between p-4.5 bg-slate-50 dark:bg-gray-800/60 rounded-2xl border-2 border-slate-100/80 dark:border-gray-800 hover:border-indigo-200 dark:hover:border-indigo-900/40 focus-within:border-indigo-500 transition-all duration-300">
+                        <div className="space-y-1 pr-2">
+                            <p className="font-extrabold text-sm text-slate-800 dark:text-gray-205 flex items-center gap-1.5">
+                                <Percent size={14} className="text-indigo-500" />
+                                Réduction (%)
+                            </p>
                             <p className="text-[10px] font-bold text-slate-400 uppercase italic">Appliquée si seuil atteint</p>
                         </div>
-                        <input type="number" defaultValue="20" className="w-16 bg-white border-2 border-slate-200 rounded-xl px-2 py-2 text-center font-black focus:border-indigo-500 outline-none" />
+                        <input 
+                            type="number" 
+                            min="0"
+                            max="100"
+                            value={discount} 
+                            onChange={(e) => setDiscount(Number(e.target.value))}
+                            className="w-18 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-xl px-2 py-2.5 text-center text-lg font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" 
+                        />
                     </div>
                 </div>
 
-                <Card className="p-4 bg-gradient-to-br from-slate-900 to-indigo-900 text-white border-0">
-                    <h4 className="text-[10px] font-black uppercase text-indigo-300 tracking-widest mb-3 italic">Aperçu de la règle</h4>
-                    <p className="text-xs font-bold leading-relaxed">
-                        Le système appliquera automatiquement une remise de <span className="text-amber-400 text-sm">20%</span> sur le total dès que la durée du séjour dépasse <span className="text-amber-400 text-sm">15 nuits</span>.
+                {/* Animated visual rule preview with HSL tailoured gold details */}
+                <Card className="p-5 bg-gradient-to-br from-slate-900 to-indigo-950 text-white border-0 shadow-lg relative overflow-hidden rounded-2xl">
+                    <div className="absolute top-0 right-0 p-3 opacity-25">
+                        <Sparkles size={36} className="text-amber-400 animate-pulse" />
+                    </div>
+                    <h4 className="text-[10px] font-black uppercase text-indigo-300 tracking-widest mb-2.5 italic flex items-center gap-1">
+                        <Sparkles size={10} className="text-amber-450" />
+                        Aperçu de la règle
+                    </h4>
+                    <p className="text-xs font-bold leading-relaxed opacity-95">
+                        Le système appliquera automatiquement une remise de{' '}
+                        <span className="text-amber-400 font-black text-sm px-2 py-0.5 bg-amber-400/15 rounded-lg border border-amber-400/20 shadow-[0_0_10px_rgba(251,191,36,0.15)] inline-block">
+                            {discount}%
+                        </span>{' '}
+                        sur le montant total dès que la durée du séjour dépasse{' '}
+                        <span className="text-amber-400 font-black text-sm px-2 py-0.5 bg-amber-400/15 rounded-lg border border-amber-400/20 shadow-[0_0_10px_rgba(251,191,36,0.15)] inline-block">
+                            {threshold} nuits
+                        </span>.
                     </p>
                 </Card>
 
-                <div className="pt-4 flex gap-3">
-                    <Button variant="outline" onClick={onClose} className="flex-1 font-black italic">ANNULER</Button>
-                    <Button variant="primary" onClick={() => {
-                        toast.success('Règles de tarification mises à jour');
-                        onClose();
-                    }} className="flex-1 font-black italic bg-slate-900">ENREGISTRER</Button>
+                {/* Button actions */}
+                <div className="pt-4 flex gap-4">
+                    <Button 
+                        variant="outline" 
+                        onClick={onClose} 
+                        className="flex-1 font-black italic rounded-xl border-slate-200 hover:bg-slate-50 transition-colors"
+                    >
+                        ANNULER
+                    </Button>
+                    <Button 
+                        variant="primary" 
+                        onClick={handleSave} 
+                        className="flex-1 font-black italic bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-150 transition-all rounded-xl flex items-center justify-center gap-2"
+                    >
+                        <Save size={16} />
+                        ENREGISTRER
+                    </Button>
                 </div>
             </div>
         </Card>

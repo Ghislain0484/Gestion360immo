@@ -39,10 +39,17 @@ export const ResidenceBookingModal: React.FC<ResidenceBookingModalProps> = ({ un
     const [paymentAmount, setPaymentAmount] = useState<number>(0);
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'orange_money' | 'mtn_money' | 'wave' | 'card' | 'bank_transfer'>('cash');
 
+    const savedThreshold = localStorage.getItem('residence_long_stay_threshold') 
+        ? Number(localStorage.getItem('residence_long_stay_threshold')) 
+        : 15;
+    const savedDiscount = localStorage.getItem('residence_long_stay_discount') 
+        ? Number(localStorage.getItem('residence_long_stay_discount')) 
+        : 20;
+
     const { formatPrice, calculateTotal } = usePriceCalculator({
         shortStayPrice: unit?.price || 0,
-        longStayThreshold: 15,
-        longStayDiscount: 20
+        longStayThreshold: savedThreshold,
+        longStayDiscount: savedDiscount
     });
 
     useEffect(() => {
@@ -265,9 +272,9 @@ export const ResidenceBookingModal: React.FC<ResidenceBookingModalProps> = ({ un
                         <div>
                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total à encaisser</p>
                             <p className="text-3xl font-black mt-1 text-amber-400">{formatPrice(totalPrice)}</p>
-                            {days >= 15 && (
+                            {days >= savedThreshold && (
                                 <div className="mt-2 flex items-center gap-1 text-[9px] font-black text-emerald-400 uppercase">
-                                    <CheckCircle size={10} /> Remise Long Séjour (-20%) appliquée
+                                    <CheckCircle size={10} /> Remise Long Séjour (-{savedDiscount}%) appliquée
                                 </div>
                             )}
                         </div>
