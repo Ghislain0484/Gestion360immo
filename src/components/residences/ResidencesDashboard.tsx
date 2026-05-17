@@ -21,8 +21,11 @@ import { dbService } from '../../lib/supabase';
 import { ResidenceUnit } from '../../types/modular';
 import { getCalendarDate, isSameDay } from '../../lib/utils/dateUtils';
 import toast from 'react-hot-toast';
+import { useLanguage, T } from '../../contexts/LanguageContext';
 
 export const ResidencesDashboard: React.FC = () => {
+    const { t } = useLanguage();
+
     const { agencyId } = useAuth();
     const [view, setView] = useState<'dashboard' | 'management' | 'finances' | 'crm'>('dashboard');
     const [isAddingUnit, setIsAddingUnit] = useState(false);
@@ -112,34 +115,34 @@ export const ResidencesDashboard: React.FC = () => {
             <div>
                 <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2 italic uppercase tracking-tighter">
                     <Home className="text-indigo-600" />
-                    RÉSIDENCES MEUBLÉES
+                    {t("RÉSIDENCES MEUBLÉES")}
                 </h2>
-                <p className="text-slate-500 mt-1 uppercase text-[11px] font-bold tracking-wider underline decoration-indigo-200">Gestion Prestige & Court Séjour • Abidjan</p>
+                <p className="text-slate-500 mt-1 uppercase text-[11px] font-bold tracking-wider underline decoration-indigo-200">{t("Gestion Prestige & Court Séjour • Abidjan")}</p>
             </div>
             <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                 <button 
                     onClick={() => setView('dashboard')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${view === 'dashboard' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    <LayoutDashboard size={14} /> Opérations
+                    <LayoutDashboard size={14} /> {t("Opérations")}
                 </button>
                 <button 
                     onClick={() => setView('management')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${view === 'management' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    <Building2 size={14} /> Parc
+                    <Building2 size={14} /> {t("Parc")}
                 </button>
                 <button 
                     onClick={() => setView('finances')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${view === 'finances' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    <Receipt size={14} /> Finances
+                    <Receipt size={14} /> {t("Finances")}
                 </button>
                 <button 
                     onClick={() => setView('crm')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${view === 'crm' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    <UserCircle size={14} /> Clients
+                    <UserCircle size={14} /> {t("Clients")}
                 </button>
             </div>
         </div>
@@ -286,9 +289,9 @@ export const ResidencesDashboard: React.FC = () => {
                                 <Info size={28} className="text-white" />
                             </div>
                             <div>
-                                <h4 className="font-black text-sm uppercase tracking-widest mb-2 italic">Règle Long Séjour</h4>
+                                <h4 className="font-black text-sm uppercase tracking-widest mb-2 italic">{t("Règle Long Séjour")}</h4>
                                 <p className="text-xs opacity-90 leading-relaxed font-bold">
-                                    Remise de **20%** auto-appliquée après **15 nuitées**.
+                                    {t("Remise de")} <span className="text-amber-300 font-extrabold">{savedDiscount}%</span> {t("auto-appliquée après")} <span className="text-amber-300 font-extrabold">{savedThreshold} nuitées</span>.
                                 </p>
                                 <Button 
                                     size="sm" 
@@ -296,7 +299,7 @@ export const ResidencesDashboard: React.FC = () => {
                                     onClick={() => setShowPolicyModal(true)}
                                     className="mt-4 border-white/30 text-white hover:bg-white hover:text-indigo-900 border-2 font-black italic"
                                 >
-                                    CONFIGURER
+                                    {t("CONFIGURER")}
                                 </Button>
                             </div>
                         </div>

@@ -16,8 +16,10 @@ import { ClientCRM } from '../modular/management/ClientCRM';
 import { FinanceManager } from '../modular/management/FinanceManager';
 import { getCalendarDate, isSameDay } from '../../lib/utils/dateUtils';
 import toast from 'react-hot-toast';
+import { useLanguage, T } from '../../contexts/LanguageContext';
 
 export const HotelDashboard: React.FC = () => {
+    const { t } = useLanguage();
     const { agencyId } = useAuth();
     const [view, setView] = useState<'dashboard' | 'management' | 'finances' | 'crm'>('dashboard');
     const [rooms, setRooms] = useState<HotelRoom[]>([]);
@@ -106,9 +108,9 @@ export const HotelDashboard: React.FC = () => {
             <div>
                 <h2 className="text-2xl font-black text-gray-900 flex items-center gap-2 italic">
                     <Building className="text-primary-600" />
-                    GESTION HÔTELIÈRE
+                    {t("GESTION HÔTELIÈRE")}
                 </h2>
-                <p className="text-gray-500 mt-1 uppercase text-[10px] font-bold tracking-widest">Expertise Côte d'Ivoire • {rooms.length} Chambres</p>
+                <p className="text-gray-500 mt-1 uppercase text-[10px] font-bold tracking-widest">{t("Expertise Côte d'Ivoire")} • {rooms.length} {t("Chambres")}</p>
             </div>
             
             <div className="flex bg-slate-100 p-1.5 rounded-2xl border-2 border-slate-200 shadow-inner">
@@ -117,28 +119,28 @@ export const HotelDashboard: React.FC = () => {
                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${view === 'dashboard' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     <Building size={14} />
-                    Overview
+                    {t("Opérations")}
                 </button>
                 <button 
                     onClick={() => setView('management')}
                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${view === 'management' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     <Smartphone size={14} />
-                    CHAMBRES
+                    {t("CHAMBRES")}
                 </button>
                 <button 
                     onClick={() => setView('finances')}
                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${view === 'finances' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     <Plane size={14} className="rotate-45" />
-                    FINANCES
+                    {t("FINANCES")}
                 </button>
                 <button 
                     onClick={() => setView('crm')}
                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${view === 'crm' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     <Users size={14} />
-                    CLIENTS
+                    {t("CLIENTS")}
                 </button>
             </div>
         </div>

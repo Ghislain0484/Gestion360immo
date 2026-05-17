@@ -241,6 +241,43 @@ export const AppearanceSettings: React.FC = () => {
         </div>
       </Card>
 
+      {/* Language Restored & Polished */}
+      <Card>
+        <div className="p-6">
+          <div className="flex items-center mb-4">
+            <Eye className="h-5 w-5 text-amber-500 mr-2" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Langue de l'Application / System Language</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {languages.map((language) => (
+              <button
+                key={language.id}
+                onClick={() => updateSetting('language', language.id)}
+                className={`flex items-center p-4 rounded-2xl border-2 transition-all duration-300 ${
+                  settings.language === language.id
+                    ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-md'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-650'
+                }`}
+              >
+                <span className="text-3xl mr-4">{language.flag}</span>
+                <div className="text-left">
+                  <span className="font-black text-slate-800 dark:text-gray-200 block">{language.name}</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase italic">
+                    {language.id === 'fr' ? 'Version Française' : 'English Version'}
+                  </span>
+                </div>
+                {settings.language === language.id && (
+                  <Badge variant="success" className="ml-auto bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 py-1 px-2.5 rounded-full text-[10px] font-black uppercase">
+                    Actif / Active
+                  </Badge>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
       {/* Interface Options */}
       <Card>
         <div className="p-6">

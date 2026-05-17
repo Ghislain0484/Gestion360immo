@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { AgencySwitcher } from './AgencySwitcher';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -14,13 +15,14 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { user, logout, switchAgency, agencies, agencyId } = useAuth();
   const { theme, setTheme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [demoModeActive, setDemoModeActive] = useState(() => localStorage.getItem('demo_mode_active') !== 'false');
 
   const handleDemoToggle = (checked: boolean) => {
     localStorage.setItem('demo_mode_active', checked ? 'true' : 'false');
     setDemoModeActive(checked);
-    toast.success(checked ? '📊 Mode démonstration activé (données fictives)' : '🔌 Mode réel activé (données de la base)');
+    toast.success(checked ? `📊 ${t("Mode démonstration activé (données fictives)")}` : `🔌 ${t("Mode réel activé (données de la base)")}`);
     setTimeout(() => {
       window.location.reload();
     }, 1000);
@@ -73,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Rechercher (Ctrl+K)..."
+                placeholder={t("Rechercher (Ctrl+K)...")}
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-gray-200"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -94,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           {agencyId === '00000000-0000-0000-0000-000000000000' && (
             <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/20 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-900/40 transition-colors mr-2">
               <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider">
-                {demoModeActive ? '📊 Mode Démo' : '🔌 Mode Réel DB'}
+                {demoModeActive ? `📊 ${t("Mode Démo")}` : `🔌 ${t("Mode Réel DB")}`}
               </span>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -115,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             onClick={() => toast('Menu rapide bientôt disponible', { icon: '🚀' })}
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden lg:inline">Ajout rapide</span>
+            <span className="hidden lg:inline">{t("Ajout rapide")}</span>
           </Button>
 
           <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>

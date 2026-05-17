@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAuth } from './AuthContext';
 
 type Language = 'fr' | 'en';
 
@@ -74,21 +73,182 @@ const translations: Record<Language, Record<string, string>> = {
     'common.delete': 'Delete',
     'common.print': 'Print',
   }
+};
 
+// Smart automatic translation dictionary for raw French strings
+const commonTranslations: Record<string, string> = {
+  // PMS and Hotel/Residences Modules Custom Strings
+  "GESTION HÔTELIÈRE": "Hotel Management",
+  "RÉSIDENCES MEUBLÉES": "Furnished Residences",
+  "Gestion Prestige & Court Séjour • Abidjan": "Prestige & Short Stay Management • Abidjan",
+  "Expertise Côte d'Ivoire": "Ivory Coast Expertise",
+  "Chambres": "Rooms",
+  "CHAMBRES": "Rooms",
+  "Opérations": "Operations",
+  "Parc": "Inventory",
+  "Finances": "Finances",
+  "FINANCES": "Finances",
+  "Clients": "Clients",
+  "CLIENTS": "Clients",
+  "Taux Occup.": "Occupancy Rate",
+  "Unités Libres": "Free Units",
+  "En Nettoyage": "Cleaning",
+  "Maintenance": "Maintenance",
+  "CONFIGURER": "Configure",
+  "Règle Long Séjour": "Long Stay Rule",
+  "Remise de": "Discount of",
+  "auto-appliquée après": "auto-applied after",
+  "nuitées": "nights",
+
+  // Navigation & Sidebars
+  "Tableau de bord": "Dashboard",
+  "Caisse": "Cash Desk",
+  "Propriétaires": "Property Owners",
+  "Biens": "Properties",
+  "Locataires": "Tenants",
+  "Contrats": "Contracts",
+  "Rapports": "Reports",
+  "Paramètres": "Settings",
+  "Journal d'Audit": "Audit Logs",
+  "Journal d’Audit": "Audit Logs",
+  "Notifications": "Notifications",
+  "États des lieux": "Property Inventories",
+  "Travaux": "Maintenance & Repairs",
+  "G. Hôtelière": "Hotel Management",
+  "Résidences": "Furnished Residences",
+  "Matrice des Loyers": "Rent Roll Matrix",
+  "Collaboration Inter-Agences": "B2B Collaboration",
+  "Place de marché": "Marketplace",
+
+  // Main UI Buttons & Actions
+  "Enregistrer": "Save",
+  "Annuler": "Cancel",
+  "Chargement...": "Loading...",
+  "Rechercher...": "Search...",
+  "Ajouter": "Add",
+  "Modifier": "Edit",
+  "Supprimer": "Delete",
+  "Imprimer": "Print",
+  "Fermer": "Close",
+  "Confirmer": "Confirm",
+  "Suivant": "Next",
+  "Précédent": "Previous",
+  "Action": "Action",
+  "Détails": "Details",
+  "Statistiques": "Statistics",
+  "Filtrer": "Filter",
+  "Tous": "All",
+  "Quitter": "Exit",
+  
+  // Dashboard Metrics & Indicators
+  "Total des biens": "Total Properties",
+  "Taux d'occupation": "Occupancy Rate",
+  "Loyer Attendu": "Expected Rent",
+  "Loyer Perçu": "Collected Rent",
+  "Revenu Global": "Total Income",
+  "Disponible": "Available",
+  "Disponibles": "Available",
+  "Occupé": "Occupied",
+  "Occupés": "Occupied",
+  "Réservé": "Reserved",
+  "Réservés": "Reserved",
+  "Hors service": "Out of Service",
+  "Nettoyage": "Cleaning",
+  "En maintenance": "In maintenance",
+  "Type d'unité": "Unit Type",
+  "Tarif nuité": "Nightly Rate",
+  "Nuitées": "Nights",
+  "Client": "Client",
+  "Nouveau Client": "New Client",
+  "Nom": "Last Name",
+  "Prénom": "First Name",
+  "Téléphone": "Phone",
+  "Montant": "Amount",
+  "Date": "Date",
+  "Statut": "Status",
+  "Type": "Type",
+  "Description": "Description",
+  "Catégorie": "Category",
+  "Paiement": "Payment",
+  "Mode de Paiement": "Payment Method",
+  
+  // Stays & Pricing Modals
+  "Total à encaisser": "Total to Collect",
+  "Acompte / Versement direct (FCFA)": "Deposit / Direct Payment (FCFA)",
+  "Saisir montant perçu": "Enter amount collected",
+  "Remise Long Séjour": "Long Stay Discount",
+  "appliquée": "applied",
+  "Règles automatiques de réduction": "Automatic discount rules",
+  "Seuil Long Séjour": "Long Stay Threshold",
+  "Réduction (%)": "Discount (%)",
+  "Appliquée si seuil atteint": "Applied when threshold met",
+  "Nombres de nuitées minimum": "Minimum number of nights",
+  "Aperçu de la règle": "Rule Preview",
+  "Configuration PMS": "PMS Configuration",
+  "Politique de Prix": "Pricing Policy",
+  
+  // Demo Mode Switch & Header elements
+  "Mode Démo": "Demo Mode",
+  "Mode Réel": "Live DB Mode",
+  "Mode Réel DB": "Live DB Mode",
+  "Mode démonstration activé (données fictives)": "Demo mode activated (mock data)",
+  "Mode réel activé (données de la base)": "Live mode activated (real database)",
+  "Ajout rapide": "Quick Add",
+  "Rechercher (Ctrl+K)...": "Search (Ctrl+K)...",
+  "Déconnexion": "Logout",
+  "Mon Profil": "My Profile",
+  "Changer d'agence": "Switch Agency",
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Permanently lock language context to French to ensure consistent translations
-  const language: Language = 'fr';
+  const [language, setLanguageState] = useState<Language>(() => {
+    const saved = localStorage.getItem('language');
+    return (saved === 'en' || saved === 'fr') ? (saved as Language) : 'fr';
+  });
 
   const setLanguage = (lang: Language) => {
-    // Lock logic to avoid changing lang
+    setLanguageState(lang);
+    localStorage.setItem('language', lang);
   };
 
+  useEffect(() => {
+    const saved = localStorage.getItem('language');
+    if (saved === 'en' || saved === 'fr') {
+      setLanguageState(saved as Language);
+    }
+  }, []);
+
   const t = (key: string): string => {
-    return translations['fr'][key] || key;
+    if (!key) return '';
+
+    // 1. Exact translation key check (e.g. 'nav.dashboard')
+    if (translations[language] && translations[language][key]) {
+      return translations[language][key];
+    }
+    if (translations['fr'][key]) {
+      return language === 'en' 
+        ? (translations['en'][key] || translations['fr'][key]) 
+        : translations['fr'][key];
+    }
+
+    // 2. Dynamic dictionary fallback translation if language is English
+    if (language === 'en') {
+      const trimmed = key.trim();
+      if (commonTranslations[trimmed]) {
+        return commonTranslations[trimmed];
+      }
+
+      // Case-insensitive fallback
+      const lowercaseKey = trimmed.toLowerCase();
+      const match = Object.keys(commonTranslations).find(k => k.toLowerCase() === lowercaseKey);
+      if (match) {
+        return commonTranslations[match];
+      }
+    }
+
+    return key;
   };
 
   return (
@@ -104,4 +264,10 @@ export const useLanguage = () => {
     throw new Error('useLanguage must be used within a LanguageProvider');
   }
   return context;
+};
+
+// <T> Helper Component for inline React nodes translation
+export const T: React.FC<{ children: string }> = ({ children }) => {
+  const { t } = useLanguage();
+  return <>{t(children)}</>;
 };
