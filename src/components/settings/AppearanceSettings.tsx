@@ -241,38 +241,6 @@ export const AppearanceSettings: React.FC = () => {
         </div>
       </Card>
 
-      {/* Language */}
-      <Card>
-        <div className="p-6">
-          <div className="flex items-center mb-4">
-            <Eye className="h-5 w-5 text-orange-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Langue</h3>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {languages.map((language) => (
-              <button
-                key={language.id}
-                onClick={() => updateSetting('language', language.id)}
-                className={`flex items-center p-4 rounded-lg border transition-all ${
-                  settings.language === language.id
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-              >
-                <span className="text-2xl mr-3">{language.flag}</span>
-                <span className="font-medium dark:text-gray-200">{language.name}</span>
-                {settings.language === language.id && (
-                  <Badge variant="info" className="ml-auto">
-                    Actuel
-                  </Badge>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Card>
-
       {/* Interface Options */}
       <Card>
         <div className="p-6">

@@ -80,26 +80,15 @@ const translations: Record<Language, Record<string, string>> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>(() => {
-    const saved = localStorage.getItem('language');
-    return (saved === 'en' || saved === 'fr') ? (saved as Language) : 'fr';
-  });
+  // Permanently lock language context to French to ensure consistent translations
+  const language: Language = 'fr';
 
   const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem('language', lang);
+    // Lock logic to avoid changing lang
   };
 
-  useEffect(() => {
-    const saved = localStorage.getItem('language');
-    if (saved === 'en' || saved === 'fr') {
-      setLanguageState(saved as Language);
-    }
-  }, []);
-
   const t = (key: string): string => {
-    if (!translations[language]) return translations['fr'][key] || key;
-    return translations[language][key] || translations['fr'][key] || key;
+    return translations['fr'][key] || key;
   };
 
   return (
