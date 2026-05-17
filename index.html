@@ -79,15 +79,47 @@
           Object.defineProperty(window, 'BroadcastChannel', {
             value: function(name) {
               if (name && (name.indexOf('tabs:') !== -1 || name.indexOf('supabase') !== -1)) {
-                console.warn("🛡️ [Forteresse] Canal neutralisé :", name);
-                return {
-                  name: name,
-                  onmessage: null,
-                  postMessage: function() {},
-                  close: function() {},
-                  addEventListener: function() {},
-                  removeEventListener: function() {}
+                console.warn("🛡️ [Forteresse] Canal neutralisé avec conformité d'écouteurs :", name);
+                
+                var listeners = new Set();
+                var self = {};
+                
+                self.name = name;
+                self.onmessage = null;
+                self.onmessageerror = null;
+                
+                self.postMessage = function(msg) {
+                  // Simule une réception locale immédiate asynchrone pour satisfaire les attentes de listener
+                  setTimeout(function() {
+                    var event = {
+                      target: self,
+                      type: 'message',
+                      data: msg,
+                      origin: window.location.origin
+                    };
+                    if (typeof self.onmessage === 'function') {
+                      try { self.onmessage(event); } catch(e) {}
+                    }
+                    listeners.forEach(function(cb) {
+                      try {
+                        if (typeof cb === 'function') cb(event);
+                        else if (cb && typeof cb.handleEvent === 'function') cb.handleEvent(event);
+                      } catch(e) {}
+                    });
+                  }, 0);
                 };
+                
+                self.close = function() {};
+                
+                self.addEventListener = function(type, cb) {
+                  if (type === 'message' && cb) listeners.add(cb);
+                };
+                
+                self.removeEventListener = function(type, cb) {
+                  if (type === 'message' && cb) listeners.delete(cb);
+                };
+                
+                return self;
               }
               return new _RealBC(name);
             },

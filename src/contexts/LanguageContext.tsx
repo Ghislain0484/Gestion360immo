@@ -223,28 +223,38 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const t = (key: string): string => {
     if (!key) return '';
 
-    // 1. Exact translation key check (e.g. 'nav.dashboard')
-    if (translations[language] && translations[language][key]) {
-      return translations[language][key];
+    // Normalisation de la clé : on retire les puces, les espaces superflus et retours à la ligne
+    let lookupKey = key.trim();
+    const hasBullet = lookupKey.startsWith('•');
+    if (hasBullet) {
+      lookupKey = lookupKey.slice(1).trim();
     }
-    if (translations['fr'][key]) {
-      return language === 'en' 
-        ? (translations['en'][key] || translations['fr'][key]) 
-        : translations['fr'][key];
+
+    // 1. Exact translation key check (e.g. 'nav.dashboard')
+    if (translations[language] && translations[language][lookupKey]) {
+      const val = translations[language][lookupKey];
+      return hasBullet ? `• ${val}` : val;
+    }
+    if (translations['fr'][lookupKey]) {
+      const val = language === 'en' 
+        ? (translations['en'][lookupKey] || translations['fr'][lookupKey]) 
+        : translations['fr'][lookupKey];
+      return hasBullet ? `• ${val}` : val;
     }
 
     // 2. Dynamic dictionary fallback translation if language is English
     if (language === 'en') {
-      const trimmed = key.trim();
-      if (commonTranslations[trimmed]) {
-        return commonTranslations[trimmed];
+      if (commonTranslations[lookupKey]) {
+        const val = commonTranslations[lookupKey];
+        return hasBullet ? `• ${val}` : val;
       }
 
       // Case-insensitive fallback
-      const lowercaseKey = trimmed.toLowerCase();
+      const lowercaseKey = lookupKey.toLowerCase();
       const match = Object.keys(commonTranslations).find(k => k.toLowerCase() === lowercaseKey);
       if (match) {
-        return commonTranslations[match];
+        const val = commonTranslations[match];
+        return hasBullet ? `• ${val}` : val;
       }
     }
 
