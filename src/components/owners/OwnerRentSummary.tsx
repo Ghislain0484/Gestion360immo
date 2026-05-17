@@ -31,13 +31,13 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
     // --- Fetch all contracts for the owner's properties ---
     const fetchContracts = React.useCallback(async () => {
         if (!agencyId || ownerProperties.length === 0) return [];
-        return dbService.contracts.getAll({ agency_id: agencyId, type: 'location' });
+        return dbService.contracts.getAll({ agency_id: agencyId, type: 'location', limit: 1000 });
     }, [agencyId, ownerProperties]);
 
     const { data: allContracts = [], initialLoading: loadingContracts } = useRealtimeData<Contract>(
         fetchContracts,
         'contracts',
-        { agency_id: agencyId || undefined, type: 'location' }
+        { agency_id: agencyId || undefined, type: 'location', limit: 1000 }
     );
 
     // Filter contracts to only those for this owner's properties
@@ -157,7 +157,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                 ['active', 'renewed'].includes(c.status)
             );
             
-            const isOccupied = !!contract;
+            const isOccupied = !!contract || !prop.is_available;
             if (isOccupied) occupiedCount++;
 
             const monthlyRentContract = contract?.monthly_rent || 0;
