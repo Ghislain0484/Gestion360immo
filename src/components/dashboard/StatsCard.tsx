@@ -2,6 +2,7 @@ import React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface StatsCardProps {
   title: string;
@@ -23,6 +24,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   color = 'blue',
   index = 0,
 }) => {
+  const { t } = useLanguage();
   const colorConfig = {
     blue: { bg: 'bg-blue-500', shadow: 'shadow-glow-primary', text: 'text-blue-600' },
     green: { bg: 'bg-emerald-500', shadow: 'shadow-glow-success', text: 'text-emerald-600' },
@@ -53,7 +55,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
         
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-500/80 group-hover:text-primary-600 transition-colors">
-            {title}
+            {t(title)}
           </p>
           <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight font-display">
             {value ?? '0'}
@@ -69,7 +71,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
           )}>
             {trend.isPositive ? '↗' : '↘'} {Math.abs(trend.value)}%
           </div>
-          <span className="text-xs text-slate-400 font-medium italic">vs mois dernier</span>
+          <span className="text-xs text-slate-400 font-medium italic">{t("vs mois dernier")}</span>
         </div>
       )}
 

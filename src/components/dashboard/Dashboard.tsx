@@ -25,6 +25,7 @@ import { BibleVerseCard } from '../ui/BibleVerse';
 import { useDashboardStats, useRealtimeData, mapSupabaseError } from '../../hooks/useSupabaseData';
 import { dbService, supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Contract, RentReceipt, User, Property } from '../../types/db';
 import { PropertyMapCard } from './PropertyMapCard';
 import { AuditLog } from '../../types/platform';
@@ -62,6 +63,7 @@ interface GetAllParams {
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { user, admin, isLoading: authLoading } = useAuth();
   const [showAllActivities, setShowAllActivities] = useState(false);
   const [showAllRentals, setShowAllRentals] = useState(false);
@@ -656,19 +658,19 @@ export const Dashboard: React.FC = () => {
               <div className="flex flex-wrap items-center justify-between gap-6">
                 <div className="flex-1 min-w-[300px]">
                   <Badge variant="primary" className="bg-primary-600/10 text-primary-600 border-none font-bold tracking-[0.2em] px-4 py-1.5 rounded-full mb-6">
-                    Tableau de Bord
+                    {t('Tableau de Bord')}
                   </Badge>
                   <h1 className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                    Ravi de vous revoir, <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-600">{greetingName}</span>
+                    {t('Ravi de vous revoir,')} <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-600">{greetingName}</span>
                   </h1>
                   <p className="mt-4 max-w-xl text-lg text-slate-500 font-medium leading-relaxed">
-                    Tout semble optimal aujourd'hui. Voici un aperçu de l'activité de votre agence.
+                    {t("Tout semble optimal aujourd'hui. Voici un aperçu de l'activité de votre agence.")}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3 self-start">
                   <Button size="lg" onClick={() => navigate('/contracts')} className="btn-premium">
                     <FileText className="h-5 w-5" />
-                    Nouveau Contrat
+                    {t('Nouveau Contrat')}
                   </Button>
                   <Button
                     variant="outline"
@@ -676,7 +678,7 @@ export const Dashboard: React.FC = () => {
                     onClick={() => navigate('/reports')}
                     className="rounded-xl border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all px-8"
                   >
-                    Statistiques
+                    {t('Statistiques')}
                   </Button>
                 </div>
               </div>
@@ -718,17 +720,17 @@ export const Dashboard: React.FC = () => {
                     <Card className="relative overflow-hidden border-none bg-slate-900 text-slate-100 shadow-2xl p-8 flex-1">
                         <div className="relative z-10 flex flex-col justify-between h-full">
                             <header className="mb-6">
-                                <h3 className="text-xl font-black uppercase tracking-widest text-white/50">Synthèse Agence</h3>
+                                <h3 className="text-xl font-black uppercase tracking-widest text-white/50">{t('Synthèse Agence')}</h3>
                                 <p className="text-4xl font-black text-white mt-4">{formatCurrency(dashboardStats.agencyEarnings)}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Revenus réels ce mois</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">{t('Revenus réels ce mois')}</p>
                             </header>
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center py-3 border-t border-white/10">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Taux Occupation</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('Taux Occupation')}</span>
                                     <span className="text-sm font-black text-emerald-400">{(dashboardStats.occupancyRate || 0).toFixed(1)}%</span>
                                 </div>
                                 <div className="flex justify-between items-center py-3 border-t border-white/10">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cautions</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('Cautions')}</span>
                                     <span className="text-sm font-black text-sky-400">{formatCurrency(dashboardStats.totalDeposits)}</span>
                                 </div>
                             </div>
@@ -748,7 +750,7 @@ export const Dashboard: React.FC = () => {
                 ? stats.map((stat, idx) => <StatsCard key={stat.title} index={idx} {...stat} />)
                 : (
                   <Card className="md:col-span-2 xl:col-span-4 border border-dashed border-slate-200 text-center text-slate-500">
-                    Aucune statistique disponible pour le moment.
+                    {t('Aucune statistique disponible pour le moment.')}
                   </Card>
                 )}
           </div>
@@ -762,9 +764,9 @@ export const Dashboard: React.FC = () => {
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="border-none shadow-xl dark:bg-slate-900/80">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Activites recentes</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{t('Activites recentes')}</h3>
               <Button variant="ghost" onClick={() => setShowAllActivities(true)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-                Voir tout
+                {t('Voir tout')}
               </Button>
             </div>
             <div className="mt-5 space-y-3">
@@ -777,7 +779,7 @@ export const Dashboard: React.FC = () => {
                   {activitiesError}
                 </div>
               ) : agencyActivities.length === 0 ? (
-                <p className="text-sm text-slate-500">Aucune activite recente.</p>
+                <p className="text-sm text-slate-500">{t('Aucune activite recente.')}</p>
               ) : (
                 agencyActivities.slice(0, 4).map((activity) => {
                   const { icon: ActivityIcon, bg, color } = getActivityIconMeta(activity);
@@ -810,9 +812,9 @@ export const Dashboard: React.FC = () => {
 
           <Card className="border-none shadow-xl dark:bg-slate-900/80">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Loyers a venir</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{t('Loyers a venir')}</h3>
               <Button variant="ghost" onClick={() => setShowAllRentals(true)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-                Voir tout
+                {t('Voir tout')}
               </Button>
             </div>
             <div className="mt-5 space-y-3">
@@ -821,7 +823,7 @@ export const Dashboard: React.FC = () => {
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" />
                 </div>
               ) : upcomingRentals.length === 0 ? (
-                <p className="text-sm text-slate-500">Aucun loyer planifie sur la periode.</p>
+                <p className="text-sm text-slate-500">{t('Aucun loyer planifie sur la periode.')}</p>
               ) : (
                 upcomingRentals.map((rental) => (
                   <div
@@ -847,15 +849,15 @@ export const Dashboard: React.FC = () => {
 
         <Card className="border-none shadow-xl dark:bg-slate-900/80">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Paiements recents</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{t('Paiements recents')}</h3>
             <div className="flex items-center gap-2">
               <Button variant="ghost" onClick={() => setShowAllPayments(true)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-                Voir tout
+                {t('Voir tout')}
               </Button>
               <Link to="/receipts">
                 <Button variant="outline" size="sm" className="border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
                   <Receipt className="mr-2 h-4 w-4" />
-                  Gestion quittances
+                  {t('Gestion quittances')}
                 </Button>
               </Link>
             </div>
@@ -866,7 +868,7 @@ export const Dashboard: React.FC = () => {
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" />
               </div>
             ) : recentPayments.length === 0 ? (
-              <p className="text-sm text-slate-500">Aucun paiement enregistre recemment.</p>
+              <p className="text-sm text-slate-500">{t('Aucun paiement enregistre recemment.')}</p>
             ) : (
               recentPayments.map((payment) => (
                 <div
@@ -884,8 +886,8 @@ export const Dashboard: React.FC = () => {
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-slate-100">
                         {payment.type === 'received'
-                          ? `Loyer recu - ${payment.tenant}`
-                          : `Reversement - ${payment.owner}`}
+                          ? `${t('Loyer recu')} - ${payment.tenant}`
+                          : `${t('Reversement')} - ${payment.owner}`}
                       </p>
                       <p className="text-sm text-slate-500 dark:text-slate-300">
                         {payment.property} | {payment.receiptNumber} | {payment.date}
@@ -895,7 +897,7 @@ export const Dashboard: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <p className="font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(payment.amount)}</p>
-                      <p className="text-sm capitalize text-slate-500 dark:text-slate-300">{payment.status}</p>
+                      <p className="text-sm capitalize text-slate-500 dark:text-slate-300">{t(payment.status)}</p>
                     </div>
                     <div className="flex gap-1">
                       <Button
