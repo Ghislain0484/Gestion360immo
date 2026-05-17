@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { Download, ArrowRightLeft, Wallet, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
 import { supabase, dbService } from '../../lib/supabase';
 import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
@@ -31,8 +31,15 @@ interface Owner {
 
 export const CaissePage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const { user } = useAuth();
+    const { user, agencies, agencyId } = useAuth();
     const { isDemoMode } = useDemoMode();
+
+    const currentAgency = agencies.find(a => a.agency_id === agencyId);
+    const enabledModules = currentAgency?.enabled_modules || ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'];
+    const hasTraditionalRealEstate = enabledModules.some(m => ['properties', 'owners', 'tenants', 'contracts'].includes(m));
+    const hasHotel = enabledModules.includes('hotel');
+    const hasResidences = enabledModules.includes('residences');
+
 
     const [activeTab, setActiveTab] = useState('journal');
     const [owners, setOwners] = useState<Owner[]>([]);
@@ -449,7 +456,12 @@ export const CaissePage: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Caisse & Trésorerie</h1>
-                    <p className="text-gray-500 mt-1">Gestion des encaissements, décaissements et reversements</p>
+                    <p className="text-gray-500 mt-1">
+                        {!hasTraditionalRealEstate && (hasHotel || hasResidences)
+                            ? "Suivi de caisse pour vos réservations, locations meublées et prestations"
+                            : "Gestion des encaissements, décaissements et reversements"
+                        }
+                    </p>
                 </div>
                 <div className="flex gap-2">
                     <button
@@ -459,13 +471,37 @@ export const CaissePage: React.FC = () => {
                         <ArrowRightLeft className="w-4 h-4" />
                         <span>Mouvement</span>
                     </button>
-                    <button
-                        onClick={() => setIsCollectionModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md hover:shadow-lg"
-                    >
-                        <Wallet className="w-4 h-4" />
-                        <span>Encaissement Locataire</span>
-                    </button>
+                    
+                    {hasTraditionalRealEstate && (
+                        <button
+                            onClick={() => setIsCollectionModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md hover:shadow-lg"
+                        >
+                            <Wallet className="w-4 h-4" />
+                            <span>Encaissement Locataire</span>
+                        </button>
+                    )}
+
+                    {!hasTraditionalRealEstate && hasResidences && (
+                        <Link
+                            to="/residences"
+                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg"
+                        >
+                            <Wallet className="w-4 h-4" />
+                            <span>Gérer Résidences</span>
+                        </Link>
+                    )}
+
+                    {!hasTraditionalRealEstate && hasHotel && (
+                        <Link
+                            to="/hotel"
+                            className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors shadow-md hover:shadow-lg"
+                        >
+                            <Wallet className="w-4 h-4" />
+                            <span>Gérer Hôtels</span>
+                        </Link>
+                    )}
+
                     <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg">
                         <Download className="w-4 h-4" />
                         <span>Exporter PDF</span>

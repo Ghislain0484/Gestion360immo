@@ -45,35 +45,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { name: t('nav.owners'), href: '/proprietaires', icon: Building, module: 'owners' },
     { name: t('nav.properties'), href: '/proprietes', icon: Building2, module: 'properties' },
     { name: t('nav.tenants'), href: '/locataires', icon: Key, module: 'tenants' },
-    { name: 'États des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'etats-des-lieux' },
-    { name: 'Travaux', href: '/travaux', icon: LayoutDashboard, module: 'travaux' },
+    { name: t('nav.inventory'), href: '/etats-des-lieux', icon: ClipboardCheck, module: 'etats-des-lieux' },
+    { name: t('nav.maintenance'), href: '/travaux', icon: LayoutDashboard, module: 'travaux' },
   ];
 
   const secondaryNavigation = [
     { name: t('nav.contracts'), href: '/contrats', icon: FileText, module: 'contracts' },
     { 
-      name: 'G. Hôtelière', 
+      name: t('nav.hotel'), 
       href: '/hotel', 
       icon: Building, 
       module: 'hotel' 
     },
     { 
-      name: 'Résidences', 
+      name: t('nav.residences'), 
       href: '/residences', 
       icon: Building2, 
       module: 'residences' 
     },
     { name: t('collab.title'), href: '/collaboration', icon: Users, module: 'collaboration' },
     { name: t('nav.reports'), href: '/rapports', icon: BarChart3 },
-    { name: 'Matrice des Loyers', href: '/rapports', icon: BarChart3 }, 
-    { name: 'Notifications', href: '/notifications', icon: Bell },
+    { name: t('nav.rent_matrix'), href: '/rapports', icon: BarChart3 }, 
+    { name: t('nav.notifications'), href: '/notifications', icon: Bell },
     { 
       name: IS_STANDALONE ? 'Application' : t('nav.settings'), 
       href: '/parametres', 
       icon: Settings 
     },
-    { name: "Journal d'Audit", href: '/admin/audit', icon: Shield },
+    { name: t('nav.audit_logs'), href: '/admin/audit', icon: Shield },
   ];
+
 
   const checkModule = (mod?: string) => {
     if (!mod) return true;

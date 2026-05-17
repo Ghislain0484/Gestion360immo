@@ -21,6 +21,12 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.settings': 'Paramètres',
     'nav.audit': "Journal d'Audit",
     'nav.notifications': 'Notifications',
+    'nav.inventory': 'États des lieux',
+    'nav.maintenance': 'Travaux',
+    'nav.hotel': 'G. Hôtelière',
+    'nav.residences': 'Résidences',
+    'nav.rent_matrix': 'Matrice des Loyers',
+    'nav.audit_logs': "Journal d'Audit",
     'collab.title': 'Collaboration Inter-Agences',
     'collab.marketplace': 'Place de marché',
     'stats.total_properties': 'Total des biens',
@@ -47,6 +53,12 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.settings': 'Settings',
     'nav.audit': 'Audit Logs',
     'nav.notifications': 'Notifications',
+    'nav.inventory': 'Property Inventories',
+    'nav.maintenance': 'Maintenance & Repairs',
+    'nav.hotel': 'Hotel Management',
+    'nav.residences': 'Furnished Residences',
+    'nav.rent_matrix': 'Rent Roll Matrix',
+    'nav.audit_logs': 'Audit Logs',
     'collab.title': 'B2B Collaboration',
     'collab.marketplace': 'Marketplace',
     'stats.total_properties': 'Total Properties',
@@ -62,6 +74,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.delete': 'Delete',
     'common.print': 'Print',
   }
+
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
