@@ -209,8 +209,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const setLanguage = (lang: Language) => {
+    const prev = language;
     setLanguageState(lang);
     localStorage.setItem('language', lang);
+    if (prev === 'en' && lang === 'fr') {
+      window.location.reload();
+    }
   };
 
   useEffect(() => {
@@ -219,6 +223,114 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setLanguageState(saved as Language);
     }
   }, []);
+
+  // --- DYNAMIC GLOBAL TRANSLATOR OBSERVER (PREMIUM AUTO-TRANSLATION) ---
+  useEffect(() => {
+    if (language !== 'en') return;
+
+    const translateText = (text: string): string => {
+      if (!text) return text;
+      const trimmed = text.trim();
+      if (!trimmed) return text;
+
+      // Clean lookupKey by stripping leading bullet points
+      let lookupKey = trimmed;
+      const hasBullet = lookupKey.startsWith('•');
+      if (hasBullet) {
+        lookupKey = lookupKey.slice(1).trim();
+      }
+
+      // Check exact match in dictionary
+      if (commonTranslations[lookupKey]) {
+        const val = commonTranslations[lookupKey];
+        const res = hasBullet ? `• ${val}` : val;
+        return text.replace(trimmed, res);
+      }
+
+      // Check case-insensitive match
+      const lowercaseKey = lookupKey.toLowerCase();
+      const match = Object.keys(commonTranslations).find(k => k.toLowerCase() === lowercaseKey);
+      if (match) {
+        const val = commonTranslations[match];
+        const res = hasBullet ? `• ${val}` : val;
+        return text.replace(trimmed, res);
+      }
+
+      // Fallback check for substrings: if the text contains longer phrases, replace keys
+      let result = text;
+      const sortedKeys = Object.keys(commonTranslations).sort((a, b) => b.length - a.length);
+      for (const key of sortedKeys) {
+        if (key.length > 5 && lookupKey.includes(key)) {
+          result = result.replace(key, commonTranslations[key]);
+        }
+      }
+      return result;
+    };
+
+    const translateNode = (node: Node) => {
+      // Node type 3 is Text node
+      if (node.nodeType === 3 && node.nodeValue) {
+        const original = node.nodeValue;
+        const translated = translateText(original);
+        if (translated !== original) {
+          node.nodeValue = translated;
+        }
+      } else {
+        const el = node as Element;
+        const tagName = el.tagName;
+        if (tagName === 'SCRIPT' || tagName === 'STYLE') return;
+
+        // Translate inputs placeholders
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+          const inputEl = node as HTMLInputElement;
+          if (inputEl.placeholder) {
+            const transPlaceholder = translateText(inputEl.placeholder);
+            if (transPlaceholder !== inputEl.placeholder) {
+              inputEl.placeholder = transPlaceholder;
+            }
+          }
+          return;
+        }
+
+        // Recursively translate child nodes
+        for (let i = 0; i < node.childNodes.length; i++) {
+          translateNode(node.childNodes[i]);
+        }
+      }
+    };
+
+    // Initial translation
+    translateNode(document.body);
+
+    // Setup MutationObserver to translate new/updated nodes dynamically
+    const observer = new MutationObserver((mutations) => {
+      observer.disconnect(); // prevent loops
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+          mutation.addedNodes.forEach((node) => {
+            translateNode(node);
+          });
+        } else if (mutation.type === 'characterData') {
+          translateNode(mutation.target);
+        }
+      });
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [language]);
 
   const t = (key: string): string => {
     if (!key) return '';
