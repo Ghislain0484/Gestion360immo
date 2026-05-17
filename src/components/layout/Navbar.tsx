@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { clsx } from 'clsx';
 import toast from 'react-hot-toast';
 import { APP_NAME, IS_STANDALONE, FORCED_STANDALONE_MODULES, APP_EDITION } from '../../lib/constants';
@@ -34,6 +35,7 @@ export const Navbar: React.FC = () => {
   const { logout, user, agencyId, agencies, switchAgency } = useAuth();
   const { isDemoMode, isDemoUser, toggleDemoMode } = useDemoMode();
   const { theme, setTheme, isDark } = useTheme();
+  const { t } = useLanguage();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showAgencyMenu, setShowAgencyMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -76,28 +78,28 @@ export const Navbar: React.FC = () => {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Caisse', href: '/caisse', icon: Wallet, module: 'caisse' },
-    { name: 'Proprietaires', href: '/proprietaires', icon: Building, module: 'owners' },
-    { name: 'Proprietes', href: '/proprietes', icon: Building2, module: 'properties' },
-    { name: 'Locataires', href: '/locataires', icon: Key, module: 'tenants' },
-    { name: 'Etats des lieux', href: '/etats-des-lieux', icon: ClipboardCheck, module: 'etats-des-lieux' },
-    { name: 'Contrats', href: '/contrats', icon: FileText, module: 'contracts' },
-    ...(checkModule('hotel') ? [{ name: 'Hotel', href: '/hotel', icon: Building }] : []),
-    ...(checkModule('residences') ? [{ name: 'Residences', href: '/residences', icon: Building2 }] : []),
-    ...(checkModule('travaux') ? [{ name: 'Travaux', href: '/travaux', icon: Settings }] : []),
-    { name: 'Rapports', href: '/rapports', icon: BarChart3 },
+    { name: t('nav.dashboard'), href: '/', icon: LayoutDashboard },
+    { name: t('nav.caisse'), href: '/caisse', icon: Wallet, module: 'caisse' },
+    { name: t('nav.owners'), href: '/proprietaires', icon: Building, module: 'owners' },
+    { name: t('nav.properties'), href: '/proprietes', icon: Building2, module: 'properties' },
+    { name: t('nav.tenants'), href: '/locataires', icon: Key, module: 'tenants' },
+    { name: t('nav.inventory'), href: '/etats-des-lieux', icon: ClipboardCheck, module: 'etats-des-lieux' },
+    { name: t('nav.contracts'), href: '/contrats', icon: FileText, module: 'contracts' },
+    ...(checkModule('hotel') ? [{ name: t('nav.hotel'), href: '/hotel', icon: Building }] : []),
+    ...(checkModule('residences') ? [{ name: t('nav.residences'), href: '/residences', icon: Building2 }] : []),
+    ...(checkModule('travaux') ? [{ name: t('nav.maintenance'), href: '/travaux', icon: Settings }] : []),
+    { name: t('nav.reports'), href: '/rapports', icon: BarChart3 },
   ];
 
   const moreNavigation = [
     ...(checkModule('collaboration') && !checkModule('internal_mode')
-      ? [{ name: 'Collaboration', href: '/collaboration', icon: Users }]
+      ? [{ name: t('collab.title'), href: '/collaboration', icon: Users }]
       : []),
-    { name: 'Matrice des Loyers', href: '/rapports', icon: Table2 },
+    { name: t('nav.rent_matrix'), href: '/rapports', icon: Table2 },
     ...(!IS_STANDALONE
-      ? [{ name: 'Parametres', href: '/parametres', icon: Settings }]
-      : [{ name: 'Application', href: '/parametres', icon: Settings }]),
-    { name: "Journal d'Audit", href: '/admin/audit', icon: Shield },
+      ? [{ name: t('nav.settings'), href: '/parametres', icon: Settings }]
+      : [{ name: t('Application'), href: '/parametres', icon: Settings }]),
+    { name: t('nav.audit_logs'), href: '/admin/audit', icon: Shield },
   ];
 
   const isActiveLink = (path: string) => {
@@ -301,7 +303,7 @@ export const Navbar: React.FC = () => {
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
                       <LogOut className="h-4 w-4" />
-                      Deconnexion
+                      {t('Déconnexion')}
                     </button>
                   </div>
                 </div>

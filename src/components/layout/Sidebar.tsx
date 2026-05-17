@@ -288,7 +288,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             className="w-full flex items-center gap-3 px-4 py-3 mt-3 text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-danger-600 dark:hover:text-white hover:bg-danger-50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 group hover:scale-[1.02]"
           >
             <LogOut className="w-5 h-5 text-gray-500 dark:text-slate-500 group-hover:text-danger-500 dark:group-hover:text-danger-400 transition-colors" />
-            <span>Déconnexion</span>
+            <span>{t('Déconnexion')}</span>
           </button>
         </div>
       </div>
