@@ -80,33 +80,22 @@ const translations: Record<Language, Record<string, string>> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  const [language, setLanguage] = useState<Language>('fr');
+  const [language, setLanguageState] = useState<Language>(() => {
+    const saved = localStorage.getItem('language');
+    return (saved === 'en' || saved === 'fr') ? (saved as Language) : 'fr';
+  });
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem('language', lang);
+  };
 
   useEffect(() => {
-    // Charger la langue depuis les paramètres sauvegardés
-    const settingsKey = `appearance_settings_${user?.agency_id}`;
-    const savedSettings = localStorage.getItem(settingsKey);
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        if (parsed.language) setLanguage(parsed.language);
-      } catch (e) {}
+    const saved = localStorage.getItem('language');
+    if (saved === 'en' || saved === 'fr') {
+      setLanguageState(saved as Language);
     }
-
-    // Écouter les changements de paramètres (si modifiés dans un autre onglet ou composant)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === settingsKey && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          if (parsed.language) setLanguage(parsed.language);
-        } catch (e) {}
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [user?.agency_id]);
+  }, []);
 
   const t = (key: string): string => {
     if (!translations[language]) return translations['fr'][key] || key;
