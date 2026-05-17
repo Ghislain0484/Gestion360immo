@@ -12,9 +12,19 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
-  const { user, logout, switchAgency, agencies } = useAuth();
+  const { user, logout, switchAgency, agencies, agencyId } = useAuth();
   const { theme, setTheme, isDark } = useTheme();
   const navigate = useNavigate();
+  const [demoModeActive, setDemoModeActive] = useState(() => localStorage.getItem('demo_mode_active') !== 'false');
+
+  const handleDemoToggle = (checked: boolean) => {
+    localStorage.setItem('demo_mode_active', checked ? 'true' : 'false');
+    setDemoModeActive(checked);
+    toast.success(checked ? '📊 Mode démonstration activé (données fictives)' : '🔌 Mode réel activé (données de la base)');
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  };
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +90,24 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Commutateur Mode Démo / Mode Réel */}
+          {agencyId === '00000000-0000-0000-0000-000000000000' && (
+            <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/20 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-900/40 transition-colors mr-2">
+              <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                {demoModeActive ? '📊 Mode Démo' : '🔌 Mode Réel DB'}
+              </span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={demoModeActive}
+                  onChange={(e) => handleDemoToggle(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:bg-gray-800 peer-checked:bg-amber-500"></div>
+              </label>
+            </div>
+          )}
+
           <Button
             variant="outline"
             size="sm"

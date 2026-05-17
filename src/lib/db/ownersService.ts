@@ -2,6 +2,7 @@ import { supabase } from '../config';
 import { normalizeOwner } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { Owner } from "../../types/db";
+import { isDemoModeActive } from '../mockData';
 
 interface GetAllParams {
   agency_id?: string;
@@ -13,7 +14,7 @@ interface GetAllParams {
 
 export const ownersService = {
   async findOne(id: string, agencyId?: string): Promise<Owner | null> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000') {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
       const { MOCK_OWNERS } = await import('../mockData');
       return MOCK_OWNERS.find(o => o.id === id) || null;
     }
@@ -40,7 +41,7 @@ export const ownersService = {
     limit = 100,
     offset = 0,
   }: GetAllParams = {}): Promise<Owner[]> {
-    if (agency_id === '00000000-0000-0000-0000-000000000000') {
+    if (agency_id === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
       const { MOCK_OWNERS } = await import('../mockData');
       let result = [...MOCK_OWNERS];
       if (search) {
@@ -73,7 +74,7 @@ export const ownersService = {
     return data ?? [];
   },
   async getById(id: string, agencyId?: string): Promise<Owner> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000') {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
       const { MOCK_OWNERS } = await import('../mockData');
       const owner = MOCK_OWNERS.find(o => o.id === id);
       if (owner) return owner;
@@ -93,7 +94,7 @@ export const ownersService = {
     return data;
   },
   async getBySlugId(id: string, agencyId?: string): Promise<Owner | null> {
-    if (agencyId === '00000000-0000-0000-0000-000000000000') {
+    if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
       const { MOCK_OWNERS } = await import('../mockData');
       return MOCK_OWNERS.find(o => o.id === id || o.business_id === id) || null;
     }

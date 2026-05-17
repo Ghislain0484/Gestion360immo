@@ -2,6 +2,7 @@ import { supabase } from '../config';
 import { normalizeAgencySubscription } from '../normalizers';
 import { formatSbError, logAuthContext } from '../helpers';
 import { AgencySubscription } from "../../types/db";
+import { isDemoModeActive } from '../mockData';
 
 export const agencySubscriptionsService = {
     async getAll(): Promise<AgencySubscription[]> {
@@ -144,7 +145,7 @@ export const agencySubscriptionsService = {
         console.log('🔄 agencySubscriptionsService.syncSubscription', { agencyId, planType, monthlyFee, status });
         
         // Demo Guard: Skip database sync for virtual agency
-        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
             console.log('🛡️ agencySubscriptionsService: Demo agency sync skipped (virtual agency)');
             return true;
         }

@@ -3,6 +3,7 @@ import { normalizeContract } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { Contract } from "../../types/db";
 import { auditLogsService } from './auditLogsService';
+import { isDemoModeActive } from '../mockData';
 
 export const contractsService = {
   async getAll({
@@ -26,7 +27,7 @@ export const contractsService = {
     property_id?: string;
     owner_id?: string;
   } = {}): Promise<Contract[]> {
-    if (agency_id === '00000000-0000-0000-0000-000000000000') {
+    if (agency_id === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
       const { MOCK_CONTRACTS, MOCK_PROPERTIES, MOCK_TENANTS, MOCK_OWNERS } = await import('../mockData');
       let result = [...MOCK_CONTRACTS];
       

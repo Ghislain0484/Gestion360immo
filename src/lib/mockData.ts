@@ -1,6 +1,6 @@
 import { Property, Owner, Tenant, Contract, ManagedContract } from '../types/db';
 import { DashboardStats } from '../types/platform';
-import { ModularTransaction } from '../types/modular';
+import { ModularTransaction, HotelRoom, ResidenceSite, ResidenceUnit, ModularBooking, ModularClient } from '../types/modular';
 
 export const DEMO_AGENCY_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -185,4 +185,37 @@ export const MOCK_INVENTORIES: any[] = [
     id: 'inv-demo-2', property_id: 'demo-prop-2', date: '2024-03-01', condition: 'good',
     comments: 'Quelques traces d\'usure sur les peintures du salon.', status: 'signed'
   }
+];
+
+export const isDemoModeActive = (): boolean => {
+  return localStorage.getItem('demo_mode_active') !== 'false';
+};
+
+export const MOCK_HOTEL_ROOMS: HotelRoom[] = [
+  { id: 'h-room-1', agency_id: DEMO_AGENCY_ID, room_number: '101', room_type: 'standard', floor: 1, status: 'available', base_price_per_night: 35000, created_at: '2024-01-01', updated_at: '2024-01-01' },
+  { id: 'h-room-2', agency_id: DEMO_AGENCY_ID, room_number: '102', room_type: 'suite', floor: 1, status: 'cleaning', base_price_per_night: 60000, created_at: '2024-01-01', updated_at: '2024-01-01' },
+  { id: 'h-room-3', agency_id: DEMO_AGENCY_ID, room_number: '201', room_type: 'vip', floor: 2, status: 'occupied', base_price_per_night: 85000, created_at: '2024-01-01', updated_at: '2024-01-01', current_booking: [{ check_out: new Date(Date.now() + 86400000 * 3).toISOString(), booking_status: 'active' }] },
+  { id: 'h-room-4', agency_id: DEMO_AGENCY_ID, room_number: '202', room_type: 'standard', floor: 2, status: 'maintenance', base_price_per_night: 35000, created_at: '2024-01-01', updated_at: '2024-01-01' }
+];
+
+export const MOCK_RESIDENCE_SITES: ResidenceSite[] = [
+  { id: 'site-1', agency_id: DEMO_AGENCY_ID, name: 'Résidence Cocody Mermoz', zone: 'Cocody', city: 'Abidjan', amenities: ['Piscine', 'Sécurité 24/7', 'Wifi', 'Canal+'], created_at: '2024-01-01', updated_at: '2024-01-01' },
+  { id: 'site-2', agency_id: DEMO_AGENCY_ID, name: 'Résidence Biétry Premium', zone: 'Marcory', city: 'Abidjan', amenities: ['Gym', 'Jacuzzi', 'Ascenseur'], created_at: '2024-01-01', updated_at: '2024-01-01' }
+];
+
+export const MOCK_RESIDENCE_UNITS: ResidenceUnit[] = [
+  { id: 'unit-1', agency_id: DEMO_AGENCY_ID, site_id: 'site-1', unit_name: 'Studio Chic - Mermoz', unit_type: 'Studio', unit_category: 'studio', status: 'ready', rating: 4.8, base_price_per_night: 45000, caution_amount: 150000, description: 'Superbe studio tout équipé.', created_at: '2024-01-01', updated_at: '2024-01-01' },
+  { id: 'unit-2', agency_id: DEMO_AGENCY_ID, site_id: 'site-1', unit_name: 'Duplex Horizon - Mermoz', unit_type: 'Appartement F3', unit_category: '3-pieces', status: 'occupied', rating: 4.9, base_price_per_night: 85000, caution_amount: 300000, description: 'Bel appartement avec terrasse.', created_at: '2024-01-01', updated_at: '2024-01-01', current_booking: [{ check_out: new Date(Date.now() + 86400000 * 5).toISOString(), booking_status: 'active' }] },
+  { id: 'unit-3', agency_id: DEMO_AGENCY_ID, site_id: 'site-2', unit_name: 'Penthouse Panorama - Biétry', unit_type: 'Penthouse de Luxe', unit_category: 'penthouse', status: 'ready', rating: 5.0, base_price_per_night: 150000, caution_amount: 500000, description: 'Le plus beau penthouse d\'Abidjan.', created_at: '2024-01-01', updated_at: '2024-01-01' },
+  { id: 'unit-4', agency_id: DEMO_AGENCY_ID, site_id: 'site-2', unit_name: 'Suite Cosy - Biétry', unit_type: 'Appartement F2', unit_category: '2-pieces', status: 'cleaning', rating: 4.5, base_price_per_night: 55000, caution_amount: 200000, description: 'Appartement confortable.', created_at: '2024-01-01', updated_at: '2024-01-01' }
+];
+
+export const MOCK_MODULAR_CLIENTS: ModularClient[] = [
+  { id: 'client-1', agency_id: DEMO_AGENCY_ID, first_name: 'Jean-Luc', last_name: 'Gbané', email: 'j.gbane@holding.ci', phone: '+225 07 45 89 23 10', client_type: 'vip', loyalty_points: 120, preferences: ['Chambre au calme', 'Navette requise'], nationality: 'Ivoirienne', total_stays: 8, total_spent: 1200000, module_type: 'hotel', created_at: '2024-01-01', updated_at: '2024-01-01' },
+  { id: 'client-2', agency_id: DEMO_AGENCY_ID, first_name: 'Aminata', last_name: 'Diallo', email: 'aminata.diallo@business.gn', phone: '+224 622 33 44 55', client_type: 'regular', loyalty_points: 45, preferences: ['Double oreillers'], nationality: 'Guinéenne', total_stays: 3, total_spent: 2700000, module_type: 'residences', created_at: '2024-01-01', updated_at: '2024-01-01' }
+];
+
+export const MOCK_MODULAR_BOOKINGS: ModularBooking[] = [
+  { id: 'book-1', agency_id: DEMO_AGENCY_ID, client_id: 'client-1', room_id: 'h-room-3', check_in: new Date(Date.now() - 86400000 * 2).toISOString(), check_out: new Date(Date.now() + 86400000 * 3).toISOString(), total_amount: 425000, amount_paid: 425000, payment_method: 'wave', payment_status: 'paid', booking_status: 'confirmed', created_at: new Date(Date.now() - 86400000 * 2).toISOString() },
+  { id: 'book-2', agency_id: DEMO_AGENCY_ID, client_id: 'client-2', residence_id: 'unit-2', check_in: new Date(Date.now() - 86400000 * 5).toISOString(), check_out: new Date(Date.now() + 86400000 * 5).toISOString(), total_amount: 850000, amount_paid: 500000, payment_method: 'orange_money', payment_status: 'partial', booking_status: 'confirmed', created_at: new Date(Date.now() - 86400000 * 5).toISOString() }
 ];

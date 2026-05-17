@@ -4,6 +4,7 @@ import { formatSbError } from '../helpers';
 import { RentReceipt } from '../../types/db';
 import { v4 as uuidv4 } from 'uuid';
 import { SMSService } from '../../services/smsService';
+import { isDemoModeActive } from '../mockData';
 
 interface GetAllParams {
   agency_id?: string;
@@ -14,7 +15,7 @@ interface GetAllParams {
 
 export const rentReceiptsService = {
   async getAll(params?: GetAllParams): Promise<RentReceipt[]> {
-    if (params?.agency_id === '00000000-0000-0000-0000-000000000000') {
+    if (params?.agency_id === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
       const { MOCK_RECEIPTS, MOCK_PROPERTIES, MOCK_TENANTS } = await import('../mockData');
       return MOCK_RECEIPTS.map((r: any) => ({
         ...r,

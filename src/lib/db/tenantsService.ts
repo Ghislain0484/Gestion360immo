@@ -2,10 +2,11 @@ import { supabase } from '../config';
 import { normalizeTenant } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { Tenant, TenantFilters } from "../../types/db";
+import { isDemoModeActive } from '../mockData';
 
 export const tenantsService = {
     async getAll(filters: TenantFilters = {}): Promise<Tenant[]> {
-        if (filters.agency_id === '00000000-0000-0000-0000-000000000000') {
+        if (filters.agency_id === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
             const { MOCK_TENANTS } = await import('../mockData');
             let result = [...MOCK_TENANTS];
             if (filters.search) {
@@ -77,7 +78,7 @@ export const tenantsService = {
         return true;
     },
     async findOne(id: string, agencyId?: string): Promise<Tenant | null> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
             const { MOCK_TENANTS } = await import('../mockData');
             return MOCK_TENANTS.find(t => t.id === id) || null;
         }
@@ -98,7 +99,7 @@ export const tenantsService = {
         return data;
     },
     async getBySlugId(id: string, agencyId?: string): Promise<Tenant | null> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
             const { MOCK_TENANTS } = await import('../mockData');
             return MOCK_TENANTS.find(t => t.id === id) || null;
         }

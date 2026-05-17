@@ -3,6 +3,7 @@ import { normalizePartialUser, normalizeUser } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { User, UserPermissions } from "../../types/db";
 import { AgencyUserRole } from '../../types/enums';
+import { isDemoModeActive } from '../mockData';
 
 export const usersService = {
     async getCurrent(): Promise<User | null> {
@@ -88,7 +89,7 @@ export const usersService = {
         return true;
     },
     async getByAgency(agencyId: string): Promise<(User & { role: AgencyUserRole; agency_id: string | null })[]> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
             return [{
                 id: '5a677978-6bbe-4392-b3f9-73abadaaecec',
                 first_name: 'Admin',

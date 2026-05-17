@@ -3,10 +3,11 @@ import { normalizeFinancialStatement } from '../normalizers';
 import { formatSbError } from '../helpers';
 import { FinancialStatement } from "../../types/db";
 import { v4 as uuidv4 } from 'uuid';
+import { isDemoModeActive } from '../mockData';
 
 export const financialStatementsService = {
     async getAll(agencyId?: string): Promise<FinancialStatement[]> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
             return []; // On pourrait renvoyer des mock statements si on en avait
         }
         const { data, error } = await supabase
@@ -51,7 +52,7 @@ export const financialStatementsService = {
         period: string,
         agencyId?: string
     ): Promise<FinancialStatement[]> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
             return [];
         }
         const [year, month] = period.split("-").map(Number);
@@ -215,7 +216,7 @@ export const financialStatementsService = {
 
     // Specific methods for property and transaction cleanup
     async getTransactionsByProperty(propertyId: string, agencyId?: string): Promise<{ data: any[] | null; error: any }> {
-        if (agencyId === '00000000-0000-0000-0000-000000000000') {
+        if (agencyId === '00000000-0000-0000-0000-000000000000' && isDemoModeActive()) {
             const { MOCK_TRANSACTIONS } = await import('../mockData');
             const filtered = MOCK_TRANSACTIONS.filter(tx => tx.related_id === propertyId || (tx as any).property_id === propertyId);
             return { data: filtered, error: null };

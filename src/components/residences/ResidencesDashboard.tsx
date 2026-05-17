@@ -321,16 +321,6 @@ export const ResidencesDashboard: React.FC = () => {
                 )}
             </Modal>
 
-            <Modal isOpen={!!selectedOccupiedUnit} onClose={() => setSelectedOccupiedUnit(null)} title="" noPadding>
-                {selectedOccupiedUnit && (
-                    <ResidenceUnitDetailsModal 
-                        unit={selectedOccupiedUnit}
-                        onClose={() => setSelectedOccupiedUnit(null)} 
-                        onSuccess={fetchUnits} 
-                    />
-                )}
-            </Modal>
-
             <Modal isOpen={isAddingUnit} onClose={() => setIsAddingUnit(false)} title="" noPadding>
                 <UnitForm onCancel={() => setIsAddingUnit(false)} onSuccess={fetchUnits} />
             </Modal>
