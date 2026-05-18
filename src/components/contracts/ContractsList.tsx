@@ -13,6 +13,7 @@ import { Contract, Owner, Property, Tenant } from '../../types/db';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import toast from 'react-hot-toast';
 import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
 
 import { useRef, useEffect } from 'react';
@@ -36,6 +37,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
   // ✅ useAuth() au niveau du composant, pas dans un callback
   const { user } = useAuth();
 
@@ -74,7 +76,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
       <button
         onClick={() => setOpen(v => !v)}
         className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
-        aria-label="Actions"
+        aria-label={t("Actions")}
       >
         <MoreVertical className="h-4 w-4" />
       </button>
@@ -85,7 +87,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
             onClick={() => { onPreview(); setOpen(false); }}
           >
             <Eye className="h-4 w-4 text-blue-500" />
-            Aperçu OHADA
+            {t("Aperçu OHADA")}
           </button>
 
           {/* Custom Templates */}
@@ -96,7 +98,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
               onClick={() => { handleCustomPrint(template); setOpen(false); }}
             >
               <FileText className="h-4 w-4 text-blue-600" />
-              Imprimer : {template.name}
+              {t("Imprimer")} : {template.name}
             </button>
           ))}
           <button
@@ -104,14 +106,14 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
             onClick={() => { onEdit(); setOpen(false); }}
           >
             <Edit className="h-4 w-4 text-orange-500" />
-            Modifier
+            {t("Modifier")}
           </button>
           <button
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
             onClick={() => { onRegenerate(); setOpen(false); }}
           >
             <RotateCw className="h-4 w-4 text-purple-500" />
-            Mettre aux normes OHADA
+            {t("Mettre aux normes OHADA")}
           </button>
           
           <div className="my-1 border-t border-gray-100" />
@@ -121,14 +123,14 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
             onClick={() => { onPrint(); setOpen(false); }}
           >
             <Printer className="h-4 w-4 text-gray-900" />
-            Imprimer
+            {t("Imprimer")}
           </button>
           <button
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
             onClick={() => { onDownload(); setOpen(false); }}
           >
             <Download className="h-4 w-4 text-green-500" />
-            Télécharger (PDF/HTML)
+            {t("Télécharger (PDF/HTML)")}
           </button>
 
           {contract.status === 'active' && (
@@ -139,14 +141,14 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
                 onClick={() => { onRenew(); setOpen(false); }}
               >
                 <RotateCw className="h-4 w-4 text-indigo-500" />
-                Renouveler le contrat
+                {t("Renouveler le contrat")}
               </button>
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                 onClick={() => { onTerminate(); setOpen(false); }}
               >
                 <XCircle className="h-4 w-4" />
-                Résilier le contrat
+                {t("Résilier le contrat")}
               </button>
             </>
           )}
@@ -157,7 +159,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
             onClick={() => { onDelete(); setOpen(false); }}
           >
             <Trash2 className="h-4 w-4" />
-            Supprimer définitivement
+            {t("Supprimer définitivement")}
           </button>
         </div>
       )}
@@ -166,6 +168,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
 };
 
 export const ContractsList: React.FC = () => {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [showForm, setShowForm] = useState<{ open: boolean; contract?: Partial<Contract>; readOnly?: boolean }>({ open: false });
   const [searchTerm, setSearchTerm] = useState('');
@@ -451,13 +454,13 @@ export const ContractsList: React.FC = () => {
             )}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Contrats</h1>
-            <p className="text-gray-600 mt-1">Gestion des contrats {user?.agencies?.find(a => a.agency_id === user.agency_id)?.name && `de ${user.agencies.find(a => a.agency_id === user.agency_id)?.name}`} ({contracts.length})</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t("Contrats")}</h1>
+            <p className="text-gray-600 mt-1">{t("Gestion des contrats")} {user?.agencies?.find(a => a.agency_id === user.agency_id)?.name && `de ${user.agencies.find(a => a.agency_id === user.agency_id)?.name}`} ({contracts.length})</p>
           </div>
         </div>
         <Button onClick={() => openForm()}>
           <Plus className="h-4 w-4 mr-2" />
-          Nouveau contrat
+          {t("Nouveau contrat")}
         </Button>
       </div>
 
@@ -469,7 +472,7 @@ export const ContractsList: React.FC = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Rechercher par ID, termes, propriétaire, propriété, locataire..."
+                placeholder={t("Rechercher par ID, termes, propriétaire, propriété, locataire...")}
                 onChange={(e) => debouncedSetSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -480,10 +483,10 @@ export const ContractsList: React.FC = () => {
               onChange={(e) => setFilterType(e.target.value as 'all' | Contract['type'])}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">Tous types</option>
-              <option value="location">Location</option>
-              <option value="vente">Vente</option>
-              <option value="gestion">Gestion</option>
+              <option value="all">{t("Tous types")}</option>
+              <option value="location">{t("Location")}</option>
+              <option value="vente">{t("Vente")}</option>
+              <option value="gestion">{t("Gestion")}</option>
             </select>
           </div>
 
@@ -491,12 +494,12 @@ export const ContractsList: React.FC = () => {
             <div className="flex items-center gap-2">
               <div className="flex p-1 bg-gray-100 rounded-xl overflow-x-auto no-scrollbar">
                 {[
-                  { id: 'all', label: 'Tous', color: 'blue' },
-                  { id: 'draft', label: 'Brouillon', color: 'amber' },
-                  { id: 'active', label: 'Actifs', color: 'emerald' },
-                  { id: 'expired', label: 'Expirés', color: 'rose' },
-                  { id: 'terminated', label: 'Résiliés', color: 'gray' },
-                  { id: 'renewed', label: 'Renouvelés', color: 'indigo' }
+                  { id: 'all', label: t('Tous'), color: 'blue' },
+                  { id: 'draft', label: t('Brouillon'), color: 'amber' },
+                  { id: 'active', label: t('Actifs'), color: 'emerald' },
+                  { id: 'expired', label: t('Expirés'), color: 'rose' },
+                  { id: 'terminated', label: t('Résiliés'), color: 'gray' },
+                  { id: 'renewed', label: t('Renouvelés'), color: 'indigo' }
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -519,7 +522,7 @@ export const ContractsList: React.FC = () => {
                 {filteredContracts.length}
               </Badge>
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                contrat{filteredContracts.length > 1 ? 's' : ''} trouvé{filteredContracts.length > 1 ? 's' : ''}
+                {filteredContracts.length > 1 ? t("contrats trouvés") : t("contrat trouvé")}
               </span>
             </div>
           </div>
@@ -532,7 +535,7 @@ export const ContractsList: React.FC = () => {
           {filteredContracts.length}
         </Badge>
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-          contrat{filteredContracts.length > 1 ? 's' : ''} trouvé{filteredContracts.length > 1 ? 's' : ''}
+          {filteredContracts.length > 1 ? t("contrats trouvés") : t("contrat trouvé")}
         </span>
       </div>
 
@@ -542,30 +545,30 @@ export const ContractsList: React.FC = () => {
           onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
           disabled={page === 1 || initialLoading}
         >
-          Précédent
+          {t("Précédent")}
         </Button>
         <span>Page {page}</span>
         <Button
           onClick={() => setPage((prev) => prev + 1)}
           disabled={contracts.length < pageSize || initialLoading}
         >
-          Suivant
+          {t("Suivant")}
         </Button>
       </div>
 
       {/* Liste */}
       {initialLoading ? (
         <div className="text-center py-12">
-          <p className="text-gray-600">Chargement des contrats...</p>
+          <p className="text-gray-600">{t("Chargement des contrats...")}</p>
         </div>
       ) : filteredContracts.length === 0 ? (
         <div className="text-center py-12">
           <FileText className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun contrat</h3>
-          <p className="text-gray-600 mb-4">Commencez par créer votre premier contrat.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{t("Aucun contrat")}</h3>
+          <p className="text-gray-600 mb-4">{t("Commencez par créer votre premier contrat.")}</p>
           <Button onClick={() => openForm()}>
             <Plus className="h-4 w-4 mr-2" />
-            Nouveau contrat
+            {t("Nouveau contrat")}
           </Button>
         </div>
       ) : (
@@ -605,7 +608,7 @@ export const ContractsList: React.FC = () => {
                           contract.type === 'gestion' ? "text-orange-500" :
                           "text-emerald-500"
                         )}>
-                          {contract.type}
+                          {t(contract.type)}
                         </span>
                         <span>•</span>
                         <span>{contract.id.slice(0, 8)}</span>
@@ -625,13 +628,13 @@ export const ContractsList: React.FC = () => {
                     }}
                     onEdit={() => openForm(contract, false)}
                     onRegenerate={async () => {
-                      if (!confirm('Régénérer aux normes OHADA ?')) return;
+                      if (!confirm(t('Régénérer aux normes OHADA ?'))) return;
                       try {
                         const fullAgency = await dbService.agencies.getById(user?.agency_id || '');
                         const newTerms = OHADAContractGenerator.regenerateTerms(contract, fullAgency, tenant, owner, property);
                         await updateContract(contract.id, { terms: newTerms });
-                        toast.success('Mis aux normes OHADA !');
-                      } catch (err) { toast.error('Erreur'); }
+                        toast.success(t('Mis aux normes OHADA !'));
+                      } catch (err) { toast.error(t('Erreur')); }
                     }}
                     onRenew={() => handleRenewContract(contract)}
                     onPrint={async () => {
@@ -642,7 +645,7 @@ export const ContractsList: React.FC = () => {
                         const fullAgency = await dbService.agencies.getById(user.agency_id);
                         const clientData = contract.type === 'gestion' ? owner : tenant;
                         if (fullAgency && clientData) {
-                          await OHADAContractGenerator.printContract(contract, fullAgency, clientData, property, printWindow);
+                           await OHADAContractGenerator.printContract(contract, fullAgency, clientData, property, printWindow);
                         } else printWindow.close();
                       } catch { printWindow.close(); }
                     }}
@@ -669,7 +672,7 @@ export const ContractsList: React.FC = () => {
                 <div className="px-4 py-3 space-y-2.5">
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     <Home className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                    <span className="truncate font-medium">{property?.title || 'Bien inconnu'}</span>
+                    <span className="truncate font-medium">{property?.title || t('Bien inconnu')}</span>
                   </div>
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-1.5 text-gray-500">
@@ -691,7 +694,7 @@ export const ContractsList: React.FC = () => {
                       </span>
                     </div>
                     <Badge variant={getStatusColor(contract.status)} size="sm">
-                      {contract.status}
+                      {t(contract.status)}
                     </Badge>
                   </div>
                 </div>
@@ -701,7 +704,7 @@ export const ContractsList: React.FC = () => {
                   <div className="mx-4 mb-4 p-2.5 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-[10px] font-bold text-blue-700 uppercase">
                       <RotateCw className="w-3 h-3" />
-                      Reprise de bail
+                      {t("Reprise de bail")}
                     </div>
                     <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
                   </div>
@@ -725,9 +728,9 @@ export const ContractsList: React.FC = () => {
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteContract}
-        itemTitle={activeContractId ? `Contrat #${activeContractId.slice(0, 8)}` : "ce contrat"}
+        itemTitle={activeContractId ? `${t("Contrat")} #${activeContractId.slice(0, 8)}` : t("ce contrat")}
         isLoading={isDeleting}
-        message="Voulez-vous vraiment supprimer ce contrat ? Toutes les quittances associées seront également supprimées."
+        message={t("Voulez-vous vraiment supprimer ce contrat ? Toutes les quittances associées seront également supprimées.")}
       />
     </div>
   );

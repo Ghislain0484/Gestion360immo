@@ -252,6 +252,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
+        // 🔌 Priorité absolue au cache local si le réseau est coupé
+        if (!window.navigator.onLine) {
+          console.warn('🔌 [offline] Mode hors-ligne détecté, chargement des sessions depuis le cache local...');
+          const cachedUser = localStorage.getItem('gestion360_cached_user');
+          const cachedAdmin = localStorage.getItem('gestion360_cached_admin');
+          const cachedOwner = localStorage.getItem('gestion360_cached_owner');
+
+          if (cachedUser) {
+            console.log('🔌 [offline] Session utilisateur restaurée du cache');
+            setUser(JSON.parse(cachedUser));
+            setAdmin(null);
+            setOwner(null);
+            setIsLoading(false);
+            isCheckingSessionRef.current = false;
+            return;
+          } else if (cachedAdmin) {
+            console.log('🔌 [offline] Session admin restaurée du cache');
+            setAdmin(JSON.parse(cachedAdmin));
+            setUser(null);
+            setOwner(null);
+            setIsLoading(false);
+            isCheckingSessionRef.current = false;
+            return;
+          } else if (cachedOwner) {
+            console.log('🔌 [offline] Session propriétaire restaurée du cache');
+            setOwner(JSON.parse(cachedOwner));
+            setUser(null);
+            setAdmin(null);
+            setIsLoading(false);
+            isCheckingSessionRef.current = false;
+            return;
+          }
+        }
+
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         if (sessionError || !sessionData.session?.user) {
           console.error('❌ AuthContext: Pas de session utilisateur', sessionError);
@@ -262,21 +296,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const currentUserId = sessionData.session.user.id;
 
-        // Vérifier d'abord si c'est un admin
-        const { data: adminArray, error: adminError } = await supabase
-          .from('platform_admins')
-          .select('*')
-          .eq('user_id', currentUserId)
-          .limit(1);
+        // Récupérer les infos admin (sécurisé)
+        let adminData = null;
+        try {
+          const { data: adminArray, error: adminError } = await supabase
+            .from('platform_admins')
+            .select('*')
+            .eq('user_id', currentUserId)
+            .limit(1);
+          if (!adminError && adminArray) {
+            adminData = adminArray[0];
+          }
+        } catch (err) {
+          console.warn('⚠️ [Network] Échec récupération admin, tentative de fallback cache:', err);
+        }
 
-        const adminData = adminArray?.[0];
-
-        if (!adminError && adminData) {
+        if (adminData) {
           const newAdmin: PlatformAdmin = {
             ...adminData,
             permissions: adminData.permissions || {},
             is_active: adminData.is_active ?? true,
           };
+          localStorage.setItem('gestion360_cached_admin', JSON.stringify(newAdmin));
           setAdmin((prev) => {
             const prevData = prev ? omit(prev, ['updated_at']) : null;
             const newData = omit(newAdmin, ['updated_at']);
@@ -291,18 +332,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // IMPORTANT: Check owner FIRST before regular agency users.
-        // The handle_new_auth_user trigger creates a public.users entry for owners too,
-        // which would cause checkSession to mistake an owner for an agency user.
-        const { data: ownerArray, error: ownerError } = await supabase
-          .from('owners')
-          .select('*')
-          .eq('user_id', currentUserId)
-          .limit(1);
+        // Récupérer les infos propriétaire (sécurisé)
+        let ownerData = null;
+        try {
+          const { data: ownerArray, error: ownerError } = await supabase
+            .from('owners')
+            .select('*')
+            .eq('user_id', currentUserId)
+            .limit(1);
+          if (!ownerError && ownerArray) {
+            ownerData = ownerArray[0];
+          }
+        } catch (err) {
+          console.warn('⚠️ [Network] Échec récupération propriétaire, tentative de fallback cache:', err);
+        }
 
-        const ownerData = ownerArray?.[0];
-        if (!ownerError && ownerData) {
+        if (ownerData) {
           console.log('✅ AuthContext: checkSession - Owner trouvé:', ownerData.first_name);
+          localStorage.setItem('gestion360_cached_owner', JSON.stringify(ownerData));
           setOwner((prev) => {
             const prevData = prev ? omit(prev, ['updated_at']) : null;
             const newData = omit(ownerData as Owner, ['updated_at']);
@@ -316,9 +363,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Si ce n'est pas un owner ni un admin, essayer en tant qu'utilisateur agence
-        const u = await fetchUserWithAgency(currentUserId);
+        // Récupérer les infos utilisateur agence (sécurisé)
+        let u = null;
+        try {
+          u = await fetchUserWithAgency(currentUserId);
+        } catch (err) {
+          console.warn('⚠️ [Network] Échec récupération utilisateur agence, tentative de fallback cache:', err);
+        }
+
+        // 🔌 Fallback vers le cache si le réseau a échoué
+        if (!u) {
+          const cachedUser = localStorage.getItem('gestion360_cached_user');
+          if (cachedUser) {
+            u = JSON.parse(cachedUser);
+            console.log('🔌 [offline] Chargement de l\'utilisateur agence depuis le cache local');
+          }
+        }
+
         if (u) {
+          localStorage.setItem('gestion360_cached_user', JSON.stringify(u));
+          
           // 1. Déterminer l'agence active (localStorage ou auto-sélection si unique)
           const savedAgencyId = localStorage.getItem(ACTIVE_AGENCY_KEY);
           const agencyIds = u.agencies.map((a) => a.agency_id);
@@ -366,10 +430,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAdmin(null);
         setOwner(null);
       } catch (err) {
-        console.error('❌ AuthContext: Erreur checkSession:', err);
-        setUser(null);
-        setAdmin(null);
-        setOwner(null);
+        console.error('❌ AuthContext: Erreur critique checkSession:', err);
+        // Fallback ultime vers le cache avant de déconnecter
+        const cachedUser = localStorage.getItem('gestion360_cached_user');
+        const cachedAdmin = localStorage.getItem('gestion360_cached_admin');
+        const cachedOwner = localStorage.getItem('gestion360_cached_owner');
+        
+        if (cachedUser) {
+          setUser(JSON.parse(cachedUser));
+        } else if (cachedAdmin) {
+          setAdmin(JSON.parse(cachedAdmin));
+        } else if (cachedOwner) {
+          setOwner(JSON.parse(cachedOwner));
+        } else {
+          setUser(null);
+          setAdmin(null);
+          setOwner(null);
+        }
       } finally {
         isCheckingSessionRef.current = false;
         setIsLoading(false);

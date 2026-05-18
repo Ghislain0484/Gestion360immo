@@ -18,11 +18,13 @@ import { clsx } from 'clsx';
 import { ViewToggle } from '../shared/ViewToggle';
 import { OwnerCard } from './OwnerCard';
 import { exportToExcel, formatOwnersForExport } from '../../utils/exportUtils';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 import { OwnerPaymentModal } from '../owner-portal/OwnerPaymentModal';
 import { useCanDelete } from '../../hooks/useCanDelete';
 
 export const OwnersList: React.FC = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { agencyId: authAgencyId, user, refreshAuth } = useAuth();
   const canDelete = useCanDelete();
@@ -156,9 +158,9 @@ export const OwnersList: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Propriétaires</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t("Propriétaires")}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {owners.length} propriétaire{owners.length > 1 ? 's' : ''} enregistré{owners.length > 1 ? 's' : ''}
+            {owners.length} {owners.length > 1 ? t("bailleurs enregistrés") : t("bailleur enregistré")}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -168,7 +170,7 @@ export const OwnersList: React.FC = () => {
             className="flex items-center space-x-2 border-gray-300 text-gray-700 hover:bg-gray-50"
           >
             <Download className="h-4 w-4" />
-            <span>Exporter Excel</span>
+            <span>{t("Exporter")} Excel</span>
           </Button>
 
           <Button
@@ -179,7 +181,7 @@ export const OwnersList: React.FC = () => {
             className="flex items-center space-x-2 shadow-md hover:shadow-lg transition-all"
           >
             <Plus className="h-4 w-4" />
-            <span>Nouveau Propriétaire</span>
+            <span>{t("Nouveau Propriétaire")}</span>
           </Button>
         </div>
       </div>
@@ -190,7 +192,7 @@ export const OwnersList: React.FC = () => {
           <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Rechercher par nom, téléphone, ville..."
+              placeholder={t("Rechercher par nom, téléphone, ville...")}
               className="pl-10"
               onChange={(e) => debouncedSetSearchTerm(e.target.value)}
             />
@@ -205,7 +207,7 @@ export const OwnersList: React.FC = () => {
                       filterOccupancy === 'all' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                     )}
                   >
-                    Tous
+                    {t("Tous")}
                   </button>
                   <button
                     onClick={() => setFilterOccupancy('active')}
@@ -214,7 +216,7 @@ export const OwnersList: React.FC = () => {
                       filterOccupancy === 'active' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                     )}
                   >
-                    Actifs
+                    {t("Actifs")}
                   </button>
                   <button
                     onClick={() => setFilterOccupancy('free')}
@@ -223,12 +225,12 @@ export const OwnersList: React.FC = () => {
                       filterOccupancy === 'free' ? "bg-white text-amber-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                     )}
                   >
-                    Sans locataire
+                    {t("Sans locataire")}
                   </button>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-gray-400 mr-2 uppercase tracking-tight">Vue</span>
+                <span className="text-xs font-bold text-gray-400 mr-2 uppercase tracking-tight">{t("Vue")}</span>
                 <ViewToggle view={viewMode} onChange={setViewMode} />
               </div>
             </div>
@@ -241,7 +243,7 @@ export const OwnersList: React.FC = () => {
           {filteredOwners.length}
         </Badge>
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-          propriétaire{filteredOwners.length > 1 ? 's' : ''} trouvé{filteredOwners.length > 1 ? 's' : ''}
+          {filteredOwners.length > 1 ? t("bailleurs enregistrés") : t("bailleur enregistré")}
         </span>
       </div>
 
@@ -250,9 +252,9 @@ export const OwnersList: React.FC = () => {
           <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
             <Plus className="h-6 w-6 text-gray-400" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900">Aucun propriétaire trouvé</h3>
-          <p className="text-gray-500 mt-1 mb-4">Ajoutez votre premier propriétaire pour commencer la gestion.</p>
-          <Button onClick={() => setShowForm(true)}>Ajouter un propriétaire</Button>
+          <h3 className="text-lg font-medium text-gray-900">{t("Aucun propriétaire trouvé")}</h3>
+          <p className="text-gray-500 mt-1 mb-4">{t("Enregistrer un propriétaire pour commencer la gestion de son patrimoine.")}</p>
+          <Button onClick={() => setShowForm(true)}>{t("Ajouter un propriétaire")}</Button>
         </div>
       ) : viewMode === 'list' ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -260,19 +262,19 @@ export const OwnersList: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Identité & Contact
+                  {t("Identité")} & Contact
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                  Localisation
+                  {t("Localisation")}
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Biens & Locataires
+                  {t("Biens Possédés")} & {t("Locataires")}
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Abonnement Portal
+                  {t("Abonnement Portal")}
                 </th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {t("Actions")}
                 </th>
               </tr>
             </thead>
@@ -400,23 +402,23 @@ export const OwnersList: React.FC = () => {
                       </Button>
                       {canDelete && (
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
-                              const toastId = toast.loading('Suppression en cours...');
-                              try {
-                                await dbService.owners.safeDelete(owner.id, user?.agency_id || undefined);
-                                refetch();
-                                toast.success('Propriétaire supprimé avec succès', { id: toastId });
-                              } catch (err: any) {
-                                console.error(err);
-                                toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
-                              }
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                           variant="ghost"
+                           size="sm"
+                           onClick={async (e) => {
+                             e.stopPropagation();
+                             if (confirm(`Supprimer définitivement ${owner.first_name} ${owner.last_name} ? Cette action supprimera également tous ses biens et l'historique associé.`)) {
+                               const toastId = toast.loading('Suppression en cours...');
+                               try {
+                                 await dbService.owners.safeDelete(owner.id, user?.agency_id || undefined);
+                                 refetch();
+                                 toast.success('Propriétaire supprimé avec succès', { id: toastId });
+                               } catch (err: any) {
+                                 console.error(err);
+                                 toast.error('Erreur lors de la suppression: ' + (err.message || ''), { id: toastId });
+                               }
+                             }
+                           }}
+                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

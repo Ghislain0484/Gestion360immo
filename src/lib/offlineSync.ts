@@ -50,7 +50,12 @@ export const OfflineSyncManager = {
    * Synchronise toutes les mutations en attente vers Supabase
    */
   async syncOutbox() {
-    const pending = await db.mutations.where('synced').equals(0).toArray();
+    const pending = await db.mutations
+      .where('synced')
+      .equals(0)
+      .or('synced')
+      .equals(false)
+      .toArray();
     
     if (pending.length === 0) return;
 
@@ -90,11 +95,21 @@ export const OfflineSyncManager = {
       }
     }
 
-    const remaining = await db.mutations.where('synced').equals(0).count();
+    const remaining = await db.mutations
+      .where('synced')
+      .equals(0)
+      .or('synced')
+      .equals(false)
+      .count();
     if (remaining === 0) {
       toast.success('Toutes les données sont à jour !', { id: 'sync-toast' });
-      // Optionnel: Nettoyer les mutations synchronisées
-      await db.mutations.where('synced').equals(1).delete();
+      // Nettoyer les mutations synchronisées
+      await db.mutations
+        .where('synced')
+        .equals(1)
+        .or('synced')
+        .equals(true)
+        .delete();
     } else {
       toast.error(`${remaining} actions n'ont pas pu être synchronisées.`, { id: 'sync-toast' });
     }

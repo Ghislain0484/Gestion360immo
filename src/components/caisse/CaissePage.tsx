@@ -5,6 +5,7 @@ import { supabase, dbService } from '../../lib/supabase';
 import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
@@ -30,6 +31,7 @@ interface Owner {
 }
 
 export const CaissePage: React.FC = () => {
+    const { t } = useLanguage();
     const [searchParams, setSearchParams] = useSearchParams();
     const { user, agencies, agencyId } = useAuth();
     const { isDemoMode } = useDemoMode();
@@ -455,11 +457,11 @@ export const CaissePage: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Caisse & Trésorerie</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">{t("Caisse & Trésorerie")}</h1>
                     <p className="text-gray-500 mt-1">
                         {!hasTraditionalRealEstate && (hasHotel || hasResidences)
-                            ? "Suivi de caisse pour vos réservations, locations meublées et prestations"
-                            : "Gestion des encaissements, décaissements et reversements"
+                            ? t("Suivi de caisse pour vos réservations, locations meublées et prestations")
+                            : t("Gestion des encaissements, décaissements et reversements")
                         }
                     </p>
                 </div>
@@ -469,7 +471,7 @@ export const CaissePage: React.FC = () => {
                         className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
                     >
                         <ArrowRightLeft className="w-4 h-4" />
-                        <span>Mouvement</span>
+                        <span>{t("Mouvement")}</span>
                     </button>
                     
                     {hasTraditionalRealEstate && (
@@ -478,7 +480,7 @@ export const CaissePage: React.FC = () => {
                             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md hover:shadow-lg"
                         >
                             <Wallet className="w-4 h-4" />
-                            <span>Encaissement Locataire</span>
+                            <span>{t("Encaissement Locataire")}</span>
                         </button>
                     )}
 
@@ -488,7 +490,7 @@ export const CaissePage: React.FC = () => {
                             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg"
                         >
                             <Wallet className="w-4 h-4" />
-                            <span>Gérer Résidences</span>
+                            <span>{t("Gérer Résidences")}</span>
                         </Link>
                     )}
 
@@ -498,13 +500,13 @@ export const CaissePage: React.FC = () => {
                             className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors shadow-md hover:shadow-lg"
                         >
                             <Wallet className="w-4 h-4" />
-                            <span>Gérer Hôtels</span>
+                            <span>{t("Gérer Hôtels")}</span>
                         </Link>
                     )}
 
                     <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg">
                         <Download className="w-4 h-4" />
-                        <span>Exporter PDF</span>
+                        <span>{t("Exporter PDF")}</span>
                     </button>
                 </div>
             </div>
@@ -514,8 +516,8 @@ export const CaissePage: React.FC = () => {
 
             <Tabs
                 tabs={[
-                    { id: 'journal', label: 'Journal des opérations' },
-                    { id: 'payouts', label: 'Reversements Propriétaires' },
+                    { id: 'journal', label: t('Journal des opérations') },
+                    { id: 'payouts', label: t('Reversements Propriétaires') },
                 ]}
                 activeTab={activeTab}
                 onChange={setActiveTab}
@@ -529,42 +531,42 @@ export const CaissePage: React.FC = () => {
                             fields={[
                                 {
                                     id: 'ownerId',
-                                    label: 'Propriétaire',
+                                    label: t('Propriétaire'),
                                     type: 'select',
                                     options: [
-                                        { value: 'all', label: 'Tous les propriétaires' },
+                                        { value: 'all', label: t('Tous les propriétaires') },
                                         ...owners.map(o => ({ value: o.id, label: `${o.first_name} ${o.last_name}` }))
                                     ]
                                 },
                                 {
                                     id: 'period',
-                                    label: 'Période',
+                                    label: t('Période'),
                                     type: 'date',
                                     dateType: 'month'
                                 },
                                 {
                                     id: 'type',
-                                    label: 'Type',
+                                    label: t('Type'),
                                     type: 'select',
                                     options: [
-                                        { value: 'all', label: 'Tous les types' },
-                                        { value: 'credit', label: 'Credits (+)' },
-                                        { value: 'debit', label: 'Debits (-)' },
+                                        { value: 'all', label: t('Tous les types') },
+                                        { value: 'credit', label: t('Credits (+)') },
+                                        { value: 'debit', label: t('Debits (-)') },
                                     ]
                                 },
                                 {
                                     id: 'category',
-                                    label: 'Catégorie',
+                                    label: t('Catégorie'),
                                     type: 'select',
                                     options: [
-                                        { value: 'all', label: 'Toutes les catégories' },
-                                        { value: 'rent_payment', label: 'Loyer' },
-                                        { value: 'owner_payout', label: 'Reversement' },
-                                        { value: 'caution', label: 'Caution' },
-                                        { value: 'agency_fees', label: 'Honoraires' },
-                                        { value: 'maintenance', label: 'Travaux / Maintenance' },
-                                        { value: 'expense', label: 'Autre Dépense' },
-                                        { value: 'income', label: 'Autre Revenu' },
+                                        { value: 'all', label: t('Toutes les catégories') },
+                                        { value: 'rent_payment', label: t('Loyer') },
+                                        { value: 'owner_payout', label: t('Reversement') },
+                                        { value: 'caution', label: t('Caution') },
+                                        { value: 'agency_fees', label: t('Honoraires') },
+                                        { value: 'maintenance', label: t('Travaux / Maintenance') },
+                                        { value: 'expense', label: t('Autre Dépense') },
+                                        { value: 'income', label: t('Autre Revenu') },
                                     ]
                                 }
                             ]}
@@ -573,7 +575,7 @@ export const CaissePage: React.FC = () => {
                             onClear={clearFilters}
                             stats={[
                                 {
-                                    label: 'Entrées (+)',
+                                    label: t('Entrées (+)'),
                                     count: summary.totalCredit.toLocaleString('fr-FR') + ' F',
                                     active: true,
                                     colorClass: 'bg-green-100 text-green-700',
@@ -581,7 +583,7 @@ export const CaissePage: React.FC = () => {
                                     onClick: () => {}
                                 },
                                 {
-                                    label: 'Sorties (-)',
+                                    label: t('Sorties (-)'),
                                     count: summary.totalDebit.toLocaleString('fr-FR') + ' F',
                                     active: true,
                                     colorClass: 'bg-red-100 text-red-700',
@@ -589,7 +591,7 @@ export const CaissePage: React.FC = () => {
                                     onClick: () => {}
                                 },
                                 {
-                                    label: 'Solde Net',
+                                    label: t('Solde Net'),
                                     count: summary.balance.toLocaleString('fr-FR') + ' F',
                                     active: true,
                                     colorClass: summary.balance >= 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700',
@@ -604,107 +606,107 @@ export const CaissePage: React.FC = () => {
                     <Card className="overflow-hidden">
                         {isLoading ? (
                             <div className="p-12 flex justify-center">
-                                <LoadingSpinner size="lg" label="Chargement..." />
+                                <LoadingSpinner size="lg" label={t("Chargement...")} />
                             </div>
                         ) : summary.filteredTransactions.length === 0 ? (
                             <EmptyState
                                 icon="banknote"
-                                title="Aucune transaction"
-                                description="Aucun mouvement de caisse trouvé pour cette sélection."
+                                title={t("Aucune transaction")}
+                                description={t("Aucun mouvement de caisse trouvé pour cette sélection.")}
                             />
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead className="bg-gray-50 border-b border-gray-200">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provenance</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Moyen</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Part Proprio</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant Total</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Date")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Type")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Provenance")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Catégorie")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Description")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Moyen")}</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t("Part Proprio")}</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t("Montant Total")}</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t("Actions")}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {summary.filteredTransactions.map((t) => (
-                                            <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                                        {summary.filteredTransactions.map((tTrans) => (
+                                            <tr key={tTrans.id} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {new Date(t.date).toLocaleDateString('fr-FR')}
+                                                    {new Date(tTrans.date).toLocaleDateString('fr-FR')}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className={clsx(
                                                         "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                                                        t.type === 'credit' ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                                                        tTrans.type === 'credit' ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                                                     )}>
-                                                        {t.type === 'credit' ? 'Crédit' : 'Débit'}
+                                                        {tTrans.type === 'credit' ? t('Crédit') : t('Débit')}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className={clsx(
                                                         "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest",
-                                                        t.source === 'rent_receipt' 
+                                                        tTrans.source === 'rent_receipt' 
                                                             ? "bg-blue-50 text-blue-700 border border-blue-100" 
                                                             : "bg-emerald-50 text-emerald-700 border border-emerald-100"
                                                     )}>
-                                                        {t.source === 'rent_receipt' ? 'Quittance' : 'Opération'}
+                                                        {tTrans.source === 'rent_receipt' ? t('Quittance') : t('Opération')}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                                    {t.category === 'rent_payment' ? 'Loyer' :
-                                                        t.category === 'owner_payout' ? 'Reversement' :
-                                                            t.category === 'caution' ? 'Caution' :
-                                                                t.category === 'agency_fees' ? 'Honoraires Agence' :
-                                                                    t.category}
+                                                    {tTrans.category === 'rent_payment' ? t('Loyer') :
+                                                        tTrans.category === 'owner_payout' ? t('Reversement') :
+                                                            tTrans.category === 'caution' ? t('Caution') :
+                                                                tTrans.category === 'agency_fees' ? t('Honoraires Agence') :
+                                                                    t(tTrans.category)}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                                                    {t.description}
+                                                    {tTrans.description}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {t.payment_method}
+                                                    {t(tTrans.payment_method)}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium text-right">
-                                                    {t.source === 'rent_receipt' ? `${(t.details?.owner_payment || 0).toLocaleString('fr-FR')}` : '-'}
+                                                    {tTrans.source === 'rent_receipt' ? `${(tTrans.details?.owner_payment || 0).toLocaleString('fr-FR')}` : '-'}
                                                 </td>
                                                 <td className={clsx(
                                                     "px-6 py-4 whitespace-nowrap text-sm font-semibold text-right",
-                                                    t.type === 'credit' ? "text-green-600" : "text-red-600"
+                                                    tTrans.type === 'credit' ? "text-green-600" : "text-red-600"
                                                 )}>
                                                     <div className="flex flex-col items-end">
-                                                        <span>{t.type === 'credit' ? '+' : '-'}{t.amount.toLocaleString('fr-FR')}</span>
-                                                        {t.details?.is_partial && (
+                                                        <span>{tTrans.type === 'credit' ? '+' : '-'}{tTrans.amount.toLocaleString('fr-FR')}</span>
+                                                        {tTrans.details?.is_partial && (
                                                             <div className="flex flex-col items-end mt-1">
-                                                                <span className="text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 rounded border border-orange-100 mb-0.5">PARTIEL</span>
-                                                                <span className="text-[10px] text-gray-400 font-normal">sur {t.details.total_amount.toLocaleString('fr-FR')}</span>
+                                                                <span className="text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 rounded border border-orange-100 mb-0.5">{t("PARTIEL")}</span>
+                                                                <span className="text-[10px] text-gray-400 font-normal">{t("sur")} {tTrans.details.total_amount.toLocaleString('fr-FR')}</span>
                                                             </div>
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        <button title="Voir détail" onClick={() => handleViewReceipt(t)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
+                                                        <button title={t("Voir détail")} onClick={() => handleViewReceipt(tTrans)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
                                                             <Eye className="w-4 h-4" />
                                                         </button>
-                                                        <button title="Télécharger PDF" onClick={() => handleDownloadReceiptFromTransaction(t)} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors">
+                                                        <button title={t("Télécharger PDF")} onClick={() => handleDownloadReceiptFromTransaction(tTrans)} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors">
                                                             <Download className="w-4 h-4" />
                                                         </button>
-                                                        <button title="Imprimer" onClick={() => handleDownloadReceiptFromTransaction(t, true)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors">
+                                                        <button title={t("Imprimer")} onClick={() => handleDownloadReceiptFromTransaction(tTrans, true)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors">
                                                             <Printer className="w-4 h-4" />
                                                         </button>
                                                         {(user?.role === 'director' || user?.role === 'manager') && (
                                                             <>
-                                                                {t.source === 'modular_transaction' && (
-                                                                    <button title="Modifier" onClick={() => handleEditTransaction(t)} className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 transition-colors">
+                                                                {tTrans.source === 'modular_transaction' && (
+                                                                    <button title={t("Modifier")} onClick={() => handleEditTransaction(tTrans)} className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 transition-colors">
                                                                         <Edit className="w-4 h-4" />
                                                                     </button>
                                                                 )}
                                                                 {canDelete && (
                                                                     <button 
-                                                                        title="Supprimer" 
+                                                                        title={t("Supprimer")} 
                                                                         onClick={() => {
-                                                                            setTransactionToDelete(t);
+                                                                            setTransactionToDelete(tTrans);
                                                                             setShowDeleteModal(true);
                                                                         }} 
                                                                         className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
@@ -741,7 +743,7 @@ export const CaissePage: React.FC = () => {
                             </div>
 
                             <div className="mt-4 flex justify-between items-center text-sm">
-                                <span className="text-gray-500">Solde à reverser :</span>
+                                <span className="text-gray-500">{t("Solde à reverser")} :</span>
                                 <OwnerBalanceBadge ownerId={owner.id} />
                             </div>
 
@@ -751,7 +753,7 @@ export const CaissePage: React.FC = () => {
                                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
                                 >
                                     <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                    Faire un reversement
+                                    {t("Faire un reversement")}
                                 </button>
                             </div>
                         </Card>
@@ -759,8 +761,8 @@ export const CaissePage: React.FC = () => {
                     {owners.length === 0 && (
                         <div className="col-span-full">
                             <EmptyState
-                                title="Aucun propriétaire"
-                                description="Ajoutez des propriétaires pour gérer leurs reversements."
+                                title={t("Aucun propriétaire")}
+                                description={t("Ajoutez des propriétaires pour gérer leurs reversements.")}
                             />
                         </div>
                     )}
@@ -801,31 +803,31 @@ export const CaissePage: React.FC = () => {
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedTransaction(null)}>
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                            <h2 className="text-lg font-bold text-gray-900">Détail de la transaction</h2>
+                            <h2 className="text-lg font-bold text-gray-900">{t("Détail de la transaction")}</h2>
                             <button onClick={() => setSelectedTransaction(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">N° Quittance</span><span className="font-medium">{selectedTransaction.details?.receipt_number || '-'}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">Date</span><span className="font-medium">{new Date(selectedTransaction.date).toLocaleDateString('fr-FR')}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">Catégorie</span><span className="font-medium">{selectedTransaction.category === 'rent_payment' ? 'Loyer' : selectedTransaction.category}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">Description</span><span className="font-medium">{selectedTransaction.description}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">Mode de paiement</span><span className="font-medium">{selectedTransaction.payment_method}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("N° Quittance")}</span><span className="font-medium">{selectedTransaction.details?.receipt_number || '-'}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("Date")}</span><span className="font-medium">{new Date(selectedTransaction.date).toLocaleDateString('fr-FR')}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("Catégorie")}</span><span className="font-medium">{selectedTransaction.category === 'rent_payment' ? t('Loyer') : t(selectedTransaction.category)}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("Description")}</span><span className="font-medium">{selectedTransaction.description}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("Mode de paiement")}</span><span className="font-medium">{t(selectedTransaction.payment_method)}</span></div>
                             </div>
 
                             {selectedTransaction.category === 'rent_payment' && selectedTransaction.details?.total_amount && (
                                 <div className="space-y-2 border-t border-gray-100 pt-3 text-sm">
                                     <div className="flex justify-between text-gray-600">
-                                        <span>Loyer total dû</span>
+                                        <span>{t("Loyer total dû")}</span>
                                         <span>{selectedTransaction.details.total_amount.toLocaleString('fr-FR')} FCFA</span>
                                     </div>
                                     <div className="flex justify-between text-green-600 font-medium">
-                                        <span>Montant versé</span>
+                                        <span>{t("Montant versé")}</span>
                                         <span>{selectedTransaction.amount.toLocaleString('fr-FR')} FCFA</span>
                                     </div>
                                     {selectedTransaction.details.is_partial && (
                                         <div className="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded-lg mt-2">
-                                            <span>SOLDE RESTANT</span>
+                                            <span>{t("SOLDE RESTANT")}</span>
                                             <span>{(selectedTransaction.details.balance_due || (selectedTransaction.details.total_amount - selectedTransaction.amount)).toLocaleString('fr-FR')} FCFA</span>
                                         </div>
                                     )}
@@ -833,16 +835,16 @@ export const CaissePage: React.FC = () => {
                             )}
 
                             <div className="flex justify-between font-bold text-lg border-t border-gray-200 pt-3">
-                                <span>{selectedTransaction.category === 'rent_payment' ? 'Total Encaissé' : 'Montant'}</span>
+                                <span>{selectedTransaction.category === 'rent_payment' ? t('Total Encaissé') : t('Montant')}</span>
                                 <span className={selectedTransaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}>
                                     {selectedTransaction.type === 'credit' ? '+' : '-'}{selectedTransaction.amount.toLocaleString('fr-FR')} FCFA
                                 </span>
                             </div>
                         </div>
                         <div className="flex gap-3 p-6 pt-0">
-                            <button onClick={() => setSelectedTransaction(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">Fermer</button>
+                            <button onClick={() => setSelectedTransaction(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">{t("Fermer")}</button>
                             <button onClick={() => handleDownloadReceiptFromTransaction(selectedTransaction)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                                <Download className="w-4 h-4" />Télécharger PDF
+                                <Download className="w-4 h-4" />{t("Télécharger PDF")}
                             </button>
                         </div>
                     </div>
@@ -853,9 +855,11 @@ export const CaissePage: React.FC = () => {
                 isOpen={showDeleteModal}
                 onClose={() => setShowDeleteModal(false)}
                 onConfirm={handleDeleteTransaction}
-                itemTitle={transactionToDelete?.description || "cette opération"}
+                itemTitle={transactionToDelete?.description || t("cette opération")}
                 isLoading={isDeleting}
-                message={`Vous allez supprimer définitivement ${transactionToDelete?.source === 'rent_receipt' ? 'cette quittance de loyer' : 'ce mouvement de caisse'}. Cette action sera enregistrée dans le journal d'audit.`}
+                message={t("Vous allez supprimer définitivement cette opération. Cette action sera enregistrée dans le journal d'audit.", {
+                    op: transactionToDelete?.source === 'rent_receipt' ? t('cette quittance de loyer') : t('ce mouvement de caisse')
+                })}
             />
         </div>
     );

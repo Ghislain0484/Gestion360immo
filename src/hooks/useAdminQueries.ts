@@ -344,22 +344,46 @@ export const usePlatformSettings = () => {
     return useQuery({
         queryKey: ['platform-settings'],
         queryFn: async () => {
-            const settings = await dbService.platformSettings.getAll();
+            try {
+                const settings = await dbService.platformSettings.getAll();
 
-            // Transformer en objet clé-valeur
-            const settingsMap = settings.reduce((acc, setting) => {
-                acc[setting.setting_key] = setting.setting_value;
-                return acc;
-            }, {} as Record<string, any>);
+                // Transformer en objet clé-valeur
+                const settingsMap = settings.reduce((acc, setting) => {
+                    acc[setting.setting_key] = setting.setting_value;
+                    return acc;
+                }, {} as Record<string, any>);
 
-            return {
-                subscription_basic_price: Number(settingsMap['subscription_basic_price']) || 25000,
-                subscription_premium_price: Number(settingsMap['subscription_premium_price']) || 50000,
-                subscription_enterprise_price: Number(settingsMap['subscription_enterprise_price']) || 100000,
-                subscription_grace_period_days: Number(settingsMap['subscription_grace_period_days']) || 7,
-                platform_enable_owner_portal: settingsMap['platform_enable_owner_portal'] !== undefined ? Boolean(settingsMap['platform_enable_owner_portal']) : true,
-                ...settingsMap,
-            };
+                const result = {
+                    subscription_basic_price: Number(settingsMap['subscription_basic_price']) || 25000,
+                    subscription_premium_price: Number(settingsMap['subscription_premium_price']) || 50000,
+                    subscription_enterprise_price: Number(settingsMap['subscription_enterprise_price']) || 100000,
+                    subscription_grace_period_days: Number(settingsMap['subscription_grace_period_days']) || 7,
+                    platform_enable_owner_portal: settingsMap['platform_enable_owner_portal'] !== undefined ? Boolean(settingsMap['platform_enable_owner_portal']) : true,
+                    ...settingsMap,
+                };
+                
+                // Sauvegarder dans le cache local
+                localStorage.setItem('gestion360_platform_settings', JSON.stringify(result));
+                return result;
+            } catch (err) {
+                console.warn('⚠️ [Network] Échec récupération paramètres plateforme, utilisation du cache local:', err);
+                const cached = localStorage.getItem('gestion360_platform_settings');
+                if (cached) {
+                    try {
+                        return JSON.parse(cached);
+                    } catch {
+                        // ignore bad json
+                    }
+                }
+                // Valeurs par défaut si aucun cache n'existe
+                return {
+                    subscription_basic_price: 25000,
+                    subscription_premium_price: 50000,
+                    subscription_enterprise_price: 100000,
+                    subscription_grace_period_days: 7,
+                    platform_enable_owner_portal: true,
+                };
+            }
         },
         staleTime: 10 * 60 * 1000, // 10 minutes (les prix changent rarement)
         gcTime: 30 * 60 * 1000,

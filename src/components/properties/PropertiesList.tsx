@@ -12,12 +12,14 @@ import { dbService } from '../../lib/supabase';
 import { generateSlug } from '../../utils/idSystem';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { ViewToggle } from '../shared/ViewToggle';
 import { exportToExcel } from '../../utils/exportUtils';
 import { useCanDelete } from '../../hooks/useCanDelete';
 
 export const PropertiesList: React.FC = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { user, agencyId: authAgencyId } = useAuth();
   const isDirector = user?.role === 'director';
@@ -297,10 +299,10 @@ export const PropertiesList: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
             <Building2 className="h-6 w-6 text-blue-600" />
-            Parc Immobilier
+            {t("Parc Immobilier")}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {properties.length} bien{properties.length > 1 ? 's' : ''} enregistrés au catalogue
+            {properties.length} {properties.length > 1 ? t("biens enregistrés au catalogue") : t("bien enregistré au catalogue")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -312,12 +314,12 @@ export const PropertiesList: React.FC = () => {
             className="flex items-center space-x-2 border-gray-300 text-gray-700 hover:bg-gray-50"
           >
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Exporter</span>
+            <span className="hidden sm:inline">{t("Exporter")}</span>
           </Button>
 
           <Button onClick={() => setShowForm(true)} className="shadow-md hover:shadow-lg transition-all group">
             <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
-            <span>Nouveau Bien</span>
+            <span>{t("Nouveau Bien")}</span>
           </Button>
         </div>
       </div>
@@ -329,11 +331,11 @@ export const PropertiesList: React.FC = () => {
             <Home className="w-24 h-24" />
           </div>
           <div className="p-6">
-            <p className="text-blue-100 text-xs font-semibold uppercase tracking-wider mb-1">Total Propriétés</p>
+            <p className="text-blue-100 text-xs font-semibold uppercase tracking-wider mb-1">{t("Total Propriétés")}</p>
             <div className="text-3xl font-bold">{stats.total}</div>
             <div className="mt-4 flex items-center text-xs text-blue-100">
               <span className="inline-block w-2 h-2 rounded-full bg-blue-300 mr-2" />
-              Catalogue général
+              {t("Catalogue général")}
             </div>
           </div>
         </Card>
@@ -343,11 +345,11 @@ export const PropertiesList: React.FC = () => {
             <TrendingUp className="w-24 h-24" />
           </div>
           <div className="p-6">
-            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Unités Vacantes</p>
+            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">{t("Unités Vacantes")}</p>
             <div className="text-3xl font-bold text-slate-900">{stats.vacant}</div>
             <div className="mt-4 flex items-center text-xs text-emerald-600 font-medium">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse" />
-              Disponibles immédiatement
+              {t("Disponibles immédiatement")}
             </div>
           </div>
         </Card>
@@ -357,13 +359,13 @@ export const PropertiesList: React.FC = () => {
             <Building2 className="w-24 h-24" />
           </div>
           <div className="p-6">
-            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Taux d'Occupation</p>
+            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">{t("Taux d'Occupation")}</p>
             <div className="text-3xl font-bold text-slate-900">
               {stats.total > 0 ? Math.round((stats.occupied / stats.total) * 100) : 0}%
             </div>
             <div className="mt-4 flex items-center text-xs text-blue-600 font-medium">
               <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-2" />
-              Performance du parc
+              {t("Performance du parc")}
             </div>
           </div>
         </Card>
@@ -375,29 +377,29 @@ export const PropertiesList: React.FC = () => {
           fields={[
             {
               id: 'standing',
-              label: 'Standing',
+              label: t('Standing'),
               type: 'select',
               options: [
-                { value: 'economique', label: 'Économique' },
-                { value: 'moyen', label: 'Moyen' },
-                { value: 'haut', label: 'Haut' },
+                { value: 'economique', label: t('Économique') },
+                { value: 'moyen', label: t('Moyen') },
+                { value: 'haut', label: t('Haut') },
               ]
             },
             {
               id: 'type',
-              label: 'Type',
+              label: t('Type'),
               type: 'select',
               options: [
-                { value: 'villa', label: 'Villa' },
-                { value: 'appartement', label: 'Appartement' },
-                { value: 'immeuble', label: 'Immeuble' },
-                { value: 'terrain_nu', label: 'Terrain Nu' },
-                { value: 'autres', label: 'Autres' },
+                { value: 'villa', label: t('Villa') },
+                { value: 'appartement', label: t('Appartement') },
+                { value: 'immeuble', label: t('Immeuble') },
+                { value: 'terrain_nu', label: t('Terrain Nu') },
+                { value: 'autres', label: t('Autres') },
               ]
             },
             {
               id: 'commune',
-              label: 'Commune',
+              label: t('Commune'),
               type: 'select',
               options: Array.from(new Set(properties.map(p => p.location.commune)))
                 .filter(Boolean)
@@ -409,16 +411,16 @@ export const PropertiesList: React.FC = () => {
           onClear={clearFilters}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
-          searchPlaceholder="Rechercher par titre, quartier..."
+          searchPlaceholder={t("Rechercher par titre, quartier...")}
           stats={[
             {
-              label: 'Tous',
+              label: t('Tous'),
               count: stats.total,
               active: filterStatus === 'all',
               onClick: () => setFilterStatus('all')
             },
             {
-              label: 'Vacants',
+              label: t('Vacants'),
               count: stats.vacant,
               active: filterStatus === 'vacant',
               onClick: () => setFilterStatus('vacant'),
@@ -426,7 +428,7 @@ export const PropertiesList: React.FC = () => {
               colorClass: 'bg-emerald-100'
             },
             {
-              label: 'Occupés',
+              label: t('Occupés'),
               count: stats.occupied,
               active: filterStatus === 'occupied',
               onClick: () => setFilterStatus('occupied'),
@@ -443,9 +445,9 @@ export const PropertiesList: React.FC = () => {
           <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
             <Plus className="h-6 w-6 text-gray-400" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900">Aucun bien trouvé</h3>
-          <p className="text-gray-500 mt-1 mb-4">Ajoutez un bien pour commencer la commercialisation.</p>
-          <Button onClick={() => setShowForm(true)}>Ajouter un bien</Button>
+          <h3 className="text-lg font-medium text-gray-900">{t("Aucun bien trouvé")}</h3>
+          <p className="text-gray-500 mt-1 mb-4">{t("Ajoutez un bien pour commencer la commercialisation.")}</p>
+          <Button onClick={() => setShowForm(true)}>{t("Ajouter un bien")}</Button>
         </div>
       ) : (
         <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"}>
@@ -464,11 +466,11 @@ export const PropertiesList: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bien</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Localisation</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loyer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Bien")}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Localisation")}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Loyer")}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Statut")}</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Actions")}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -499,7 +501,7 @@ export const PropertiesList: React.FC = () => {
                               ? info.rentAmount
                               : property.monthly_rent;
                             return displayRent
-                              ? <>{displayRent.toLocaleString('fr-FR')} FCFA{info.isOccupied && <span className="ml-1 text-[10px] text-blue-500 font-normal">(bail)</span>}</>                            
+                              ? <>{displayRent.toLocaleString('fr-FR')} FCFA{info.isOccupied && <span className="ml-1 text-[10px] text-blue-500 font-normal">({t("bail")})</span>}</>                            
                               : <span className="text-gray-400 italic">N/A</span>;
                           })()}
                         </td>
@@ -507,7 +509,7 @@ export const PropertiesList: React.FC = () => {
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${isOccupied ? 'bg-blue-100 text-blue-700' :
                               (isAvailable ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700')
                             }`}>
-                            {isOccupied ? 'Occupé' : (isAvailable ? 'Vacant' : 'Indisponible')}
+                            {isOccupied ? t('Occupé') : (isAvailable ? t('Vacant') : t('Indisponible'))}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -531,13 +533,13 @@ export const PropertiesList: React.FC = () => {
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-3 mt-6">
           <Button variant="outline" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>
-            Précédent
+            {t("Précédent")}
           </Button>
           <span className="text-sm text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg">
             {currentPage + 1} / {totalPages}
           </span>
           <Button variant="outline" disabled={currentPage >= totalPages - 1} onClick={() => setCurrentPage(p => p + 1)}>
-            Suivant
+            {t("Suivant")}
           </Button>
         </div>
       )}

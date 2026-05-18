@@ -15,6 +15,7 @@ import { dbService } from '../../lib/supabase';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
 import { generateSlug } from '../../utils/idSystem';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { SuccessModal } from '../ui/SuccessModal';
 import { toast } from 'react-hot-toast';
 import { clsx } from 'clsx';
@@ -39,6 +40,7 @@ const avatarColors = [
 const getAvatarColor = (name: string) => avatarColors[name.charCodeAt(0) % avatarColors.length];
 
 export const TenantsList: React.FC = () => {
+  const { t } = useLanguage();
   const { user, isLoading: authLoading } = useAuth();
   const canDelete = useCanDelete();
   const navigate = useNavigate();
@@ -196,18 +198,18 @@ export const TenantsList: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Locataires</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{filteredTenants.length} locataires trouvés</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("Locataires")}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{filteredTenants.length} {filteredTenants.length > 1 ? t("locataires enregistrés") : t("locataire enregistré")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <ViewToggle view={viewMode} onChange={setViewMode} />
           <Button variant="outline" onClick={handleExport} className="flex items-center space-x-2 border-gray-300 text-gray-700">
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Exporter</span>
+            <span className="hidden sm:inline">{t("Exporter")}</span>
           </Button>
           <Button onClick={handleCreateClick} className="shadow-md">
             <Plus className="h-4 w-4 mr-2" />
-            <span>Nouveau Locataire</span>
+            <span>{t("Nouveau Locataire")}</span>
           </Button>
         </div>
       </div>
@@ -215,19 +217,19 @@ export const TenantsList: React.FC = () => {
       <Card className="p-4">
         <FilterBar
           fields={[
-            { id: 'paymentStatus', label: 'Statut Paiement', type: 'select', options: [{ value: 'bon', label: 'Bon payeur' }, { value: 'irregulier', label: 'Irrégulier' }, { value: 'mauvais', label: 'Mauvais payeur' }] },
-            { id: 'maritalStatus', label: 'Statut Matrimonial', type: 'select', options: [{ value: 'celibataire', label: 'Célibataire' }, { value: 'marie', label: 'Marié(e)' }, { value: 'divorce', label: 'Divorcé(e)' }, { value: 'veuf', label: 'Veuf/Veuve' }] }
+            { id: 'paymentStatus', label: t('Statut Paiement'), type: 'select', options: [{ value: 'bon', label: t('Bon payeur') }, { value: 'irregulier', label: t('Irrégulier') }, { value: 'mauvais', label: t('Mauvais payeur') }] },
+            { id: 'maritalStatus', label: t('Statut Matrimonial'), type: 'select', options: [{ value: 'celibataire', label: t('Célibataire') }, { value: 'marie', label: t('Marié(e)') }, { value: 'divorce', label: t('Divorcé(e)') }, { value: 'veuf', label: t('Veuf/Veuve') }] }
           ]}
           values={filters}
           onChange={handleFilterChange}
           onClear={clearFilters}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
-          searchPlaceholder="Rechercher..."
+          searchPlaceholder={t("Rechercher par nom, téléphone...")}
           stats={[
-            { label: 'Tous', count: stats.total, active: filterOccupancy === 'all', onClick: () => setFilterOccupancy('all') },
-            { label: 'Actifs', count: stats.active, active: filterOccupancy === 'active', onClick: () => setFilterOccupancy('active'), activeColorClass: 'text-emerald-600', colorClass: 'bg-emerald-100' },
-            { label: 'Libres', count: stats.free, active: filterOccupancy === 'free', onClick: () => setFilterOccupancy('free'), activeColorClass: 'text-amber-600', colorClass: 'bg-amber-100' }
+            { label: t('Tous'), count: stats.total, active: filterOccupancy === 'all', onClick: () => setFilterOccupancy('all') },
+            { label: t('Actifs'), count: stats.active, active: filterOccupancy === 'active', onClick: () => setFilterOccupancy('active'), activeColorClass: 'text-emerald-600', colorClass: 'bg-emerald-100' },
+            { label: t('Libres'), count: stats.free, active: filterOccupancy === 'free', onClick: () => setFilterOccupancy('free'), activeColorClass: 'text-amber-600', colorClass: 'bg-amber-100' }
           ]}
         />
       </Card>
@@ -244,7 +246,7 @@ export const TenantsList: React.FC = () => {
             ))}
           </div>
         ) : filteredTenants.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl border border-gray-100 italic text-gray-400">Aucun locataire trouvé</div>
+          <div className="text-center py-16 bg-white rounded-xl border border-gray-100 italic text-gray-400">{t("Aucun locataire trouvé")}</div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedTenants.map((tenant) => (
@@ -264,10 +266,10 @@ export const TenantsList: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Identité</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Identité")}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Contact")}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Statut")}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Actions")}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -285,7 +287,7 @@ export const TenantsList: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tenant.phone}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium", pCfg.bg, pCfg.color)}>{pCfg.label}</span>
+                        <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium", pCfg.bg, pCfg.color)}>{t(pCfg.label)}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
@@ -306,9 +308,9 @@ export const TenantsList: React.FC = () => {
 
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-3 mt-6">
-          <Button variant="outline" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>Précédent</Button>
+          <Button variant="outline" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>{t("Précédent")}</Button>
           <span className="text-sm text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg">{currentPage + 1} / {totalPages}</span>
-          <Button variant="outline" disabled={currentPage >= totalPages - 1} onClick={() => setCurrentPage(p => p + 1)}>Suivant</Button>
+          <Button variant="outline" disabled={currentPage >= totalPages - 1} onClick={() => setCurrentPage(p => p + 1)}>{t("Suivant")}</Button>
         </div>
       )}
 
@@ -316,7 +318,7 @@ export const TenantsList: React.FC = () => {
       {selectedTenant && (
         <>
           <ReceiptGenerator isOpen={showReceiptGenerator} onClose={() => { setShowReceiptGenerator(false); setSelectedTenant(null); }} tenantId={selectedTenant.id} contractId={selectedTenant.active_contracts?.[0]?.id} propertyId={selectedTenant.active_contracts?.[0]?.property_id} ownerId={selectedTenant.active_contracts?.[0]?.owner_id} />
-          <Modal isOpen={showFinancialStatements} onClose={() => { setShowFinancialStatements(false); setSelectedTenant(null); }} title="État financier" size="xl">
+          <Modal isOpen={showFinancialStatements} onClose={() => { setShowFinancialStatements(false); setSelectedTenant(null); }} title={t("État financier")} size="xl">
             <FinancialStatements entityId={selectedTenant.id} entityType="tenant" entityName={`${selectedTenant.first_name} ${selectedTenant.last_name}`} />
           </Modal>
         </>
