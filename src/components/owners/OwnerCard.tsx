@@ -12,10 +12,11 @@ interface OwnerCardProps {
   onNavigate: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  vacantProperties?: any[];
 }
 
 export const OwnerCard: React.FC<OwnerCardProps> = ({ 
-  owner, stats, tenantCount, onNavigate, onEdit, onDelete 
+  owner, stats, tenantCount, onNavigate, onEdit, onDelete, vacantProperties 
 }) => {
   const fullName = `${owner.first_name} ${owner.last_name}`;
   const initials = `${owner.first_name[0]}${owner.last_name[0]}`.toUpperCase();
@@ -99,6 +100,28 @@ export const OwnerCard: React.FC<OwnerCardProps> = ({
             <span>{owner.city}</span>
           </div>
         </div>
+
+        {/* Unoccupied Properties Section */}
+        {vacantProperties && vacantProperties.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Biens non-occupés</span>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+              {vacantProperties.map((prop) => (
+                <div key={prop.id} className="text-xs font-semibold text-gray-700 flex items-center justify-between bg-amber-50/50 px-2.5 py-1.5 rounded-lg border border-amber-100/50">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+                    <span className="truncate">{prop.title}</span>
+                  </div>
+                  {prop.monthly_rent && (
+                    <span className="text-[10px] text-amber-700 font-bold bg-amber-100/70 px-1.5 py-0.5 rounded flex-shrink-0">
+                      {prop.monthly_rent.toLocaleString('fr-FR')} F
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Improved Actions */}
         <div className="mt-8 flex gap-2">

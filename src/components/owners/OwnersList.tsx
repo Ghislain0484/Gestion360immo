@@ -32,7 +32,7 @@ export const OwnersList: React.FC = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'active' | 'free'>('all');
+  const [filterOccupancy, setFilterOccupancy] = useState<'all' | 'active' | 'free' | 'vacant_prop'>('all');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   const fetchOwners = useCallback(() => dbService.owners.getAll({
@@ -91,6 +91,25 @@ export const OwnersList: React.FC = () => {
     return statsMap;
   }, [owners, properties, contracts]);
 
+  const ownerVacantProperties = useMemo(() => {
+    const map = new Map();
+    if (!owners || !properties || !contracts) return map;
+    owners.forEach(owner => {
+      const ownerProperties = properties.filter(p => p.owner_id === owner.id);
+      const activeContracts = contracts.filter(c => 
+        c.owner_id === owner.id && 
+        c.status === 'active' && 
+        c.type === 'location' &&
+        !!c.tenant_id
+      );
+      const vacantProps = ownerProperties.filter(p => 
+        !activeContracts.some(c => c.property_id === p.id)
+      );
+      map.set(owner.id, vacantProps);
+    });
+    return map;
+  }, [owners, properties, contracts]);
+
   const debouncedSetSearchTerm = debounce((value: string) => setSearchTerm(value), 300);
 
   const filteredOwners = useMemo(() => {
@@ -105,7 +124,8 @@ export const OwnersList: React.FC = () => {
       const stats = ownerStatsMap.get(owner.id) || { total: 0, occupied: 0, vacant: 0, tenantCount: 0 };
       const matchesOccupancy = filterOccupancy === 'all' ||
         (filterOccupancy === 'active' && stats.occupied > 0) ||
-        (filterOccupancy === 'free' && stats.occupied === 0);
+        (filterOccupancy === 'free' && stats.occupied === 0) ||
+        (filterOccupancy === 'vacant_prop' && stats.vacant > 0);
 
       return matchesSearch && matchesOccupancy;
     });
@@ -227,6 +247,15 @@ export const OwnersList: React.FC = () => {
                   >
                     {t("Sans locataire")}
                   </button>
+                  <button
+                    onClick={() => setFilterOccupancy('vacant_prop')}
+                    className={clsx(
+                      "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                      filterOccupancy === 'vacant_prop' ? "bg-white text-rose-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    {t("Bien non-occupé")}
+                  </button>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -285,7 +314,7 @@ export const OwnersList: React.FC = () => {
                   className="hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => handleRowClick(owner)}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4">
                     <div className="flex items-center text-slate-900">
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold">
@@ -301,6 +330,29 @@ export const OwnersList: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    {filterOccupancy === 'vacant_prop' && (
+                      <div className="mt-3 pl-3 border-l-2 border-amber-400 space-y-1">
+                        <div className="text-[10px] font-black text-amber-600 uppercase tracking-wider mb-1">
+                          {t("Biens non-occupés")} :
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ownerVacantProperties.get(owner.id)?.map((prop: any) => (
+                            <div key={prop.id} className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 bg-amber-50/50 px-2 py-1 rounded-lg border border-amber-100/50">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+                              <span>{prop.title}</span>
+                              {prop.monthly_rent && (
+                                <span className="text-[9px] text-amber-700 font-bold bg-amber-100/70 px-1 py-0.2 rounded">
+                                  {prop.monthly_rent.toLocaleString('fr-FR')} F
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                          {(!ownerVacantProperties.get(owner.id) || ownerVacantProperties.get(owner.id)?.length === 0) && (
+                            <span className="text-xs italic text-gray-400">{t("Aucun")}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                     <div className="flex items-center text-sm text-gray-600">
@@ -453,6 +505,7 @@ export const OwnersList: React.FC = () => {
               owner={owner}
               stats={ownerStatsMap.get(owner.id) || { total: 0, occupied: 0, vacant: 0, tenantCount: 0 }}
               tenantCount={ownerStatsMap.get(owner.id)?.tenantCount || 0}
+              vacantProperties={filterOccupancy === 'vacant_prop' ? ownerVacantProperties.get(owner.id) : undefined}
               onNavigate={() => handleRowClick(owner)}
               onEdit={() => {
                 setSelectedOwner(owner);

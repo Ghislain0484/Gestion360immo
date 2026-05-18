@@ -276,6 +276,8 @@ const commonTranslations: Record<string, string> = {
   "Aucun propriétaire trouvé": "No owner found",
   "Enregistrer un propriétaire pour commencer la gestion de son patrimoine.": "Register an owner to begin managing their portfolio.",
   "Ajouter un propriétaire": "Add an Owner",
+  "Bien non-occupé": "Unoccupied Property",
+  "Biens non-occupés": "Unoccupied Properties",
 
   // --- Locataires / Tenants ---
   "Fiches locataires": "Tenant Files",
