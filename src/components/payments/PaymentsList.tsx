@@ -72,6 +72,14 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                 // Default: include if it has a rent-like category or exclude if purely internal
                 return RENT_CATEGORIES.some(rc => desc.includes(rc));
             });
+        } else if (propertyId) {
+            const { data, error } = await supabase
+                .from('modular_transactions')
+                .select('*')
+                .eq('related_property_id', propertyId)
+                .in('category', ['rent_payment', 'caution']);
+            if (error) console.error('Error fetching property transactions:', error);
+            modularData = data || [];
         } else if (ownerId) {
             const { data, error } = await supabase
                 .from('modular_transactions')
