@@ -53,7 +53,7 @@ interface Payment {
   amount: number;
   date: string;
   receiptNumber: string;
-  status: 'completed';
+  status: 'completed' | 'partial';
   receipt?: RentReceipt;
 }
 
@@ -408,9 +408,9 @@ export const Dashboard: React.FC = () => {
       entries.push({
         id: `${receipt.id}-rent`,
         type: 'received',
-        amount: receipt.total_amount,
+        amount: receipt.amount_paid ?? receipt.total_amount,
         date: formattedDate,
-        status: 'completed',
+        status: receipt.payment_status === 'partial' ? 'partial' : 'completed',
         receipt,
         ...baseDescriptor,
       });

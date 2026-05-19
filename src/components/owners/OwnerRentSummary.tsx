@@ -160,7 +160,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const isOccupied = !!contract || !prop.is_available;
             if (isOccupied) occupiedCount++;
 
-            const monthlyRentContract = contract?.monthly_rent || 0;
+            const monthlyRentContract = (contract?.monthly_rent || 0) + (contract?.charges || 0);
             
             const propReceipts = filteredReceipts.filter(r => r.property_id === prop.id);
             const propManual = filteredManual.filter((m: any) => m.related_property_id === prop.id);

@@ -18,7 +18,13 @@ interface MatrixData {
     monthly_rent: number;
     start_date: string;
     end_date?: string;
-    receipts: Record<number, boolean>; // key: month (1-12), value: true if paid
+    receipts: Record<number, {
+      paid: boolean;
+      isPartial: boolean;
+      amountPaid: number;
+      totalAmount: number;
+      balanceDue: number;
+    } | null>;
   }[];
 }
 
@@ -67,7 +73,7 @@ export const RentRollMatrix: React.FC = () => {
       // 2. Fetch all rent receipts for this agency for the selected year
       const { data: receiptsData, error: receiptsError } = await supabase
         .from('rent_receipts')
-        .select('contract_id, period_month')
+        .select('contract_id, period_month, payment_status, amount_paid, total_amount, balance_due')
         .eq('agency_id', user.agency_id)
         .eq('period_year', selectedYear);
 
@@ -75,7 +81,7 @@ export const RentRollMatrix: React.FC = () => {
         // Fallback for older schema if agency_id is missing on receipts
         const { data: fallbackData } = await supabase
           .from('rent_receipts')
-          .select('contract_id, period_month, contracts!inner(agency_id)')
+          .select('contract_id, period_month, payment_status, amount_paid, total_amount, balance_due, contracts!inner(agency_id)')
           .eq('contracts.agency_id', user.agency_id)
           .eq('period_year', selectedYear);
         
@@ -92,12 +98,25 @@ export const RentRollMatrix: React.FC = () => {
   };
 
   const setMatrixDataFromResults = (contracts: any[], receipts: any[]) => {
-    const receiptMap: Record<string, Set<number>> = {};
+    const receiptMap: Record<string, Record<number, {
+      paid: boolean;
+      isPartial: boolean;
+      amountPaid: number;
+      totalAmount: number;
+      balanceDue: number;
+    }>> = {};
+    
     receipts?.forEach(r => {
       if (!receiptMap[r.contract_id]) {
-        receiptMap[r.contract_id] = new Set();
+        receiptMap[r.contract_id] = {};
       }
-      receiptMap[r.contract_id].add(r.period_month);
+      receiptMap[r.contract_id][r.period_month] = {
+        paid: true,
+        isPartial: r.payment_status === 'partial',
+        amountPaid: r.amount_paid ?? r.total_amount,
+        totalAmount: r.total_amount,
+        balanceDue: r.balance_due ?? 0
+      };
     });
 
     const ownerMap = new Map<string, MatrixData>();
@@ -123,9 +142,15 @@ export const RentRollMatrix: React.FC = () => {
 
       const ownerGroup = ownerMap.get(ownerId)!;
       
-      const receiptsObj: Record<number, boolean> = {};
+      const receiptsObj: Record<number, {
+        paid: boolean;
+        isPartial: boolean;
+        amountPaid: number;
+        totalAmount: number;
+        balanceDue: number;
+      } | null> = {};
       for (let i = 1; i <= 12; i++) {
-        receiptsObj[i] = receiptMap[c.id]?.has(i) || false;
+        receiptsObj[i] = receiptMap[c.id]?.[i] || null;
       }
 
       ownerGroup.contracts.push({
@@ -193,11 +218,19 @@ export const RentRollMatrix: React.FC = () => {
           
           for (let i = 1; i <= 12; i++) {
             const cellDate = new Date(selectedYear, i - 1, 1);
-            const isPaid = contract.receipts[i];
+            const receiptInfo = contract.receipts[i];
+            const isPaid = !!receiptInfo?.paid;
+            const isPartial = !!receiptInfo?.isPartial;
+            const amountPaid = receiptInfo ? receiptInfo.amountPaid : 0;
             
             if (isPaid) {
-               doc.setTextColor(0, 150, 0);
-               doc.text('PAYE', x, y);
+               if (isPartial) {
+                 doc.setTextColor(217, 119, 6);
+                 doc.text('PARTIEL', x, y);
+               } else {
+                 doc.setTextColor(0, 150, 0);
+                 doc.text('PAYE', x, y);
+               }
             } else {
                const contractStart = new Date(contract.start_date);
                const contractEnd = contract.end_date ? new Date(contract.end_date) : null;
@@ -339,19 +372,36 @@ export const RentRollMatrix: React.FC = () => {
                           <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50/50">
                             {formatAmount(contract.monthly_rent)}
                           </td>
-                          
-                          {/* Month Cells */}
+                                        {/* Month Cells */}
                           {[...Array(12)].map((_, i) => {
                             const monthNum = i + 1;
                             const cellDate = new Date(selectedYear, i, 1);
-                            const isPaid = contract.receipts[monthNum];
-                            if (isPaid) rowTotal += contract.monthly_rent;
+                            const receiptInfo = contract.receipts[monthNum];
+                            const isPaid = !!receiptInfo?.paid;
+                            const isPartial = !!receiptInfo?.isPartial;
+                            const amountPaid = receiptInfo ? receiptInfo.amountPaid : 0;
+                            const totalAmount = receiptInfo ? receiptInfo.totalAmount : contract.monthly_rent;
+                            const balanceDue = receiptInfo ? receiptInfo.balanceDue : 0;
+                            
+                            if (isPaid) rowTotal += amountPaid;
                             
                             const contractEnd = contract.end_date ? new Date(contract.end_date) : null;
                             const isBeforeContract = cellDate < new Date(contractStart.getFullYear(), contractStart.getMonth(), 1);
                             const isAfterContract = contractEnd && cellDate > new Date(contractEnd.getFullYear(), contractEnd.getMonth(), 1);
                             
                             if (isPaid) {
+                              if (isPartial) {
+                                return (
+                                  <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50 bg-amber-50/20">
+                                    <div 
+                                      className="w-7 h-7 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shadow-sm cursor-help transition-all hover:scale-105" 
+                                      title={`Partiel: ${formatAmount(amountPaid)} F (Reste ${formatAmount(balanceDue)} F sur ${formatAmount(totalAmount)} F)`}
+                                    >
+                                      <span className="text-[10px] font-black">P</span>
+                                    </div>
+                                  </td>
+                                );
+                              }
                               return (
                                 <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
                                   <div className="w-7 h-7 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm" title="Payé (Avance/Arriéré)">
@@ -360,7 +410,7 @@ export const RentRollMatrix: React.FC = () => {
                                 </td>
                               );
                             }
-
+ 
                             if (isBeforeContract || isAfterContract) {
                               return (
                                 <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
@@ -389,7 +439,7 @@ export const RentRollMatrix: React.FC = () => {
                     })}
                   </React.Fragment>
                 ))}
-
+ 
                 {/* Footer Totals Row */}
                 <tr className="bg-slate-900 text-white font-bold border-t-2 border-white">
                   <td className="px-6 py-4 sticky left-0 bg-slate-900 z-10">TOTAL GÉNÉRAL</td>
@@ -401,9 +451,10 @@ export const RentRollMatrix: React.FC = () => {
                   {[...Array(12)].map((_, i) => {
                     const monthNum = i + 1;
                     const monthTotal = filteredMatrixData.reduce((sum, owner) => 
-                      sum + owner.contracts.reduce((cSum, c) => 
-                        cSum + (c.receipts[monthNum] ? c.monthly_rent : 0), 0
-                      ), 0
+                      sum + owner.contracts.reduce((cSum, c) => {
+                        const receiptInfo = c.receipts[monthNum];
+                        return cSum + (receiptInfo?.paid ? receiptInfo.amountPaid : 0);
+                      }, 0), 0
                     );
                     return (
                       <td key={monthNum} className="px-2 py-4 text-center bg-slate-800">
@@ -415,11 +466,11 @@ export const RentRollMatrix: React.FC = () => {
                   })}
                   <td className="px-4 py-4 text-right bg-slate-900 sticky right-0 z-10 text-emerald-400 text-base">
                     {formatAmount(filteredMatrixData.reduce((sum, owner) => 
-                      sum + owner.contracts.reduce((cSum, c) => {
-                        // Sum up only PAID months
-                        const paidMonthsCount = Object.values(c.receipts).filter(Boolean).length;
-                        return cSum + paidMonthsCount * c.monthly_rent;
-                      }, 0), 0
+                      sum + owner.contracts.reduce((cSum, c) => 
+                        cSum + Object.values(c.receipts).reduce((rSum, r) => 
+                          rSum + (r?.paid ? r.amountPaid : 0), 0
+                        ), 0
+                      ), 0
                     ))}
                   </td>
                 </tr>

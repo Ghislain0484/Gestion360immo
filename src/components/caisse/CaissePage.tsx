@@ -726,7 +726,7 @@ export const CaissePage: React.FC = () => {
                                                 )}>
                                                     <div className="flex flex-col items-end">
                                                         <span>{tTrans.type === 'credit' ? '+' : '-'}{tTrans.amount.toLocaleString('fr-FR')}</span>
-                                                        {tTrans.details?.is_partial && (
+                                                        {tTrans.details?.payment_status === 'partial' && (
                                                             <div className="flex flex-col items-end mt-1">
                                                                 <span className="text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 rounded border border-orange-100 mb-0.5">{t("PARTIEL")}</span>
                                                                 <span className="text-[10px] text-gray-400 font-normal">{t("sur")} {tTrans.details.total_amount.toLocaleString('fr-FR')}</span>
@@ -736,7 +736,7 @@ export const CaissePage: React.FC = () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        {tTrans.source === 'rent_receipt' && tTrans.details?.payment_status !== 'paid' && (
+                                                        {tTrans.source === 'rent_receipt' && tTrans.details?.payment_status === 'partial' && (
                                                             <button title={t("Partager le lien de paiement")} onClick={() => handleSharePaymentLink(tTrans)} className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors">
                                                                 <Share2 className="w-4 h-4" />
                                                             </button>
@@ -880,7 +880,7 @@ export const CaissePage: React.FC = () => {
                                         <span>{t("Montant versé")}</span>
                                         <span>{selectedTransaction.amount.toLocaleString('fr-FR')} FCFA</span>
                                     </div>
-                                    {selectedTransaction.details.is_partial && (
+                                    {selectedTransaction.details.payment_status === 'partial' && (
                                         <div className="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded-lg mt-2">
                                             <span>{t("SOLDE RESTANT")}</span>
                                             <span>{(selectedTransaction.details.balance_due || (selectedTransaction.details.total_amount - selectedTransaction.amount)).toLocaleString('fr-FR')} FCFA</span>
