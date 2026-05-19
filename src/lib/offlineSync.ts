@@ -50,12 +50,8 @@ export const OfflineSyncManager = {
    * Synchronise toutes les mutations en attente vers Supabase
    */
   async syncOutbox() {
-    const pending = await db.mutations
-      .where('synced')
-      .equals(0)
-      .or('synced')
-      .equals(false)
-      .toArray();
+    const allMutations = await db.mutations.toArray();
+    const pending = allMutations.filter(m => !m.synced);
     
     if (pending.length === 0) return;
 
@@ -95,21 +91,17 @@ export const OfflineSyncManager = {
       }
     }
 
-    const remaining = await db.mutations
-      .where('synced')
-      .equals(0)
-      .or('synced')
-      .equals(false)
-      .count();
+    const remainingMutations = await db.mutations.toArray();
+    const remaining = remainingMutations.filter(m => !m.synced).length;
     if (remaining === 0) {
       toast.success('Toutes les données sont à jour !', { id: 'sync-toast' });
-      // Nettoyer les mutations synchronisées
-      await db.mutations
-        .where('synced')
-        .equals(1)
-        .or('synced')
-        .equals(true)
-        .delete();
+      // Nettoyer les mutations synchronisées de manière sûre (sans query index boolean)
+      const syncedMutations = remainingMutations.filter(m => m.synced);
+      for (const m of syncedMutations) {
+        if (m.id !== undefined) {
+          await db.mutations.delete(m.id);
+        }
+      }
     } else {
       toast.error(`${remaining} actions n'ont pas pu être synchronisées.`, { id: 'sync-toast' });
     }
