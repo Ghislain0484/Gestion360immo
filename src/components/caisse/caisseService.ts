@@ -86,9 +86,9 @@ export const fetchCaisseData = async (
       })(),
       (() => {
         let q = supabase.from('modular_transactions').select('*').eq('agency_id', agencyId);
-        // When filtering by owner, include owner-linked AND agency-level transactions (no owner link)
+        // When filtering by owner, include only owner-linked transactions
         if (filters.ownerId !== 'all') {
-          q = q.or(`related_owner_id.eq.${filters.ownerId},related_owner_id.is.null`);
+          q = q.eq('related_owner_id', filters.ownerId);
         }
         if (dateRange) q = q.gte('transaction_date', dateRange.startDate).lte('transaction_date', dateRange.endDate);
         return q;
