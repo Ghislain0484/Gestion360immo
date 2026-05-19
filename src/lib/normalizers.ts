@@ -204,6 +204,7 @@ export const normalizeTenant = (t: Partial<Tenant>) => {
     if (t.nationality !== undefined) data.nationality = nilIfEmpty(t.nationality);
     if (t.photo_url !== undefined) data.photo_url = nilIfEmpty(t.photo_url);
     if (t.id_card_url !== undefined) data.id_card_url = nilIfEmpty(t.id_card_url);
+    if (t.id_card_number !== undefined) data.id_card_number = nilIfEmpty(t.id_card_number);
     if (t.payment_status !== undefined) data.payment_status = nilIfEmpty(t.payment_status);
     return data;
 };
