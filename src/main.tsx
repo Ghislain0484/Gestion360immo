@@ -11,6 +11,26 @@ OfflineSyncManager.init();
 // --- SILENCIEUX DE PANIQUE ULTIME (RÉACT) ---
 // On intercepte TOUT ce qui pourrait bloquer l'UI suite au bug Supabase/Antivirus
 if (typeof window !== 'undefined') {
+  // --- DOM SHIELD INTERCEPTOR ---
+  try {
+    const _origRemoveChild = Node.prototype.removeChild;
+    Node.prototype.removeChild = function(child: any) {
+      if (child && child.parentNode === this) {
+        return _origRemoveChild.call(this, child);
+      }
+      return child;
+    };
+
+    const _origRemove = Element.prototype.remove;
+    Element.prototype.remove = function() {
+      if (this.parentNode) {
+        try { _origRemove.call(this); } catch(e) {}
+      }
+    };
+  } catch (e) {
+    console.warn("🛡️ [DOM Shield] Error:", e);
+  }
+
   // --- SURCHARGE GLOBALE DU FORMATAGE DES NOMBRES (Points pour les milliers) ---
   const originalNumberToLocale = Number.prototype.toLocaleString;
   Number.prototype.toLocaleString = function(locale, options) {
