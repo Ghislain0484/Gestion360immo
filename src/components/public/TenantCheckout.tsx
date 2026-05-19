@@ -174,7 +174,7 @@ export const TenantCheckout: React.FC = () => {
               .from('modular_transactions')
               .insert({
                 agency_id: tenant.agency_id,
-                created_by: receipt.issued_by,
+                created_by: receipt.issued_by || null,
                 type: 'income',
                 amount: receipt.total_amount,
                 category: 'rent_receipt',
@@ -182,6 +182,8 @@ export const TenantCheckout: React.FC = () => {
                 transaction_date: new Date().toISOString().split('T')[0],
                 payment_method: 'mobile_money',
                 related_tenant_id: receipt.tenant_id,
+                related_owner_id: receipt.owner_id,
+                related_property_id: receipt.property_id,
                 module_type: 'caisse'
               });
 
