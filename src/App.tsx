@@ -46,6 +46,7 @@ import { OwnerPortfolio } from './components/owner-portal/OwnerPortfolio';
 import { OwnerEnhancement } from './components/owner-portal/OwnerEnhancement';
 import { MaintenancePage } from './components/layout/MaintenancePage';
 import { AccountSuspended } from './components/auth/AccountSuspended';
+import { TenantCheckout } from './components/public/TenantCheckout';
 import { usePlatformSettings } from './hooks/useAdminQueries';
 
 // Error Boundary Component
@@ -191,6 +192,7 @@ const AppContent: React.FC = () => {
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : admin ? <Navigate to="/admin" replace /> : owner ? <Navigate to="/espace-proprietaire" replace /> : <LoginForm />} />
         <Route path="/admin/login" element={admin ? <Navigate to="/admin" replace /> : <AdminLoginForm />} />
         <Route path="/inscription-proprietaire" element={<OwnerSignup />} />
+        <Route path="/reglement/:receiptId" element={<TenantCheckout />} />
         <Route path="/password-reset" element={<PasswordResetRequest />} />
         <Route path="/reset-password" element={<PasswordResetConfirm />} />
 

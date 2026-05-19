@@ -179,6 +179,12 @@ export const normalizeOwner = (owner: Partial<Owner>): Partial<Owner> => ({
     spouse_name: owner.spouse_name?.trim() || null,
     spouse_phone: owner.spouse_phone?.trim() || null,
     children_count: owner.children_count ?? 0,
+    payment_mode: owner.payment_mode || 'retrait_physique',
+    bank_name: owner.bank_name?.trim() || null,
+    bank_account_number: owner.bank_account_number?.trim() || null,
+    bank_account_holder: owner.bank_account_holder?.trim() || null,
+    bank_iban: owner.bank_iban?.trim() || null,
+    bank_swift: owner.bank_swift?.trim() || null,
 });
 
 export const normalizeTenant = (t: Partial<Tenant>) => {

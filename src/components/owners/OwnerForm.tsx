@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, User, MapPin, FileText, Heart, Camera, X, Upload } from 'lucide-react';
+import { Save, User, MapPin, FileText, Heart, Camera, X, Upload, CreditCard } from 'lucide-react';
 import { supabase } from '../../lib/config';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -44,6 +44,12 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     photo_url: null,
     id_card_number: null,
     status: 'actif',
+    payment_mode: 'retrait_physique',
+    bank_name: null,
+    bank_account_number: null,
+    bank_account_holder: null,
+    bank_iban: null,
+    bank_swift: null,
   });
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -96,6 +102,11 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
     if (data.property_title === 'autres' && !data.property_title_details?.trim()) {
       return 'Veuillez préciser le type de titre de propriété';
     }
+    if (data.payment_mode === 'virement_bancaire') {
+      if (!data.bank_name?.trim()) return 'Le nom de la banque est obligatoire pour le reversement par virement bancaire';
+      if (!data.bank_account_number?.trim()) return 'Le numéro de compte bancaire est obligatoire pour le reversement par virement bancaire';
+      if (!data.bank_account_holder?.trim()) return 'Le titulaire du compte est obligatoire pour le reversement par virement bancaire';
+    }
     return null;
   };
 
@@ -120,6 +131,12 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       agency_id: authAgencyId || '',
       photo_url: null,
       id_card_number: null,
+      payment_mode: 'retrait_physique',
+      bank_name: null,
+      bank_account_number: null,
+      bank_account_holder: null,
+      bank_iban: null,
+      bank_swift: null,
       ...(initialData || {}),
     }),
     [initialData, authAgencyId]
@@ -212,6 +229,12 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
         spouse_phone: formData.spouse_phone?.trim() || null,
         id_card_number: formData.id_card_number?.trim() || null,
         status: formData.status || 'actif',
+        payment_mode: formData.payment_mode || 'retrait_physique',
+        bank_name: formData.bank_name?.trim() || null,
+        bank_account_number: formData.bank_account_number?.trim() || null,
+        bank_account_holder: formData.bank_account_holder?.trim() || null,
+        bank_iban: formData.bank_iban?.trim() || null,
+        bank_swift: formData.bank_swift?.trim() || null,
       };
 
       // N'ajouter photo_url que s'il est présent, pour éviter l'erreur 400 si la colonne n'existe pas
@@ -514,6 +537,83 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
                 placeholder="0"
                 aria-label="Nombre d'enfants"
               />
+            </div>
+          </Card>
+
+          <Card className="bg-white/80 backdrop-blur-sm border-blue-200">
+            <div className="flex items-center mb-4 p-4">
+              <CreditCard className="h-5 w-5 text-blue-600 mr-2" aria-hidden="true" />
+              <h3 className="text-lg font-medium text-gray-900">Mode de reversement des fonds</h3>
+            </div>
+            <div className="p-4 pt-0 space-y-4">
+              <div>
+                <label htmlFor="payment-mode" className="block text-sm font-medium text-gray-700 mb-2">
+                  Mode de récupération privilégié
+                </label>
+                <select
+                  id="payment-mode"
+                  value={formData.payment_mode || 'retrait_physique'}
+                  onChange={(e) => updateFormData({ payment_mode: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                  required
+                  aria-required="true"
+                  aria-label="Mode de reversement"
+                >
+                  <option value="retrait_physique">Retrait physique à l'agence</option>
+                  <option value="virement_bancaire">Virement bancaire</option>
+                  <option value="transfert_mobile">Transfert mobile / électronique (Mobile Money)</option>
+                </select>
+              </div>
+
+              {formData.payment_mode === 'virement_bancaire' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50/80 rounded-lg backdrop-blur-sm space-y-0.5 animate-fade-in-up">
+                  <div className="md:col-span-2">
+                    <Input
+                      label="Nom de la banque"
+                      value={formData.bank_name || ''}
+                      onChange={(e) => updateFormData({ bank_name: e.target.value })}
+                      placeholder="Ex: SGCI, ECOBANK, NSIA, SIB..."
+                      required
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Input
+                      label="Titulaire du compte bancaire"
+                      value={formData.bank_account_holder || ''}
+                      onChange={(e) => updateFormData({ bank_account_holder: e.target.value })}
+                      placeholder="Nom complet du titulaire"
+                      required
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Input
+                      label="Numéro de compte / RIB"
+                      value={formData.bank_account_number || ''}
+                      onChange={(e) => updateFormData({ bank_account_number: e.target.value })}
+                      placeholder="Numéro de compte complet"
+                      required
+                    />
+                  </div>
+                  <Input
+                    label="Code IBAN (optionnel)"
+                    value={formData.bank_iban || ''}
+                    onChange={(e) => updateFormData({ bank_iban: e.target.value })}
+                    placeholder="CI0000000000000000000000"
+                  />
+                  <Input
+                    label="Code SWIFT / BIC (optionnel)"
+                    value={formData.bank_swift || ''}
+                    onChange={(e) => updateFormData({ bank_swift: e.target.value })}
+                    placeholder="BIC / SWIFT"
+                  />
+                </div>
+              )}
+
+              {formData.payment_mode === 'transfert_mobile' && (
+                <div className="p-4 bg-amber-50/80 rounded-lg backdrop-blur-sm text-xs text-amber-800 leading-relaxed">
+                  Pour les propriétaires préférant les transferts électroniques/mobile money, les fonds seront envoyés sur leur numéro de téléphone principal de contact (<strong>{formData.phone || 'Non renseigné'}</strong>).
+                </div>
+              )}
             </div>
           </Card>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Download, ArrowRightLeft, Wallet, Eye, X, Printer, Edit, Trash2 } from 'lucide-react';
+import { Download, ArrowRightLeft, Wallet, Eye, X, Printer, Edit, Trash2, Share2 } from 'lucide-react';
 import { supabase, dbService } from '../../lib/supabase';
 import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -22,6 +22,7 @@ import { toast } from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from '../../utils/agencyBranding';
 import { printReceiptHTML, downloadReceiptPDF } from '../../utils/receiptActions';
+import { PaymentLinkModal } from './PaymentLinkModal';
 
 interface Owner {
     id: string;
@@ -145,6 +146,55 @@ export const CaissePage: React.FC = () => {
     const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
     const [selectedOwnerForPayout, setSelectedOwnerForPayout] = useState<Owner | null>(null);
     const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
+
+    // Payment Link Share states
+    const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+    const [selectedReceiptForLink, setSelectedReceiptForLink] = useState<any>(null);
+    const [linkModalData, setLinkModalData] = useState({
+        tenantName: '',
+        tenantPhone: '',
+        amount: 0,
+        periodName: ''
+    });
+
+    const MONTHS_FR = [
+        '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+
+    const handleSharePaymentLink = async (t: Transaction) => {
+        if (t.source !== 'rent_receipt' || !t.details) return;
+        
+        const receiptDetail = t.details;
+        const tenantId = receiptDetail.tenant_id;
+        
+        const toastId = toast.loading('Chargement du contact locataire...');
+        try {
+            const { data: tenantData } = await supabase
+                .from('tenants')
+                .select('phone, first_name, last_name')
+                .eq('id', tenantId)
+                .single();
+                
+            if (!tenantData) throw new Error("Impossible de charger le contact du locataire");
+            
+            const tenantName = `${tenantData.first_name} ${tenantData.last_name}`;
+            const periodName = `${MONTHS_FR[receiptDetail.period_month]} ${receiptDetail.period_year}`;
+            
+            setLinkModalData({
+                tenantName,
+                tenantPhone: tenantData.phone || '',
+                amount: receiptDetail.balance_due ?? receiptDetail.total_amount,
+                periodName
+            });
+            setSelectedReceiptForLink(receiptDetail);
+            setIsLinkModalOpen(true);
+            toast.dismiss(toastId);
+        } catch (err: any) {
+            console.error(err);
+            toast.error(err.message || "Erreur de chargement", { id: toastId });
+        }
+    };
     
     // Deletion states
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -686,6 +736,11 @@ export const CaissePage: React.FC = () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     <div className="flex items-center justify-end gap-1">
+                                                        {tTrans.source === 'rent_receipt' && tTrans.details?.payment_status !== 'paid' && (
+                                                            <button title={t("Partager le lien de paiement")} onClick={() => handleSharePaymentLink(tTrans)} className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors">
+                                                                <Share2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                         <button title={t("Voir détail")} onClick={() => handleViewReceipt(tTrans)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
                                                             <Eye className="w-4 h-4" />
                                                         </button>
@@ -860,6 +915,19 @@ export const CaissePage: React.FC = () => {
                 message={t("Vous allez supprimer définitivement cette opération. Cette action sera enregistrée dans le journal d'audit.", {
                     op: transactionToDelete?.source === 'rent_receipt' ? t('cette quittance de loyer') : t('ce mouvement de caisse')
                 })}
+            />
+
+            <PaymentLinkModal
+                isOpen={isLinkModalOpen}
+                onClose={() => {
+                    setIsLinkModalOpen(false);
+                    setSelectedReceiptForLink(null);
+                }}
+                receipt={selectedReceiptForLink}
+                tenantName={linkModalData.tenantName}
+                tenantPhone={linkModalData.tenantPhone}
+                amount={linkModalData.amount}
+                periodName={linkModalData.periodName}
             />
         </div>
     );

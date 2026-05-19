@@ -22,6 +22,12 @@ export interface Owner extends AgencyEntity {
   children_count: number;
   subscription_status?: 'active' | 'expired' | 'none';
   subscription_expires_at?: string | null;
+  payment_mode?: 'retrait_physique' | 'virement_bancaire' | 'transfert_mobile' | null;
+  bank_name?: string | null;
+  bank_account_number?: string | null;
+  bank_account_holder?: string | null;
+  bank_iban?: string | null;
+  bank_swift?: string | null;
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
 }

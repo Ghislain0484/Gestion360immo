@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, CreditCard, Banknote, Receipt, ArrowDownLeft, Info, FileText } from 'lucide-react';
+import { X, DollarSign, CreditCard, Banknote, Receipt, ArrowDownLeft, Info, FileText, Phone, Building2 } from 'lucide-react';
 import { PdfReportService } from '../../utils/PdfReportService';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { clsx } from 'clsx';
 import { Badge } from '../ui/Badge';
 import { ReversalDetails } from './OwnerReversalCalculator';
+import { generatePayoutOrderPDF } from '../../utils/payoutPdfActions';
 
 interface OwnerReversalModalProps {
     isOpen: boolean;
@@ -44,6 +45,63 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
         reference: '',
         notes: '',
     });
+
+    const [ownerDetails, setOwnerDetails] = useState<any>(null);
+    const [agencyBankName, setAgencyBankName] = useState(() => localStorage.getItem('g360_agency_bank_name') || '');
+    const [agencyAccountNumber, setAgencyAccountNumber] = useState(() => localStorage.getItem('g360_agency_bank_account') || '');
+    const [authorizedSignee, setAuthorizedSignee] = useState(() => localStorage.getItem('g360_agency_signee') || 'La Direction');
+    const [withSignature, setWithSignature] = useState(true);
+
+    useEffect(() => {
+        async function fetchOwner() {
+            if (!ownerId) return;
+            const { data } = await supabase
+                .from('owners')
+                .select('*')
+                .eq('id', ownerId)
+                .single();
+            if (data) {
+                setOwnerDetails(data);
+                if (data.payment_mode === 'virement_bancaire') {
+                    setReversalData(prev => ({ ...prev, mode_paiement: 'virement' }));
+                } else if (data.payment_mode === 'transfert_mobile') {
+                    setReversalData(prev => ({ ...prev, mode_paiement: 'mobile_money' }));
+                } else {
+                    setReversalData(prev => ({ ...prev, mode_paiement: 'especes' }));
+                }
+            }
+        }
+        if (isOpen) {
+            fetchOwner();
+        }
+    }, [isOpen, ownerId]);
+
+    // Save inputs to localStorage on changes
+    useEffect(() => {
+        localStorage.setItem('g360_agency_bank_name', agencyBankName);
+    }, [agencyBankName]);
+
+    useEffect(() => {
+        localStorage.setItem('g360_agency_bank_account', agencyAccountNumber);
+    }, [agencyAccountNumber]);
+
+    useEffect(() => {
+        localStorage.setItem('g360_agency_signee', authorizedSignee);
+    }, [authorizedSignee]);
+
+    const handleGeneratePayoutOrder = async () => {
+        if (!ownerDetails || !user?.agency_id) return;
+        await generatePayoutOrderPDF({
+            owner: ownerDetails,
+            agencyId: user.agency_id,
+            amount: reversalData.montant,
+            reference: reversalData.reference,
+            agencyBankName,
+            agencyAccountNumber,
+            authorizedSignee,
+            withSignature
+        });
+    };
 
     // Pre-fill amount when initialAmount is provided
     useEffect(() => {
@@ -331,6 +389,102 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         />
                     </div>
+
+                    {reversalData.mode_paiement === 'virement' && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4 animate-fade-in-up">
+                            <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2 flex items-center gap-2">
+                                <CreditCard className="w-4 h-4 text-indigo-600" />
+                                <span>Informations d'Ordre de Virement</span>
+                            </h3>
+                            
+                            {ownerDetails?.bank_name ? (
+                                <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3.5 text-xs text-blue-900 grid grid-cols-2 gap-2">
+                                    <div className="col-span-2 font-bold text-blue-800 flex items-center gap-1.5 mb-1">
+                                        <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                                        <span>Bénéficiaire (Bailleur) : {ownerName}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block">Banque :</span>
+                                        <span className="font-bold">{ownerDetails.bank_name}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block">Titulaire :</span>
+                                        <span className="font-bold">{ownerDetails.bank_account_holder || ownerName}</span>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <span className="text-slate-500 block">N° de compte / RIB :</span>
+                                        <span className="font-mono font-bold tracking-wider">{ownerDetails.bank_account_number}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg font-semibold">
+                                    Attention : Aucune coordonnée bancaire n'est enregistrée dans la fiche de ce propriétaire. Veuillez la mettre à jour pour pouvoir générer l'ordre de virement.
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                                        Votre banque émettrice (Agence)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={agencyBankName}
+                                        onChange={(e) => setAgencyBankName(e.target.value)}
+                                        placeholder="Ex: SGCI, ECOBANK..."
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 bg-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                                        Votre numéro de compte débiteur
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={agencyAccountNumber}
+                                        onChange={(e) => setAgencyAccountNumber(e.target.value)}
+                                        placeholder="Votre RIB d'agence"
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 bg-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                                        Signataire autorisé
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={authorizedSignee}
+                                        onChange={(e) => setAuthorizedSignee(e.target.value)}
+                                        placeholder="Ex: Le Gérant"
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 bg-white"
+                                    />
+                                </div>
+                                <div className="flex items-center pt-5 pl-2">
+                                    <input
+                                        id="with-signature"
+                                        type="checkbox"
+                                        checked={withSignature}
+                                        onChange={(e) => setWithSignature(e.target.checked)}
+                                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                    />
+                                    <label htmlFor="with-signature" className="ml-2 block text-xs text-gray-700 font-bold cursor-pointer">
+                                        Appliquer la signature électronique
+                                    </label>
+                                </div>
+                            </div>
+
+                            {reversalData.montant > 0 && ownerDetails?.bank_name && (
+                                <button
+                                    type="button"
+                                    onClick={handleGeneratePayoutOrder}
+                                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow"
+                                >
+                                    <FileText className="w-4 h-4" />
+                                    <span>Générer l'ordre de virement PDF</span>
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     {/* Notes */}
                     <div>

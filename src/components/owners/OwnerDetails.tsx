@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, Plus, ArrowLeft, Users, Trash2, Hammer, LineChart } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, Plus, ArrowLeft, Users, Trash2, Hammer, LineChart, CreditCard } from 'lucide-react';
 import { useRealtimeData, useSupabaseCreate } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
@@ -389,6 +389,65 @@ export const OwnerDetails: React.FC = () => {
                                     <div className="sm:col-span-1">
                                         <dt className="text-sm font-medium text-gray-500">Enfants</dt>
                                         <dd className="mt-1 text-sm text-gray-900">{owner.children_count}</dd>
+                                    </div>
+                                    <div className="sm:col-span-2 border-t border-gray-150 pt-4 mt-2 animate-fade-in-up">
+                                        <dt className="text-sm font-bold text-gray-950 mb-2">Mode de récupération des fonds</dt>
+                                        <dd className="mt-1 text-sm text-gray-900">
+                                            {owner.payment_mode === 'virement_bancaire' ? (
+                                                <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-4 space-y-3">
+                                                    <div className="flex items-center gap-2 text-blue-800 font-bold">
+                                                        <CreditCard className="w-4 h-4 text-blue-600" />
+                                                        <span>Virement Bancaire</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                                        <div>
+                                                            <span className="text-gray-500 block font-medium">Banque :</span>
+                                                            <span className="font-bold text-gray-800 text-sm">{owner.bank_name || 'Non renseigné'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500 block font-medium">Titulaire :</span>
+                                                            <span className="font-bold text-gray-800 text-sm">{owner.bank_account_holder || 'Non renseigné'}</span>
+                                                        </div>
+                                                        <div className="md:col-span-2">
+                                                            <span className="text-gray-500 block font-medium">Numéro de compte / RIB :</span>
+                                                            <span className="font-mono font-black text-blue-900 text-sm tracking-wider bg-white px-3 py-1.5 rounded border border-gray-250 inline-block mt-0.5 shadow-sm">{owner.bank_account_number || 'Non renseigné'}</span>
+                                                        </div>
+                                                        {owner.bank_iban && (
+                                                            <div>
+                                                                <span className="text-gray-500 block font-medium">IBAN :</span>
+                                                                <span className="font-mono text-gray-700 text-xs bg-white px-2 py-0.5 rounded border border-gray-200">{owner.bank_iban}</span>
+                                                            </div>
+                                                        )}
+                                                        {owner.bank_swift && (
+                                                            <div>
+                                                                <span className="text-gray-500 block font-medium">SWIFT / BIC :</span>
+                                                                <span className="font-mono text-gray-700 text-xs bg-white px-2 py-0.5 rounded border border-gray-200">{owner.bank_swift}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : owner.payment_mode === 'transfert_mobile' ? (
+                                                <div className="bg-amber-50/70 border border-amber-100 rounded-xl p-4 flex items-center gap-3">
+                                                    <div className="p-2.5 bg-amber-100 text-amber-700 rounded-lg">
+                                                        <Phone className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-bold text-amber-900 block">Transfert Mobile / Mobile Money</span>
+                                                        <span className="text-xs text-amber-700">Fonds versés au numéro de téléphone principal : <strong className="text-amber-950 font-black">{owner.phone}</strong></span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-gray-50 border border-gray-150 rounded-xl p-4 flex items-center gap-3">
+                                                    <div className="p-2.5 bg-gray-100 text-gray-700 rounded-lg">
+                                                        <Building2 className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-bold text-gray-900 block">Retrait physique à l'agence</span>
+                                                        <span className="text-xs text-gray-500">Le propriétaire récupère ses fonds en espèces ou par chèque directement au guichet de l'agence.</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </dd>
                                     </div>
                                 </dl>
                             </div>
