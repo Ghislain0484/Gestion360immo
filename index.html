@@ -40,6 +40,26 @@
 
       /* HIGH PRIORITY SILENCER: On intercepte TOUT au sommet du head */
       (function() {
+        // DOM Shield : Neutralisation globale des crashs de suppression d'éléments (Google Maps, extensions, etc.)
+        try {
+          var _origRemoveChild = Node.prototype.removeChild;
+          Node.prototype.removeChild = function(child) {
+            if (child && child.parentNode === this) {
+              return _origRemoveChild.call(this, child);
+            }
+            return child;
+          };
+
+          var _origRemove = Element.prototype.remove;
+          Element.prototype.remove = function() {
+            if (this.parentNode) {
+              try { _origRemove.call(this); } catch(e) {}
+            }
+          };
+        } catch (e) {
+          console.warn("🛡️ [DOM Shield] Mismatch:", e);
+        }
+
         var _dispatchEvent = window.dispatchEvent;
         window.dispatchEvent = function(event) {
           if (event && event.type === 'unhandledrejection') {
