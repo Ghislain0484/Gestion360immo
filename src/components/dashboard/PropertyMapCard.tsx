@@ -407,7 +407,41 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
                     ? 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
                     : 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'
                 }
-              />
+              >
+                {selectedPropertyId === marker.id && selectedProperty && (
+                  <InfoWindowF
+                    onCloseClick={() => setSelectedPropertyId(null)}
+                  >
+                    <div className="min-w-[200px] p-2">
+                      <h4 className="mb-1 text-sm font-bold text-slate-900">{selectedProperty.title}</h4>
+                      <p className="mb-2 text-xs text-slate-500">
+                        {selectedProperty.location.commune}, {selectedProperty.location.quartier}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            activeContractsByProperty.get(selectedProperty.id)
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-emerald-100 text-emerald-700'
+                          }`}
+                        >
+                          {activeContractsByProperty.get(selectedProperty.id) ? 'Occupe' : 'Disponible'}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const slugId = selectedProperty.business_id || selectedProperty.id;
+                            const slug = generateSlug(slugId, selectedProperty.title);
+                            navigate(`/proprietes/${slug}`);
+                          }}
+                          className="text-[10px] font-bold text-blue-600 transition-all hover:underline"
+                        >
+                          Voir details
+                        </button>
+                      </div>
+                    </div>
+                  </InfoWindowF>
+                )}
+              </MarkerF>
             ))}
 
             {/* Recenter Button Overlay */}
@@ -420,41 +454,6 @@ export const PropertyMapCard: React.FC<PropertyMapCardProps> = ({ properties, co
                 Recentrer la vue
               </button>
             </div>
-
-            {isMapReady && selectedPropertyId && selectedProperty && (
-              <InfoWindowF
-                position={markers.find((marker) => marker.id === selectedPropertyId)?.position || ABIDJAN_CENTER}
-                onCloseClick={() => setSelectedPropertyId(null)}
-              >
-                <div className="min-w-[200px] p-2">
-                  <h4 className="mb-1 text-sm font-bold text-slate-900">{selectedProperty.title}</h4>
-                  <p className="mb-2 text-xs text-slate-500">
-                    {selectedProperty.location.commune}, {selectedProperty.location.quartier}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        activeContractsByProperty.get(selectedProperty.id)
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-emerald-100 text-emerald-700'
-                      }`}
-                    >
-                      {activeContractsByProperty.get(selectedProperty.id) ? 'Occupe' : 'Disponible'}
-                    </span>
-                    <button
-                      onClick={() => {
-                        const slugId = selectedProperty.business_id || selectedProperty.id;
-                        const slug = generateSlug(slugId, selectedProperty.title);
-                        navigate(`/proprietes/${slug}`);
-                      }}
-                      className="text-[10px] font-bold text-blue-600 transition-all hover:underline"
-                    >
-                      Voir details
-                    </button>
-                  </div>
-                </div>
-              </InfoWindowF>
-            )}
           </GoogleMap>
         </div>
 
