@@ -228,7 +228,6 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
         spouse_name: formData.spouse_name?.trim() || null,
         spouse_phone: formData.spouse_phone?.trim() || null,
         id_card_number: formData.id_card_number?.trim() || null,
-        status: formData.status || 'actif',
         payment_mode: formData.payment_mode || 'retrait_physique',
         bank_name: formData.bank_name?.trim() || null,
         bank_account_number: formData.bank_account_number?.trim() || null,
