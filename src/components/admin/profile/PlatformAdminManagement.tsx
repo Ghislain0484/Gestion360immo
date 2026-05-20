@@ -99,6 +99,11 @@ export const PlatformAdminManagement: React.FC = () => {
 
             if (error) throw error;
 
+            const result = typeof data === 'string' ? JSON.parse(data) : data;
+            if (result && result.success === false) {
+                throw new Error(result.error || 'Erreur lors de la création');
+            }
+
             toast.success('Administrateur créé avec succès');
             setShowAddModal(false);
             setNewAdmin({
