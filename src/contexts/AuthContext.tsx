@@ -62,8 +62,19 @@ const omit = <T extends object, K extends keyof T>(obj: T, keys: K[]): Omit<T, K
   return result;
 };
 
-// 🔹 Clé localStorage pour l'agence active
+// 🔹 Clés localStorage
 const ACTIVE_AGENCY_KEY = 'gestion360_active_agency';
+const CACHE_USER_KEY = 'gestion360_cached_user';
+const CACHE_ADMIN_KEY = 'gestion360_cached_admin';
+const CACHE_OWNER_KEY = 'gestion360_cached_owner';
+
+// 🔹 Helper pour nettoyer tous les caches de session
+const clearAllSessionCache = () => {
+  localStorage.removeItem(ACTIVE_AGENCY_KEY);
+  localStorage.removeItem(CACHE_USER_KEY);
+  localStorage.removeItem(CACHE_ADMIN_KEY);
+  localStorage.removeItem(CACHE_OWNER_KEY);
+};
 
 // 🔹 Fonction utilitaire pour charger un utilisateur + TOUTES ses agences
 const fetchUserWithAgency = async (userId: string): Promise<AuthUser | null> => {
@@ -255,9 +266,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // 🔌 Priorité absolue au cache local si le réseau est coupé
         if (!window.navigator.onLine) {
           console.warn('🔌 [offline] Mode hors-ligne détecté, chargement des sessions depuis le cache local...');
-          const cachedUser = localStorage.getItem('gestion360_cached_user');
-          const cachedAdmin = localStorage.getItem('gestion360_cached_admin');
-          const cachedOwner = localStorage.getItem('gestion360_cached_owner');
+          const cachedUser = localStorage.getItem(CACHE_USER_KEY);
+          const cachedAdmin = localStorage.getItem(CACHE_ADMIN_KEY);
+          const cachedOwner = localStorage.getItem(CACHE_OWNER_KEY);
 
           if (cachedUser) {
             console.log('🔌 [offline] Session utilisateur restaurée du cache');
@@ -297,27 +308,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const currentUserId = sessionData.session.user.id;
 
         // Récupérer les infos admin (sécurisé)
-        let adminData = null;
+        // IMPORTANT: On vérifie d'abord si cet utilisateur est un membre d'agence.
+        // Si oui, on ne le traite JAMAIS comme admin même s'il y a une entrée platform_admins.
+        let isAgencyMember = false;
         try {
-          const { data: adminArray, error: adminError } = await supabase
-            .from('platform_admins')
-            .select('*')
+          const { data: agencyCheck } = await supabase
+            .from('agency_users')
+            .select('user_id')
             .eq('user_id', currentUserId)
             .limit(1);
-          if (!adminError && adminArray) {
-            adminData = adminArray[0];
+          isAgencyMember = !!(agencyCheck && agencyCheck.length > 0);
+        } catch (_) { /* ignore */ }
+
+        let adminData = null;
+        if (!isAgencyMember) {
+          try {
+            const { data: adminArray, error: adminError } = await supabase
+              .from('platform_admins')
+              .select('*')
+              .eq('user_id', currentUserId)
+              .limit(1);
+            if (!adminError && adminArray) {
+              adminData = adminArray[0];
+            }
+          } catch (err) {
+            console.warn('⚠️ [Network] Échec récupération admin, tentative de fallback cache:', err);
           }
-        } catch (err) {
-          console.warn('⚠️ [Network] Échec récupération admin, tentative de fallback cache:', err);
+        } else {
+          console.log('✅ AuthContext: Utilisateur est membre d\'agence - skip vérification admin');
         }
 
-        if (adminData) {
+        if (adminData && !isAgencyMember) {
           const newAdmin: PlatformAdmin = {
             ...adminData,
             permissions: adminData.permissions || {},
             is_active: adminData.is_active ?? true,
           };
-          localStorage.setItem('gestion360_cached_admin', JSON.stringify(newAdmin));
+          localStorage.removeItem(CACHE_USER_KEY);
+          localStorage.removeItem(CACHE_OWNER_KEY);
+          localStorage.setItem(CACHE_ADMIN_KEY, JSON.stringify(newAdmin));
           setAdmin((prev) => {
             const prevData = prev ? omit(prev, ['updated_at']) : null;
             const newData = omit(newAdmin, ['updated_at']);
@@ -373,7 +402,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // 🔌 Fallback vers le cache si le réseau a échoué
         if (!u) {
-          const cachedUser = localStorage.getItem('gestion360_cached_user');
+          const cachedUser = localStorage.getItem(CACHE_USER_KEY);
           if (cachedUser) {
             u = JSON.parse(cachedUser);
             console.log('🔌 [offline] Chargement de l\'utilisateur agence depuis le cache local');
@@ -381,7 +410,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (u) {
-          localStorage.setItem('gestion360_cached_user', JSON.stringify(u));
+          localStorage.removeItem(CACHE_ADMIN_KEY);
+          localStorage.removeItem(CACHE_OWNER_KEY);
+          localStorage.setItem(CACHE_USER_KEY, JSON.stringify(u));
           
           // 1. Déterminer l'agence active (localStorage ou auto-sélection si unique)
           const savedAgencyId = localStorage.getItem(ACTIVE_AGENCY_KEY);
@@ -432,9 +463,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.error('❌ AuthContext: Erreur critique checkSession:', err);
         // Fallback ultime vers le cache avant de déconnecter
-        const cachedUser = localStorage.getItem('gestion360_cached_user');
-        const cachedAdmin = localStorage.getItem('gestion360_cached_admin');
-        const cachedOwner = localStorage.getItem('gestion360_cached_owner');
+        const cachedUser = localStorage.getItem(CACHE_USER_KEY);
+        const cachedAdmin = localStorage.getItem(CACHE_ADMIN_KEY);
+        const cachedOwner = localStorage.getItem(CACHE_OWNER_KEY);
         
         if (cachedUser) {
           setUser(JSON.parse(cachedUser));
@@ -544,6 +575,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeId = agencyIds[0];
       }
 
+      // Nettoyer les caches des autres rôles pour éviter la contamination
+      localStorage.removeItem(CACHE_ADMIN_KEY);
+      localStorage.removeItem(CACHE_OWNER_KEY);
+
       if (activeId) {
         localStorage.setItem(ACTIVE_AGENCY_KEY, activeId);
         setActiveAgencyId(activeId);
@@ -617,6 +652,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const o = ownerData as Owner;
+      // Nettoyer les caches des autres rôles
+      localStorage.removeItem(CACHE_ADMIN_KEY);
+      localStorage.removeItem(CACHE_USER_KEY);
+      localStorage.setItem(CACHE_OWNER_KEY, JSON.stringify(o));
       setOwner(o);
       setUser(null);
       setAdmin(null);
@@ -665,6 +704,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         permissions: adminData.permissions || {},
         is_active: adminData.is_active ?? true,
       };
+
+      // Nettoyer les caches des autres rôles
+      localStorage.removeItem(CACHE_USER_KEY);
+      localStorage.removeItem(CACHE_OWNER_KEY);
+      localStorage.removeItem(ACTIVE_AGENCY_KEY);
+      localStorage.setItem(CACHE_ADMIN_KEY, JSON.stringify(admin));
 
       setAdmin(admin);
       setUser(null);
@@ -746,8 +791,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAdmin(null);
       setOwner(null);
       setActiveAgencyId(null);
-      // Clear the stored active agency to prevent session leakage between users
-      localStorage.removeItem(ACTIVE_AGENCY_KEY);
+      // Nettoyer TOUS les caches pour éviter toute fuite de session entre utilisateurs
+      clearAllSessionCache();
+      console.log('✅ AuthContext: Déconnexion complète - tous les caches nettoyés');
     } finally {
       setIsLoading(false);
     }
