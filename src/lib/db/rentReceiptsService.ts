@@ -29,7 +29,8 @@ export const rentReceiptsService = {
         *,
         property:properties(title, business_id),
         tenant:tenants(first_name, last_name, business_id),
-        owner:owners(business_id)
+        owner:owners(business_id),
+        contract:contracts(monthly_rent, charges)
       `)
       .order('created_at', { ascending: false });
 

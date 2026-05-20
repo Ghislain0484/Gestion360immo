@@ -142,20 +142,24 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     const year = periodYear;
 
     try {
-      // LOGIQUE COMPTABILITÉ PROFESSIONNELLE
-      // 1. Le Total Encaissé est la somme de TOUT (Loyer + Charges + Caution + Frais)
-      const rentWithCharges = rentAmount + (charges || 0);
-      const totalToPay = rentWithCharges + depositAmount + agencyFees;
+      // LOGIQUE COMPTABILITÉ PROFESSIONNELLE AVEC INTÉGRITÉ DE CONTRAT
+      // 1. Récupération des valeurs réelles du contrat pour éviter les contournements de paiement partiel
+      const contractRent = contractInfo.monthly_rent || 0;
+      const contractCharges = contractInfo.charges || 0;
+      const contractExpectedRent = contractRent + contractCharges;
+      
+      // Total attendu (le plus élevé entre le contrat et la saisie utilisateur)
+      const expectedRentTotal = Math.max(contractExpectedRent, rentAmount + (charges || 0));
+      const trueTotalExpected = expectedRentTotal + depositAmount + agencyFees;
       
       // On considère que le "amountPaid" saisi par l'utilisateur est le global
-      const paidAmount = amountPaid > 0 ? amountPaid : totalToPay;
+      const paidAmount = amountPaid > 0 ? amountPaid : trueTotalExpected;
       
       // 2. Calcul des Commissions : Frais de dossier (100% agence) + % sur le loyer encaissé
       const commissionRate = contractInfo.commission_rate || 10;
       
       // Ratio de paiement appliqué au loyer (si paiement partiel)
-      // Note: On assume que les frais et la caution sont payés en priorité ou inclus dans le global
-      const rentPaidPart = Math.max(0, Math.min(rentWithCharges, paidAmount - depositAmount - agencyFees));
+      const rentPaidPart = Math.max(0, Math.min(expectedRentTotal, paidAmount - depositAmount - agencyFees));
       const commissionOnRent = (rentPaidPart * commissionRate) / 100;
       
       // Commission Totale Agence = Part du loyer + Frais de dossier
@@ -164,8 +168,8 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
       // 3. Reversement Propriétaire = Loyer encaissé - Commission sur loyer - Dépenses/Travaux
       const ownerPayment = rentPaidPart - commissionOnRent - totalExpenses;
 
-      const balanceDue = Math.max(0, totalToPay - paidAmount);
-      const isPartial = paidAmount < totalToPay;
+      const balanceDue = Math.max(0, trueTotalExpected - paidAmount);
+      const isPartial = paidAmount < trueTotalExpected || balanceDue > 0;
       
       const receiptNumber = `REC-${year}${String(month).padStart(2, '0')}-${Date.now()}`;
 
@@ -178,11 +182,11 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
         receipt_number: receiptNumber,
         period_month: month,
         period_year: year,
-        rent_amount: rentAmount,
-        charges: charges || 0,
+        rent_amount: Math.max(rentAmount, contractRent),
+        charges: Math.max(charges || 0, contractCharges),
         deposit_amount: depositAmount,
         agency_fees: agencyFees,
-        total_amount: totalToPay,
+        total_amount: trueTotalExpected,
         amount_paid: paidAmount,
         balance_due: balanceDue,
         payment_status: isPartial ? 'partial' : 'full',
@@ -254,7 +258,11 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
 
   // Calcul du net propriétaire estimé pour affichage
   const commissionRate = contractInfo?.commission_rate || 10;
-  const rentWithCharges = rentAmount + charges;
+  const contractRent = contractInfo?.monthly_rent || 0;
+  const contractCharges = contractInfo?.charges || 0;
+  const contractExpectedRent = contractRent + contractCharges;
+  const expectedRentTotal = Math.max(contractExpectedRent, rentAmount + charges);
+  const rentWithCharges = expectedRentTotal;
   const paidAmount = amountPaid > 0 ? amountPaid : (rentWithCharges + depositAmount + agencyFees);
   const rentPaidPart = Math.max(0, Math.min(rentWithCharges, paidAmount - depositAmount - agencyFees));
   const commissionOnRent = (rentPaidPart * commissionRate) / 100;

@@ -24,6 +24,7 @@ interface PaymentsListProps {
 interface PaymentWithDetails extends RentReceipt {
     tenant?: { first_name: string; last_name: string; business_id: string };
     property?: { title: string; business_id: string };
+    contract?: { monthly_rent?: number; charges?: number };
 }
 
 const MONTHS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -319,27 +320,49 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                         <div className="text-sm font-semibold text-gray-900">
                                             {formatCurrency(payment.amount_paid ?? payment.total_amount)}
                                         </div>
-                                        {(payment.amount_paid ?? payment.total_amount) < payment.total_amount && (
-                                            <div className="text-xs text-gray-400 line-through">
-                                                {formatCurrency(payment.total_amount)}
-                                            </div>
-                                        )}
+                                        {(() => {
+                                            const contractRent = payment.contract ? ((payment.contract.monthly_rent ?? 0) + (payment.contract.charges ?? 0)) : (payment.rent_amount ?? 0) + (payment.charges ?? 0);
+                                            const expectedTotal = Math.max(payment.total_amount || 0, contractRent);
+                                            const amountPaid = payment.amount_paid ?? payment.total_amount ?? 0;
+                                            if (amountPaid < expectedTotal) {
+                                                return (
+                                                    <div className="text-xs text-gray-400 line-through">
+                                                        {formatCurrency(expectedTotal)}
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        {payment.payment_status === 'partial' || ((payment.amount_paid ?? payment.total_amount) < payment.total_amount) ? (
-                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
-                                                ⚠ Partiel
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                                                ✓ Soldé
-                                            </span>
-                                        )}
-                                        {payment.balance_due != null && payment.balance_due > 0 && (
-                                            <div className="text-xs text-red-500 mt-1">
-                                                Reste : {formatCurrency(payment.balance_due)}
-                                            </div>
-                                        )}
+                                        {(() => {
+                                            const contractRent = payment.contract ? ((payment.contract.monthly_rent ?? 0) + (payment.contract.charges ?? 0)) : (payment.rent_amount ?? 0) + (payment.charges ?? 0);
+                                            const expectedTotal = Math.max(payment.total_amount || 0, contractRent);
+                                            const amountPaid = payment.amount_paid ?? payment.total_amount ?? 0;
+                                            const balanceDue = payment.balance_due || Math.max(0, expectedTotal - amountPaid);
+                                            
+                                            const isPartial = payment.payment_status === 'partial' || amountPaid < expectedTotal;
+                                            
+                                            if (isPartial) {
+                                                return (
+                                                    <>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                                                            ⚠ Partiel
+                                                        </span>
+                                                        {balanceDue > 0 && (
+                                                            <div className="text-xs text-red-500 mt-1">
+                                                                Reste : {formatCurrency(balanceDue)}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            }
+                                            return (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                                    ✓ Soldé
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -443,16 +466,35 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                                 </div>
                                 <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2">
                                     <span>MONTANT VERSÉ</span>
-                                    <span className={((selectedPayment.amount_paid ?? selectedPayment.total_amount) < selectedPayment.total_amount) ? "text-orange-600" : "text-green-600"}>
-                                        {(selectedPayment.amount_paid ?? selectedPayment.total_amount).toLocaleString('fr-FR')} FCFA
-                                    </span>
+                                    {(() => {
+                                        const contractRent = selectedPayment.contract ? ((selectedPayment.contract.monthly_rent ?? 0) + (selectedPayment.contract.charges ?? 0)) : (selectedPayment.rent_amount ?? 0) + (selectedPayment.charges ?? 0);
+                                        const expectedTotal = Math.max(selectedPayment.total_amount || 0, contractRent);
+                                        const amountPaid = selectedPayment.amount_paid ?? selectedPayment.total_amount ?? 0;
+                                        const isPartial = selectedPayment.payment_status === 'partial' || amountPaid < expectedTotal;
+                                        return (
+                                            <span className={isPartial ? "text-orange-600" : "text-green-600"}>
+                                                {amountPaid.toLocaleString('fr-FR')} FCFA
+                                            </span>
+                                        );
+                                    })()}
                                 </div>
-                                {((selectedPayment.amount_paid ?? selectedPayment.total_amount) < selectedPayment.total_amount || (selectedPayment.balance_due ?? 0) > 0) && (
-                                    <div className="flex justify-between font-bold text-base bg-red-50 rounded-lg px-3 py-2">
-                                        <span className="text-red-600">SOLDE RESTANT</span>
-                                        <span className="text-red-600">{(selectedPayment.balance_due ?? (selectedPayment.total_amount - (selectedPayment.amount_paid ?? selectedPayment.total_amount))).toLocaleString('fr-FR')} FCFA</span>
-                                    </div>
-                                )}
+                                {(() => {
+                                    const contractRent = selectedPayment.contract ? ((selectedPayment.contract.monthly_rent ?? 0) + (selectedPayment.contract.charges ?? 0)) : (selectedPayment.rent_amount ?? 0) + (selectedPayment.charges ?? 0);
+                                    const expectedTotal = Math.max(selectedPayment.total_amount || 0, contractRent);
+                                    const amountPaid = selectedPayment.amount_paid ?? selectedPayment.total_amount ?? 0;
+                                    const balanceDue = selectedPayment.balance_due || Math.max(0, expectedTotal - amountPaid);
+                                    const isPartial = selectedPayment.payment_status === 'partial' || amountPaid < expectedTotal;
+                                    
+                                    if (isPartial && balanceDue > 0) {
+                                        return (
+                                            <div className="flex justify-between font-bold text-base bg-red-50 rounded-lg px-3 py-2">
+                                                <span className="text-red-600">SOLDE RESTANT</span>
+                                                <span className="text-red-600">{balanceDue.toLocaleString('fr-FR')} FCFA</span>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
 
                             {selectedPayment.notes && (

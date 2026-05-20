@@ -50,7 +50,7 @@ export const OwnerDashboard: React.FC = () => {
               const rd = new Date(r.payment_date);
               return rd.getMonth() === month && rd.getFullYear() === year;
             });
-            const total = monthReceipts.reduce((sum: number, r: any) => sum + (r.owner_payment || r.total_amount * 0.9), 0);
+            const total = monthReceipts.reduce((sum: number, r: any) => sum + (r.owner_payment ?? r.total_amount * 0.9), 0);
             return { name: monthNames[month], revenue: total };
           });
           const now = new Date();
@@ -63,7 +63,7 @@ export const OwnerDashboard: React.FC = () => {
             monthlyRevenue: profileReceipts.filter(r => {
               const rd = new Date(r.payment_date);
               return rd.getMonth() === now.getMonth() && rd.getFullYear() === now.getFullYear();
-            }).reduce((s, r) => s + (r.owner_payment || 0), 0),
+            }).reduce((s, r) => s + (r.owner_payment ?? 0), 0),
             overdueContracts: [],
             totalReversements: profilePayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0),
             occupancy: profileProps.length > 0 ? Math.round((profileContracts.length / profileProps.length) * 100) : 0,
@@ -435,7 +435,7 @@ export const OwnerDashboard: React.FC = () => {
                   <p className="text-sm text-slate-400 font-medium">Loyer payé via Flutterwave · ID #{r.receipt_number}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-black text-emerald-600">{formatCurrency(r.owner_payment || r.total_amount * 0.9)}</p>
+                  <p className="font-black text-emerald-600">{formatCurrency(r.owner_payment ?? r.total_amount * 0.9)}</p>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{formatDate(r.payment_date)}</p>
                 </div>
               </div>
