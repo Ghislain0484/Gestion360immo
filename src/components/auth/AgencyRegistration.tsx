@@ -556,12 +556,21 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
                       <p className="text-indigo-600 font-black text-xl">1%</p>
                     </div>
                   </div>
-                  <div className="p-3 bg-indigo-600 text-white rounded-lg text-center">
-                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Abonnement Fixe</p>
-                    <p className="text-sm font-black">0 FCFA / MOIS</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2.5 bg-indigo-600 text-white rounded-lg text-center">
+                      <p className="text-[9px] font-bold uppercase tracking-wider opacity-90">Abonnement Fixe</p>
+                      <p className="text-xs font-black">0 FCFA / MOIS</p>
+                    </div>
+                    <div className="p-2.5 bg-emerald-600 text-white rounded-lg text-center">
+                      <p className="text-[9px] font-bold uppercase tracking-wider opacity-90">Période de Grâce</p>
+                      <p className="text-xs font-black">60 À 90 JOURS</p>
+                    </div>
                   </div>
                   <p className="text-[11px] text-indigo-800 dark:text-indigo-400 leading-relaxed text-center font-medium mt-1">
-                    La rémunération se fait sur la base de 1% de commission uniquement sur le chiffre d'affaires réel réalisé par votre agence sur la plateforme.
+                    La rémunération se fait sur la base de 1% de commission uniquement sur le chiffre d'affaires réel réalisé par votre agence.
+                  </p>
+                  <p className="text-[10px] text-emerald-800 dark:text-emerald-400 leading-relaxed text-center font-semibold bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded-lg border border-emerald-100/50">
+                    🎁 Période de grâce activée : Aucun frais ni commission ne sera appliqué durant les 60 à 90 premiers jours.
                   </p>
                 </div>
               </div>
