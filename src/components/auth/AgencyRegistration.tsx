@@ -276,8 +276,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
   const steps = [
     { id: 1, title: "Informations de l'agence", icon: Building2 },
     { id: 2, title: 'Compte directeur', icon: Users },
-    { id: 3, title: 'Choix du Plan', icon: Save },
-    { id: 4, title: 'Vérification', icon: Shield },
+    { id: 3, title: 'Vérification', icon: Shield },
   ];
 
   return (
@@ -519,104 +518,8 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
           </div>
         )}
 
-        {/* Step 3: Plan Selection */}
+        {/* Step 3: Verification */}
         {currentStep === 3 && (
-          <div className="space-y-6">
-            <div className="flex flex-col items-center justify-center mb-6">
-              <div className="flex items-center gap-4 p-1.5 bg-gray-100 rounded-xl border border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('monthly')}
-                  className={clsx(
-                    "px-6 py-2 rounded-lg text-sm font-bold transition-all",
-                    billingCycle === 'monthly' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  )}
-                >
-                  Mensuel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('yearly')}
-                  className={clsx(
-                    "px-6 py-2 rounded-lg text-sm font-bold transition-all",
-                    billingCycle === 'yearly' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  )}
-                >
-                  Annuel (-20%)
-                </button>
-              </div>
-              <p className="text-[10px] text-blue-600 font-bold mt-2 uppercase tracking-widest">
-                60 jours d'essai gratuits inclus
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                {
-                  id: 'basic',
-                  name: 'Basic',
-                  price: settings?.subscription_basic_price || 25000,
-                  features: ['10 propriétés', '2 utilisateurs', 'Support email']
-                },
-                {
-                  id: 'premium',
-                  name: 'Premium',
-                  price: settings?.subscription_premium_price || 50000,
-                  popular: true,
-                  features: ['50 propriétés', '5 utilisateurs', 'Support prioritaire']
-                },
-                {
-                  id: 'enterprise',
-                  name: 'Enterprise',
-                  price: settings?.subscription_enterprise_price || 100000,
-                  features: ['Illimité', 'Illimité', 'Support 24/7']
-                }
-              ].map((plan) => {
-                const displayPrice = billingCycle === 'yearly' ? plan.price * 0.8 : plan.price;
-                return (
-                  <div
-                    key={plan.id}
-                    onClick={() => setSelectedPlan(plan.id as any)}
-                    className={clsx(
-                      "relative cursor-pointer flex flex-col rounded-2xl p-5 border-2 transition-all duration-300",
-                      selectedPlan === plan.id
-                        ? "border-blue-600 bg-blue-50/50 shadow-md"
-                        : "border-gray-100 bg-white hover:border-blue-200"
-                    )}
-                  >
-                    {plan.popular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-3 py-0.5 rounded-full text-[9px] font-bold uppercase">
-                        Populaire
-                      </div>
-                    )}
-                    <h4 className="font-bold text-gray-900 mb-2">{plan.name}</h4>
-                    <div className="flex items-baseline gap-1 mb-4">
-                      <span className="text-2xl font-black">{new Intl.NumberFormat('fr-FR').format(displayPrice)}</span>
-                      <span className="text-[10px] text-gray-500 uppercase">XOF/mois</span>
-                    </div>
-                    <ul className="space-y-2 mb-6 flex-grow">
-                      {plan.features.map((f, i) => (
-                        <li key={i} className="flex items-center text-xs text-gray-600">
-                          <Shield className="h-3 w-3 text-blue-500 mr-2 shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className={clsx(
-                      "mt-auto py-2 rounded-lg text-xs font-bold text-center transition-colors",
-                      selectedPlan === plan.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                    )}>
-                      {selectedPlan === plan.id ? 'Sélectionné' : 'Choisir'}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Step 4: Verification */}
-        {currentStep === 4 && (
           <div className="space-y-6">
             <Card>
               <div className="flex items-center mb-4">
@@ -640,25 +543,26 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
                   </div>
                 </div>
 
-                <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <h4 className="font-bold text-indigo-600 uppercase text-[10px] tracking-widest">💳 Abonnement Choisi</h4>
+                <div className="space-y-3 p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100">
+                  <h4 className="font-bold text-indigo-600 uppercase text-[10px] tracking-widest">💼 Modèle de Facturation</h4>
                   <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-indigo-50">
                     <div>
-                      <p className="font-black text-slate-900 text-lg">{selectedPlan.toUpperCase()}</p>
+                      <p className="font-black text-slate-900 text-lg">Partenariat FinTech</p>
                       <p className="text-[10px] text-slate-500 font-bold uppercase transition-all">
-                        {billingCycle === 'yearly' ? 'Facturation Annuelle' : 'Facturation Mensuelle'}
+                        Rémunération au Succès
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-indigo-600 font-black text-xl">
-                        {billingCycle === 'yearly' ? '-20%' : 'Standard'}
-                      </p>
+                      <p className="text-indigo-600 font-black text-xl">1%</p>
                     </div>
                   </div>
                   <div className="p-3 bg-indigo-600 text-white rounded-lg text-center">
-                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Période de grâce</p>
-                    <p className="text-sm font-black">60 JOURS OFFERTS</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Abonnement Fixe</p>
+                    <p className="text-sm font-black">0 FCFA / MOIS</p>
                   </div>
+                  <p className="text-[11px] text-indigo-800 dark:text-indigo-400 leading-relaxed text-center font-medium mt-1">
+                    La rémunération se fait sur la base de 1% de commission uniquement sur le chiffre d'affaires réel réalisé par votre agence sur la plateforme.
+                  </p>
                 </div>
               </div>
             </Card>
@@ -677,7 +581,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
             <Button type="button" variant="ghost" onClick={onClose}>
               Annuler
             </Button>
-            {currentStep < 4 ? (
+            {currentStep < 3 ? (
               <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>
                 Suivant
               </Button>
