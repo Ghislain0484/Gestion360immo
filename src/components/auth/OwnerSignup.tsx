@@ -64,19 +64,21 @@ export const OwnerSignup: React.FC = () => {
     setLoading(true);
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-        options: {
-          data: {
-            role: 'owner',
-            full_name: ownerInfo?.name
-          }
+      const { data: bypassData, error: bypassError } = await supabase.rpc('bypass_signup_v1', {
+        p_email: email.trim().toLowerCase(),
+        p_password: password,
+        p_metadata: {
+          role: 'owner',
+          full_name: ownerInfo?.name
         }
       });
 
-      if (signUpError) {
-        throw signUpError;
+      if (bypassError || !bypassData) {
+        throw new Error(bypassError?.message || "Erreur lors de la création de l'utilisateur");
+      }
+
+      if (bypassData.success === false) {
+        throw new Error(bypassData.error || "Cet email est déjà utilisé");
       }
 
       toast.success('Compte activé avec succès ! Bienvenue sur votre portail.');

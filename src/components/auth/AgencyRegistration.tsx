@@ -190,24 +190,29 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
       }
 
       console.log("🚀 [Registration] Starting submission...");
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: directorData.email.toLowerCase(),
-        password: directorData.password,
-        options: {
-          data: {
-            first_name: directorData.first_name,
-            last_name: directorData.last_name,
-            role: directorData.role,
-            permissions: directorData.permissions,
-          },
+      const { data: bypassData, error: bypassError } = await supabase.rpc('bypass_signup_v1', {
+        p_email: directorData.email.toLowerCase(),
+        p_password: directorData.password,
+        p_metadata: {
+          first_name: directorData.first_name,
+          last_name: directorData.last_name,
+          role: directorData.role,
+          permissions: directorData.permissions,
         },
       });
 
-      if (authError || !authData.user) {
-        console.error("❌ [Registration] Auth signUp failed:", authError);
-        throw new Error(authError?.message || "Erreur lors de la création de l'utilisateur");
+      if (bypassError || !bypassData) {
+        console.error("❌ [Registration] Bypass signUp failed:", bypassError);
+        throw new Error(bypassError?.message || "Erreur lors de la création de l'utilisateur");
       }
-      console.log("✅ [Registration] Auth user created:", authData.user.id);
+
+      if (bypassData.success === false) {
+        console.error("❌ [Registration] Bypass signUp returned failure:", bypassData.error);
+        throw new Error(bypassData.error || "Erreur lors de la création de l'utilisateur");
+      }
+
+      const authUser = bypassData.user;
+      console.log("✅ [Registration] Auth user created:", authUser.id);
 
       const registrationId = uuidv4();
 
@@ -225,7 +230,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         is_accredited: agencyData.isAccredited,
         accreditation_number: agencyData.isAccredited ? agencyData.accreditationNumber : null,
         status: 'pending',
-        director_auth_user_id: authData.user.id,
+        director_auth_user_id: authUser.id,
         selected_plan: selectedPlan,
         billing_cycle: billingCycle,
         created_at: new Date().toISOString(),
@@ -247,7 +252,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         {
           ...requestData,
           registration_id: registrationId,
-          user_id: authData.user.id,
+          user_id: authUser.id,
           timestamp: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' }),
         },
         registrationId
