@@ -9,6 +9,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { Card } from '../ui/Card';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { EmptyState } from '../ui/EmptyState';
+import { Button } from '../ui/Button';
 import { useCanDelete } from '../../hooks/useCanDelete';
 import { Tabs } from '../ui/Tabs';
 import { FilterBar } from '../shared/FilterBar';
@@ -314,6 +315,19 @@ export const CaissePage: React.FC = () => {
             filteredTransactions: filteredTrans
         };
     }, [transactions, filters.type, filters.category]);
+
+    // Pagination logic
+    const [page, setPage] = useState(1);
+    const pageSize = 50;
+
+    useEffect(() => {
+        setPage(1); // Reset page to 1 when filters change
+    }, [filters]);
+
+    const paginatedTransactions = useMemo(() => {
+        const startIndex = (page - 1) * pageSize;
+        return summary.filteredTransactions.slice(startIndex, startIndex + pageSize);
+    }, [summary.filteredTransactions, page, pageSize]);
 
 
 
@@ -681,7 +695,7 @@ export const CaissePage: React.FC = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {summary.filteredTransactions.map((tTrans) => (
+                                        {paginatedTransactions.map((tTrans) => (
                                             <tr key={tTrans.id} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                     {new Date(tTrans.date).toLocaleDateString('fr-FR')}
@@ -777,6 +791,27 @@ export const CaissePage: React.FC = () => {
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+                        )}
+                        {summary.filteredTransactions.length > 0 && (
+                            <div className="p-4 border-t border-gray-200 flex justify-between items-center bg-gray-50">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setPage(p => Math.max(p - 1, 1))}
+                                    disabled={page === 1}
+                                >
+                                    {t("Précédent")}
+                                </Button>
+                                <span className="text-sm text-gray-600">
+                                    Page {page} / {Math.max(1, Math.ceil(summary.filteredTransactions.length / pageSize))}
+                                </span>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setPage(p => p + 1)}
+                                    disabled={page * pageSize >= summary.filteredTransactions.length}
+                                >
+                                    {t("Suivant")}
+                                </Button>
                             </div>
                         )}
                     </Card>

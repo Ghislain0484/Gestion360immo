@@ -23,6 +23,7 @@ export interface Owner extends AgencyEntity {
   subscription_status?: 'active' | 'expired' | 'none';
   subscription_expires_at?: string | null;
   payment_mode?: 'retrait_physique' | 'virement_bancaire' | 'transfert_mobile' | null;
+  payout_preference_day?: number | null;
   bank_name?: string | null;
   bank_account_number?: string | null;
   bank_account_holder?: string | null;

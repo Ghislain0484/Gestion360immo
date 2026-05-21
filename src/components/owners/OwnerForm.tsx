@@ -57,6 +57,8 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successInfo, setSuccessInfo] = useState({ title: '', message: '' });
 
+  const payoutDayOptions = Array.from({ length: 31 }, (_, i) => i + 1);
+
   const propertyTitleOptions = [
     { value: 'attestation_villageoise' as PropertyTitle, label: 'Attestation villageoise' },
     { value: 'lettre_attribution' as PropertyTitle, label: "Lettre d'attribution" },
@@ -132,6 +134,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
       photo_url: null,
       id_card_number: null,
       payment_mode: 'retrait_physique',
+      payout_preference_day: null,
       bank_name: null,
       bank_account_number: null,
       bank_account_holder: null,
@@ -229,6 +232,7 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
         spouse_phone: formData.spouse_phone?.trim() || null,
         id_card_number: formData.id_card_number?.trim() || null,
         payment_mode: formData.payment_mode || 'retrait_physique',
+        payout_preference_day: formData.payout_preference_day || null,
         bank_name: formData.bank_name?.trim() || null,
         bank_account_number: formData.bank_account_number?.trim() || null,
         bank_account_holder: formData.bank_account_holder?.trim() || null,
@@ -561,6 +565,24 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
                   <option value="retrait_physique">Retrait physique à l'agence</option>
                   <option value="virement_bancaire">Virement bancaire</option>
                   <option value="transfert_mobile">Transfert mobile / électronique (Mobile Money)</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="payout-day" className="block text-sm font-medium text-gray-700 mb-2">
+                  Jour de reversement souhaité (Le X du mois)
+                </label>
+                <select
+                  id="payout-day"
+                  value={formData.payout_preference_day || ''}
+                  onChange={(e) => updateFormData({ payout_preference_day: e.target.value ? parseInt(e.target.value) : null })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                  aria-label="Jour de reversement"
+                >
+                  <option value="">-- Sans préférence --</option>
+                  {payoutDayOptions.map((day) => (
+                    <option key={day} value={day}>Le {day}</option>
+                  ))}
                 </select>
               </div>
 

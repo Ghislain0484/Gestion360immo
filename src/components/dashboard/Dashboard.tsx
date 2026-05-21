@@ -28,6 +28,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Contract, RentReceipt, User, Property } from '../../types/db';
 import { PropertyMapCard } from './PropertyMapCard';
+import { UpcomingPayouts } from './UpcomingPayouts';
 import { AuditLog } from '../../types/platform';
 import { AgencyUserRole } from '../../types/enums';
 import { DashboardCharts } from './DashboardCharts';
@@ -755,6 +756,10 @@ export const Dashboard: React.FC = () => {
                 )}
           </div>
         </section>
+
+        <div className="mb-6">
+          <UpcomingPayouts />
+        </div>
 
         <PropertyMapCard
           properties={dashboardProperties ?? []}
