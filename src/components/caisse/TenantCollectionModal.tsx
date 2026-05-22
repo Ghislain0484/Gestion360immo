@@ -9,6 +9,7 @@ import { Building2, User, Calculator, Info } from 'lucide-react';
 import { Property } from '../../types/properties';
 import { Tenant } from '../../types/tenants';
 import { SMSService } from '../../services/smsService';
+import { audioService } from '../../utils/audio';
 
 interface TenantCollectionModalProps {
     isOpen: boolean;
@@ -176,6 +177,7 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             }
 
             toast.success('Encaissement global réussi !');
+            audioService.playCashIn();
 
             // 📱 Alerte SMS au Directeur (Total perçu)
             if (user?.agency_id) {

@@ -298,43 +298,13 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             />
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Plan d'abonnement
-                                            </label>
-                                            <select
-                                                value={formData.plan_type}
-                                                onChange={(e) => {
-                                                    const plan = e.target.value as 'basic' | 'premium' | 'enterprise';
-                                                    // Montants par défaut si settings non dispo
-                                                    const fees = {
-                                                        basic: settings?.subscription_basic_price || 25000,
-                                                        premium: settings?.subscription_premium_price || 50000,
-                                                        enterprise: settings?.subscription_enterprise_price || 100000
-                                                    };
-                                                    setFormData({
-                                                        ...formData,
-                                                        plan_type: plan,
-                                                        monthly_fee: fees[plan]
-                                                    });
-                                                }}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            >
-                                                <option value="basic">Basic ({new Intl.NumberFormat('fr-FR').format(settings?.subscription_basic_price || 25000)} FCFA)</option>
-                                                <option value="premium">Premium ({new Intl.NumberFormat('fr-FR').format(settings?.subscription_premium_price || 50000)} FCFA)</option>
-                                                <option value="enterprise">Enterprise ({new Intl.NumberFormat('fr-FR').format(settings?.subscription_enterprise_price || 100000)} FCFA)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Frais mensuels (FCFA)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={formData.monthly_fee}
-                                                onChange={(e) => setFormData({ ...formData, monthly_fee: Number(e.target.value) })}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            />
+                                        <div className="col-span-2 p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                                            <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest mb-1">
+                                                Modèle unique performance fintech (1%)
+                                            </p>
+                                            <p className="text-xs text-emerald-700 leading-relaxed">
+                                                Aucun abonnement fixe mensuel requis. L'agence bénéficie d'un accès illimité et permanent aux services, facturé uniquement sur la base d'une commission de 1% sur les encaissements fintech.
+                                            </p>
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -386,11 +356,11 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Calendar className="h-4 w-4 text-gray-400" />
+                                        <Shield className="h-4 w-4 text-emerald-500" />
                                         <div>
-                                            <p className="text-gray-500">Fin essai gratuit (60j)</p>
-                                            <p className="font-medium text-blue-600">
-                                                {getTrialEndDate(agency.created_at)}
+                                            <p className="text-gray-500">Facturation</p>
+                                            <p className="font-bold text-emerald-600">
+                                                Performance Fintech (1%)
                                             </p>
                                         </div>
                                     </div>
@@ -455,7 +425,7 @@ export const AgencyDetails: React.FC<AgencyDetailsProps> = ({ agency, onClose, o
                                         <DollarSign className="h-5 w-5 text-emerald-600" />
                                         <p className="text-xs font-semibold text-emerald-900">Abonnement</p>
                                     </div>
-                                    <p className="text-lg font-bold text-emerald-900">{formatCurrency(formData.monthly_fee)}</p>
+                                    <p className="text-lg font-bold text-emerald-900">Performance (1%)</p>
                                 </div>
                             </Card>
                         </div>

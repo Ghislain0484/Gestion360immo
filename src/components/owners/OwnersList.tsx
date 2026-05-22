@@ -398,23 +398,11 @@ export const OwnersList: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col">
                       <Badge 
-                        variant={owner.subscription_status === 'active' ? 'success' : 'warning'}
-                        className={clsx(
-                          "w-fit font-black text-[9px] uppercase tracking-widest",
-                          owner.subscription_status === 'active' ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-rose-100 text-rose-700 border-rose-200"
-                        )}
+                        variant="success"
+                        className="w-fit font-black text-[9px] uppercase tracking-widest bg-emerald-100 text-emerald-700 border border-emerald-200"
                       >
-                        <span>{owner.subscription_status === 'active' ? 'Premium' : 'Expiré'}</span>
+                        <span>PRO ILLIMITÉ</span>
                       </Badge>
-                      {owner.subscription_expires_at ? (
-                        <span className="text-[10px] text-slate-400 mt-1 font-medium italic">
-                          jusqu'au {new Date(owner.subscription_expires_at).toLocaleDateString('fr-FR')}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 mt-1 font-medium italic">
-                          Non abonné
-                        </span>
-                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -475,21 +463,7 @@ export const OwnersList: React.FC = () => {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
-                      {owner.subscription_status !== 'active' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Payer l'abonnement"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedOwner(owner);
-                            setIsPaymentModalOpen(true);
-                          }}
-                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                        >
-                          <ShieldCheck className="h-4 w-4" />
-                        </Button>
-                      )}
+
                     </div>
                   </td>
                 </tr>

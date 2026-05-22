@@ -40,23 +40,6 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
         }
     };
 
-    const getPlanBadge = (agency: Agency) => {
-        const subRaw = (agency as any)?.subscription;
-        const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
-        const actualPlan = sub?.plan_type || agency.plan_type || 'basic';
-
-        const colors: Record<string, string> = {
-            basic: 'bg-gray-100 text-gray-700',
-            premium: 'bg-blue-100 text-blue-700',
-            enterprise: 'bg-purple-100 text-purple-700',
-        };
-        return (
-            <span className={`px-2 py-1 rounded-md text-xs font-medium ${colors[actualPlan] || colors.basic}`}>
-                {actualPlan.charAt(0).toUpperCase() + actualPlan.slice(1)}
-            </span>
-        );
-    };
-
     return (
         <Card className="border-none bg-white/90 shadow-md">
             <div className="p-6">
@@ -97,40 +80,15 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    {getPlanBadge(agency)}
+                                <div className="flex items-center gap-4">
+                                    <span className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 shadow-sm border border-emerald-200">
+                                        Fintech 1%
+                                    </span>
                                     <div className="text-right min-w-[100px]">
-                                        <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400 mb-0.5">
+                                        <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
                                             <Calendar className="h-3 w-3" />
-                                            <span>Crée le {new Date(agency.created_at).toLocaleDateString('fr-FR')}</span>
+                                            <span>Inscrite le {new Date(agency.created_at).toLocaleDateString('fr-FR')}</span>
                                         </div>
-                                        {(() => {
-                                            const subRaw = (agency as any)?.subscription;
-                                            const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
-                                            
-                                            let expDate: Date | null = null;
-                                            let label = "Expire";
-                                            
-                                            if (agency.subscription_status === 'trial') {
-                                                expDate = new Date(new Date(agency.created_at).getTime() + 60 * 24 * 60 * 60 * 1000);
-                                                label = "Fin essai";
-                                            } else if (sub?.next_payment_date) {
-                                                expDate = new Date(sub.next_payment_date);
-                                            }
-
-                                            if (!expDate) return null;
-
-                                            const isExpired = expDate.getTime() < Date.now();
-
-                                            return (
-                                                <div className={cn(
-                                                    "text-[10px] font-bold px-1.5 py-0.5 rounded-sm inline-block",
-                                                    isExpired ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
-                                                )}>
-                                                    {label} : {expDate.toLocaleDateString('fr-FR')}
-                                                </div>
-                                            );
-                                        })()}
                                     </div>
                                 </div>
                             </div>

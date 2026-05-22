@@ -70,16 +70,14 @@ export const AgencyCard: React.FC<AgencyCardProps> = ({
           </div>
         </div>
 
-        {agency.monthly_fee !== undefined && (
-          <div className="p-3 bg-blue-50 rounded-lg mb-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-blue-800">Abonnement mensuel:</span>
-              <span className="font-medium text-blue-900">
-                {formatCurrency(agency.monthly_fee || 0)}
-              </span>
-            </div>
+        <div className="p-3 bg-indigo-50 rounded-lg mb-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-indigo-800 font-medium">Modèle de facturation :</span>
+            <span className="font-bold text-indigo-900">
+              1% Performance (Fintech)
+            </span>
           </div>
-        )}
+        </div>
 
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-500">

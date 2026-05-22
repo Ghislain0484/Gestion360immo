@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AlertTriangle, Clock, ArrowRight, CheckCircle2, User } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
 import toast from 'react-hot-toast';
+import { audioService } from '../../utils/audio';
 
 interface PayoutAlert {
   owner_id: string;
@@ -55,6 +56,7 @@ export const UpcomingPayouts: React.FC = () => {
       if (error) throw error;
       
       toast.success(`Le reversement de ${formatCurrency(payout.balance)} a été enregistré dans la caisse.`);
+      audioService.playCashOut();
       // Remove from list
       setPayouts(prev => prev.filter(p => p.owner_id !== payout.owner_id));
     } catch (err: any) {

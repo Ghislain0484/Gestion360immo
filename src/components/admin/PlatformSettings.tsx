@@ -170,9 +170,9 @@ export const PlatformSettings: React.FC = () => {
     }
 
     // Input validation
-    if (settings.subscription.basicPrice < 0 || settings.subscription.premiumPrice < 0 || settings.subscription.enterprisePrice < 0) {
-      setError('Les prix des plans ne peuvent pas être négatifs.');
-      showToast('Les prix des plans ne peuvent pas être négatifs', 'error');
+    if (settings.subscription.fintechCommissionRate < 0) {
+      setError('Le taux de commission Fintech ne peut pas être négatif.');
+      showToast('Le taux de commission ne peut pas être négatif', 'error');
       return;
     }
     if (settings.subscription.trialDays < 0 || settings.subscription.gracePeriodDays < 0) {

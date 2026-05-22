@@ -30,12 +30,9 @@ export const AgenciesList: React.FC<AgenciesListProps> = React.memo(({ onViewDet
             const matchesStatus =
                 statusFilter === 'all' || agency.subscription_status === statusFilter;
 
-            const matchesPlan =
-                planFilter === 'all' || agency.plan_type === planFilter;
-
-            return matchesSearch && matchesStatus && matchesPlan;
+            return matchesSearch && matchesStatus;
         });
-    }, [agencies, searchTerm, statusFilter, planFilter]);
+    }, [agencies, searchTerm, statusFilter]);
 
     const getStatusBadge = useMemo(() => (status: string | null | undefined) => {
         // Valeur par défaut si null ou undefined
@@ -58,22 +55,9 @@ export const AgenciesList: React.FC<AgenciesListProps> = React.memo(({ onViewDet
     }, []);
 
     const getPlanBadge = useMemo(() => (agency: Agency) => {
-        // Priorité à l'abonnement réel si présent, sinon au champ plan_type de l'agence
-        const subRaw = (agency as any)?.subscription;
-        const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
-        const actualPlan = sub?.plan_type || agency.plan_type || 'basic';
-
-        const colors: Record<string, string> = {
-            basic: 'bg-gray-100 text-gray-700 border border-gray-300',
-            premium: 'bg-blue-100 text-blue-700 border border-blue-300',
-            enterprise: 'bg-purple-100 text-purple-700 border border-purple-300',
-        };
-
-        const planColor = colors[actualPlan] || colors.basic;
-
         return (
-            <span className={`px-2 py-1 rounded-md text-xs font-semibold ${planColor}`}>
-                {actualPlan.charAt(0).toUpperCase() + actualPlan.slice(1)}
+            <span className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm">
+                Fintech 1%
             </span>
         );
     }, []);
@@ -149,17 +133,6 @@ export const AgenciesList: React.FC<AgenciesListProps> = React.memo(({ onViewDet
                                 <option value="cancelled">Annulée</option>
                             </select>
 
-                            <select
-                                value={planFilter}
-                                onChange={(e) => setPlanFilter(e.target.value)}
-                                className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
-                                aria-label="Filtrer par plan"
-                            >
-                                <option value="all">Tous les plans</option>
-                                <option value="basic">Basic</option>
-                                <option value="premium">Premium</option>
-                                <option value="enterprise">Enterprise</option>
-                            </select>
                         </div>
                     </div>
 
@@ -247,31 +220,7 @@ const AgencyCard = React.memo<{
                                 <div className="flex items-center gap-2">
                                     <Calendar className="h-4 w-4 text-blue-500" />
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] text-slate-400">Inscrit le {new Date(agency.created_at).toLocaleDateString('fr-FR')}</span>
-                                        {(() => {
-                                            const subRaw = (agency as any)?.subscription;
-                                            const sub = Array.isArray(subRaw) ? subRaw[0] : subRaw;
-                                            
-                                            let expDate: Date | null = null;
-                                            let label = "Expiration";
-                                            
-                                            if (agency.subscription_status === 'trial') {
-                                                expDate = new Date(new Date(agency.created_at).getTime() + 60 * 24 * 60 * 60 * 1000);
-                                                label = "Fin essai";
-                                            } else if (sub?.next_payment_date) {
-                                                expDate = new Date(sub.next_payment_date);
-                                            }
-
-                                            if (!expDate) return null;
-                                            return (
-                                                <span className={cn(
-                                                    "text-[10px] font-bold",
-                                                    expDate.getTime() < Date.now() ? "text-red-500" : "text-emerald-600"
-                                                )}>
-                                                    {label}: {expDate.toLocaleDateString('fr-FR')}
-                                                </span>
-                                            );
-                                        })()}
+                                        <span className="text-[10px] text-slate-400 font-medium">Inscrit le {new Date(agency.created_at).toLocaleDateString('fr-FR')}</span>
                                     </div>
                                 </div>
                             </div>

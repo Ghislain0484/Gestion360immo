@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Modal } from '../ui/Modal';
 import { toast } from 'react-hot-toast';
 import { SMSService } from '../../services/smsService';
+import { audioService } from '../../utils/audio';
 
 interface NewTransactionModalProps {
     isOpen: boolean;
@@ -93,6 +94,13 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                     throw error;
                 }
                 toast.success('Transaction mise à jour');
+                
+                // Play sound
+                if (data.type === 'credit') {
+                    audioService.playCashIn();
+                } else {
+                    audioService.playCashOut();
+                }
             } else {
                 const { error } = await supabase
                     .from('modular_transactions')
@@ -102,6 +110,13 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                     throw error;
                 }
                 toast.success('Transaction enregistrée');
+
+                // Play sound
+                if (data.type === 'credit') {
+                    audioService.playCashIn();
+                } else {
+                    audioService.playCashOut();
+                }
 
                 // 📱 Alerte SMS au Directeur
                 SMSService.notifyDirectorOfOperation(
@@ -121,6 +136,8 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
             setIsLoading(false);
         }
     };
+
+
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={transaction?.id ? "Modifier le Mouvement" : "Nouveau Mouvement de Caisse"}>

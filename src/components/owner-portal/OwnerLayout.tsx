@@ -38,7 +38,7 @@ export const OwnerLayout: React.FC = () => {
   const { owner, logout, refreshAuth } = useAuth();
   const navigate = useNavigate();
 
-  const isExpired = owner?.subscription_status === 'expired';
+  const isExpired = false;
 
   useEffect(() => {
     if (owner?.id) {
@@ -176,8 +176,8 @@ export const OwnerLayout: React.FC = () => {
                   <span className="flex items-center gap-2">
                     <Gem className="h-3 w-3" /> Statut portal
                   </span>
-                  <span className={isExpired ? 'text-amber-400' : 'text-emerald-400'}>
-                    {isExpired ? 'Limite' : 'Premium'}
+                  <span className="text-emerald-400">
+                    PRO PORTAL ILLIMITÉ
                   </span>
                 </div>
                 {propertyCount === 0 && (

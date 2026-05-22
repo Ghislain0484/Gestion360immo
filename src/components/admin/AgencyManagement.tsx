@@ -161,12 +161,7 @@ export const AgencyManagement: React.FC = () => {
   };
 
   const getPlanLabel = (plan: PlanType): string => {
-    switch (plan) {
-      case 'basic': return 'Basique';
-      case 'premium': return 'Premium';
-      case 'enterprise': return 'Entreprise';
-      default: return plan;
-    }
+    return 'Fintech 1%';
   };
 
   const formatCurrency = (amount: number): string => {

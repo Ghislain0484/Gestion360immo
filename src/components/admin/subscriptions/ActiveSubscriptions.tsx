@@ -18,7 +18,7 @@ export const ActiveSubscriptions: React.FC = () => {
         return agencies.map((agency) => {
             // Dans le futur, ces données viendront d'une vue SQL agrégée
             // Pour l'instant, on simule le potentiel basé sur le volume d'activité
-            const potential = (agency as any).monthly_fee * 20; // Simulation: le potentiel est ~20x l'ancien abonnement
+            const potential = (((agency as any).monthly_fee || 75000)) * 20; // Simulation: le potentiel est ~20x l'ancien abonnement
             const commission = potential * 0.01;
 
             return {

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Modal } from '../ui/Modal';
 import { toast } from 'react-hot-toast';
+import { audioService } from '../../utils/audio';
 
 interface PayoutModalProps {
     isOpen: boolean;
@@ -129,6 +130,7 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
             if (error) throw error;
 
             toast.success('Reversement enregistré');
+            audioService.playCashOut();
             reset();
             onSuccess();
             onClose();

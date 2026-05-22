@@ -34,6 +34,7 @@ import { AgencyUserRole } from '../../types/enums';
 import { DashboardCharts } from './DashboardCharts';
 import { MonthlyRevenueItem } from '../../types/contracts';
 import { ModularTransaction } from '../../types/modular';
+import { audioService } from '../../utils/audio';
 
 interface DashboardRental {
   id: string;
@@ -245,6 +246,74 @@ export const Dashboard: React.FC = () => {
     const errors = [statsError, contractsError, receiptsError].filter(Boolean);
     setError(errors.length > 0 ? errors.join('; ') : null);
   }, [statsError, contractsError, receiptsError]);
+
+  // 5-Day Warning Deadlines Alert (exactly once per session)
+  useEffect(() => {
+    if (!agencyId || statsLoading || contractsLoading || receiptsLoading) return;
+
+    const playAlertIfDue = async () => {
+      // Check if already played this session
+      if (sessionStorage.getItem('played_5day_alert') === 'true') {
+        return;
+      }
+
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const msInDay = 1000 * 60 * 60 * 24;
+
+      // 1. Check rentals (from computed contract next due dates)
+      const hasRentDueIn5Days = recentContracts?.some((contract) => {
+        if (!['active', 'renewed', 'draft'].includes(contract.status) || !(contract.monthly_rent > 0)) return false;
+        
+        const start = new Date(contract.start_date);
+        if (Number.isNaN(start.getTime())) return false;
+        
+        if (contract.next_payment_date) {
+            const nextP = new Date(contract.next_payment_date);
+            const diffInDays = Math.ceil((nextP.getTime() - startOfToday.getTime()) / msInDay);
+            return diffInDays === 5;
+        }
+        return false;
+      });
+
+      let hasPayoutDueIn5Days = false;
+      try {
+        const { data: payouts } = await supabase.rpc('get_upcoming_payouts', { p_agency_id: agencyId });
+        if (payouts && Array.isArray(payouts)) {
+          hasPayoutDueIn5Days = payouts.some((payout: any) => {
+            if (!payout.target_date) return false;
+            const target = new Date(payout.target_date);
+            const diffInDays = Math.ceil((target.getTime() - startOfToday.getTime()) / msInDay);
+            return diffInDays === 5;
+          });
+        }
+      } catch (err) {
+        console.error('Error checking upcoming payouts for 5-day alert:', err);
+      }
+
+      if (hasRentDueIn5Days || hasPayoutDueIn5Days) {
+        audioService.playAlert();
+        sessionStorage.setItem('played_5day_alert', 'true');
+        toast('⚠️ Rappel : Vous avez des échéances importantes (loyer ou reversement) prévues dans exactement 5 jours !', {
+          duration: 6000,
+          icon: '🔔',
+          style: {
+            borderRadius: '12px',
+            background: '#0f172a',
+            color: '#fff',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          }
+        });
+      }
+    };
+
+    // Wait slightly on dashboard load for assets/interaction to settle
+    const timer = setTimeout(() => {
+      playAlertIfDue();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [agencyId, recentContracts, statsLoading, contractsLoading, receiptsLoading]);
 
   const stats = useMemo(() => {
     if (!dashboardStats) return [];

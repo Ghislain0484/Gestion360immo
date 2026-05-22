@@ -1,264 +1,161 @@
-import React, { useState, useEffect } from 'react';
-import { Zap, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import React from 'react';
+import { Sparkles, CheckCircle, ShieldCheck, HeartHandshake, Zap, Building2, Users2, ShieldAlert } from 'lucide-react';
 import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/config';
 import { useQuotaManager } from '../../hooks/useQuotaManager';
-import { usePlatformSettings } from '../../hooks/useAdminQueries';
-import { dbService } from '../../lib/supabase';
-import toast from 'react-hot-toast';
 
 export const SubscriptionSettings: React.FC = () => {
-    const { agencyId, refreshAuth } = useAuth();
-    const { stats, isEnterprise, gracePeriodDaysRemaining } = useQuotaManager();
-    const { data: settings } = usePlatformSettings();
-    const [subscription, setSubscription] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [upgrading, setUpgrading] = useState(false);
-
-    useEffect(() => {
-        const fetchSubscription = async () => {
-            if (!agencyId) return;
-            try {
-                // Fetch subscription WITH agency modules
-                const { data, error } = await supabase
-                    .from('agency_subscriptions')
-                    .select('*, agency:agencies(enabled_modules)')
-                    .eq('agency_id', agencyId)
-                    .maybeSingle();
-
-                if (error) throw error;
-                setSubscription(data);
-            } catch (err: any) {
-                console.error('Error fetching subscription:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchSubscription();
-    }, [agencyId]);
-
-    const handleUpgrade = async (plan: 'premium' | 'enterprise') => {
-        if (!agencyId) return;
-        
-        if (agencyId === '00000000-0000-0000-0000-000000000000') {
-            setUpgrading(true);
-            try {
-                const price = plan === 'premium' ? 
-                    (settings?.subscription_premium_price || 50000) : 
-                    (settings?.subscription_enterprise_price || 100000);
-                
-                localStorage.setItem('demo_agency_plan', plan);
-                localStorage.setItem('demo_agency_fee', price.toString());
-                localStorage.setItem('demo_agency_status', 'active');
-                
-                if (refreshAuth) await refreshAuth();
-                toast.success(`Mode Démo : Votre pack a été mis à jour vers ${plan.toUpperCase()} !`);
-                setSubscription((prev: any) => ({ ...prev, plan_type: plan, status: 'active', monthly_fee: price }));
-            } finally {
-                setUpgrading(false);
-            }
-            return;
-        }
-
-        setUpgrading(true);
-        try {
-            const price = plan === 'premium' ? 
-                (settings?.subscription_premium_price || 50000) : 
-                (settings?.subscription_enterprise_price || 100000);
-
-            // Tenter d'updater ou d'insérer si inexistant
-            const { error } = await supabase
-                .from('agency_subscriptions')
-                .upsert({
-                    agency_id: agencyId,
-                    plan_type: plan,
-                    status: 'active',
-                    monthly_fee: price,
-                    next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Reset billing cycle
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'agency_id' });
-
-            if (error) throw error;
-            
-            // 🔄 Synchroniser avec la table agencies pour le dashboard admin
-            await dbService.agencies.update(agencyId, { 
-                plan_type: plan, 
-                monthly_fee: price,
-                subscription_status: 'active',
-                updated_at: new Date().toISOString()
-            } as any);
-
-            // 🔐 Rafraîchir le contexte d'authentification pour mettre à jour les permissions/UI
-            if (refreshAuth) await refreshAuth();
-
-            toast.success(`Votre pack a été mis à jour vers ${plan.toUpperCase()} !`);
-            setSubscription((prev: any) => ({ ...prev, plan_type: plan, status: 'active', monthly_fee: price }));
-        } catch (err: any) {
-            toast.error("Erreur lors de la mise à jour : " + err.message);
-        } finally {
-            setUpgrading(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            </div>
-        );
-    }
-
-    const plans = [
-        {
-            id: 'basic',
-            name: 'Basic',
-            price: settings?.subscription_basic_price || 25000,
-            limit: 10,
-            features: ['10 propriétés', '2 utilisateurs', 'Support email']
-        },
-        {
-            id: 'premium',
-            name: 'Premium',
-            price: settings?.subscription_premium_price || 50000,
-            limit: 50,
-            features: ['50 propriétés', '5 utilisateurs', 'Support prioritaire']
-        },
-        {
-            id: 'enterprise',
-            name: 'Enterprise',
-            price: settings?.subscription_enterprise_price || 100000,
-            limit: Infinity,
-            features: ['Propriétés illimitées', 'Utilisateurs illimités', 'Support 24/7']
-        }
-    ];
+    const { stats } = useQuotaManager();
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-8 animate-slide-up">
+            {/* Header section */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Abonnement & Facturation</h3>
-                    <p className="text-sm text-gray-500 mt-1">Gérez votre forfait et consultez vos limites d'utilisation.</p>
+                    <div className="mb-2 flex items-center gap-2">
+                        <span className="h-1.5 w-8 rounded-full bg-emerald-500" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">
+                            Facturation de Performance
+                        </span>
+                    </div>
+                    <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">Abonnement &amp; Facturation</h3>
+                    <p className="text-sm text-slate-500 mt-1">Votre agence bénéficie du modèle de croissance illimitée Fintech à 1%.</p>
                 </div>
-                <div className="flex gap-2">
-                    {subscription?.status === 'trial' && (
-                        <Badge variant="warning" size="md">
-                            <Clock className="h-4 w-4 mr-2" />
-                            Période d'essai : {subscription.trial_days_remaining} jours restants
-                        </Badge>
-                    )}
-                    {gracePeriodDaysRemaining > 0 && (
-                        <Badge variant="danger" size="md" className="animate-pulse">
-                            <AlertTriangle className="h-4 w-4 mr-2" />
-                            Délai de grâce : {gracePeriodDaysRemaining} jours restants
-                        </Badge>
-                    )}
+                <div>
+                    <Badge variant="success" className="px-3 py-1.5 text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm animate-pulse">
+                        Modèle 1% Fintech Actif
+                    </Badge>
                 </div>
             </div>
 
-            <Card className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white overflow-hidden relative">
-                <div className="p-6 relative z-10">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-blue-100 uppercase text-xs font-bold tracking-wider mb-1">Pack actuel</p>
-                            <h4 className="text-3xl font-black mb-4 uppercase">{subscription?.plan_type || 'Basic'}</h4>
+            {/* Premium main card */}
+            <Card className="overflow-hidden border-none bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-2xl relative">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.15),transparent_50%)] pointer-events-none" />
+                <div className="relative z-10 p-8 md:p-10">
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-6">
+                        <div className="space-y-4">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold uppercase tracking-wider">
+                                <Sparkles className="h-3 w-3 text-amber-400 animate-pulse" />
+                                Zéro abonnement fixe
+                            </div>
+                            <h4 className="text-4xl font-black tracking-tight leading-none">
+                                Croissance <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">Sans Limite</span>
+                            </h4>
+                            <p className="max-w-xl text-slate-300 text-base font-medium">
+                                Pas de forfaits contraignants, pas de limites artificielles. Développez votre portefeuille immobilier à votre rythme en toute sérénité.
+                            </p>
                         </div>
-                        <div className="h-12 w-12 bg-white/20 rounded-full flex items-center justify-center">
-                            <Zap className="h-6 w-6 text-white" />
+                        <div className="flex flex-col items-end shrink-0">
+                            <div className="text-right">
+                                <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider mb-1">Abonnement mensuel</p>
+                                <div className="text-5xl font-black text-emerald-400">0 FCFA</div>
+                                <p className="text-[10px] text-slate-400 mt-1 italic">Mises à jour et support inclus à vie</p>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-                        <div className="space-y-4">
-                            <div>
-                                <p className="text-blue-100 text-sm mb-1">Utilisation des biens</p>
-                                <div className="h-2 w-full bg-white/20 rounded-full overflow-hidden">
-                                    <div 
-                                        className="h-full bg-white rounded-full" 
-                                        style={{ width: `${Math.min(100, (stats.properties.current / (stats.properties.max || 1)) * 100)}%` }}
-                                    ></div>
+                    <div className="mt-10 pt-8 border-t border-white/10 grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-300">
+                                    <Building2 className="h-5 w-5" />
                                 </div>
-                                <p className="text-right text-[10px] mt-1 text-blue-50 font-medium">
-                                    {stats.properties.current} / {isEnterprise ? '∞' : stats.properties.max} unités
-                                </p>
+                                <h5 className="font-bold text-slate-200">Biens Immobiliers</h5>
                             </div>
-                            <div>
-                                <p className="text-blue-100 text-sm mb-1">Utilisateurs actifs</p>
-                                <div className="h-2 w-full bg-white/20 rounded-full overflow-hidden">
-                                    <div 
-                                        className="h-full bg-white rounded-full" 
-                                        style={{ width: `${Math.min(100, (stats.users.current / (stats.users.max || 1)) * 100)}%` }}
-                                    ></div>
-                                </div>
-                                <p className="text-right text-[10px] mt-1 text-blue-50 font-medium">
-                                    {stats.users.current} / {isEnterprise ? '∞' : stats.users.max} accès
-                                </p>
-                            </div>
+                            <p className="text-2xl font-black text-white">{stats.properties.current} <span className="text-sm font-semibold text-emerald-400">/ Illimité</span></p>
+                            <p className="text-xs text-slate-400 mt-1">Ajoutez autant de biens que souhaité</p>
                         </div>
-                        <div className="flex flex-col justify-end text-right">
-                            <p className="text-blue-100 text-sm italic">Status :</p>
-                            <p className="text-xl font-bold uppercase">{subscription?.status || 'Actif'}</p>
+
+                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-300">
+                                    <Users2 className="h-5 w-5" />
+                                </div>
+                                <h5 className="font-bold text-slate-200">Locataires Actifs</h5>
+                            </div>
+                            <p className="text-2xl font-black text-white">{stats.tenants.current} <span className="text-sm font-semibold text-emerald-400">/ Illimité</span></p>
+                            <p className="text-xs text-slate-400 mt-1">Suivi de bail complet et sans quota</p>
+                        </div>
+
+                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-300">
+                                    <Zap className="h-5 w-5" />
+                                </div>
+                                <h5 className="font-bold text-slate-200">Accès Utilisateurs</h5>
+                            </div>
+                            <p className="text-2xl font-black text-white">{stats.users.current} <span className="text-sm font-semibold text-emerald-400">/ Illimité</span></p>
+                            <p className="text-xs text-slate-400 mt-1">Collaborez avec tous vos agents</p>
                         </div>
                     </div>
                 </div>
-                <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                {plans.map((plan) => {
-                    const isCurrent = (subscription?.plan_type || 'basic') === plan.id;
-                    const canUpgrade = !isCurrent && 
-                        (plan.id === 'enterprise' || (plan.id === 'premium' && (subscription?.plan_type === 'basic' || !subscription)));
+            {/* Model details / explanation section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
+                <Card className="border-none bg-white shadow-md p-6 space-y-4">
+                    <div className="flex items-center gap-3 text-slate-900 font-bold text-lg mb-2">
+                        <ShieldCheck className="h-6 w-6 text-emerald-500" />
+                        <span>Fonctionnement de la Commission 1%</span>
+                    </div>
+                    <ul className="space-y-3">
+                        <li className="flex items-start text-sm text-slate-600 gap-2">
+                            <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                            <span><strong>0% de commission sur les espèces :</strong> Les encaissements effectués manuellement en espèces ou par chèque en agence sont 100% gratuits.</span>
+                        </li>
+                        <li className="flex items-start text-sm text-slate-600 gap-2">
+                            <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                            <span><strong>1% sur le numérique :</strong> Seuls les paiements des loyers effectués directement via les moyens de paiement intégrés (Mobile Money Orange, MTN, Moov, Wave, ou Virement) sont commissionnés à hauteur de 1%.</span>
+                        </li>
+                        <li className="flex items-start text-sm text-slate-600 gap-2">
+                            <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                            <span><strong>Prélèvement direct et sécurisé :</strong> Les frais de 1% sont automatiquement prélevés lors du traitement numérique, garantissant une transparence totale sans facture mensuelle à régler.</span>
+                        </li>
+                    </ul>
+                </Card>
 
-                    return (
-                        <Card key={plan.id} className={isCurrent ? 'border-2 border-blue-600 shadow-md ring-1 ring-blue-600/20' : ''}>
-                            <div className="p-6">
-                                <div className="flex justify-between items-start mb-4">
-                                    <h5 className="font-bold text-gray-900">{plan.name}</h5>
-                                    {isCurrent && <Badge variant="success">Actif</Badge>}
-                                </div>
-                                <div className="flex items-baseline gap-1 mb-6">
-                                    <span className="text-3xl font-black text-gray-900">
-                                        {new Intl.NumberFormat('fr-FR').format(plan.price)}
-                                    </span>
-                                    <span className="text-xs text-gray-500 uppercase">XOF/mois</span>
-                                </div>
-                                <ul className="space-y-3 mb-8">
-                                    {plan.features.map((feature, i) => (
-                                        <li key={i} className="flex items-center text-sm text-gray-600">
-                                            <CheckCircle className="h-4 w-4 text-green-500 mr-2 shrink-0" />
-                                            {feature}
-                                        </li>
-                                    ))}
-                                </ul>
-                                
-                                <Button
-                                    variant={isCurrent ? 'outline' : 'primary'}
-                                    disabled={!canUpgrade || upgrading}
-                                    className="w-full"
-                                    onClick={() => handleUpgrade(plan.id as any)}
-                                >
-                                    {isCurrent ? 'Plan actuel' : upgrading ? 'Mise à jour...' : 'Choisir ce plan'}
-                                </Button>
-                            </div>
-                        </Card>
-                    );
-                })}
+                <Card className="border-none bg-white shadow-md p-6 space-y-4">
+                    <div className="flex items-center gap-3 text-slate-900 font-bold text-lg mb-2">
+                        <HeartHandshake className="h-6 w-6 text-indigo-500" />
+                        <span>Engagements de Gestion360Immo</span>
+                    </div>
+                    <ul className="space-y-3">
+                        <li className="flex items-start text-sm text-slate-600 gap-2">
+                            <CheckCircle className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" />
+                            <span><strong>Sécurité maximale :</strong> Vos flux de paiement sont cryptés et stockés conformément aux normes bancaires internationales.</span>
+                        </li>
+                        <li className="flex items-start text-sm text-slate-600 gap-2">
+                            <CheckCircle className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" />
+                            <span><strong>Aucun engagement :</strong> Vous êtes libre d'utiliser la plateforme à tout moment, sans contrat de durée obligatoire.</span>
+                        </li>
+                        <li className="flex items-start text-sm text-slate-600 gap-2">
+                            <CheckCircle className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" />
+                            <span><strong>Support Prioritaire Inclus :</strong> Bénéficiez d'une assistance réactive 7j/7 pour la gestion de vos comptes et de vos propriétaires.</span>
+                        </li>
+                    </ul>
+                </Card>
             </div>
 
-            <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3 mt-8">
-                <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-800">
-                    <p className="font-bold mb-1">Informations sur les limites</p>
+            {/* Note alert */}
+            <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex items-start gap-3 mt-8">
+                <ShieldAlert className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" />
+                <div className="text-sm text-indigo-900">
+                    <p className="font-bold mb-1">Mises à jour régulières</p>
                     <p>
-                        Les limites de biens et d'utilisateurs sont calculées sur la base de vos données actives. 
-                        Si vous dépassez vos limites, vous ne pourrez plus ajouter de nouveaux dossiers avant d'avoir mis à jour votre forfait.
+                        Notre équipe déploie continuellement de nouvelles fonctionnalités. En tant que partenaire Fintech, vous bénéficiez automatiquement de toutes les mises à jour majeures, outils d'automatisation des relances et modules propriétaires sans surcoût.
                     </p>
                 </div>
             </div>
+            
+            <style>{`
+                @keyframes slide-up {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-slide-up {
+                    animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                }
+            `}</style>
         </div>
     );
 };

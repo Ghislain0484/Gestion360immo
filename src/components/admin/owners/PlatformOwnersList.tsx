@@ -123,18 +123,17 @@ export const PlatformOwnersList: React.FC = () => {
                             <th className="px-8 py-6">Propriétaire</th>
                             <th className="px-8 py-6">Agence Gestionnaire</th>
                             <th className="px-8 py-6">Status Abonnement</th>
-                            <th className="px-8 py-6">Expiration</th>
                             <th className="px-8 py-6 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loadingOwners ? (
                             <tr>
-                                <td colSpan={5} className="py-20 text-center text-slate-400 font-bold italic">Mise à jour de la base...</td>
+                                <td colSpan={4} className="py-20 text-center text-slate-400 font-bold italic">Mise à jour de la base...</td>
                             </tr>
                         ) : filteredOwners.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="py-20 text-center text-slate-400 font-bold italic">Aucun propriétaire trouvé</td>
+                                <td colSpan={4} className="py-20 text-center text-slate-400 font-bold italic">Aucun propriétaire trouvé</td>
                             </tr>
                         ) : (
                             paginatedOwners.map(o => (
@@ -158,22 +157,11 @@ export const PlatformOwnersList: React.FC = () => {
                                     </td>
                                     <td className="px-8 py-6">
                                         <Badge 
-                                            variant={o.subscription_status === 'active' ? 'success' : 'warning'}
-                                            className={clsx(
-                                                "font-black text-[9px] uppercase tracking-widest px-3 py-1 rounded-lg",
-                                                o.subscription_status === 'active' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                                            )}
+                                            variant="success"
+                                            className="font-black text-[9px] uppercase tracking-widest px-3 py-1 rounded-lg bg-emerald-100 text-emerald-700 border border-emerald-200"
                                         >
-                                            {o.subscription_status === 'active' ? 'PRO PREMIUM' : 'ACCÈS LIMITÉ'}
+                                            PRO ILLIMITÉ
                                         </Badge>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-2 text-slate-500">
-                                            <Calendar className="w-3.5 h-3.5" />
-                                            <span className="text-xs font-bold leading-none">
-                                                {o.subscription_expires_at ? new Date(o.subscription_expires_at).toLocaleDateString() : 'Non définie'}
-                                            </span>
-                                        </div>
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <button 

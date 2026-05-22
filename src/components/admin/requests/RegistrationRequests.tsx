@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Clock, Building2, User, Mail, Phone, MapPin, Plus } from 'lucide-react';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';
@@ -153,9 +153,9 @@ export const RegistrationRequests: React.FC = () => {
                                                     Demande soumise le {new Date(request.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
                                                 </p>
                                                 {request.status === 'pending' && (
-                                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-wider border border-emerald-100 animate-pulse">
+                                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold uppercase tracking-wider border border-indigo-100 animate-pulse">
                                                         <Plus className="h-3 w-3" />
-                                                        Offre 2 Mois Gratuits incluse
+                                                        Modèle Performance (1% Fintech)
                                                     </div>
                                                 )}
                                             </div>

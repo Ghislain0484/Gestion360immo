@@ -11,8 +11,8 @@ export interface QuotaConfig {
 }
 
 const QUOTAS: Record<string, QuotaConfig> = {
-    basic: { maxProperties: 10, maxTenants: 10, maxUsers: 2 },
-    premium: { maxProperties: 50, maxTenants: 50, maxUsers: 5 },
+    basic: { maxProperties: Infinity, maxTenants: Infinity, maxUsers: Infinity },
+    premium: { maxProperties: Infinity, maxTenants: Infinity, maxUsers: Infinity },
     enterprise: { maxProperties: Infinity, maxTenants: Infinity, maxUsers: Infinity },
 };
 
@@ -58,20 +58,7 @@ export const useQuotaManager = () => {
     const config = isInternalMode ? QUOTAS.enterprise : (QUOTAS[agencyPlan] || QUOTAS.basic);
 
     // Logic pour la période de grâce
-    const gracePeriodDaysRemaining = useMemo(() => {
-        if (!subscription || agencyStatus !== 'active') return 0;
-        
-        const nextPayment = new Date(subscription.next_payment_date);
-        const today = new Date();
-        
-        if (today <= nextPayment) return 0; // Pas encore en retard
-        
-        const graceDaysAllowed = (settings as any)?.subscription_grace_period_days || 7;
-        const diffTime = Math.abs(today.getTime() - nextPayment.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        return Math.max(0, graceDaysAllowed - diffDays);
-    }, [subscription, agencyStatus, settings]);
+    const gracePeriodDaysRemaining = 0;
 
     const stats = useMemo(() => ({
         properties: {
