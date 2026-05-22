@@ -41,12 +41,14 @@ export interface ReversalDetails {
 interface OwnerReversalCalculatorProps {
     ownerId: string;
     ownerProperties?: any[];
+    contracts?: any[];
     onGenerateReversal: (amount: number, details: ReversalDetails) => void;
 }
 
 export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = ({
     ownerId,
     ownerProperties = [],
+    contracts = [],
     onGenerateReversal,
 }) => {
     const currentDate = new Date();
@@ -80,8 +82,8 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
             .from('modular_transactions')
             .select('*')
             .eq('related_owner_id', ownerId)
-            .in('category', ['rent_payment', 'caution'])
-            .eq('type', 'income');
+            .eq('category', 'rent_payment')
+            .in('type', ['income', 'credit']);
         if (error) throw error;
         return data || [];
     }, [ownerId]);
@@ -123,11 +125,25 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
     const calculations = useMemo(() => {
         const transactions: ReversalTransaction[] = [];
         
+        const getCommissionRate = (contractId?: string, propertyId?: string) => {
+            if (contractId && contracts) {
+                const contract = contracts.find(c => c.id === contractId);
+                if (contract?.commission_rate !== undefined) return contract.commission_rate;
+            }
+            if (propertyId && contracts) {
+                const contract = contracts.find(c => c.property_id === propertyId);
+                if (contract?.commission_rate !== undefined) return contract.commission_rate;
+            }
+            return 10;
+        };
+
         // Process Receipts
         periodPayments.receipts.forEach(p => {
             const prop = ownerProperties.find(op => op.id === p.property_id);
             const amount = p.amount_paid || p.total_amount;
-            const comm = p.commission_amount || 0;
+            const commRate = getCommissionRate(p.contract_id, p.property_id);
+            const ownerPart = Number(p.owner_payment) || (amount * (1 - commRate / 100));
+            const comm = amount - ownerPart;
             
             transactions.push({
                 id: p.id,
@@ -145,7 +161,8 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         periodPayments.manual.forEach(m => {
             const prop = ownerProperties.find(op => op.id === m.related_property_id);
             const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
-            const ownerNet = match ? Number(match[1]) : (Number(m.amount) * 0.9);
+            const commRate = getCommissionRate(undefined, m.related_property_id);
+            const ownerNet = match ? Number(match[1]) : (Number(m.amount) * (1 - commRate / 100));
             const comm = Number(m.amount) - ownerNet;
 
             transactions.push({
@@ -172,7 +189,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
             paymentsCount: transactions.length,
             transactions
         };
-    }, [periodPayments, fees, ownerProperties]);
+    }, [periodPayments, fees, ownerProperties, contracts]);
 
     const handleAddFee = () => {
         if (newFee.description && newFee.amount > 0) {

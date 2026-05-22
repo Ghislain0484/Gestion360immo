@@ -21,11 +21,12 @@ export interface FlutterwavePaymentData {
   payment_type: PaymentType;
   metadata?: Record<string, any>;
   logo_url?: string | null;
+  public_key?: string;
 }
 
 export const getFlutterwaveConfig = (data: FlutterwavePaymentData) => {
   return {
-    public_key: FLUTTERWAVE_CONFIG.getPublicKey(),
+    public_key: data.public_key || FLUTTERWAVE_CONFIG.getPublicKey(),
     tx_ref: data.tx_ref,
     amount: data.amount,
     currency: 'XOF',

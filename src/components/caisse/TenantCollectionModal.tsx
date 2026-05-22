@@ -103,11 +103,11 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             const tvaRate = platformSettings?.finance_tva_rate || 20;
             const airsiRate = platformSettings?.finance_airsi_rate || 2;
 
-            const ownerRentPart = advanceAmount * (1 - commissionRate / 100);
+            const transactions: any[] = [];
 
-            // Create 3 Transactions
-            const transactions = [
-                {
+            // 1. Transaction Caution (Dépôt de garantie)
+            if (cautionAmount > 0) {
+                transactions.push({
                     agency_id: user?.agency_id,
                     created_by: user?.id,
                     type: 'credit',
@@ -119,21 +119,37 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
                     related_owner_id: selectedProp?.owner_id,
                     related_property_id: data.property_id,
                     related_tenant_id: data.tenant_id
-                },
-                {
-                    agency_id: user?.agency_id,
-                    created_by: user?.id,
-                    type: 'credit',
-                    amount: advanceAmount,
-                    category: 'rent_payment',
-                    description: `Avance Loyer (${data.advance_months} mois) [Part Proprio: ${ownerRentPart}] - ${selectedProp?.title} - ${selectedTenant?.first_name} ${selectedTenant?.last_name}`,
-                    transaction_date: data.transaction_date,
-                    payment_method: data.payment_method,
-                    related_owner_id: selectedProp?.owner_id,
-                    related_property_id: data.property_id,
-                    related_tenant_id: data.tenant_id
-                },
-                {
+                });
+            }
+
+            // 2. Transactions Avance Loyer (Ventilées mois par mois pour amortissement)
+            if (advanceAmount > 0 && data.advance_months > 0) {
+                const monthlyRentValue = monthlyRent;
+                const monthlyOwnerPart = monthlyRentValue * (1 - commissionRate / 100);
+                
+                for (let i = 0; i < data.advance_months; i++) {
+                    const valueDate = new Date(data.transaction_date);
+                    valueDate.setMonth(valueDate.getMonth() + i);
+                    
+                    transactions.push({
+                        agency_id: user?.agency_id,
+                        created_by: user?.id,
+                        type: 'credit',
+                        amount: monthlyRentValue,
+                        category: 'rent_payment',
+                        description: `Loyers d'avance (Mois ${i + 1}/${data.advance_months}) [Part Proprio: ${monthlyOwnerPart}] - ${selectedProp?.title} - ${selectedTenant?.first_name} ${selectedTenant?.last_name}`,
+                        transaction_date: valueDate.toISOString().split('T')[0],
+                        payment_method: data.payment_method,
+                        related_owner_id: selectedProp?.owner_id,
+                        related_property_id: data.property_id,
+                        related_tenant_id: data.tenant_id
+                    });
+                }
+            }
+
+            // 3. Transaction Honoraires Agence
+            if (agencyAmount > 0) {
+                transactions.push({
                     agency_id: user?.agency_id,
                     created_by: user?.id,
                     type: 'credit',
@@ -145,8 +161,8 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
                     related_owner_id: selectedProp?.owner_id,
                     related_property_id: data.property_id,
                     related_tenant_id: data.tenant_id
-                }
-            ].filter(t => t.amount > 0);
+                });
+            }
 
             const { error: transError } = await supabase.from('modular_transactions').insert(transactions);
             if (transError) throw transError;

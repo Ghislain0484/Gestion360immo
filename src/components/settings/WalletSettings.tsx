@@ -125,14 +125,38 @@ export const WalletSettings: React.FC = () => {
             const targetAgencyId = agencyId || user?.agency_id;
             if (!targetAgencyId) throw new Error('No agency ID');
 
-            await supabase.from('wallet_transactions').insert({
+            const { data: txData, error: txErr } = await supabase.from('wallet_transactions').insert({
               agency_id: targetAgencyId,
               amount: -platformFee,
               type: 'commission',
               description: `Paiement de la commission mensuelle (1%)`,
               reference: response.transaction_id.toString(),
               metadata: { response }
-            });
+            }).select().single();
+
+            if (txErr) throw txErr;
+
+            // Instantly update status of corresponding agency_fintech_fees row to 'paid'
+            const { data: pendingFees } = await supabase
+              .from('agency_fintech_fees')
+              .select('id, commission_amount')
+              .eq('agency_id', targetAgencyId)
+              .eq('status', 'pending')
+              .order('created_at', { ascending: true });
+
+            if (pendingFees && pendingFees.length > 0) {
+              // Match oldest pending fee
+              const matchingFee = pendingFees.find(f => Math.abs(Number(f.commission_amount) - platformFee) < 5) || pendingFees[0];
+              
+              await supabase
+                .from('agency_fintech_fees')
+                .update({
+                  status: 'paid',
+                  paid_at: new Date().toISOString(),
+                  transaction_id: txData.id
+                })
+                .eq('id', matchingFee.id);
+            }
 
             toast.success(`Votre commission de ${formatAmount(platformFee)} FCFA a été réglée avec succès.`);
             loadFintechData();

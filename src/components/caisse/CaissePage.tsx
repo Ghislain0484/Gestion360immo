@@ -62,24 +62,41 @@ export const CaissePage: React.FC = () => {
                     setLoading(false);
                     return;
                 }
-                const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment').eq('owner_id', ownerId);
+                const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment, total_amount, contract_id, property_id').eq('owner_id', ownerId);
                 const { data: manualTrans } = await supabase.from('modular_transactions')
-                    .select('amount, category, type, description')
+                    .select('amount, category, type, description, related_property_id')
                     .eq('related_owner_id', ownerId);
+                const { data: contracts } = await supabase.from('contracts').select('id, property_id, commission_rate').eq('status', 'active');
                 const { data: maintenance } = await supabase.from('tickets').select('cost').eq('owner_id', ownerId).eq('charge_to', 'owner').eq('status', 'resolved');
                 
-                const earnedFromReceipts = receipts?.reduce((s, r) => s + (Number(r.owner_payment) || 0), 0) || 0;
+                const getCommissionRate = (contractId?: string, propertyId?: string) => {
+                    if (contractId && contracts) {
+                        const contract = contracts.find(c => c.id === contractId);
+                        if (contract?.commission_rate !== undefined) return contract.commission_rate;
+                    }
+                    if (propertyId && contracts) {
+                        const contract = contracts.find(c => c.property_id === propertyId);
+                        if (contract?.commission_rate !== undefined) return contract.commission_rate;
+                    }
+                    return 10;
+                };
+
+                const earnedFromReceipts = receipts?.reduce((s, r) => {
+                    const commRate = getCommissionRate(r.contract_id, r.property_id);
+                    const ownerPart = Number(r.owner_payment) || ((Number(r.total_amount) || 0) * (1 - commRate / 100));
+                    return s + ownerPart;
+                }, 0) || 0;
                 
-                // Add modular transactions (Rent and Caution)
+                // Add modular transactions (Rent)
                 const earnedFromManual = manualTrans?.reduce((s, t) => {
                     if (t.type === 'debit') return s; // Skip payouts here
-                    if (t.category === 'caution') return s + Number(t.amount); // Cautions go 100% to owner pocket
                     if (t.category === 'rent_payment') {
                         // Try to parse [Part Proprio: XXX] from description (newly added in TenantCollectionModal)
                         const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
                         if (match) return s + Number(match[1]);
-                        // Fallback: 90% if not found
-                        return s + (Number(t.amount) * 0.9);
+                        // Fallback: dynamic commission
+                        const commRate = getCommissionRate(undefined, t.related_property_id);
+                        return s + (Number(t.amount) * (1 - commRate / 100));
                     }
                     return s;
                 }, 0) || 0;

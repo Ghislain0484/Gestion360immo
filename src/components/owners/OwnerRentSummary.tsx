@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { TrendingUp, CheckCircle, AlertTriangle, Clock, Building2, Calendar, Users, Home, Target, FileText, Wallet, History, ArrowRight } from 'lucide-react';
+import { TrendingUp, CheckCircle, AlertTriangle, Clock, Building2, Calendar, Users, Home, Target, FileText, Wallet, History, ArrowRight, Lock } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService, supabase } from '../../lib/supabase';
@@ -67,7 +67,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             .select('*')
             .eq('related_owner_id', ownerId)
             .in('category', ['rent_payment', 'caution'])
-            .eq('type', 'income');
+            .in('type', ['income', 'credit']);
         if (error) throw error;
         return data || [];
     }, [ownerId]);
@@ -125,22 +125,48 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         });
 
         // --- New Metrics ---
-        // 1. Recent Collections (Last 30 days)
+        // 1. Recent Collections (Last 30 days) - only rent_payment
         const recentReceipts = allReceipts.filter(r => new Date(r.payment_date) >= thirtyDaysAgo);
-        const recentManual = allManual.filter(m => new Date(m.transaction_date) >= thirtyDaysAgo);
+        const recentManual = allManual.filter(m => m.category === 'rent_payment' && new Date(m.transaction_date) >= thirtyDaysAgo);
         const recentTotal = recentReceipts.reduce((sum, r) => sum + (r.amount_paid || r.total_amount), 0) +
                            recentManual.reduce((sum, m) => sum + Number(m.amount), 0);
 
         // 2. Global Balance (Total Accumulated - Total Reversed)
-        const totalAccumulated = allReceipts.reduce((sum, r) => sum + (r.owner_payment || (r.amount_paid || r.total_amount) * 0.9), 0) +
-                                allManual.reduce((sum, m) => {
-                                    const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
-                                    return sum + (match ? Number(match[1]) : Number(m.amount) * 0.9);
-                                }, 0);
+        const getCommissionRate = (contractId?: string, propertyId?: string) => {
+            if (contractId && allContracts) {
+                const contract = allContracts.find(c => c.id === contractId);
+                if (contract?.commission_rate !== undefined) return contract.commission_rate;
+            }
+            if (propertyId && allContracts) {
+                const contract = allContracts.find(c => c.property_id === propertyId);
+                if (contract?.commission_rate !== undefined) return contract.commission_rate;
+            }
+            return 10;
+        };
+
+        const totalAccumulated = allReceipts.reduce((sum, r) => {
+            const commRate = getCommissionRate(r.contract_id, r.property_id);
+            const ownerPart = Number(r.owner_payment) || ((r.amount_paid || r.total_amount || 0) * (1 - commRate / 100));
+            return sum + ownerPart;
+        }, 0) +
+        allManual.reduce((sum, m) => {
+            if (m.category !== 'rent_payment') return sum;
+            const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+            if (match) return sum + Number(match[1]);
+            const commRate = getCommissionRate(undefined, m.related_property_id);
+            return sum + (Number(m.amount) * (1 - commRate / 100));
+        }, 0);
+
         const totalReversed = allReversals.reduce((sum, r) => sum + Number(r.montant), 0);
         const globalBalance = totalAccumulated - totalReversed;
 
-        // 3. Status Check for Previous Month
+        // 3. Caution Séquestre (Escrowed Guarantees)
+        const totalCautionEscrow = allManual.reduce((sum, m) => {
+            if (m.category === 'caution') return sum + Number(m.amount);
+            return sum;
+        }, 0);
+
+        // 4. Status Check for Previous Month
         const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
         const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
         const hasPrevActivity = allReceipts.some(r => r.period_month === prevMonth && r.period_year === prevYear) ||
@@ -166,7 +192,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const propManual = filteredManual.filter((m: any) => m.related_property_id === prop.id);
             
             const paid = propReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0) +
-                        propManual.reduce((sum, m) => sum + Number(m.amount), 0);
+                        propManual.filter((m: any) => m.category === 'rent_payment').reduce((sum, m) => sum + Number(m.amount), 0);
 
             // Si le bien est "Vacant" mais a un paiement, on cherche le locataire concerné dans les quittances
             let tenantName = '';
@@ -209,12 +235,13 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             monthlyExpected,
             recentTotal,
             globalBalance,
+            totalCautionEscrow,
             hasPrevActivity,
             occupiedCount,
             vacantCount: ownerProperties.length - occupiedCount,
             totalPotential: ownerProperties.reduce((sum, p) => sum + (p.monthly_rent || 0), 0)
         };
-    }, [ownerContracts, allReceipts, allManual, allReversals, ownerProperties, selectedMonth, selectedYear, tenants]);
+    }, [ownerContracts, allReceipts, allManual, allReversals, ownerProperties, selectedMonth, selectedYear, tenants, allContracts]);
 
     if (loadingContracts || loadingReceipts || loadingManual || loadingReversals || loadingTenants) {
         return <div className="flex justify-center py-8"><LoadingSpinner size="md" label="Chargement des données..." /></div>;
@@ -300,7 +327,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             )}
 
             {/* Top KPIs Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {/* Global Balance KPI */}
                 <Card className="p-4 bg-gradient-to-br from-indigo-600 to-purple-700 border-none shadow-lg shadow-indigo-100 relative overflow-hidden group">
                     <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-500"></div>
@@ -309,6 +336,18 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                         <div>
                             <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest leading-none mb-1">Solde Global (Restant)</p>
                             <p className="text-lg font-black text-white leading-none">{formatCurrency(stats.globalBalance)}</p>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Caution Séquestre KPI */}
+                <Card className="p-4 bg-gradient-to-br from-amber-500 to-orange-600 border-none shadow-lg shadow-amber-100 relative overflow-hidden group">
+                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-500"></div>
+                    <div className="flex items-center gap-3 relative z-10">
+                        <div className="p-2.5 bg-white/20 rounded-xl text-white backdrop-blur-md border border-white/30"><Lock className="w-5 h-5" /></div>
+                        <div>
+                            <p className="text-[10px] font-black text-amber-100 uppercase tracking-widest leading-none mb-1">Caution Séquestre (Garanties Détenues)</p>
+                            <p className="text-lg font-black text-white leading-none">{formatCurrency(stats.totalCautionEscrow)}</p>
                         </div>
                     </div>
                 </Card>

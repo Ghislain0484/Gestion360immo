@@ -133,6 +133,7 @@ export const TenantCheckout: React.FC = () => {
     tx_ref: `LOY-${receiptId}-${Date.now()}`,
     payment_type: 'service_fee', // Map context
     logo_url: agency?.logo_url,
+    public_key: agency?.settings?.payment_gateways?.flutterwave?.public_key,
     metadata: {
       receipt_id: receiptId,
       tenant_id: receipt?.tenant_id,

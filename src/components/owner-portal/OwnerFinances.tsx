@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Search, Download, TrendingUp, 
-  FileText, Calendar, ArrowUpRight, DollarSign, Receipt
+  FileText, Calendar, ArrowUpRight, DollarSign, Receipt, Shield
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
@@ -93,16 +93,32 @@ export const OwnerFinances: React.FC = () => {
   }, [owner?.id]);
 
   const allTransactions = useMemo<OwnerTransaction[]>(() => {
-    const normalizedReceipts: OwnerTransaction[] = receipts.map(r => ({
-      id: r.id,
-      date: r.payment_date || r.created_at,
-      type: 'receipt' as 'receipt',
-      amount: r.total_amount,
-      owner_net: r.owner_payment,
-      reference: r.receipt_number,
-      contract_id: r.contract_id,
-      description: 'Encaissement Loyer (Quittance)'
-    }));
+    const getCommissionRate = (contractId?: string, propertyId?: string) => {
+      if (contractId && contracts) {
+        const contract = contracts.find(c => c.id === contractId);
+        if (contract?.commission_rate !== undefined) return contract.commission_rate;
+      }
+      if (propertyId && contracts) {
+        const contract = contracts.find(c => c.property_id === propertyId);
+        if (contract?.commission_rate !== undefined) return contract.commission_rate;
+      }
+      return 10;
+    };
+
+    const normalizedReceipts: OwnerTransaction[] = receipts.map(r => {
+      const commRate = getCommissionRate(r.contract_id, r.property_id);
+      const ownerNet = r.owner_payment || (Number(r.total_amount) * (1 - commRate / 100));
+      return {
+        id: r.id,
+        date: r.payment_date || r.created_at,
+        type: 'receipt' as 'receipt',
+        amount: r.total_amount,
+        owner_net: ownerNet,
+        reference: r.receipt_number,
+        contract_id: r.contract_id,
+        description: 'Encaissement Loyer (Quittance)'
+      };
+    });
 
     const normalizedManual: OwnerTransaction[] = (payouts || []).map(p => {
       const isPayout = p.category === 'owner_payout' && p.type === 'debit';
@@ -111,10 +127,14 @@ export const OwnerFinances: React.FC = () => {
       
       let ownerNet = 0;
       if (isPayout) ownerNet = Number(p.amount);
-      else if (isCaution) ownerNet = Number(p.amount);
       else if (isRentPayment) {
           const match = p.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
-          ownerNet = match ? Number(match[1]) : (Number(p.amount) * 0.9);
+          if (match) {
+              ownerNet = Number(match[1]);
+          } else {
+              const commRate = getCommissionRate(undefined, p.related_property_id);
+              ownerNet = Number(p.amount) * (1 - commRate / 100);
+          }
       }
 
       return {
@@ -126,11 +146,11 @@ export const OwnerFinances: React.FC = () => {
         reference: isPayout ? `REV-${p.id.slice(0,8).toUpperCase()}` : `ENC-${p.id.slice(0,8).toUpperCase()}`,
         description: p.description || (isPayout ? 'Reversement Agence' : 'Versement Manuel')
       };
-    }).filter(t => t.owner_net > 0 || t.type === 'payout');
+    }).filter(t => (t.owner_net > 0 && t.description.toLowerCase().indexOf('caution') === -1) || t.type === 'payout');
 
     return [...normalizedReceipts, ...normalizedManual]
       .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [receipts, payouts]);
+  }, [receipts, payouts, contracts]);
 
   const filteredTransactions = useMemo(() => {
     const cutoff = period === 'all' ? null : new Date(Date.now() - parseInt(period) * 30 * 24 * 60 * 60 * 1000);
@@ -158,6 +178,13 @@ export const OwnerFinances: React.FC = () => {
     const commission = gross - netEarned;
     return { gross, netEarned, totalPaid, commission, count: filterRecs.length };
   }, [filteredTransactions]);
+
+  const totalCautionEscrow = useMemo(() => {
+    if (isDemoMode) return 300000;
+    return (payouts || [])
+      .filter(p => p.category === 'caution' && p.type === 'credit')
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+  }, [payouts, isDemoMode]);
 
   const pieData = [
     { name: 'Gains Nets', value: summary.netEarned, color: '#10b981' },
@@ -205,8 +232,8 @@ export const OwnerFinances: React.FC = () => {
       {/* High-End KPI Cards & Chart Wrapper */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Stats Column */}
-        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-           <div className="sm:col-span-2 bg-slate-900 p-8 rounded-[2.5rem] text-white overflow-hidden relative group">
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-6">
+           <div className="sm:col-span-3 bg-slate-900 p-8 rounded-[2.5rem] text-white overflow-hidden relative group">
               <div className="absolute top-0 right-0 p-8">
                  <div className="w-16 h-16 bg-white/10 rounded-3xl flex items-center justify-center backdrop-blur-md">
                     <TrendingUp className="w-8 h-8 text-emerald-400" />
@@ -229,7 +256,7 @@ export const OwnerFinances: React.FC = () => {
            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between">
               <div>
                  <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-2 text-center sm:text-left">Loyer Brut Moyen</p>
-                 <p className="text-3xl font-black text-slate-900 text-center sm:text-left">
+                 <p className="text-2xl font-black text-slate-900 text-center sm:text-left">
                    {formatCurrency(summary.count > 0 ? summary.gross / summary.count : 0)}
                  </p>
               </div>
@@ -237,14 +264,29 @@ export const OwnerFinances: React.FC = () => {
                  <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center">
                     <DollarSign className="w-5 h-5" />
                  </div>
-                 <p className="text-xs font-bold text-slate-400 italic">Valeur moyenne par transaction</p>
+                 <p className="text-xs font-bold text-slate-400 italic">Moyenne / loyer</p>
+              </div>
+           </div>
+
+           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+              <div>
+                 <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-2 text-center sm:text-left">Caution Séquestre (Garanties Détenues)</p>
+                 <p className="text-2xl font-black text-amber-600 text-center sm:text-left">
+                   {formatCurrency(totalCautionEscrow)}
+                 </p>
+              </div>
+              <div className="mt-8 pt-8 border-t border-slate-50 flex items-center gap-3">
+                 <div className="w-10 h-10 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center">
+                    <Shield className="w-5 h-5" />
+                 </div>
+                 <p className="text-xs font-bold text-slate-400 italic">Cautions sécurisées</p>
               </div>
            </div>
 
            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between">
               <div>
                  <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-2 text-center sm:text-left">Efficacité Gestion</p>
-                  <p className="text-3xl font-black text-indigo-600 text-center sm:text-left">
+                  <p className="text-2xl font-black text-indigo-600 text-center sm:text-left">
                     {summary.gross > 0 ? Math.round((summary.netEarned / summary.gross) * 100) : 0}%
                   </p>
               </div>
@@ -252,7 +294,7 @@ export const OwnerFinances: React.FC = () => {
                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
                     <ArrowUpRight className="w-5 h-5" />
                  </div>
-                 <p className="text-xs font-black uppercase tracking-widest">Part conservée</p>
+                 <p className="text-xs font-black uppercase tracking-widest">Part proprio</p>
               </div>
            </div>
         </div>

@@ -30,17 +30,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     const isSuperAdmin = admin?.role === 'super_admin';
 
     const canAccess = (itemId: string) => {
-        if (isSuperAdmin) return true;
-        
         switch (itemId) {
             case 'overview': return true;
-            case 'agencies': return permissions.agencies;
-            case 'owners': return permissions.agencies;
-            case 'requests': return permissions.agencies;
-            case 'fintech': return permissions.reports || permissions.subscriptions;
-            case 'rankings': return permissions.reports;
-            case 'reports': return permissions.reports;
-            case 'settings': return permissions.settings;
+            case 'agencies': return permissions.agencies ?? isSuperAdmin;
+            case 'owners': return permissions.agencies ?? isSuperAdmin;
+            case 'requests': return permissions.agencies ?? isSuperAdmin;
+            case 'fintech': return (permissions.reports ?? isSuperAdmin) || (permissions.subscriptions ?? isSuperAdmin);
+            case 'rankings': return permissions.reports ?? isSuperAdmin;
+            case 'reports': return permissions.reports ?? isSuperAdmin;
+            case 'settings': return permissions.settings ?? isSuperAdmin;
             default: return false;
         }
     };

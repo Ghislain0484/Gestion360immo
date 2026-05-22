@@ -90,6 +90,10 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ platformStats, onNavig
     markAllAsRead.mutate();
   };
 
+  const isSuperAdmin = admin?.role === 'super_admin';
+  const permissions = (admin?.permissions as Record<string, boolean>) || {};
+  const hasSettingsAccess = permissions.settings ?? isSuperAdmin;
+
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/85">
@@ -240,7 +244,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ platformStats, onNavig
                   <div className="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                     <div className="border-b border-slate-200 p-4 dark:border-slate-700">
                       <p className="font-semibold text-slate-900 dark:text-white">{admin?.email || 'Administrateur'}</p>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Super Admin</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {isSuperAdmin ? 'Super Admin' : 'Admin Plateforme'}
+                      </p>
                     </div>
                     <div className="p-2">
                       <button
@@ -253,16 +259,18 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ platformStats, onNavig
                         <User className="h-4 w-4" />
                         Mon profil
                       </button>
-                      <button
-                        onClick={() => {
-                          setShowProfile(false);
-                          if (onNavigate) onNavigate('settings');
-                        }}
-                        className="flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                      >
-                        <Settings className="h-4 w-4" />
-                        Parametres
-                      </button>
+                      {hasSettingsAccess && (
+                        <button
+                          onClick={() => {
+                            setShowProfile(false);
+                            if (onNavigate) onNavigate('settings');
+                          }}
+                          className="flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          <Settings className="h-4 w-4" />
+                          Parametres
+                        </button>
+                      )}
                     </div>
                     <div className="border-t border-slate-200 p-2 dark:border-slate-700">
                       <button

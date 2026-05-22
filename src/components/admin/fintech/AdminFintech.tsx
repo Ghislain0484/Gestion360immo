@@ -57,9 +57,46 @@ export const AdminFintech: React.FC = () => {
                 supabase.from('contracts').select('agency_id, monthly_rent').in('status', ['active', 'renewed']),
             ]);
 
-            setFees(feesRes.data || []);
+            const fetchedFees = feesRes.data || [];
+            const fetchedTxs = txRes.data || [];
+
+            // Background Reconciliation: reconcile paid commission transactions with pending fees
+            const pendingFees = fetchedFees.filter((f: any) => f.status === 'pending');
+                const { data: allCommissions } = await supabase
+                    .from('wallet_transactions')
+                    .select('*')
+                    .in('type', ['commission', 'usage']);
+                
+                const commissionTxs = (allCommissions || []).filter((tx: any) =>
+                    tx.type === 'commission' || 
+                    (tx.type === 'usage' && tx.description?.toLowerCase().includes('commission'))
+                );
+
+                for (const fee of pendingFees) {
+                    const matchingTx = commissionTxs.find((tx: any) => 
+                        tx.agency_id === fee.agency_id && 
+                        Math.abs(Number(tx.amount)) === Number(fee.commission_amount)
+                    );
+                    
+                    if (matchingTx) {
+                        await supabase
+                            .from('agency_fintech_fees')
+                            .update({ 
+                                status: 'paid',
+                                paid_at: matchingTx.created_at,
+                                transaction_id: matchingTx.id
+                            })
+                            .eq('id', fee.id);
+                        
+                        fee.status = 'paid';
+                        fee.paid_at = matchingTx.created_at;
+                        fee.transaction_id = matchingTx.id;
+                    }
+                }
+
+            setFees(fetchedFees);
             setWallets(walletsRes.data || []);
-            setTransactions(txRes.data || []);
+            setTransactions(fetchedTxs);
 
             // Calculer le volume par agence depuis les contrats réels
             const byAgency: Record<string, number> = {};
@@ -87,6 +124,82 @@ export const AdminFintech: React.FC = () => {
             toast.error('Erreur de génération : ' + error.message);
         } finally {
             setGenerating(false);
+        }
+    };
+
+    const handleCollectCommission = async (agencyId: string, pendingAmount: number) => {
+        try {
+            setLoading(true);
+            
+            // 1. Get the pending fees for this agency
+            const { data: pendingFees } = await supabase
+                .from('agency_fintech_fees')
+                .select('*')
+                .eq('agency_id', agencyId)
+                .eq('status', 'pending');
+            
+            if (!pendingFees || pendingFees.length === 0) {
+                toast.error('Aucune commission en attente pour cette agence.');
+                return;
+            }
+
+            // 2. Get the agency's wallet
+            const { data: wallet } = await supabase
+                .from('agency_wallets')
+                .select('*')
+                .eq('agency_id', agencyId)
+                .single();
+            
+            if (!wallet || wallet.balance < pendingAmount) {
+                toast.error("Le solde du portefeuille de l'agence est insuffisant pour collecter cette commission.");
+                return;
+            }
+
+            // 3. Deduct from wallet balance
+            const newBalance = Number(wallet.balance) - pendingAmount;
+            const { error: walletErr } = await supabase
+                .from('agency_wallets')
+                .update({ balance: newBalance })
+                .eq('agency_id', agencyId);
+            
+            if (walletErr) throw walletErr;
+
+            // 4. Insert into wallet_transactions
+            const { data: txData, error: txErr } = await supabase
+                .from('wallet_transactions')
+                .insert({
+                    agency_id: agencyId,
+                    wallet_id: wallet.id,
+                    amount: -pendingAmount,
+                    type: 'commission',
+                    description: `Prélèvement Commission Fintech 1% - Collecte Automatique`,
+                    reference: `PAY-${Date.now()}-${agencyId.slice(0, 4)}`
+                })
+                .select()
+                .single();
+            
+            if (txErr) throw txErr;
+
+            // 5. Mark pending fees as paid
+            const { error: feeErr } = await supabase
+                .from('agency_fintech_fees')
+                .update({
+                    status: 'paid',
+                    paid_at: new Date().toISOString(),
+                    transaction_id: txData.id
+                })
+                .eq('agency_id', agencyId)
+                .eq('status', 'pending');
+            
+            if (feeErr) throw feeErr;
+
+            toast.success('Commission encaissée avec succès !');
+            await loadData();
+        } catch (err: any) {
+            console.error('Error collecting commission:', err);
+            toast.error('Erreur lors du prélèvement : ' + err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -260,13 +373,23 @@ export const AdminFintech: React.FC = () => {
                                                 </td>
                                                 <td className="px-8 py-6 text-center">
                                                     {info.pending > 0 ? (
-                                                        <span className={clsx(
-                                                            'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest',
-                                                            canPay ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                                                        )}>
-                                                            <span className={clsx('w-1.5 h-1.5 rounded-full', canPay ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse')} />
-                                                            {canPay ? 'Prêt' : 'En attente'}
-                                                        </span>
+                                                        <div className="flex flex-col items-center gap-2">
+                                                            <span className={clsx(
+                                                                'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest',
+                                                                canPay ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                                            )}>
+                                                                <span className={clsx('w-1.5 h-1.5 rounded-full', canPay ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse')} />
+                                                                {canPay ? 'Prêt' : 'En attente'}
+                                                            </span>
+                                                            {canPay && (
+                                                                <button
+                                                                    onClick={() => handleCollectCommission(agencyId, info.pending)}
+                                                                    className="mt-1 px-3 py-1 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-[10px] font-bold transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
+                                                                >
+                                                                    Encaisser
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-500 rounded-full text-[9px] font-black uppercase tracking-widest">
                                                             ✓ Soldé

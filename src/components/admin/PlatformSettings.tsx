@@ -39,6 +39,10 @@ interface Toast {
 
 export const PlatformSettings: React.FC = () => {
   const { admin, isLoading: authLoading } = useAuth();
+  const isSuperAdmin = admin?.role === 'super_admin';
+  const permissions = (admin?.permissions as Record<string, boolean>) || {};
+  const hasSettingsAccess = isSuperAdmin || permissions.settings;
+
   const [loading, setLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'general' | 'admins'>('general');
   const [error, setError] = useState<string | null>(null);
@@ -94,8 +98,8 @@ export const PlatformSettings: React.FC = () => {
 
   // Charger les paramètres
   const fetchSettings = useCallback(async () => {
-    if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-      setError('Accès non autorisé. Veuillez vous connecter en tant qu’administrateur.');
+    if (!admin || !hasSettingsAccess) {
+      setError('Accès non autorisé. Vous n’avez pas la permission de modifier les paramètres de la plateforme.');
       showToast('Accès non autorisé', 'error');
       return;
     }
@@ -140,17 +144,17 @@ export const PlatformSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [admin, showToast]);
+  }, [admin, hasSettingsAccess, showToast]);
 
   useEffect(() => {
     if (authLoading) return;
-    if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-      setError('Accès non autorisé. Veuillez vous connecter en tant qu’administrateur.');
+    if (!admin || !hasSettingsAccess) {
+      setError('Accès non autorisé. Vous n’avez pas la permission de modifier les paramètres de la plateforme.');
       showToast('Accès non autorisé', 'error');
       return;
     }
     fetchSettings();
-  }, [fetchSettings, admin, authLoading]);
+  }, [fetchSettings, admin, authLoading, hasSettingsAccess]);
 
   const updateSetting = (section: keyof SettingsState, key: string, value: any) => {
     setSettings((prev) => ({
@@ -163,8 +167,8 @@ export const PlatformSettings: React.FC = () => {
   };
 
   const handleSave = useCallback(async () => {
-    if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) {
-      setError('Accès non autorisé. Veuillez vous connecter en tant qu’administrateur.');
+    if (!admin || !hasSettingsAccess) {
+      setError('Accès non autorisé. Vous n’avez pas la permission de modifier les paramètres de la plateforme.');
       showToast('Accès non autorisé', 'error');
       return;
     }

@@ -335,6 +335,7 @@ export const OwnerDetails: React.FC = () => {
                                         <OwnerReversalCalculator
                                             ownerId={owner.id}
                                             ownerProperties={ownerProperties}
+                                            contracts={contracts}
                                             onGenerateReversal={(amount, details) => {
                                                 setReversalAmount(amount);
                                                 setReversalDetails(details);

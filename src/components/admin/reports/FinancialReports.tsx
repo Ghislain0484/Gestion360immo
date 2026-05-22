@@ -54,12 +54,46 @@ export const FinancialReports: React.FC = () => {
             // 3. Commissions générées (agency_fintech_fees)
             const { data: fees } = await supabase
                 .from('agency_fintech_fees')
-                .select('commission_amount, status')
+                .select('id, agency_id, commission_amount, status, created_at')
                 .gte('created_at', periodStart.toISOString());
 
-            const totalGenerated = (fees || []).reduce((sum, f) => sum + (Number(f.commission_amount) || 0), 0);
-            const totalCollected = (fees || []).filter(f => f.status === 'paid').reduce((sum, f) => sum + (Number(f.commission_amount) || 0), 0);
-            const totalPending = (fees || []).filter(f => f.status === 'pending').reduce((sum, f) => sum + (Number(f.commission_amount) || 0), 0);
+            const fetchedFees = fees || [];
+
+            // Background Reconciliation: reconcile paid commission transactions with pending fees
+            const pendingFees = fetchedFees.filter((f: any) => f.status === 'pending');
+                const { data: allCommissions } = await supabase
+                    .from('wallet_transactions')
+                    .select('*')
+                    .in('type', ['commission', 'usage']);
+                
+                const commissionTxs = (allCommissions || []).filter((tx: any) =>
+                    tx.type === 'commission' || 
+                    (tx.type === 'usage' && tx.description?.toLowerCase().includes('commission'))
+                );
+
+                for (const fee of pendingFees) {
+                    const matchingTx = commissionTxs.find((tx: any) => 
+                        tx.agency_id === fee.agency_id && 
+                        Math.abs(Number(tx.amount)) === Number(fee.commission_amount)
+                    );
+                    
+                    if (matchingTx) {
+                        await supabase
+                            .from('agency_fintech_fees')
+                            .update({ 
+                                status: 'paid',
+                                paid_at: matchingTx.created_at,
+                                transaction_id: matchingTx.id
+                            })
+                            .eq('id', fee.id);
+                        
+                        fee.status = 'paid';
+                    }
+                }
+
+            const totalGenerated = fetchedFees.reduce((sum, f) => sum + (Number(f.commission_amount) || 0), 0);
+            const totalCollected = fetchedFees.filter(f => f.status === 'paid').reduce((sum, f) => sum + (Number(f.commission_amount) || 0), 0);
+            const totalPending = fetchedFees.filter(f => f.status === 'pending').reduce((sum, f) => sum + (Number(f.commission_amount) || 0), 0);
 
             const displayedCommission = totalGenerated > 0 ? totalGenerated : theoreticalCommission;
             const growthRate = newAgenciesCount > 0 && activeAgencies.length > 0

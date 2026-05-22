@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 // Trigger build for Platform Admin Management fix
 import { AdminHeader } from './layout/AdminHeader';
 import { AdminSidebar } from './layout/AdminSidebar';
@@ -25,10 +26,17 @@ export const AdminDashboard: React.FC = () => {
   const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
 
   const { platformStats, pendingRequestsCount, loading } = useAdmin();
+  const { admin } = useAuth();
+  const permissions = (admin?.permissions as Record<string, boolean>) || {};
+  const isSuperAdmin = admin?.role === 'super_admin';
+  const hasSettingsAccess = permissions.settings ?? isSuperAdmin;
 
   React.useEffect(() => {
     setSelectedAgency(null);
-  }, [activeTab]);
+    if (activeTab === 'settings' && !hasSettingsAccess) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, hasSettingsAccess]);
 
   const { data: agencies = [] } = useAgencies();
 

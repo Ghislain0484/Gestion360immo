@@ -55,25 +55,46 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
             // 1. Get total expected owner payments from rent receipts
             const { data: rentReceipts } = await supabase
                 .from('rent_receipts')
-                .select('owner_payment')
+                .select('owner_payment, total_amount, contract_id, property_id')
                 .eq('owner_id', ownerId);
-
-            const earnedFromReceipts = rentReceipts?.reduce((sum, r) => sum + (Number(r.owner_payment) || 0), 0) || 0;
 
             // 2. Get all modular transactions for this owner
             const { data: manualTrans } = await supabase
                 .from('modular_transactions')
-                .select('amount, category, type, description')
+                .select('amount, category, type, description, related_property_id')
                 .eq('related_owner_id', ownerId);
 
-            // 3. Calculate earnings from manual transactions (Rent and Caution)
+            const { data: contracts } = await supabase
+                .from('contracts')
+                .select('id, property_id, commission_rate')
+                .eq('status', 'active');
+
+            const getCommissionRate = (contractId?: string, propertyId?: string) => {
+                if (contractId && contracts) {
+                    const contract = contracts.find(c => c.id === contractId);
+                    if (contract?.commission_rate !== undefined) return contract.commission_rate;
+                }
+                if (propertyId && contracts) {
+                    const contract = contracts.find(c => c.property_id === propertyId);
+                    if (contract?.commission_rate !== undefined) return contract.commission_rate;
+                }
+                return 10;
+            };
+
+            const earnedFromReceipts = rentReceipts?.reduce((sum, r) => {
+                const commRate = getCommissionRate(r.contract_id, r.property_id);
+                const ownerPart = Number(r.owner_payment) || ((Number(r.total_amount) || 0) * (1 - commRate / 100));
+                return sum + ownerPart;
+            }, 0) || 0;
+
+            // 3. Calculate earnings from manual transactions (Rent)
             const earnedFromManual = manualTrans?.reduce((s, t) => {
                 if (t.type === 'debit') return s;
-                if (t.category === 'caution') return s + Number(t.amount);
                 if (t.category === 'rent_payment') {
                     const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
                     if (match) return s + Number(match[1]);
-                    return s + (Number(t.amount) * 0.9);
+                    const commRate = getCommissionRate(undefined, t.related_property_id);
+                    return s + (Number(t.amount) * (1 - commRate / 100));
                 }
                 return s;
             }, 0) || 0;

@@ -178,7 +178,7 @@ export const fetchCaisseData = async (
   const mappedManual: Transaction[] = cashTrans.map(t => {
     let ownerPayment = 0;
     if (t.category === 'owner_payout') ownerPayment = t.amount;
-    else if (t.category === 'caution') ownerPayment = t.amount;
+    else if (t.category === 'caution') ownerPayment = 0;
     else if (t.category === 'rent_payment') {
       const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
       ownerPayment = match ? Number(match[1]) : t.amount * 0.9;
