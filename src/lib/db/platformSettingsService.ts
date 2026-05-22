@@ -42,9 +42,11 @@ export const platformSettingsService = {
 
             const cleanSettings = settings.map(setting => ({
                 ...normalizePlatformSetting(setting),
+                id: setting.id, // Preserve ID if it exists
                 updated_by: user.id,
                 updated_at: new Date().toISOString(),
             }));
+
 
             const { error } = await supabase
                 .from('platform_settings')
