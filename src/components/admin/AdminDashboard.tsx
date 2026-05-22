@@ -34,8 +34,7 @@ export const AdminDashboard: React.FC = () => {
 
   const recentAgencies = React.useMemo(() => {
     return [...agencies]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 5);
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [agencies]);
 
   const headerStats = platformStats

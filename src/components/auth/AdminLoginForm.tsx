@@ -80,27 +80,31 @@ export const AdminLoginForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-slate-50 to-purple-50 dark:from-slate-950 dark:via-indigo-950/20 dark:to-slate-950 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Background Glows */}
+      <div className="pointer-events-none absolute right-[-10%] top-[-10%] h-[40%] w-[40%] rounded-full bg-indigo-200/20 blur-[120px] dark:bg-indigo-500/10" />
+      <div className="pointer-events-none absolute bottom-[-10%] left-[-10%] h-[40%] w-[40%] rounded-full bg-purple-200/20 blur-[120px] dark:bg-purple-500/10" />
+
+      <div className="max-w-md w-full space-y-8 relative z-10 animate-fade-in">
         <div className="text-center">
           <div className="flex justify-center">
-            <div className="flex items-center justify-center w-16 h-16 bg-red-600 rounded-full">
+            <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-tr from-indigo-600 to-purple-600 shadow-xl shadow-indigo-600/30 rounded-2xl transition-transform duration-500 hover:scale-105">
               <Shield className="h-8 w-8 text-white" />
             </div>
           </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Gestion360Immo Admin
+          <h2 className="mt-6 text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            Gestion360Immo
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Accès réservé aux administrateurs système
+          <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+            Console Administrateur
           </p>
         </div>
 
-        <Card>
+        <Card className="border border-slate-200/60 dark:border-slate-800 shadow-2xl shadow-indigo-950/5 dark:shadow-black/40 p-8 rounded-[32px] bg-white/95 dark:bg-slate-900/90 backdrop-blur-2xl transition-all duration-300">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-sm text-red-600">{error}</p>
+              <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/30 rounded-2xl p-4 animate-shake">
+                <p className="text-sm font-medium text-rose-600 dark:text-rose-400">{error}</p>
               </div>
             )}
 
@@ -112,6 +116,7 @@ export const AdminLoginForm: React.FC = () => {
               required
               placeholder="admin@immoplatform.ci"
               autoComplete="email"
+              className="rounded-2xl"
             />
 
             <div className="relative">
@@ -123,16 +128,17 @@ export const AdminLoginForm: React.FC = () => {
                 required
                 placeholder="••••••••"
                 autoComplete="current-password"
+                className="rounded-2xl"
               />
               <button
                 type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center top-6"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center top-6 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? (
-                  <EyeOff className="h-5 w-5 text-gray-400" />
+                  <EyeOff className="h-5 w-5" />
                 ) : (
-                  <Eye className="h-5 w-5 text-gray-400" />
+                  <Eye className="h-5 w-5" />
                 )}
               </button>
             </div>
@@ -143,15 +149,15 @@ export const AdminLoginForm: React.FC = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 rounded transition-colors"
                 />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                <label htmlFor="remember-me" className="ml-2 block text-sm font-medium text-slate-600 dark:text-slate-400">
                   Se souvenir de moi
                 </label>
               </div>
 
               <div className="text-sm">
-                <a href="/password-reset" className="font-medium text-red-600 hover:text-red-500">
+                <a href="/password-reset" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors">
                   Mot de passe oublié ?
                 </a>
               </div>
@@ -159,7 +165,7 @@ export const AdminLoginForm: React.FC = () => {
 
             <Button
               type="submit"
-              className="w-full bg-red-600 hover:bg-red-700"
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all duration-300 border-none"
               size="lg"
               isLoading={isLoading}
             >
@@ -171,18 +177,18 @@ export const AdminLoginForm: React.FC = () => {
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
+                <span className="px-3 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 rounded-full font-medium">
                   Accès agences
                 </span>
               </div>
             </div>
 
             <div className="mt-6 text-center">
-              <a href="/login" className="font-medium text-blue-600 hover:text-blue-500 flex items-center justify-center">
-                <Building2 className="h-4 w-4 mr-2" />
+              <a href="/login" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center justify-center gap-2 transition-colors">
+                <Building2 className="h-4 w-4" />
                 Connexion Agences
               </a>
             </div>
@@ -190,6 +196,24 @@ export const AdminLoginForm: React.FC = () => {
         </Card>
         <Toaster position="bottom-right" />
       </div>
+
+      <style>{`
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.4s ease-out forwards;
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-4px); }
+          75% { transform: translateX(4px); }
+        }
+        .animate-shake {
+          animation: shake 0.2s ease-in-out 2;
+        }
+      `}</style>
     </div>
   );
 };

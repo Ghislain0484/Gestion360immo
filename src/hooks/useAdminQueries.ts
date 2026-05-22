@@ -215,7 +215,10 @@ export const usePlatformStats = () => {
         queryKey: ['platform-stats'],
         queryFn: async () => {
             const agencies = await dbService.agencies.getAll();
-            const activeAgencies = agencies?.filter((a) => a.status === 'approved') || [];
+            const activeAgencies = agencies?.filter((a) => {
+                const s = a.subscription_status || 'active';
+                return s === 'active' || s === 'trial';
+            }) || [];
 
             const totalRevenue = activeAgencies.reduce((sum, a) => sum + (a.monthly_fee || 0), 0);
 

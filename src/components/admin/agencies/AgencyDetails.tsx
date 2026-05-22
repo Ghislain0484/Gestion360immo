@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, MapPin, Phone, Mail, Calendar, Users, Home, FileText, DollarSign, X, Edit, Save, CheckCircle, Building, ClipboardCheck, Settings as SettingsIcon } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, Calendar, Users, Home, FileText, DollarSign, X, Edit, Save, CheckCircle, Building, ClipboardCheck, Settings as SettingsIcon, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Card } from '../../ui/Card';
 import { Badge } from '../../ui/Badge';

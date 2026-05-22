@@ -37,9 +37,12 @@ export const FinancialReports: React.FC = () => {
             else periodStart.setFullYear(now.getFullYear() - 1);
 
             // 1. Agences
-            const { data: agencies } = await supabase.from('agencies').select('id, created_at, status');
+            const { data: agencies } = await supabase.from('agencies').select('id, created_at, status, subscription_status');
             const allAgencies = agencies || [];
-            const activeAgencies = allAgencies.filter(a => a.status === 'approved');
+            const activeAgencies = allAgencies.filter(a => {
+                const s = a.subscription_status || 'active';
+                return s === 'active' || s === 'trial';
+            });
             const newAgenciesCount = allAgencies.filter(a => new Date(a.created_at) >= periodStart).length;
 
             // 2. Contrats actifs → volume réel des loyers

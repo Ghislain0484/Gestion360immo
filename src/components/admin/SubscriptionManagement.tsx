@@ -26,8 +26,8 @@ export const SubscriptionManagement: React.FC = () => {
   const updatePlan = useUpdateAgencyPlan();
 
   // Calculs dérivés
-  const activeAgencies = agencies.filter((a) => a.subscription_status === 'active');
-  const suspendedAgencies = agencies.filter((a) => a.subscription_status === 'suspended');
+  const activeAgencies = agencies.filter((a) => (a.subscription_status || 'active') === 'active');
+  const suspendedAgencies = agencies.filter((a) => (a.subscription_status || 'active') === 'suspended');
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
