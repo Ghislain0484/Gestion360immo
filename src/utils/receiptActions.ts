@@ -190,7 +190,26 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
     doc.setFontSize(10);
     doc.setTextColor(50, 50, 50);
     doc.text("Signature et cachet de l'agence :", 20, y);
-    doc.text(`Fait à ______________________, le ${new Date().toLocaleDateString('fr-FR')}`, pageWidth - 20, y, { align: 'right' });
+    doc.text(`Fait à ${branding.address ? branding.address.split(',')[0] : 'Abidjan'}, le ${new Date().toLocaleDateString('fr-FR')}`, pageWidth - 20, y, { align: 'right' });
+
+    if (branding.withSignature && branding.signature) {
+      try {
+        const sigWidth = 45;
+        const sigHeight = 22;
+        doc.addImage(branding.signature, 'PNG', 20, y + 4, sigWidth, sigHeight);
+        
+        // Add signatory details
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(branding.signatoryName || '', 20, y + 29);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(7.5);
+        doc.setTextColor(120, 120, 120);
+        doc.text(branding.signatoryTitle || '', 20, y + 33);
+      } catch (err) {
+        console.warn("Failed to render auto-signature in PDF receipt:", err);
+      }
+    }
 
     renderPDFFooter(doc, branding);
     doc.save(`quittance-${receipt.receipt_number}.pdf`);
@@ -296,9 +315,16 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     ${legalMention}
   </div>
 
-  <div class="signature-row">
-    <div class="signature-box">Signature du locataire</div>
-    <div class="signature-box">Signature et cachet de l'agence</div>
+  <div class="signature-row" style="margin-top: 25px; display: flex; justify-content: space-between;">
+    <div class="signature-box" style="border-top: 1px solid #aaa; padding-top: 5px; width: 45%; text-align: center; color: #666; font-size: 11px;">Signature du locataire</div>
+    <div class="signature-box" style="border-top: 1px solid #aaa; padding-top: 5px; width: 45%; text-align: center; color: #666; font-size: 11px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 80px;">
+      <span>Signature et cachet de l'agence</span>
+      ${branding.withSignature && branding.signature ? `
+        <img src="${branding.signature}" alt="Signature" style="max-height: 50px; object-fit: contain; margin-top: 5px;">
+        <span style="font-weight: bold; font-size: 9px; margin-top: 4px; color: #1a1a1a;">${branding.signatoryName || ''}</span>
+        <span style="font-style: italic; font-size: 8px; color: #666;">${branding.signatoryTitle || ''}</span>
+      ` : ''}
+    </div>
   </div>
 
   <div class="footer">${branding.name} &bull; ${branding.email || ''} &bull; Document généré le ${new Date().toLocaleDateString('fr-FR')}</div>

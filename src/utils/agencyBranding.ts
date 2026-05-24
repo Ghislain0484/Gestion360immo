@@ -10,6 +10,10 @@ export interface AgencyBranding {
     website?: string;
     primaryColor?: string;
     secondaryColor?: string;
+    signature?: string; // base64 representation of signature stamp
+    signatoryName?: string;
+    signatoryTitle?: string;
+    withSignature?: boolean;
 }
 
 // Default branding - used as fallback
@@ -21,6 +25,9 @@ export const defaultBranding: AgencyBranding = {
     website: "www.gestion360immo.com",
     primaryColor: "#3B82F6", // blue-600
     secondaryColor: "#6366F1", // indigo-600
+    signatoryName: "La Direction",
+    signatoryTitle: "L'Administration de Biens",
+    withSignature: false
 };
 
 /**
@@ -54,7 +61,7 @@ export async function getAgencyBranding(agencyId?: string): Promise<AgencyBrandi
     try {
         const { data, error } = await supabase
             .from('agencies')
-            .select('name, logo_url, address, city, phone, email')
+            .select('name, logo_url, address, city, phone, email, settings')
             .eq('id', agencyId)
             .maybeSingle();
 
@@ -67,6 +74,9 @@ export async function getAgencyBranding(agencyId?: string): Promise<AgencyBrandi
             email: data.email || defaultBranding.email,
             primaryColor: "#3B82F6",
             secondaryColor: "#6366F1",
+            signatoryName: data.settings?.signatory_name || defaultBranding.signatoryName,
+            signatoryTitle: data.settings?.signatory_title || defaultBranding.signatoryTitle,
+            withSignature: data.settings?.with_signature === true,
         };
 
         // Fetch logo as base64 so it works in PDF / print windows (no CORS)
@@ -74,6 +84,14 @@ export async function getAgencyBranding(agencyId?: string): Promise<AgencyBrandi
             const base64 = await fetchImageAsBase64(data.logo_url);
             if (base64) {
                 branding.logo = base64;
+            }
+        }
+
+        // Fetch electronic signature stamp as base64
+        if (data.settings?.signature_url) {
+            const base64 = await fetchImageAsBase64(data.settings.signature_url);
+            if (base64) {
+                branding.signature = base64;
             }
         }
 
