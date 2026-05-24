@@ -210,16 +210,36 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                 }
             }
 
+            let expectedRent = monthlyRentContract;
+            if (propReceipts.length > 0) {
+                expectedRent = propReceipts.reduce((sum, r) => sum + r.total_amount, 0);
+            }
+
             let status: 'paid' | 'partial' | 'unpaid' | 'no_contract' = 'unpaid';
-            if (!contract) status = 'no_contract';
-            else if (paid >= monthlyRentContract && monthlyRentContract > 0) status = 'paid';
-            else if (paid > 0) status = 'partial';
+            if (!contract) {
+                status = 'no_contract';
+            } else if (propReceipts.length > 0) {
+                const allPaid = propReceipts.every(r => r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount);
+                if (allPaid) {
+                    status = 'paid';
+                } else if (paid > 0) {
+                    status = 'partial';
+                } else {
+                    status = 'unpaid';
+                }
+            } else {
+                if (paid >= expectedRent && expectedRent > 0) status = 'paid';
+                else if (paid > 0) status = 'partial';
+            }
+
+            const balanceDue = status === 'paid' ? 0 : Math.max(0, expectedRent - paid);
 
             return {
                 prop,
                 monthlyRentContract,
+                expectedRent,
                 amountPaid: paid,
-                balanceDue: Math.max(0, monthlyRentContract - paid),
+                balanceDue,
                 status,
                 isOccupied,
                 tenantName
@@ -227,7 +247,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         });
 
         const monthlyPaid = propertyRows.reduce((sum, row) => sum + row.amountPaid, 0);
-        const monthlyExpected = propertyRows.reduce((sum, row) => sum + row.monthlyRentContract, 0);
+        const monthlyExpected = propertyRows.reduce((sum, row) => sum + row.expectedRent, 0);
 
         return {
             propertyRows,

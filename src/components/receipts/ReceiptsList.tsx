@@ -243,10 +243,10 @@ export const ReceiptsList: React.FC = () => {
       {/* Liste */}
       <div className="space-y-4">
         {filteredReceipts.map(receipt => {
+          const isPaidOrFull = receipt.payment_status === 'paid' || receipt.payment_status === 'full';
           const isPartialReceipt =
             receipt.payment_status === 'partial' ||
-            (receipt.balance_due ?? 0) > 0 ||
-            (receipt.amount_paid != null && receipt.amount_paid < receipt.total_amount);
+            (!isPaidOrFull && ((receipt.balance_due ?? 0) > 0 || (receipt.amount_paid != null && receipt.amount_paid < receipt.total_amount)));
           return (
             <Card key={receipt.id} className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-transparent hover:border-l-blue-500 group">
               <div className="p-6 flex justify-between items-center">
@@ -314,10 +314,10 @@ export const ReceiptsList: React.FC = () => {
         size="lg"
       >
         {selectedReceipt && (() => {
+          const isPaidOrFull = selectedReceipt.payment_status === 'paid' || selectedReceipt.payment_status === 'full';
           const isPartialSel =
             selectedReceipt.payment_status === 'partial' ||
-            (selectedReceipt.balance_due ?? 0) > 0 ||
-            (selectedReceipt.amount_paid != null && selectedReceipt.amount_paid < selectedReceipt.total_amount);
+            (!isPaidOrFull && ((selectedReceipt.balance_due ?? 0) > 0 || (selectedReceipt.amount_paid != null && selectedReceipt.amount_paid < selectedReceipt.total_amount)));
           const paidAmt = selectedReceipt.amount_paid ?? selectedReceipt.total_amount;
           const balAmt = selectedReceipt.balance_due ?? (isPartialSel ? selectedReceipt.total_amount - paidAmt : 0);
           return (
