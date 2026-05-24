@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 // Trigger build for Platform Admin Management fix
 import { AdminHeader } from './layout/AdminHeader';
@@ -20,16 +20,113 @@ import { AdminFintech } from './fintech/AdminFintech';
 import { Agency } from '../../types/db';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useAgencies } from '../../hooks/useAdminQueries';
+import { supabase } from '../../lib/config';
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
 
   const { platformStats, pendingRequestsCount, loading } = useAdmin();
   const { admin } = useAuth();
   const permissions = (admin?.permissions as Record<string, boolean>) || {};
   const isSuperAdmin = admin?.role === 'super_admin';
   const hasSettingsAccess = permissions.settings ?? isSuperAdmin;
+
+  useEffect(() => {
+    const loadActivities = async () => {
+      try {
+        setActivitiesLoading(true);
+        
+        // 1. Charger les agences récentes
+        const { data: recentAgencies } = await supabase
+          .from('agencies')
+          .select('id, name, plan_type, created_at, status')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        // 2. Charger les demandes récentes
+        const { data: recentRequests } = await supabase
+          .from('agency_registration_requests')
+          .select('id, agency_name, status, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        // 3. Charger les abonnements / transactions de portefeuille récents
+        const { data: recentPayments } = await supabase
+          .from('subscription_payments')
+          .select('id, amount, status, payment_date, agency_id')
+          .order('payment_date', { ascending: false })
+          .limit(5);
+
+        const formatted: any[] = [];
+
+        if (recentAgencies) {
+          recentAgencies.forEach((a: any) => {
+            formatted.push({
+              id: `agency-${a.id}`,
+              type: 'agency_created',
+              title: 'Nouvelle agence créée',
+              description: `L'agence "${a.name}" est désormais active (Plan: ${a.plan_type.toUpperCase()})`,
+              timestamp: a.created_at,
+              status: 'success'
+            });
+          });
+        }
+
+        if (recentRequests) {
+          recentRequests.forEach((r: any) => {
+            if (r.status === 'pending') {
+              formatted.push({
+                id: `req-${r.id}`,
+                type: 'clock',
+                title: "Demande d'inscription reçue",
+                description: `Pour l'agence "${r.agency_name}"`,
+                timestamp: r.created_at,
+                status: 'pending'
+              });
+            } else if (r.status === 'rejected') {
+              formatted.push({
+                id: `req-${r.id}`,
+                type: 'rejection',
+                title: "Demande rejetée",
+                description: `Pour l'agence "${r.agency_name}"`,
+                timestamp: r.created_at,
+                status: 'error'
+              });
+            }
+          });
+        }
+
+        if (recentPayments) {
+          recentPayments.forEach((p: any) => {
+            formatted.push({
+              id: `pay-${p.id}`,
+              type: 'subscription',
+              title: 'Paiement d\'abonnement',
+              description: `Paiement reçu de ${p.amount.toLocaleString('fr-FR')} FCFA`,
+              timestamp: p.payment_date || p.created_at,
+              status: p.status === 'completed' ? 'success' : 'pending'
+            });
+          });
+        }
+
+        // Trier par timestamp décroissant
+        const sorted = formatted
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 8);
+
+        setActivities(sorted);
+      } catch (err) {
+        console.error('Erreur chargement des activités récentes:', err);
+      } finally {
+        setActivitiesLoading(false);
+      }
+    };
+
+    loadActivities();
+  }, []);
 
   React.useEffect(() => {
     setSelectedAgency(null);
@@ -136,7 +233,7 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         </div>
 
-                        <ActivityFeed loading={loading} />
+                        <ActivityFeed activities={activities} loading={activitiesLoading || loading} />
                       </div>
                     )}
 
