@@ -40,6 +40,35 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
         }
     };
 
+    const getPlanBadge = (planType: string) => {
+        switch (planType) {
+            case 'premium':
+                return (
+                    <span className="px-2 py-1 rounded-md text-xs font-semibold bg-indigo-100 text-indigo-800 shadow-sm border border-indigo-200">
+                        Premium
+                    </span>
+                );
+            case 'enterprise':
+                return (
+                    <span className="px-2 py-1 rounded-md text-xs font-semibold bg-purple-100 text-purple-800 shadow-sm border border-purple-200">
+                        Enterprise
+                    </span>
+                );
+            case 'free':
+                return (
+                    <span className="px-2 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-800 shadow-sm border border-slate-200">
+                        Gratuit
+                    </span>
+                );
+            default:
+                return (
+                    <span className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 shadow-sm border border-emerald-200">
+                        Fintech 1%
+                    </span>
+                );
+        }
+    };
+
     return (
         <Card className="border-none bg-white/90 shadow-md">
             <div className="p-6">
@@ -81,9 +110,7 @@ export const AgenciesOverview: React.FC<AgenciesOverviewProps> = ({ agencies, lo
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    <span className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 shadow-sm border border-emerald-200">
-                                        Fintech 1%
-                                    </span>
+                                    {getPlanBadge(agency.plan_type)}
                                     <div className="text-right min-w-[100px]">
                                         <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
                                             <Calendar className="h-3 w-3" />

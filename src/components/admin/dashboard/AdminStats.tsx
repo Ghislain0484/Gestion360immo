@@ -49,9 +49,9 @@ export const AdminStats: React.FC<AdminStatsProps> = ({ stats, loading, pendingR
         {
             label: 'Encaissements (Réels)',
             value: formatCurrency(stats.totalRevenue || 0),
-            secondary: stats.totalRevenue === 0 && stats.subscriptionRevenue > 0 
-                ? 'Période de grâce en cours' 
-                : `Aujourd'hui: ${formatCurrency(stats.todayRevenue || 0)}`,
+            secondary: stats.totalRevenue > 0 
+                ? `Aujourd'hui: ${formatCurrency(stats.todayRevenue || 0)} (Fintech + Abo)` 
+                : 'Période de grâce en cours',
             icon: DollarSign,
             gradient: 'from-emerald-500 to-teal-600',
             bgLight: 'bg-emerald-500/10',

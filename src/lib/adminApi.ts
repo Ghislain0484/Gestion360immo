@@ -27,6 +27,31 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     console.warn('Could not fetch global contract data for stats:', err);
   }
 
+  // Cumuler les commissions Fintech réellement perçues (1%) dans les encaissements réels
+  try {
+    const { data: feesData, error: feesError } = await supabase
+      .from('agency_fintech_fees')
+      .select('commission_amount, created_at')
+      .eq('status', 'paid');
+    
+    if (!feesError && feesData) {
+      const totalFintechCollected = feesData.reduce((sum, f) => sum + (Number(f.commission_amount) || 0), 0);
+      
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      
+      const todayFintechCollected = feesData
+        .filter(f => new Date(f.created_at) >= todayStart)
+        .reduce((sum, f) => sum + (Number(f.commission_amount) || 0), 0);
+
+      // Cumuler avec les revenus existants
+      stats.totalRevenue = (stats.totalRevenue || 0) + totalFintechCollected;
+      stats.todayRevenue = (stats.todayRevenue || 0) + todayFintechCollected;
+    }
+  } catch (err) {
+    console.warn('Could not fetch collected fintech fees for stats:', err);
+  }
+
   return stats;
 }
 
