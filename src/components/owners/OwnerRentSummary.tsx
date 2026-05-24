@@ -132,29 +132,37 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                            recentManual.reduce((sum, m) => sum + Number(m.amount), 0);
 
         // 2. Global Balance (Total Accumulated - Total Reversed)
-        const getCommissionRate = (contractId?: string, propertyId?: string) => {
+        const getContractInfo = (contractId?: string, propertyId?: string) => {
+            let contract = null;
             if (contractId && allContracts) {
-                const contract = allContracts.find(c => c.id === contractId);
-                if (contract?.commission_rate !== undefined) return contract.commission_rate;
+                contract = allContracts.find(c => c.id === contractId);
             }
-            if (propertyId && allContracts) {
-                const contract = allContracts.find(c => c.property_id === propertyId);
-                if (contract?.commission_rate !== undefined) return contract.commission_rate;
+            if (!contract && propertyId && allContracts) {
+                contract = allContracts.find(c => c.property_id === propertyId);
             }
-            return 10;
+            const monthlyRentContract = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
+            const commissionRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+            return { monthlyRentContract, commissionRate };
         };
 
         const totalAccumulated = allReceipts.reduce((sum, r) => {
-            const commRate = getCommissionRate(r.contract_id, r.property_id);
-            const ownerPart = Number(r.owner_payment) || ((r.amount_paid || r.total_amount || 0) * (1 - commRate / 100));
+            const { monthlyRentContract, commissionRate } = getContractInfo(r.contract_id, r.property_id);
+            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount;
+            
+            let ownerPart = Number(r.owner_payment) || 0;
+            if (isPaid && monthlyRentContract > 0) {
+                ownerPart = monthlyRentContract * (1 - commissionRate / 100);
+            } else if (ownerPart === 0) {
+                ownerPart = (r.amount_paid || r.total_amount || 0) * (1 - commissionRate / 100);
+            }
             return sum + ownerPart;
         }, 0) +
         allManual.reduce((sum, m) => {
             if (m.category !== 'rent_payment') return sum;
             const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
             if (match) return sum + Number(match[1]);
-            const commRate = getCommissionRate(undefined, m.related_property_id);
-            return sum + (Number(m.amount) * (1 - commRate / 100));
+            const { commissionRate } = getContractInfo(undefined, m.related_property_id);
+            return sum + (Number(m.amount) * (1 - commissionRate / 100));
         }, 0);
 
         const totalReversed = allReversals.reduce((sum, r) => sum + Number(r.montant), 0);
@@ -191,8 +199,20 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const propReceipts = filteredReceipts.filter(r => r.property_id === prop.id);
             const propManual = filteredManual.filter((m: any) => m.related_property_id === prop.id);
             
-            const paid = propReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0) +
+            const rawPaid = propReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0) +
                         propManual.filter((m: any) => m.category === 'rent_payment').reduce((sum, m) => sum + Number(m.amount), 0);
+
+            const allPaid = propReceipts.length > 0 && propReceipts.every(r => r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount);
+
+            let expectedRent = monthlyRentContract;
+            if (propReceipts.length > 0 && !allPaid) {
+                expectedRent = propReceipts.reduce((sum, r) => sum + r.total_amount, 0);
+            }
+
+            let paid = rawPaid;
+            if (allPaid && monthlyRentContract > 0) {
+                paid = monthlyRentContract;
+            }
 
             // Si le bien est "Vacant" mais a un paiement, on cherche le locataire concerné dans les quittances
             let tenantName = '';
@@ -210,16 +230,10 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
                 }
             }
 
-            let expectedRent = monthlyRentContract;
-            if (propReceipts.length > 0) {
-                expectedRent = propReceipts.reduce((sum, r) => sum + r.total_amount, 0);
-            }
-
             let status: 'paid' | 'partial' | 'unpaid' | 'no_contract' = 'unpaid';
             if (!contract) {
                 status = 'no_contract';
             } else if (propReceipts.length > 0) {
-                const allPaid = propReceipts.every(r => r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount);
                 if (allPaid) {
                     status = 'paid';
                 } else if (paid > 0) {
