@@ -24,6 +24,7 @@ import { MaintenanceManager } from './MaintenanceManager';
 import { OwnerPortfolioInsights } from './OwnerPortfolioInsights';
 import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { supabase } from '../../lib/supabase';
+import { generatePayoutOrderPDF } from '../../utils/payoutPdfActions';
 
 export const OwnerDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
@@ -78,8 +79,27 @@ export const OwnerDetails: React.FC = () => {
         { owner_id: owner?.id }
     );
 
+    // --- Fetch all owner transactions (reversals) ---
+    const fetchOwnerTransactions = React.useCallback(async () => {
+        if (!ownerId) return [];
+        const { data, error } = await supabase
+            .from('owner_transactions')
+            .select('*')
+            .eq('owner_id', ownerId)
+            .order('date_transaction', { ascending: false });
+        if (error) throw error;
+        return data || [];
+    }, [ownerId]);
+
+    const { data: ownerTransactions = [] } = useRealtimeData<any>(
+        fetchOwnerTransactions,
+        'owner_transactions',
+        { owner_id: ownerId }
+    );
+
     // 3. State Hooks
     const [activeTab, setActiveTab] = useState('properties');
+    const [financialsSubTab, setFinancialsSubTab] = useState<'payments' | 'reversals'>('payments');
     const [showPropertyForm, setShowPropertyForm] = useState(false);
     const [showEditOwnerForm, setShowEditOwnerForm] = useState(false);
     const [showOwnerReversal, setShowOwnerReversal] = useState(false);
@@ -159,6 +179,26 @@ export const OwnerDetails: React.FC = () => {
         } finally {
             setIsDeleting(false);
             setShowDeleteModal(false);
+        }
+    };
+
+    const handleDownloadReceipt = async (trx: any) => {
+        if (!owner || !authAgencyId) return;
+        const toastId = toast.loading('Génération du bordereau PDF...');
+        
+        try {
+            await generatePayoutOrderPDF({
+                owner,
+                agencyId: authAgencyId,
+                amount: trx.montant,
+                reference: trx.reference || trx.description || '',
+                authorizedSignee: user?.first_name ? `${user.first_name} ${user.last_name}` : 'La Direction',
+                withSignature: true
+            });
+            toast.dismiss(toastId);
+        } catch (error: any) {
+            console.error('Error downloading payout receipt:', error);
+            toast.error('Erreur lors de la génération du document : ' + error.message, { id: toastId });
         }
     };
 
@@ -345,10 +385,100 @@ export const OwnerDetails: React.FC = () => {
                                     </div>
                                 </Card>
 
-                                {/* Liste des paiements */}
-                                <div>
-                                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Historique des paiements</h4>
-                                    <PaymentsList ownerId={owner.id} limit={20} showActions={true} />
+                                {/* Historique des Transactions Financières avec Sous-Onglets */}
+                                <div className="space-y-4">
+                                    <div className="flex border-b border-gray-200">
+                                        <button
+                                            type="button"
+                                            className={`py-2 px-4 text-sm font-semibold border-b-2 transition-colors ${
+                                                financialsSubTab === 'payments'
+                                                    ? 'border-primary-600 text-primary-600 font-bold'
+                                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                            }`}
+                                            onClick={() => setFinancialsSubTab('payments')}
+                                        >
+                                            Encaissements Loyers (Locataires)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`py-2 px-4 text-sm font-semibold border-b-2 transition-colors ${
+                                                financialsSubTab === 'reversals'
+                                                    ? 'border-primary-600 text-primary-600 font-bold'
+                                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                            }`}
+                                            onClick={() => setFinancialsSubTab('reversals')}
+                                        >
+                                            Reversements Effectués (Bailleur)
+                                        </button>
+                                    </div>
+
+                                    {financialsSubTab === 'payments' ? (
+                                        <div>
+                                            <PaymentsList ownerId={owner.id} limit={20} showActions={true} />
+                                        </div>
+                                    ) : (
+                                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm animate-fade-in-up">
+                                            <div className="overflow-x-auto">
+                                                <table className="min-w-full divide-y divide-gray-200">
+                                                    <thead className="bg-gray-50">
+                                                        <tr>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Mode</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Référence</th>
+                                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Montant</th>
+                                                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white divide-y divide-gray-200">
+                                                        {ownerTransactions.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                                                    Aucun reversement enregistré pour ce propriétaire.
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            ownerTransactions.map((trx: any) => (
+                                                                <tr key={trx.id} className="hover:bg-slate-50 transition-colors">
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                                        {new Date(trx.date_transaction || trx.created_at).toLocaleDateString('fr-FR', {
+                                                                            year: 'numeric',
+                                                                            month: 'long',
+                                                                            day: 'numeric'
+                                                                        })}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-gray-900">
+                                                                        <div className="font-medium">{trx.description}</div>
+                                                                        {trx.notes && <div className="text-xs text-gray-500 italic mt-0.5">{trx.notes}</div>}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
+                                                                        {trx.mode_paiement === 'cash' ? 'Espèces' :
+                                                                         trx.mode_paiement === 'bank_transfer' ? 'Virement Bancaire' :
+                                                                         trx.mode_paiement === 'check' ? 'Chèque' :
+                                                                         trx.mode_paiement === 'mobile_money' ? 'Mobile Money' : trx.mode_paiement || '-'}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                                        {trx.reference || '-'}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-red-600">
+                                                                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(trx.montant)}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                                                        <button
+                                                                            onClick={() => handleDownloadReceipt(trx)}
+                                                                            className="text-primary-600 hover:text-primary-900 font-semibold inline-flex items-center gap-1.5 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
+                                                                        >
+                                                                            <span>📄 Reçu / Bordereau</span>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

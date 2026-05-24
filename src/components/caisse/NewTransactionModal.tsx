@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -21,11 +21,44 @@ interface TransactionFormData {
     description: string;
     transaction_date: string;
     payment_method: string;
+    related_owner_id?: string;
+    related_tenant_id?: string;
 }
 
 export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen, onClose, onSuccess, transaction }) => {
     const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
+    const [owners, setOwners] = useState<any[]>([]);
+    const [tenants, setTenants] = useState<any[]>([]);
+
+    // Charger les listes de propriétaires et locataires de l'agence
+    useEffect(() => {
+        const fetchLinkingLists = async () => {
+            if (!user?.agency_id) return;
+            try {
+                const [ownersRes, tenantsRes] = await Promise.all([
+                    supabase
+                        .from('owners')
+                        .select('id, first_name, last_name')
+                        .eq('agency_id', user.agency_id)
+                        .order('first_name'),
+                    supabase
+                        .from('tenants')
+                        .select('id, first_name, last_name')
+                        .eq('agency_id', user.agency_id)
+                        .order('first_name')
+                ]);
+                if (ownersRes.data) setOwners(ownersRes.data);
+                if (tenantsRes.data) setTenants(tenantsRes.data);
+            } catch (err) {
+                console.error('Erreur chargement des listes de liaison caisse:', err);
+            }
+        };
+
+        if (isOpen) {
+            fetchLinkingLists();
+        }
+    }, [user?.agency_id, isOpen]);
 
     const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<TransactionFormData>({
         defaultValues: {
@@ -34,12 +67,14 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
             category: transaction?.category || '',
             description: transaction?.description || '',
             transaction_date: transaction?.transaction_date || new Date().toISOString().split('T')[0],
-            payment_method: transaction?.payment_method || 'cash'
+            payment_method: transaction?.payment_method || 'cash',
+            related_owner_id: transaction?.related_owner_id || '',
+            related_tenant_id: transaction?.related_tenant_id || ''
         }
     });
 
     // Reset form when transaction changes
-    React.useEffect(() => {
+    useEffect(() => {
         if (transaction) {
             reset({
                 type: transaction.type === 'income' || transaction.type === 'credit' ? 'credit' : 'debit',
@@ -47,7 +82,9 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                 category: transaction.category,
                 description: transaction.description,
                 transaction_date: transaction.transaction_date,
-                payment_method: transaction.payment_method
+                payment_method: transaction.payment_method,
+                related_owner_id: transaction.related_owner_id || '',
+                related_tenant_id: transaction.related_tenant_id || ''
             });
         } else {
             reset({
@@ -56,12 +93,17 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                 category: '',
                 description: '',
                 transaction_date: new Date().toISOString().split('T')[0],
-                payment_method: 'cash'
+                payment_method: 'cash',
+                related_owner_id: '',
+                related_tenant_id: ''
             });
         }
     }, [transaction, reset, isOpen]);
 
     const transactionType = watch('type');
+    const selectedCategory = watch('category');
+    const watchedOwnerId = watch('related_owner_id');
+    const watchedTenantId = watch('related_tenant_id');
 
     const onSubmit = async (data: TransactionFormData) => {
         setIsLoading(true);
@@ -81,7 +123,9 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                 description: data.description,
                 transaction_date: data.transaction_date,
                 payment_method: data.payment_method,
-                module_type: 'agency' // Mark as agency-level transaction
+                module_type: data.related_owner_id ? 'owner' : data.related_tenant_id ? 'tenant' : 'agency',
+                related_owner_id: data.related_owner_id || null,
+                related_tenant_id: data.related_tenant_id || null
             };
 
             if (transaction?.id) {
@@ -211,6 +255,58 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                         <option value="salary">Salaires / Commissions</option>
                         <option value="other">Autre</option>
                     </select>
+                </div>
+
+                {/* Warnings / Smart Prompting */}
+                {selectedCategory === 'owner_payout' && !watchedOwnerId && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2 shadow-sm animate-pulse">
+                        <span className="text-base">💡</span>
+                        <div>
+                            <span className="font-semibold">Détection :</span> Il s'agit d'un reversement. Veuillez lier un propriétaire pour qu'il apparaisse automatiquement dans son historique et son bilan comptable.
+                        </div>
+                    </div>
+                )}
+
+                {(selectedCategory === 'rent_payment' || selectedCategory === 'caution') && !watchedTenantId && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2 shadow-sm animate-pulse">
+                        <span className="text-base">💡</span>
+                        <div>
+                            <span className="font-semibold">Détection :</span> Il s'agit d'un loyer ou d'une caution. Veuillez lier un locataire pour assurer une comptabilité précise et la traçabilité de ses paiements.
+                        </div>
+                    </div>
+                )}
+
+                {/* Liaisons Optionnelles */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700">Propriétaire Lié (Bailleur)</label>
+                        <select
+                            {...register('related_owner_id')}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm bg-white"
+                        >
+                            <option value="">-- Aucun propriétaire --</option>
+                            {owners.map((owner) => (
+                                <option key={owner.id} value={owner.id}>
+                                    {owner.first_name} {owner.last_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700">Locataire Lié</label>
+                        <select
+                            {...register('related_tenant_id')}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm bg-white"
+                        >
+                            <option value="">-- Aucun locataire --</option>
+                            {tenants.map((tenant) => (
+                                <option key={tenant.id} value={tenant.id}>
+                                    {tenant.first_name} {tenant.last_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 {/* Description */}
