@@ -54,7 +54,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ data }) => {
 
       <div className="h-[350px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barGap={8}>
+          <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} barGap={8}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
             <XAxis
               dataKey="month"
@@ -67,6 +67,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ data }) => {
               axisLine={false}
               tickLine={false}
               tick={{ fill: tickColor, fontSize: 10, fontWeight: 800 }}
+              width={65}
             />
             <Tooltip
               cursor={{ fill: cursorFill }}

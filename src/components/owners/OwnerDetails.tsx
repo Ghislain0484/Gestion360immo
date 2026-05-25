@@ -81,20 +81,20 @@ export const OwnerDetails: React.FC = () => {
 
     // --- Fetch all owner transactions (reversals) ---
     const fetchOwnerTransactions = React.useCallback(async () => {
-        if (!ownerId) return [];
+        if (!owner?.id) return [];
         const { data, error } = await supabase
             .from('owner_transactions')
             .select('*')
-            .eq('owner_id', ownerId)
+            .eq('owner_id', owner.id)
             .order('date_transaction', { ascending: false });
         if (error) throw error;
         return data || [];
-    }, [ownerId]);
+    }, [owner?.id]);
 
     const { data: ownerTransactions = [] } = useRealtimeData<any>(
         fetchOwnerTransactions,
         'owner_transactions',
-        { owner_id: ownerId }
+        { owner_id: owner?.id }
     );
 
     // 3. State Hooks
