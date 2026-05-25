@@ -95,14 +95,30 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
             modularData = await dbService.modular.getAgencyTransactions(agencyId, startDate, endDate);
         }
 
-        const normalizedReceipts = (receiptsData || []).map(r => ({
-            ...r,
-            displayDate: r.payment_date,
-            displayAmount: r.amount_paid ?? r.total_amount,
-            displayTitle: r.receipt_number,
-            displayType: 'receipt',
-            owner_payment: r.owner_payment
-        }));
+        const normalizedReceipts = (receiptsData || []).map(r => {
+            const contractRent = r.contract ? ((r.contract.monthly_rent ?? 0) + (r.contract.charges ?? 0)) : (r.rent_amount ?? 0) + (r.charges ?? 0);
+            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount;
+            
+            let amt = r.amount_paid ?? r.total_amount;
+            let ownPay = r.owner_payment;
+            
+            if (isPaid && contractRent > 0) {
+                amt = contractRent;
+                const commRate = (r.contract as any)?.commission_rate !== undefined ? (r.contract as any).commission_rate : 10;
+                ownPay = contractRent * (1 - commRate / 100);
+            }
+            
+            return {
+                ...r,
+                total_amount: amt,
+                amount_paid: amt,
+                owner_payment: ownPay,
+                displayDate: r.payment_date,
+                displayAmount: amt,
+                displayTitle: r.receipt_number,
+                displayType: 'receipt'
+            };
+        });
 
         const normalizedModular = (modularData || [])
             .filter(t => t.type === 'income' || t.type === 'credit')

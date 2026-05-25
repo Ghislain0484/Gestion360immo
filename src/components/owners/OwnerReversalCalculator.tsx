@@ -140,9 +140,21 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         // Process Receipts
         periodPayments.receipts.forEach(p => {
             const prop = ownerProperties.find(op => op.id === p.property_id);
-            const amount = p.amount_paid || p.total_amount;
+            const contract = contracts.find(c => c.id === p.contract_id || c.property_id === p.property_id);
+            const contractRent = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
             const commRate = getCommissionRate(p.contract_id, p.property_id);
-            const ownerPart = Number(p.owner_payment) || (amount * (1 - commRate / 100));
+            const isPaid = p.payment_status === 'paid' || p.payment_status === 'full' || (p.amount_paid ?? p.total_amount) >= p.total_amount;
+            
+            let amount = p.amount_paid || p.total_amount;
+            let ownerPart = Number(p.owner_payment) || 0;
+            
+            if (isPaid && contractRent > 0) {
+                amount = contractRent;
+                ownerPart = contractRent * (1 - commRate / 100);
+            } else if (ownerPart === 0) {
+                ownerPart = amount * (1 - commRate / 100);
+            }
+            
             const comm = amount - ownerPart;
             
             transactions.push({
@@ -153,7 +165,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
                 amount: amount,
                 commission: comm,
                 type: 'receipt',
-                status: p.payment_status || (p.amount_paid && p.amount_paid < p.total_amount ? 'partial' : 'full')
+                status: isPaid ? 'full' : (p.payment_status || 'partial')
             });
         });
 
