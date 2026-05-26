@@ -101,8 +101,9 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
             
             let amt = r.amount_paid ?? r.total_amount;
             let ownPay = r.owner_payment;
+            const isFullRentReceipt = Math.abs((r.total_amount ?? r.amount_paid ?? 0) - contractRent) <= Math.max(5000, contractRent * 0.05);
             
-            if (isPaid && contractRent > 0) {
+            if (isPaid && contractRent > 0 && isFullRentReceipt) {
                 amt = contractRent;
                 const commRate = (r.contract as any)?.commission_rate !== undefined ? (r.contract as any).commission_rate : 10;
                 ownPay = contractRent * (1 - commRate / 100);

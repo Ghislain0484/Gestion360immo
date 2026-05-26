@@ -142,6 +142,21 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     const year = periodYear;
 
     try {
+      // 0. Protection active anti-doublon en base de données
+      const { data: existing, error: checkError } = await supabase
+        .from('rent_receipts')
+        .select('id, receipt_number')
+        .eq('contract_id', contractInfo.id)
+        .eq('period_month', month)
+        .eq('period_year', year);
+
+      if (checkError) {
+        console.error("⚠️ [Anti-Doublon] Erreur de vérification:", checkError);
+      } else if (existing && existing.length > 0) {
+        toast.error(`⚠️ Une quittance existe déjà pour ce contrat sur la période de ${MONTHS_FR[month]} ${year}.`);
+        setIsProcessing(false);
+        return;
+      }
       // LOGIQUE COMPTABILITÉ PROFESSIONNELLE AVEC INTÉGRITÉ DE CONTRAT
       // 1. Récupération des valeurs réelles du contrat pour éviter les contournements de paiement partiel
       const contractRent = contractInfo.monthly_rent || 0;
