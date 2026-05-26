@@ -31,11 +31,57 @@ export const ReceiptsList: React.FC = () => {
     { agency_id: user?.agency_id ?? undefined }
   );
 
-  // Cast to include joined data
-  const receipts = receiptsData as (RentReceipt & {
-    property?: { title: string; business_id: string };
-    tenant?: { first_name: string; last_name: string; business_id: string };
-  })[];
+  // Cast to include joined data and dynamically compute chronological cascading balances
+  const receipts = useMemo(() => {
+    const raw = (receiptsData || []) as (RentReceipt & {
+      property?: { title: string; business_id: string };
+      tenant?: { first_name: string; last_name: string; business_id: string };
+    })[];
+
+    // Sort chronologically ascending to calculate running totals
+    const sorted = [...raw].sort((a, b) => {
+      const timeA = new Date(a.payment_date).getTime();
+      const timeB = new Date(b.payment_date).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      const createA = new Date(a.created_at || 0).getTime();
+      const createB = new Date(b.created_at || 0).getTime();
+      return createA - createB;
+    });
+
+    const cumulativePaidMap: Record<string, number> = {};
+    const calculatedBalances = new Map<string, { balance: number; status: string }>();
+
+    sorted.forEach(r => {
+      const key = `${r.contract_id || ''}_${r.period_month}_${r.period_year}`;
+      const contractRent = r.total_amount || r.rent_amount || 0;
+      const amt = r.amount_paid ?? contractRent;
+      
+      let balance = 0;
+      let status = r.payment_status;
+      if (contractRent > 0) {
+        const prevPaid = cumulativePaidMap[key] || 0;
+        const newTotalPaid = prevPaid + amt;
+        cumulativePaidMap[key] = newTotalPaid;
+
+        const isPeriodSolded = newTotalPaid >= (contractRent - 50);
+        balance = Math.max(0, contractRent - newTotalPaid);
+        status = isPeriodSolded ? 'full' : 'partial';
+      } else {
+        status = 'full';
+      }
+
+      calculatedBalances.set(r.id, { balance, status });
+    });
+
+    return raw.map(r => {
+      const calc = calculatedBalances.get(r.id) || { balance: r.balance_due, status: r.payment_status };
+      return {
+        ...r,
+        balance_due: calc.balance,
+        payment_status: calc.status
+      };
+    });
+  }, [receiptsData]);
 
   const debouncedSetSearchTerm = useCallback(
     debounce((value: string) => setSearchTerm(value), 300),

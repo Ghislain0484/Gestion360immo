@@ -95,32 +95,59 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
             modularData = await dbService.modular.getAgencyTransactions(agencyId, startDate, endDate);
         }
 
+        // Step 1: Sort receipts chronologically to compute running totals and cascading balance_due
+        const sortedReceiptsAsc = [...(receiptsData || [])].sort((a, b) => {
+            const timeA = new Date(a.payment_date).getTime();
+            const timeB = new Date(b.payment_date).getTime();
+            if (timeA !== timeB) return timeA - timeB;
+            const createA = new Date(a.created_at || 0).getTime();
+            const createB = new Date(b.created_at || 0).getTime();
+            return createA - createB;
+        });
+
+        const cumulativePaidMap: Record<string, number> = {};
+        const calculatedBalances = new Map<string, { balance: number; status: string }>();
+
+        sortedReceiptsAsc.forEach(r => {
+            const key = `${r.contract_id || ''}_${r.period_month}_${r.period_year}`;
+            const contractRent = r.contract 
+                ? ((r.contract.monthly_rent ?? 0) + (r.contract.charges ?? 0)) 
+                : (r.rent_amount ?? 0) + (r.charges ?? 0);
+            
+            const amt = r.amount_paid ?? r.total_amount ?? 0;
+            
+            let balance = 0;
+            let status = r.payment_status;
+            if (contractRent > 0) {
+                const prevPaid = cumulativePaidMap[key] || 0;
+                const newTotalPaid = prevPaid + amt;
+                cumulativePaidMap[key] = newTotalPaid;
+
+                const isPeriodSolded = newTotalPaid >= (contractRent - 50);
+                balance = Math.max(0, contractRent - newTotalPaid);
+                status = isPeriodSolded ? 'full' : 'partial';
+            } else {
+                status = 'full';
+            }
+
+            calculatedBalances.set(r.id, { balance, status });
+        });
+
         const normalizedReceipts = (receiptsData || []).map(r => {
             const contractRent = r.contract ? ((r.contract.monthly_rent ?? 0) + (r.contract.charges ?? 0)) : (r.rent_amount ?? 0) + (r.charges ?? 0);
             
-            const isFullRentReceipt = Math.abs((r.amount_paid ?? r.total_amount ?? 0) - contractRent) <= Math.max(5000, contractRent * 0.05);
-            const calculatedStatus = (!isFullRentReceipt && contractRent > 0) ? 'partial' : r.payment_status;
-            const isPaid = calculatedStatus === 'paid' || calculatedStatus === 'full';
+            const calc = calculatedBalances.get(r.id) || { balance: Math.max(0, contractRent - (r.amount_paid ?? 0)), status: r.payment_status };
+            const calculatedStatus = calc.status;
             
-            let amt = r.amount_paid ?? r.total_amount;
-            let ownPay = r.owner_payment;
-            
-            if (isPaid && contractRent > 0 && isFullRentReceipt) {
-                amt = contractRent;
-                const commRate = (r.contract as any)?.commission_rate !== undefined ? (r.contract as any).commission_rate : 10;
-                ownPay = contractRent * (1 - commRate / 100);
-            } else if (calculatedStatus === 'partial') {
-                const commRate = (r.contract as any)?.commission_rate !== undefined ? (r.contract as any).commission_rate : 10;
-                ownPay = amt * (1 - commRate / 100);
-            }
-            
-            const balance = calculatedStatus === 'partial' ? Math.max(0, contractRent - amt) : 0;
+            const amt = r.amount_paid ?? r.total_amount;
+            const commRate = (r.contract as any)?.commission_rate !== undefined ? (r.contract as any).commission_rate : 10;
+            const ownPay = amt * (1 - commRate / 100);
             
             return {
                 ...r,
                 total_amount: contractRent > 0 ? contractRent : amt,
                 amount_paid: amt,
-                balance_due: balance,
+                balance_due: calc.balance,
                 payment_status: calculatedStatus,
                 owner_payment: ownPay,
                 displayDate: r.payment_date,

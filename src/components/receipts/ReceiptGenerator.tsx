@@ -142,33 +142,36 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     const year = periodYear;
 
     try {
-      // 0. Protection active anti-doublon en base de données
+      // 0. Protection active anti-doublon en base de données et calcul du déjà-payé
       const { data: existing, error: checkError } = await supabase
         .from('rent_receipts')
-        .select('id, receipt_number')
+        .select('id, receipt_number, amount_paid')
         .eq('contract_id', contractInfo.id)
         .eq('period_month', month)
         .eq('period_year', year);
 
-      if (checkError) {
-        console.error("⚠️ [Anti-Doublon] Erreur de vérification:", checkError);
-      } else if (existing && existing.length > 0) {
-        toast.error(`⚠️ Une quittance existe déjà pour ce contrat sur la période de ${MONTHS_FR[month]} ${year}.`);
-        setIsProcessing(false);
-        return;
-      }
       // LOGIQUE COMPTABILITÉ PROFESSIONNELLE AVEC INTÉGRITÉ DE CONTRAT
       // 1. Récupération des valeurs réelles du contrat pour éviter les contournements de paiement partiel
       const contractRent = contractInfo.monthly_rent || 0;
       const contractCharges = contractInfo.charges || 0;
       const contractExpectedRent = contractRent + contractCharges;
+
+      const alreadyPaidSum = existing ? existing.reduce((sum, r) => sum + Number(r.amount_paid || 0), 0) : 0;
+
+      if (checkError) {
+        console.error("⚠️ [Anti-Doublon] Erreur de vérification:", checkError);
+      } else if (alreadyPaidSum >= contractExpectedRent - 50) {
+        toast.error(`⚠️ Ce mois est déjà entièrement soldé (${alreadyPaidSum.toLocaleString('fr-FR')} FCFA) pour ce locataire.`);
+        setIsProcessing(false);
+        return;
+      }
       
       // Total attendu (le plus élevé entre le contrat et la saisie utilisateur)
       const expectedRentTotal = Math.max(contractExpectedRent, rentAmount + (charges || 0));
       const trueTotalExpected = expectedRentTotal + depositAmount + agencyFees;
       
       // On considère que le "amountPaid" saisi par l'utilisateur est le global
-      const paidAmount = amountPaid > 0 ? amountPaid : trueTotalExpected;
+      const paidAmount = amountPaid > 0 ? amountPaid : Math.max(0, expectedRentTotal - alreadyPaidSum + depositAmount + agencyFees);
       
       // 2. Calcul des Commissions : Frais de dossier (100% agence) + % sur le loyer encaissé
       const commissionRate = contractInfo.commission_rate || 10;
@@ -183,8 +186,8 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
       // 3. Reversement Propriétaire = Loyer encaissé - Commission sur loyer - Dépenses/Travaux
       const ownerPayment = rentPaidPart - commissionOnRent - totalExpenses;
 
-      const balanceDue = Math.max(0, trueTotalExpected - paidAmount);
-      const isPartial = paidAmount < trueTotalExpected || balanceDue > 0;
+      const balanceDue = Math.max(0, expectedRentTotal - alreadyPaidSum - paidAmount);
+      const isPartial = balanceDue > 0;
       
       const receiptNumber = `REC-${year}${String(month).padStart(2, '0')}-${Date.now()}`;
 
