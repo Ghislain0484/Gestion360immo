@@ -380,7 +380,7 @@ export const ReceiptsList: React.FC = () => {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-500">Numéro :</span><p className="font-semibold">{selectedReceipt.receipt_number}</p></div>
                 <div><span className="text-gray-500">Période :</span><p className="font-semibold">{MONTHS_FR[selectedReceipt.period_month] || selectedReceipt.period_month} {selectedReceipt.period_year}</p></div>
-                <div><span className="text-gray-500">Loyer :</span><p className="font-semibold">{formatCurrency(selectedReceipt.rent_amount)}</p></div>
+                <div><span className="text-gray-500">Loyer :</span><p className="font-semibold">{formatCurrency(selectedReceipt.contract?.monthly_rent || selectedReceipt.rent_amount || (selectedReceipt.total_amount - (selectedReceipt.charges || 0) - (selectedReceipt.deposit_amount || 0) - (selectedReceipt.agency_fees || 0)))}</p></div>
                 <div><span className="text-gray-500">Charges :</span><p className="font-semibold">{formatCurrency(selectedReceipt.charges || 0)}</p></div>
                 <div><span className="text-gray-500">Total dû :</span><p className="font-semibold">{formatCurrency(selectedReceipt.total_amount)}</p></div>
                 <div><span className="text-gray-500">Montant versé :</span><p className={`font-bold text-base ${isPartialSel ? 'text-orange-600' : 'text-green-600'}`}>{formatCurrency(paidAmt)}</p></div>

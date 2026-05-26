@@ -119,7 +119,7 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
     };
 
     // Calcul des lignes détaillées (Loi 2+2 Côte d'Ivoire)
-    const monthlyRent = receipt.rent_amount || 0;
+    const monthlyRent = (receipt as any).contract?.monthly_rent || receipt.rent_amount || (receipt.total_amount - (receipt.charges || 0) - (receipt.deposit_amount || 0) - (receipt.agency_fees || 0));
     const caution = receipt.deposit_amount || 0;
     const currentRent = monthlyRent;
     const surplus = amountPaid - (currentRent + caution + (receipt.charges || 0));
@@ -243,6 +243,7 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     const periodStr = `${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}`;
     const pmLabel = getPaymentMethodLabel(receipt.payment_method);
     const amountPaid = receipt.amount_paid ?? receipt.total_amount;
+    const monthlyRent = (receipt as any).contract?.monthly_rent || receipt.rent_amount || (receipt.total_amount - (receipt.charges || 0) - (receipt.deposit_amount || 0) - (receipt.agency_fees || 0));
 
     const amountPaidColor = '#16a34a'; // always green
     const legalMention = `Je soussign&eacute;(e), agence gestionnaire, certifie avoir re&ccedil;u la somme ci-dessus indiqu&eacute;e<br>à titre de loyer pour le mois de ${periodStr}.`;
@@ -344,10 +345,10 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
 
   <div class="section-title">DÉTAIL DU PAIEMENT</div>
   <table class="payment-table">
-    ${receipt.rent_amount > 0 ? `<tr><td>Loyer mensuel</td><td style="text-align:right">${receipt.rent_amount.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
+    ${monthlyRent > 0 ? `<tr><td>Loyer mensuel</td><td style="text-align:right">${monthlyRent.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
     ${receipt.deposit_amount && receipt.deposit_amount > 0 ? `<tr><td>Caution (S&eacute;questre)</td><td style="text-align:right">${receipt.deposit_amount.toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
-    ${(amountPaid - (receipt.rent_amount + (receipt.deposit_amount || 0) + (receipt.charges || 0))) > 0 
-      ? `<tr><td>Avance de loyer</td><td style="text-align:right">${(amountPaid - (receipt.rent_amount + (receipt.deposit_amount || 0) + (receipt.charges || 0))).toLocaleString('fr-FR')} FCFA</td></tr>` 
+    ${(amountPaid - (monthlyRent + (receipt.deposit_amount || 0) + (receipt.charges || 0))) > 0 
+      ? `<tr><td>Avance de loyer</td><td style="text-align:right">${(amountPaid - (monthlyRent + (receipt.deposit_amount || 0) + (receipt.charges || 0))).toLocaleString('fr-FR')} FCFA</td></tr>` 
       : ''}
     <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>TOTAL D&Ucirc;</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>

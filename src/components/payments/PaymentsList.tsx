@@ -503,7 +503,12 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
                             {/* Montants */}
                             <div className="space-y-2">
                                 {selectedPayment.rent_amount ? (
-                                    <div className="flex justify-between text-sm"><span className="text-gray-500">Loyer mensuel</span><span>{selectedPayment.rent_amount.toLocaleString('fr-FR')} FCFA</span></div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-500">Loyer mensuel</span>
+                                        <span>
+                                            {(selectedPayment.contract?.monthly_rent || selectedPayment.rent_amount || (selectedPayment.total_amount - (selectedPayment.charges || 0) - (selectedPayment.deposit_amount || 0) - (selectedPayment.agency_fees || 0))).toLocaleString('fr-FR')} FCFA
+                                        </span>
+                                    </div>
                                 ) : null}
                                 {selectedPayment.charges ? (
                                     <div className="flex justify-between text-sm"><span className="text-gray-500">Charges</span><span>{selectedPayment.charges.toLocaleString('fr-FR')} FCFA</span></div>
