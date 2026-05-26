@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 import { RentReceipt } from '../types/db';
 import { getAgencyBranding, renderPDFHeader, renderPDFFooter } from './agencyBranding';
+import { supabase } from '../lib/supabase';
 
 const MONTHS_FR = [
   '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -222,6 +223,22 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
 export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, extraInfo: { tenantName?: string; ownerName?: string; propertyTitle?: string } = {}) {
   try {
     const branding = await getAgencyBranding(agencyId);
+    
+    // Récupérer l'historique complet des paiements pour ce contrat et cette période
+    let siblingReceipts: any[] = [];
+    try {
+      const { data } = await supabase
+        .from('rent_receipts')
+        .select('receipt_number, amount_paid, payment_date')
+        .eq('contract_id', receipt.contract_id)
+        .eq('period_month', receipt.period_month)
+        .eq('period_year', receipt.period_year)
+        .order('payment_date', { ascending: true });
+      if (data) siblingReceipts = data;
+    } catch (dbErr) {
+      console.error("Error fetching sibling receipts:", dbErr);
+    }
+
     const logoHtml = branding.logo ? `<img src="${branding.logo}" alt="Logo" style="max-height:70px; object-fit:contain;">` : '';
     const periodStr = `${MONTHS_FR[receipt.period_month] || receipt.period_month} ${receipt.period_year}`;
     const pmLabel = getPaymentMethodLabel(receipt.payment_method);
@@ -229,6 +246,35 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
 
     const amountPaidColor = '#16a34a'; // always green
     const legalMention = `Je soussign&eacute;(e), agence gestionnaire, certifie avoir re&ccedil;u la somme ci-dessus indiqu&eacute;e<br>à titre de loyer pour le mois de ${periodStr}.`;
+
+    let siblingHtml = '';
+    if (siblingReceipts && siblingReceipts.length > 1) {
+      siblingHtml = `
+  <div class="section-title">HISTORIQUE DES VERSEMENTS DE LA PÉRIODE</div>
+  <table class="payment-table" style="font-size: 11px; width: 100%; border-collapse: collapse; margin: 10px 0;">
+    <thead>
+      <tr style="background:#f1f5f9; font-weight:bold;">
+        <th style="padding:6px 10px; text-align:left; border-bottom: 1px solid #ddd;">Date</th>
+        <th style="padding:6px 10px; text-align:left; border-bottom: 1px solid #ddd;">N° Quittance</th>
+        <th style="padding:6px 10px; text-align:right; border-bottom: 1px solid #ddd;">Montant perçu</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${siblingReceipts.map(r => `
+        <tr>
+          <td style="padding:6px 10px; border-bottom: 1px solid #eee;">${new Date(r.payment_date).toLocaleDateString('fr-FR')}</td>
+          <td style="padding:6px 10px; border-bottom: 1px solid #eee;">${r.receipt_number}</td>
+          <td style="padding:6px 10px; text-align:right; border-bottom: 1px solid #eee;">${Number(r.amount_paid).toLocaleString('fr-FR')} FCFA</td>
+        </tr>
+      `).join('')}
+      <tr style="font-weight:bold; background:#e2e8f0; border-top: 2px solid #3B82F6;">
+        <td colspan="2" style="padding:8px 10px;">TOTAL CUMULÉ VERSÉ</td>
+        <td style="padding:8px 10px; text-align:right; color:#16a34a;">${siblingReceipts.reduce((sum, r) => sum + Number(r.amount_paid), 0).toLocaleString('fr-FR')} FCFA</td>
+      </tr>
+    </tbody>
+  </table>
+      `;
+    }
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -310,6 +356,8 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>
     <tr><td>Mode de paiement</td><td style="text-align:right">${pmLabel}</td></tr>
   </table>
+
+  ${siblingHtml}
 
   <div class="mention">
     ${legalMention}

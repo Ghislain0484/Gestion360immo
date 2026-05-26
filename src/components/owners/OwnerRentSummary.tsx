@@ -237,7 +237,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             if (!contract) {
                 status = 'no_contract';
             } else if (propReceipts.length > 0) {
-                if (allPaid) {
+                if (allPaid && isFullRentPaid) {
                     status = 'paid';
                 } else if (paid > 0) {
                     status = 'partial';

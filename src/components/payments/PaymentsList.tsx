@@ -97,22 +97,31 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
 
         const normalizedReceipts = (receiptsData || []).map(r => {
             const contractRent = r.contract ? ((r.contract.monthly_rent ?? 0) + (r.contract.charges ?? 0)) : (r.rent_amount ?? 0) + (r.charges ?? 0);
-            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount;
+            
+            const isFullRentReceipt = Math.abs((r.amount_paid ?? r.total_amount ?? 0) - contractRent) <= Math.max(5000, contractRent * 0.05);
+            const calculatedStatus = (!isFullRentReceipt && contractRent > 0) ? 'partial' : r.payment_status;
+            const isPaid = calculatedStatus === 'paid' || calculatedStatus === 'full';
             
             let amt = r.amount_paid ?? r.total_amount;
             let ownPay = r.owner_payment;
-            const isFullRentReceipt = Math.abs((r.total_amount ?? r.amount_paid ?? 0) - contractRent) <= Math.max(5000, contractRent * 0.05);
             
             if (isPaid && contractRent > 0 && isFullRentReceipt) {
                 amt = contractRent;
                 const commRate = (r.contract as any)?.commission_rate !== undefined ? (r.contract as any).commission_rate : 10;
                 ownPay = contractRent * (1 - commRate / 100);
+            } else if (calculatedStatus === 'partial') {
+                const commRate = (r.contract as any)?.commission_rate !== undefined ? (r.contract as any).commission_rate : 10;
+                ownPay = amt * (1 - commRate / 100);
             }
+            
+            const balance = calculatedStatus === 'partial' ? Math.max(0, contractRent - amt) : 0;
             
             return {
                 ...r,
-                total_amount: amt,
+                total_amount: contractRent > 0 ? contractRent : amt,
                 amount_paid: amt,
+                balance_due: balance,
+                payment_status: calculatedStatus,
                 owner_payment: ownPay,
                 displayDate: r.payment_date,
                 displayAmount: amt,
