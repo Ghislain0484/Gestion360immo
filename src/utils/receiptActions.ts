@@ -30,6 +30,32 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
 
     const amountPaid = receipt.amount_paid ?? receipt.total_amount;
 
+    // Récupérer l'historique complet des paiements pour ce contrat et cette période
+    let siblingReceipts: any[] = [];
+    try {
+      const { data } = await supabase
+        .from('rent_receipts')
+        .select('receipt_number, amount_paid, payment_date')
+        .eq('contract_id', receipt.contract_id)
+        .eq('period_month', receipt.period_month)
+        .eq('period_year', receipt.period_year)
+        .order('payment_date', { ascending: true });
+      if (data) siblingReceipts = data;
+    } catch (dbErr) {
+      console.error("Error fetching sibling receipts in PDF:", dbErr);
+    }
+
+    let totalPaidUpToCurrent = 0;
+    for (const r of siblingReceipts) {
+      totalPaidUpToCurrent += Number(r.amount_paid || 0);
+      if (r.receipt_number === receipt.receipt_number) {
+        break;
+      }
+    }
+    if (totalPaidUpToCurrent === 0) {
+      totalPaidUpToCurrent = amountPaid;
+    }
+
     // En-tête avec logo
     let y = renderPDFHeader(doc, branding, 15);
 
@@ -143,13 +169,13 @@ export async function downloadReceiptPDF(receipt: RentReceipt, agencyId: string,
     doc.setTextColor(22, 163, 74); // green-600
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    const isPartial = amountPaid < receipt.total_amount;
+    const isPartial = totalPaidUpToCurrent < receipt.total_amount;
     doc.text(isPartial ? "MONTANT PERÇU (ACOMPTE) :" : "MONTANT VERSÉ :", col1, y);
     doc.text(`${amountPaid.toLocaleString('fr-FR')} FCFA`, col2, y);
     y += 8;
 
     if (isPartial) {
-      const balanceDue = receipt.total_amount - amountPaid;
+      const balanceDue = receipt.total_amount - totalPaidUpToCurrent;
       doc.setTextColor(220, 38, 38); // red-600
       doc.setFont('helvetica', 'bold');
       doc.text("SOLDE RESTANT À PAYER :", col1, y);
@@ -244,6 +270,17 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
     const pmLabel = getPaymentMethodLabel(receipt.payment_method);
     const amountPaid = receipt.amount_paid ?? receipt.total_amount;
     const monthlyRent = (receipt as any).contract?.monthly_rent || receipt.rent_amount || (receipt.total_amount - (receipt.charges || 0) - (receipt.deposit_amount || 0) - (receipt.agency_fees || 0));
+
+    let totalPaidUpToCurrent = 0;
+    for (const r of siblingReceipts) {
+      totalPaidUpToCurrent += Number(r.amount_paid || 0);
+      if (r.receipt_number === receipt.receipt_number) {
+        break;
+      }
+    }
+    if (totalPaidUpToCurrent === 0) {
+      totalPaidUpToCurrent = amountPaid;
+    }
 
     const amountPaidColor = '#16a34a'; // always green
     const legalMention = `Je soussign&eacute;(e), agence gestionnaire, certifie avoir re&ccedil;u la somme ci-dessus indiqu&eacute;e<br>à titre de loyer pour le mois de ${periodStr}.`;
@@ -352,8 +389,8 @@ export async function printReceiptHTML(receipt: RentReceipt, agencyId: string, e
       : ''}
     <tr><td>Charges</td><td style="text-align:right">${(receipt.charges || 0).toLocaleString('fr-FR')} FCFA</td></tr>
     <tr><td>TOTAL D&Ucirc;</td><td style="text-align:right">${receipt.total_amount.toLocaleString('fr-FR')} FCFA</td></tr>
-    <tr class="total-row"><td>${amountPaid < receipt.total_amount ? 'MONTANT PER&Ccedil;U (ACOMPTE)' : 'MONTANT VERS&Eacute;'}</td><td style="text-align:right;color:${amountPaidColor};">${amountPaid.toLocaleString('fr-FR')} FCFA</td></tr>
-    ${amountPaid < receipt.total_amount ? `<tr><td style="color:#dc2626;font-weight:bold">Solde restant &agrave; payer</td><td style="text-align:right;color:#dc2626;font-weight:bold">${(receipt.total_amount - amountPaid).toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
+    <tr class="total-row"><td>${totalPaidUpToCurrent < receipt.total_amount ? 'MONTANT PER&Ccedil;U (ACOMPTE)' : 'MONTANT VERS&Eacute;'}</td><td style="text-align:right;color:${amountPaidColor};">${amountPaid.toLocaleString('fr-FR')} FCFA</td></tr>
+    ${totalPaidUpToCurrent < receipt.total_amount ? `<tr><td style="color:#dc2626;font-weight:bold">Solde restant &agrave; payer</td><td style="text-align:right;color:#dc2626;font-weight:bold">${(receipt.total_amount - totalPaidUpToCurrent).toLocaleString('fr-FR')} FCFA</td></tr>` : ''}
     <tr><td>Date de paiement</td><td style="text-align:right">${new Date(receipt.payment_date).toLocaleDateString('fr-FR')}</td></tr>
     <tr><td>Mode de paiement</td><td style="text-align:right">${pmLabel}</td></tr>
   </table>
