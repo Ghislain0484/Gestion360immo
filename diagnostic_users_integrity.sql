@@ -144,7 +144,7 @@ SELECT
     pu.first_name, 
     pu.last_name, 
     pu.is_active,
-    COALESCE(au.role, 'PLATFORM_ADMIN / INDÉFINI') AS role_agence,
+    COALESCE(au.role::text, 'PLATFORM_ADMIN / INDÉFINI') AS role_agence,
     COALESCE(a.name, 'AUCUNE AGENCE (ADMIN PLATEFORME)') AS nom_agence
 FROM public.users pu
 LEFT JOIN public.agency_users au ON pu.id = au.user_id
