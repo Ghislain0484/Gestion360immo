@@ -247,6 +247,7 @@ export const WalletSettings: React.FC = () => {
             <h4 className="font-bold text-gray-900 mb-4">Recharger des crédits</h4>
             <div className="space-y-3">
               {[
+                { qty: 2, price: 2000, bonus: 0 },
                 { qty: 5, price: 5000, bonus: 0 },
                 { qty: 12, price: 10000, bonus: 2 },
                 { qty: 30, price: 25000, bonus: 5 },
