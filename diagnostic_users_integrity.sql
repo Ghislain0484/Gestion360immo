@@ -23,8 +23,8 @@ BEGIN
     FROM public.users pu
     JOIN public.agency_users au ON pu.id = au.user_id
     WHERE (
-        pu.id IN (SELECT DISTINCT user_id FROM public.owners WHERE user_id IS NOT NULL)
-        OR pu.id IN (SELECT DISTINCT user_id FROM public.tenants WHERE user_id IS NOT NULL)
+        pu.id IN (SELECT DISTINCT o.user_id FROM public.owners o WHERE o.user_id IS NOT NULL)
+        OR pu.id IN (SELECT DISTINCT t.user_id FROM public.tenants t WHERE t.user_id IS NOT NULL)
         OR pu.email ILIKE '%proprio%' 
         OR pu.email ILIKE '%locataire%'
         OR pu.email = 'maurel.agohi@gmail.com' -- Email test de démo propriétaire
