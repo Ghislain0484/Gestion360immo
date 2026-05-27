@@ -27,9 +27,9 @@ import { useCanDelete } from '../../hooks/useCanDelete';
 const PAGE_SIZE = 50;
 
 const paymentConfig = {
-  bon: { label: 'Bon payeur', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
-  irregulier: { label: 'Irrégulier', icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-500' },
-  mauvais: { label: 'Mauvais payeur', icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-500' },
+  bon: { label: 'Bon payeur', icon: CheckCircle2, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-900/30', dot: 'bg-emerald-500' },
+  irregulier: { label: 'Irrégulier', icon: AlertCircle, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-900/30', dot: 'bg-amber-500' },
+  mauvais: { label: 'Mauvais payeur', icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-900/30', dot: 'bg-red-500' },
 };
 
 const avatarColors = [
@@ -198,12 +198,12 @@ export const TenantsList: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t("Locataires")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{filteredTenants.length} {filteredTenants.length > 1 ? t("locataires enregistrés") : t("locataire enregistré")}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("Locataires")}</h1>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">{filteredTenants.length} {filteredTenants.length > 1 ? t("locataires enregistrés") : t("locataire enregistré")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <ViewToggle view={viewMode} onChange={setViewMode} />
-          <Button variant="outline" onClick={handleExport} className="flex items-center space-x-2 border-gray-300 text-gray-700">
+          <Button variant="outline" onClick={handleExport} className="flex items-center space-x-2 border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 bg-white dark:bg-slate-800">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">{t("Exporter")}</span>
           </Button>
@@ -238,15 +238,15 @@ export const TenantsList: React.FC = () => {
         {initialLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3 animate-pulse">
-                <div className="h-12 w-12 bg-gray-100 rounded-xl" />
-                <div className="h-4 bg-gray-100 rounded w-3/4" />
-                <div className="h-4 bg-gray-100 rounded w-1/2" />
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3 animate-pulse">
+                <div className="h-12 w-12 bg-gray-100 dark:bg-slate-800 rounded-xl" />
+                <div className="h-4 bg-gray-100 dark:bg-slate-800 rounded w-3/4" />
+                <div className="h-4 bg-gray-100 dark:bg-slate-800 rounded w-1/2" />
               </div>
             ))}
           </div>
         ) : filteredTenants.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl border border-gray-100 italic text-gray-400">{t("Aucun locataire trouvé")}</div>
+          <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 italic text-gray-400 dark:text-slate-500">{t("Aucun locataire trouvé")}</div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedTenants.map((tenant) => (
@@ -262,30 +262,30 @@ export const TenantsList: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800">
+              <thead className="bg-gray-50 dark:bg-slate-800/60">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Identité")}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Contact")}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Statut")}</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t("Actions")}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">{t("Identité")}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">{t("Contact")}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">{t("Statut")}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">{t("Actions")}</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
                 {paginatedTenants.map(tenant => {
                   const pCfg = paymentConfig[tenant.payment_status] ?? paymentConfig.bon;
                   return (
-                    <tr key={tenant.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/locataires/${generateSlug(tenant.business_id || tenant.id, `${tenant.first_name} ${tenant.last_name}`)}`)}>
+                    <tr key={tenant.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer" onClick={() => navigate(`/locataires/${generateSlug(tenant.business_id || tenant.id, `${tenant.first_name} ${tenant.last_name}`)}`)}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className={clsx("w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs bg-gradient-to-br", getAvatarColor(tenant.first_name))}>
                             {tenant.first_name[0]}{tenant.last_name[0]}
                           </div>
-                          <span className="text-sm font-medium text-gray-900">{tenant.first_name} {tenant.last_name}</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-slate-200">{tenant.first_name} {tenant.last_name}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tenant.phone}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">{tenant.phone}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium", pCfg.bg, pCfg.color)}>{t(pCfg.label)}</span>
                       </td>
@@ -309,7 +309,7 @@ export const TenantsList: React.FC = () => {
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-3 mt-6">
           <Button variant="outline" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>{t("Précédent")}</Button>
-          <span className="text-sm text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg">{currentPage + 1} / {totalPages}</span>
+          <span className="text-sm text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 px-3 py-1.5 rounded-lg">{currentPage + 1} / {totalPages}</span>
           <Button variant="outline" disabled={currentPage >= totalPages - 1} onClick={() => setCurrentPage(p => p + 1)}>{t("Suivant")}</Button>
         </div>
       )}

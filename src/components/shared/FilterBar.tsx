@@ -67,11 +67,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 <select
                   value={values[field.id] || 'all'}
                   onChange={(e) => onChange(field.id, e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-medium text-slate-700 h-[42px]"
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 h-[42px]"
                 >
-                  <option value="all">Tous {field.label}</option>
+                  <option value="all" className="dark:bg-slate-800">Tous {field.label}</option>
                   {field.options?.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
+                    <option key={opt.value} value={opt.value} className="dark:bg-slate-800">
                       {opt.label}
                     </option>
                   ))}
@@ -101,22 +101,22 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {stats && stats.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-100">
-          <div className="flex p-1 bg-slate-100 rounded-xl">
+        <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
             {stats.map((stat, idx) => (
               <button
                 key={idx}
                 onClick={stat.onClick}
                 className={clsx(
                   "px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                  stat.active ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700",
-                  stat.active ? (stat.activeColorClass || "text-blue-600") : ""
+                  stat.active ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200",
+                  stat.active ? (stat.activeColorClass || "text-blue-600 dark:text-blue-400") : ""
                 )}
               >
                 {stat.label}
                 <span className={clsx(
                   "px-1.5 py-0.5 rounded-full text-[10px]",
-                  stat.active ? (stat.colorClass || "bg-blue-100") : "bg-slate-200"
+                  stat.active ? (stat.colorClass || "bg-blue-100 dark:bg-blue-950/40") : "bg-slate-200 dark:bg-slate-700"
                 )}>
                   {stat.count}
                 </span>

@@ -538,8 +538,8 @@ export const CaissePage: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">{t("Caisse & Trésorerie")}</h1>
-                    <p className="text-gray-500 mt-1">
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t("Caisse & Trésorerie")}</h1>
+                    <p className="text-gray-500 dark:text-slate-450 mt-1">
                         {!hasTraditionalRealEstate && (hasHotel || hasResidences)
                             ? t("Suivi de caisse pour vos réservations, locations meublées et prestations")
                             : t("Gestion des encaissements, décaissements et reversements")
@@ -549,7 +549,7 @@ export const CaissePage: React.FC = () => {
                 <div className="flex gap-2">
                     <button
                         onClick={() => setIsTransactionModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
                     >
                         <ArrowRightLeft className="w-4 h-4" />
                         <span>{t("Mouvement")}</span>
@@ -659,24 +659,24 @@ export const CaissePage: React.FC = () => {
                                     label: t('Entrées (+)'),
                                     count: summary.totalCredit.toLocaleString('fr-FR') + ' F',
                                     active: true,
-                                    colorClass: 'bg-green-100 text-green-700',
-                                    activeColorClass: 'text-green-600',
+                                    colorClass: 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400',
+                                    activeColorClass: 'text-green-600 dark:text-green-450',
                                     onClick: () => {}
                                 },
                                 {
                                     label: t('Sorties (-)'),
                                     count: summary.totalDebit.toLocaleString('fr-FR') + ' F',
                                     active: true,
-                                    colorClass: 'bg-red-100 text-red-700',
-                                    activeColorClass: 'text-red-600',
+                                    colorClass: 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400',
+                                    activeColorClass: 'text-red-600 dark:text-red-450',
                                     onClick: () => {}
                                 },
                                 {
                                     label: t('Solde Net'),
                                     count: summary.balance.toLocaleString('fr-FR') + ' F',
                                     active: true,
-                                    colorClass: summary.balance >= 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700',
-                                    activeColorClass: summary.balance >= 0 ? 'text-indigo-600' : 'text-red-600',
+                                    colorClass: summary.balance >= 0 ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400' : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400',
+                                    activeColorClass: summary.balance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-red-600 dark:text-red-450',
                                     onClick: () => {}
                                 }
                             ]}
@@ -698,29 +698,31 @@ export const CaissePage: React.FC = () => {
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                    <thead className="bg-gray-50 dark:bg-slate-800/60 border-b border-gray-200 dark:border-slate-700">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Date")}</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Type")}</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Provenance")}</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Catégorie")}</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Description")}</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t("Moyen")}</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t("Part Proprio")}</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t("Montant Total")}</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t("Actions")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Date")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Type")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Provenance")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Catégorie")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Description")}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Moyen")}</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Part Proprio")}</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Montant Total")}</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">{t("Actions")}</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
                                         {paginatedTransactions.map((tTrans) => (
-                                            <tr key={tTrans.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <tr key={tTrans.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
                                                     {new Date(tTrans.date).toLocaleDateString('fr-FR')}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className={clsx(
                                                         "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                                                        tTrans.type === 'credit' ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                                                        tTrans.type === 'credit' 
+                                                            ? "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400" 
+                                                            : "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400"
                                                     )}>
                                                         {tTrans.type === 'credit' ? t('Crédit') : t('Débit')}
                                                     </span>
@@ -729,38 +731,38 @@ export const CaissePage: React.FC = () => {
                                                     <span className={clsx(
                                                         "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest",
                                                         tTrans.source === 'rent_receipt' 
-                                                            ? "bg-blue-50 text-blue-700 border border-blue-100" 
-                                                            : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                                            ? "bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30" 
+                                                            : "bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30"
                                                     )}>
                                                         {tTrans.source === 'rent_receipt' ? t('Quittance') : t('Opération')}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">
                                                     {tTrans.category === 'rent_payment' ? t('Loyer') :
                                                         tTrans.category === 'owner_payout' ? t('Reversement') :
                                                             tTrans.category === 'caution' ? t('Caution') :
                                                                 tTrans.category === 'agency_fees' ? t('Honoraires Agence') :
                                                                     t(tTrans.category)}
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                                                <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-400 max-w-xs truncate">
                                                     {tTrans.description}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">
                                                     {t(tTrans.payment_method)}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium text-right">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 dark:text-indigo-400 font-medium text-right">
                                                     {tTrans.source === 'rent_receipt' ? `${(tTrans.details?.owner_payment || 0).toLocaleString('fr-FR')}` : '-'}
                                                 </td>
                                                 <td className={clsx(
                                                     "px-6 py-4 whitespace-nowrap text-sm font-semibold text-right",
-                                                    tTrans.type === 'credit' ? "text-green-600" : "text-red-600"
+                                                    tTrans.type === 'credit' ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                                                 )}>
                                                     <div className="flex flex-col items-end">
                                                         <span>{tTrans.type === 'credit' ? '+' : '-'}{tTrans.amount.toLocaleString('fr-FR')}</span>
                                                         {tTrans.details?.payment_status === 'partial' && (
                                                             <div className="flex flex-col items-end mt-1">
-                                                                <span className="text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 rounded border border-orange-100 mb-0.5">{t("PARTIEL")}</span>
-                                                                <span className="text-[10px] text-gray-400 font-normal">{t("sur")} {tTrans.details.total_amount.toLocaleString('fr-FR')}</span>
+                                                                <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium bg-orange-50 dark:bg-orange-950/20 px-1.5 rounded border border-orange-100 dark:border-orange-900/30 mb-0.5">{t("PARTIEL")}</span>
+                                                                <span className="text-[10px] text-gray-400 dark:text-slate-500 font-normal">{t("sur")} {tTrans.details.total_amount.toLocaleString('fr-FR')}</span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -768,23 +770,23 @@ export const CaissePage: React.FC = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     <div className="flex items-center justify-end gap-1">
                                                         {tTrans.source === 'rent_receipt' && tTrans.details?.payment_status === 'partial' && (
-                                                            <button title={t("Partager le lien de paiement")} onClick={() => handleSharePaymentLink(tTrans)} className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors">
+                                                            <button title={t("Partager le lien de paiement")} onClick={() => handleSharePaymentLink(tTrans)} className="p-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg text-emerald-600 dark:text-emerald-400 transition-colors">
                                                                 <Share2 className="w-4 h-4" />
                                                             </button>
                                                         )}
-                                                        <button title={t("Voir détail")} onClick={() => handleViewReceipt(tTrans)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
+                                                        <button title={t("Voir détail")} onClick={() => handleViewReceipt(tTrans)} className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg text-blue-600 dark:text-blue-400 transition-colors">
                                                             <Eye className="w-4 h-4" />
                                                         </button>
-                                                        <button title={t("Télécharger PDF")} onClick={() => handleDownloadReceiptFromTransaction(tTrans)} className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors">
+                                                        <button title={t("Télécharger PDF")} onClick={() => handleDownloadReceiptFromTransaction(tTrans)} className="p-1.5 hover:bg-green-50 dark:hover:bg-green-950/40 rounded-lg text-green-600 dark:text-green-400 transition-colors">
                                                             <Download className="w-4 h-4" />
                                                         </button>
-                                                        <button title={t("Imprimer")} onClick={() => handleDownloadReceiptFromTransaction(tTrans, true)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors">
+                                                        <button title={t("Imprimer")} onClick={() => handleDownloadReceiptFromTransaction(tTrans, true)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400 transition-colors">
                                                             <Printer className="w-4 h-4" />
                                                         </button>
                                                         {(user?.role === 'director' || user?.role === 'manager') && (
                                                             <>
                                                                 {tTrans.source === 'modular_transaction' && (
-                                                                    <button title={t("Modifier")} onClick={() => handleEditTransaction(tTrans)} className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-600 transition-colors">
+                                                                    <button title={t("Modifier")} onClick={() => handleEditTransaction(tTrans)} className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg text-amber-600 dark:text-amber-400 transition-colors">
                                                                         <Edit className="w-4 h-4" />
                                                                     </button>
                                                                 )}
@@ -795,7 +797,7 @@ export const CaissePage: React.FC = () => {
                                                                             setTransactionToDelete(tTrans);
                                                                             setShowDeleteModal(true);
                                                                         }} 
-                                                                        className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
+                                                                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg text-red-600 dark:text-red-400 transition-colors"
                                                                     >
                                                                         <Trash2 className="w-4 h-4" />
                                                                     </button>
@@ -811,7 +813,7 @@ export const CaissePage: React.FC = () => {
                             </div>
                         )}
                         {summary.filteredTransactions.length > 0 && (
-                            <div className="p-4 border-t border-gray-200 flex justify-between items-center bg-gray-50">
+                            <div className="p-4 border-t border-gray-200 dark:border-slate-800 flex justify-between items-center bg-gray-50 dark:bg-slate-800/30">
                                 <Button
                                     variant="secondary"
                                     onClick={() => setPage(p => Math.max(p - 1, 1))}
@@ -819,7 +821,7 @@ export const CaissePage: React.FC = () => {
                                 >
                                     {t("Précédent")}
                                 </Button>
-                                <span className="text-sm text-gray-600">
+                                <span className="text-sm text-gray-600 dark:text-slate-400">
                                     Page {page} / {Math.max(1, Math.ceil(summary.filteredTransactions.length / pageSize))}
                                 </span>
                                 <Button
@@ -838,26 +840,26 @@ export const CaissePage: React.FC = () => {
             {activeTab === 'payouts' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {owners.map(owner => (
-                        <Card key={owner.id} className="p-6 hover:shadow-md transition-shadow">
+                        <Card key={owner.id} className="p-6 hover:shadow-md transition-shadow dark:bg-slate-800/80 dark:border-slate-700">
                             <div className="flex items-start justify-between mb-4">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-900">{owner.first_name} {owner.last_name}</h3>
-                                    <p className="text-sm text-gray-500">{owner.business_id}</p>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{owner.first_name} {owner.last_name}</h3>
+                                    <p className="text-sm text-gray-500 dark:text-slate-400">{owner.business_id}</p>
                                 </div>
-                                <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold">
+                                <div className="h-10 w-10 bg-indigo-100 dark:bg-indigo-950/50 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold">
                                     {owner.first_name[0]}{owner.last_name[0]}
                                 </div>
                             </div>
 
                             <div className="mt-4 flex justify-between items-center text-sm">
-                                <span className="text-gray-500">{t("Solde à reverser")} :</span>
+                                <span className="text-gray-500 dark:text-slate-400">{t("Solde à reverser")} :</span>
                                 <OwnerBalanceBadge ownerId={owner.id} />
                             </div>
 
-                            <div className="border-t border-gray-100 pt-4 mt-4">
+                            <div className="border-t border-gray-100 dark:border-slate-700 pt-4 mt-4">
                                 <button
                                     onClick={() => openPayoutModal(owner)}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                                 >
                                     <div className="w-2 h-2 rounded-full bg-green-500"></div>
                                     {t("Faire un reversement")}
@@ -908,32 +910,32 @@ export const CaissePage: React.FC = () => {
             {/* Modal de prévisualisation quittance */}
             {selectedTransaction && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedTransaction(null)}>
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                            <h2 className="text-lg font-bold text-gray-900">{t("Détail de la transaction")}</h2>
-                            <button onClick={() => setSelectedTransaction(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
+                    <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-slate-800">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t("Détail de la transaction")}</h2>
+                            <button onClick={() => setSelectedTransaction(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
                         </div>
                         <div className="p-6 space-y-4">
-                            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("N° Quittance")}</span><span className="font-medium">{selectedTransaction.details?.receipt_number || '-'}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("Date")}</span><span className="font-medium">{new Date(selectedTransaction.date).toLocaleDateString('fr-FR')}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("Catégorie")}</span><span className="font-medium">{selectedTransaction.category === 'rent_payment' ? t('Loyer') : t(selectedTransaction.category)}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("Description")}</span><span className="font-medium">{selectedTransaction.description}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-gray-500">{t("Mode de paiement")}</span><span className="font-medium">{t(selectedTransaction.payment_method)}</span></div>
+                            <div className="bg-gray-50 dark:bg-slate-950/40 rounded-xl p-4 space-y-2">
+                                <div className="flex justify-between text-sm"><span className="text-gray-500 dark:text-slate-450">{t("N° Quittance")}</span><span className="font-medium dark:text-slate-200">{selectedTransaction.details?.receipt_number || '-'}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500 dark:text-slate-450">{t("Date")}</span><span className="font-medium dark:text-slate-200">{new Date(selectedTransaction.date).toLocaleDateString('fr-FR')}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500 dark:text-slate-450">{t("Catégorie")}</span><span className="font-medium dark:text-slate-200">{selectedTransaction.category === 'rent_payment' ? t('Loyer') : t(selectedTransaction.category)}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500 dark:text-slate-450">{t("Description")}</span><span className="font-medium dark:text-slate-200">{selectedTransaction.description}</span></div>
+                                <div className="flex justify-between text-sm"><span className="text-gray-500 dark:text-slate-450">{t("Mode de paiement")}</span><span className="font-medium dark:text-slate-200">{t(selectedTransaction.payment_method)}</span></div>
                             </div>
 
                             {selectedTransaction.category === 'rent_payment' && selectedTransaction.details?.total_amount && (
-                                <div className="space-y-2 border-t border-gray-100 pt-3 text-sm">
-                                    <div className="flex justify-between text-gray-600">
+                                <div className="space-y-2 border-t border-gray-100 dark:border-slate-800 pt-3 text-sm">
+                                    <div className="flex justify-between text-gray-600 dark:text-slate-350 font-normal">
                                         <span>{t("Loyer total dû")}</span>
                                         <span>{selectedTransaction.details.total_amount.toLocaleString('fr-FR')} FCFA</span>
                                     </div>
-                                    <div className="flex justify-between text-green-600 font-medium">
+                                    <div className="flex justify-between text-green-600 dark:text-green-400 font-medium">
                                         <span>{t("Montant versé")}</span>
                                         <span>{selectedTransaction.amount.toLocaleString('fr-FR')} FCFA</span>
                                     </div>
                                     {selectedTransaction.details.payment_status === 'partial' && (
-                                        <div className="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded-lg mt-2">
+                                        <div className="flex justify-between text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-950/20 p-2 rounded-lg mt-2">
                                             <span>{t("SOLDE RESTANT")}</span>
                                             <span>{(selectedTransaction.details.balance_due || (selectedTransaction.details.total_amount - selectedTransaction.amount)).toLocaleString('fr-FR')} FCFA</span>
                                         </div>
@@ -941,15 +943,15 @@ export const CaissePage: React.FC = () => {
                                 </div>
                             )}
 
-                            <div className="flex justify-between font-bold text-lg border-t border-gray-200 pt-3">
+                            <div className="flex justify-between font-bold text-lg border-t border-gray-200 dark:border-slate-800 pt-3 dark:text-slate-200">
                                 <span>{selectedTransaction.category === 'rent_payment' ? t('Total Encaissé') : t('Montant')}</span>
-                                <span className={selectedTransaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}>
+                                <span className={selectedTransaction.type === 'credit' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                                     {selectedTransaction.type === 'credit' ? '+' : '-'}{selectedTransaction.amount.toLocaleString('fr-FR')} FCFA
                                 </span>
                             </div>
                         </div>
                         <div className="flex gap-3 p-6 pt-0">
-                            <button onClick={() => setSelectedTransaction(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">{t("Fermer")}</button>
+                            <button onClick={() => setSelectedTransaction(null)} className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-350 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">{t("Fermer")}</button>
                             <button onClick={() => handleDownloadReceiptFromTransaction(selectedTransaction)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                                 <Download className="w-4 h-4" />{t("Télécharger PDF")}
                             </button>
