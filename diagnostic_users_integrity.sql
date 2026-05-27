@@ -81,13 +81,13 @@ BEGIN
                 RAISE NOTICE '   ✅ Lié automatiquement à l''agence GICO en tant que Manager.';
             END IF;
         ELSE
-            -- Sinon, associer à la première agence disponible comme "collaborateur" pour éviter l'erreur d'accès
+            -- Sinon, associer à la première agence disponible comme "agent" pour éviter l'erreur d'accès
             SELECT id INTO v_agency_id FROM public.agencies LIMIT 1;
             IF v_agency_id IS NOT NULL THEN
                 INSERT INTO public.agency_users (user_id, agency_id, role, created_at)
-                VALUES (r_orphan.id, v_agency_id, 'collaborator', now())
+                VALUES (r_orphan.id, v_agency_id, 'agent', now())
                 ON CONFLICT (user_id, agency_id) DO NOTHING;
-                RAISE NOTICE '   ✅ Lié par défaut à l''agence % en tant que Collaborateur.', 
+                RAISE NOTICE '   ✅ Lié par défaut à l''agence % en tant qu''Agent.', 
                     (SELECT name FROM public.agencies WHERE id = v_agency_id);
             END IF;
         END IF;
