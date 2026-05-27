@@ -64,6 +64,18 @@ export const AgencyPicker: React.FC = () => {
                 return;
             }
 
+            // Vérifier si l'utilisateur connecté est un membre du personnel (non-directeur)
+            // Dans ce cas, sa liaison d'agence existe déjà et appeler la RPC de directeur n'est pas nécessaire (et échouerait)
+            const staffMatch = user.agencies?.find((a: any) => a.agency_id === agency.id);
+            const isStaff = staffMatch && staffMatch.role !== 'director';
+
+            if (isStaff) {
+                toast.success(`✅ Connecté à : ${agency.name}`);
+                localStorage.setItem('gestion360_active_agency', agency.id);
+                setTimeout(() => window.location.reload(), 800);
+                return;
+            }
+
             // Utilise la fonction RPC SECURITY DEFINER pour lier le directeur
             const { data, error } = await supabase.rpc('link_director_to_agency', {
                 p_agency_id: agency.id,
