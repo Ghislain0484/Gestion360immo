@@ -62,7 +62,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const legacyKeys: string[] = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
-      if (key && key.startsWith('theme_')) {
+      if (key && key.startsWith('theme_') && key !== 'theme_preference') {
         legacyKeys.push(key);
       }
     }

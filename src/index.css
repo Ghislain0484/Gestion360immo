@@ -142,7 +142,7 @@ h1, h2, h3, .font-display {
   }
   
   body {
-    @apply bg-slate-50 text-slate-800 antialiased selection:bg-primary-100 selection:text-primary-900;
+    @apply bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-50 antialiased selection:bg-primary-100 selection:text-primary-900;
     min-height: 100vh;
     min-height: 100dvh;
   }
