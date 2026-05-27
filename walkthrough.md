@@ -21,3 +21,10 @@
 - [x] Vérification de l'injection dynamique des modules dans `AuthContext.tsx`.
 - [x] Test de la persistance des changements Admin dans `localStorage`.
 - [x] Validation de l'affichage des KPIs et graphiques dans le portail propriétaire démo.
+
+## ✨ Correction & Audit de l'Intégrité des Comptes Utilisateurs (Base de Données)
+- **Résolution du Bug de Gisèle Alla** : Création du script de pontage `repair_gisele_access.sql` pour restaurer son profil public dans `public.users` et le lier correctement en tant que Manager de l'agence GICO.
+- **Création du Script d'Audit et Autoguérison** : Écriture de `diagnostic_users_integrity.sql` pour détecter et corriger automatiquement tous les profils orphelins de `auth.users` absents de `public.users`.
+- **Nettoyage Automatique** : Exclusion stricte des propriétaires, locataires et comptes de démo de la table `public.agency_users` afin de préserver l'intégrité des permissions d'agence.
+- **Résolution de l'Ambiguïté SQL (PostgreSQL)** : Correction des références de colonnes `user_id` ambiguës dans les sous-requêtes en qualifiant explicitement les alias des tables (comme `o.user_id` et `t.user_id`), garantissant une exécution sans erreur dans l'éditeur SQL de Supabase.
+
