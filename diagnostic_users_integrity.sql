@@ -24,7 +24,7 @@ BEGIN
     JOIN public.agency_users au ON pu.id = au.user_id
     WHERE (
         pu.id IN (SELECT DISTINCT o.user_id FROM public.owners o WHERE o.user_id IS NOT NULL)
-        OR pu.id IN (SELECT DISTINCT t.user_id FROM public.tenants t WHERE t.user_id IS NOT NULL)
+        OR pu.email IN (SELECT DISTINCT t.email FROM public.tenants t WHERE t.email IS NOT NULL)
         OR pu.email ILIKE '%proprio%' 
         OR pu.email ILIKE '%locataire%'
         OR pu.email = 'maurel.agohi@gmail.com' -- Email test de démo propriétaire
@@ -98,7 +98,7 @@ BEGIN
           AND pa.user_id IS NULL
           -- EXCLURE les propriétaires et locataires de la table agency_users
           AND pu.id NOT IN (SELECT DISTINCT o.user_id FROM public.owners o WHERE o.user_id IS NOT NULL)
-          AND pu.id NOT IN (SELECT DISTINCT t.user_id FROM public.tenants t WHERE t.user_id IS NOT NULL)
+          AND pu.email NOT IN (SELECT DISTINCT t.email FROM public.tenants t WHERE t.email IS NOT NULL)
           AND pu.email NOT ILIKE '%proprio%'
           AND pu.email NOT ILIKE '%locataire%'
           AND pu.email NOT IN ('maurel.agohi@gmail.com', 'momofilipo@yahoo.fr', 'momofilipo@live.fr')
