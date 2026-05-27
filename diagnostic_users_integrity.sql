@@ -97,8 +97,8 @@ BEGIN
         WHERE au.user_id IS NULL 
           AND pa.user_id IS NULL
           -- EXCLURE les propriétaires et locataires de la table agency_users
-          AND pu.id NOT IN (SELECT DISTINCT user_id FROM public.owners WHERE user_id IS NOT NULL)
-          AND pu.id NOT IN (SELECT DISTINCT user_id FROM public.tenants WHERE user_id IS NOT NULL)
+          AND pu.id NOT IN (SELECT DISTINCT o.user_id FROM public.owners o WHERE o.user_id IS NOT NULL)
+          AND pu.id NOT IN (SELECT DISTINCT t.user_id FROM public.tenants t WHERE t.user_id IS NOT NULL)
           AND pu.email NOT ILIKE '%proprio%'
           AND pu.email NOT ILIKE '%locataire%'
           AND pu.email NOT IN ('maurel.agohi@gmail.com', 'momofilipo@yahoo.fr', 'momofilipo@live.fr')
