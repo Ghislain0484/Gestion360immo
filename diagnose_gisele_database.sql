@@ -30,7 +30,6 @@ BEGIN
         -- Si l'email n'est pas marqué comme confirmé, Supabase bloque la connexion avec une erreur d'identifiants
         UPDATE auth.users
         SET 
-            confirmed_at = COALESCE(confirmed_at, now()),
             email_confirmed_at = COALESCE(email_confirmed_at, now()),
             updated_at = now(),
             banned_until = NULL, -- S'assurer qu'elle n'est pas bannie
