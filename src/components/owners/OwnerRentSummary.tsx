@@ -204,16 +204,14 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const rawPaid = propReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0) +
                         propManual.filter((m: any) => m.category === 'rent_payment').reduce((sum, m) => sum + Number(m.amount), 0);
 
-            const allPaid = propReceipts.length > 0 && propReceipts.every(r => r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount);
-
             let expectedRent = monthlyRentContract;
-            if (propReceipts.length > 0 && !allPaid) {
-                expectedRent = propReceipts.reduce((sum, r) => sum + r.total_amount, 0);
+            if (expectedRent === 0 && propReceipts.length > 0) {
+                expectedRent = Math.max(...propReceipts.map(r => r.total_amount || 0));
             }
 
             let paid = rawPaid;
             const isFullRentPaid = Math.abs(rawPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
-            if (allPaid && monthlyRentContract > 0 && isFullRentPaid) {
+            if (monthlyRentContract > 0 && isFullRentPaid) {
                 paid = monthlyRentContract;
             }
 
@@ -237,7 +235,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             if (!contract) {
                 status = 'no_contract';
             } else if (propReceipts.length > 0) {
-                if (allPaid && isFullRentPaid) {
+                if (isFullRentPaid || paid >= expectedRent) {
                     status = 'paid';
                 } else if (paid > 0) {
                     status = 'partial';
