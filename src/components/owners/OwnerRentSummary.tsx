@@ -150,7 +150,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const isPaid = r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount;
             
             let ownerPart = Number(r.owner_payment) || 0;
-            const isFullRentReceipt = Math.abs((r.total_amount ?? r.amount_paid ?? 0) - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+            const isFullRentReceipt = Math.abs((r.amount_paid ?? r.total_amount ?? 0) - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
             
             if (isPaid && monthlyRentContract > 0 && isFullRentReceipt) {
                 ownerPart = monthlyRentContract * (1 - commissionRate / 100);

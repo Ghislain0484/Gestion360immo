@@ -148,7 +148,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
             let amount = p.amount_paid || p.total_amount;
             let ownerPart = Number(p.owner_payment) || 0;
             
-            const isFullRentReceipt = Math.abs((p.total_amount ?? p.amount_paid ?? 0) - contractRent) <= Math.max(5000, contractRent * 0.05);
+            const isFullRentReceipt = Math.abs((p.amount_paid ?? p.total_amount ?? 0) - contractRent) <= Math.max(5000, contractRent * 0.05);
             
             if (isPaid && contractRent > 0 && isFullRentReceipt) {
                 amount = contractRent;
