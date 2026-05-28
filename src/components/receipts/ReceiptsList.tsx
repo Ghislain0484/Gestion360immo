@@ -100,6 +100,12 @@ export const ReceiptsList: React.FC = () => {
         payment_date: new Date(receipt.payment_date).toISOString(),
         created_at: new Date(receipt.created_at).toISOString(),
       });
+
+      // ⚡ Propager le signal de mise à jour immédiate
+      window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+        detail: { table: 'all', action: 'create' } 
+      }));
+
       toast.success('Quittance ajoutée avec succès');
     } catch (err: any) {
       toast.error(err.message || 'Erreur lors de l’ajout de la quittance');

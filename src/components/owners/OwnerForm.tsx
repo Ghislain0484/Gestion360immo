@@ -265,6 +265,12 @@ export const OwnerForm: React.FC<OwnerFormProps> = ({
           ? 'Propriétaire mis à jour avec succès'
           : `Le dossier de ${result.first_name} ${result.last_name} (${result.business_id || 'ID en cours...'}) a été enregistré avec succès.`
       );
+
+      // ⚡ Propager le signal de mise à jour immédiate
+      window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+        detail: { table: 'owners', action: formData.id ? 'update' : 'create' } 
+      }));
+
       onSuccess?.();
     } catch (error: any) {
       console.error('❌ [OwnerForm] Erreur détaillée:', error);

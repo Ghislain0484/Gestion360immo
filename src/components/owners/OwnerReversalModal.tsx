@@ -186,6 +186,11 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                 throw syncError;
             }
 
+            // ⚡ Propager le signal de mise à jour immédiate
+            window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+                detail: { table: 'all', action: 'create' } 
+            }));
+
             if (onSuccess) onSuccess();
             onClose();
 

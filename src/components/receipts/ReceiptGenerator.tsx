@@ -227,6 +227,11 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
           saved.id
         );
       }
+
+      // ⚡ Propager le signal de mise à jour immédiate
+      window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+        detail: { table: 'all', action: 'create' } 
+      }));
       
       setReceipt(saved);
       toast.success("✅ Quittance générée avec succès");

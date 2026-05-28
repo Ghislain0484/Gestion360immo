@@ -618,7 +618,9 @@ export const OwnerDetails: React.FC = () => {
                 isOpen={showEditOwnerForm}
                 onClose={() => setShowEditOwnerForm(false)}
                 initialData={owner}
-                onSuccess={() => { }}
+                onSuccess={async () => {
+                    refetch();
+                }}
             />
 
             {showOwnerReversal && (

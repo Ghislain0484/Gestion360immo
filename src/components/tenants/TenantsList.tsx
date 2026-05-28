@@ -134,6 +134,12 @@ export const TenantsList: React.FC = () => {
         };
         await dbService.contracts.create(contractPayload);
         await dbService.properties.update(property.id, { is_available: false });
+        
+        // ⚡ Propager le signal de mise à jour immédiate
+        window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+          detail: { table: 'all', action: 'create' } 
+        }));
+
         refetch();
         setSuccessMessage({ title: 'Création réussie', message: 'Locataire ajouté et contrat généré.' });
       } else {
@@ -317,7 +323,17 @@ export const TenantsList: React.FC = () => {
       <TenantForm isOpen={showForm} onClose={() => setShowForm(false)} onSubmit={handleFormSubmit} initialData={isEditing && selectedTenant ? selectedTenant : undefined} preSelectedPropertyId={queryPropertyId || undefined} isLoading={creatingTenant} />
       {selectedTenant && (
         <>
-          <ReceiptGenerator isOpen={showReceiptGenerator} onClose={() => { setShowReceiptGenerator(false); setSelectedTenant(null); }} tenantId={selectedTenant.id} contractId={selectedTenant.active_contracts?.[0]?.id} propertyId={selectedTenant.active_contracts?.[0]?.property_id} ownerId={selectedTenant.active_contracts?.[0]?.owner_id} />
+          <ReceiptGenerator 
+            isOpen={showReceiptGenerator} 
+            onClose={() => { setShowReceiptGenerator(false); setSelectedTenant(null); }} 
+            tenantId={selectedTenant.id} 
+            contractId={selectedTenant.active_contracts?.[0]?.id} 
+            propertyId={selectedTenant.active_contracts?.[0]?.property_id} 
+            ownerId={selectedTenant.active_contracts?.[0]?.owner_id} 
+            onReceiptGenerated={async () => {
+              refetch();
+            }}
+          />
           <Modal isOpen={showFinancialStatements} onClose={() => { setShowFinancialStatements(false); setSelectedTenant(null); }} title={t("État financier")} size="xl">
             <FinancialStatements entityId={selectedTenant.id} entityType="tenant" entityName={`${selectedTenant.first_name} ${selectedTenant.last_name}`} />
           </Modal>

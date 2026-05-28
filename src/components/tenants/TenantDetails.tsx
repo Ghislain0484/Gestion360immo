@@ -53,7 +53,7 @@ export const TenantDetails: React.FC = () => {
         } finally {
             setLoadingContracts(false);
         }
-    }, [tenant?.id]);
+    }, [tenant?.id, refreshTrigger]);
 
     React.useEffect(() => {
         fetchContracts();
@@ -81,6 +81,16 @@ export const TenantDetails: React.FC = () => {
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    // ⚡ Système temps réel / réactivité instantanée
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    React.useEffect(() => {
+        const handleGlobalRefetch = () => {
+            setRefreshTrigger(prev => prev + 1);
+        };
+        window.addEventListener('gestion360:refetch' as any, handleGlobalRefetch);
+        return () => window.removeEventListener('gestion360:refetch' as any, handleGlobalRefetch);
+    }, []);
     
     // Check if user can delete
     const canDelete = ['director', 'manager'].includes(user?.role || '');
@@ -128,7 +138,7 @@ export const TenantDetails: React.FC = () => {
             }
         };
         loadFinance();
-    }, [tenant?.id, activeContracts.length]);
+    }, [tenant?.id, activeContracts.length, refreshTrigger]);
 
     const handleDeleteTenant = async () => {
         if (!tenant || !user?.id || !authAgencyId) return;
@@ -425,6 +435,12 @@ export const TenantDetails: React.FC = () => {
                 initialData={tenant}
                 onSubmit={async (data) => {
                     await dbService.tenants.update(tenant.id, data);
+                    
+                    // ⚡ Propager le signal de mise à jour immédiate
+                    window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+                        detail: { table: 'tenants', action: 'update' } 
+                    }));
+                    
                     setShowEditForm(false);
                 }}
             />
