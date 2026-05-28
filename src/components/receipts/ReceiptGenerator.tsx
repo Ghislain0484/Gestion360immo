@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { dbService } from "../../lib/supabase";
+import { supabase, dbService } from "../../lib/supabase";
 import { Contract, Tenant, Owner, Property, RentReceipt, PropertyExpense } from "../../types/db";
 import { PayMethod } from "../../types/enums";
 import toast from "react-hot-toast";
