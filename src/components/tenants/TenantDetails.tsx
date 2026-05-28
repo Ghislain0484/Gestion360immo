@@ -24,6 +24,16 @@ export const TenantDetails: React.FC = () => {
     const { agencyId: authAgencyId, user } = useAuth();
     const tenantId = extractIdFromSlug(slug || '');
 
+    // ⚡ Système temps réel / réactivité instantanée
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    React.useEffect(() => {
+        const handleGlobalRefetch = () => {
+            setRefreshTrigger(prev => prev + 1);
+        };
+        window.addEventListener('gestion360:refetch' as any, handleGlobalRefetch);
+        return () => window.removeEventListener('gestion360:refetch' as any, handleGlobalRefetch);
+    }, []);
+
     // Fetch Tenant Data
     const fetchTenant = React.useCallback(async () => {
         if (!authAgencyId) return [];
@@ -81,16 +91,6 @@ export const TenantDetails: React.FC = () => {
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    
-    // ⚡ Système temps réel / réactivité instantanée
-    const [refreshTrigger, setRefreshTrigger] = useState(0);
-    React.useEffect(() => {
-        const handleGlobalRefetch = () => {
-            setRefreshTrigger(prev => prev + 1);
-        };
-        window.addEventListener('gestion360:refetch' as any, handleGlobalRefetch);
-        return () => window.removeEventListener('gestion360:refetch' as any, handleGlobalRefetch);
-    }, []);
     
     // Check if user can delete
     const canDelete = ['director', 'manager'].includes(user?.role || '');
