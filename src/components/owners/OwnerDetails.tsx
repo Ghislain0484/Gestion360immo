@@ -40,7 +40,7 @@ export const OwnerDetails: React.FC = () => {
     }, [ownerId, authAgencyId]);
 
     // 2. Realtime Data Hooks
-    const { data: owners, initialLoading: loadingOwner } = useRealtimeData<Owner>(
+    const { data: owners, initialLoading: loadingOwner, refetch } = useRealtimeData<Owner>(
         fetchOwner,
         'owners',
         { id: ownerId }
