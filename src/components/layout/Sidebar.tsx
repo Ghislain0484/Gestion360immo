@@ -17,6 +17,7 @@ import {
   Zap,
   ZapOff,
   Shield,
+  Table2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDemoMode } from '../../contexts/DemoContext';
@@ -65,7 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     },
     { name: t('collab.title'), href: '/collaboration', icon: Users, module: 'collaboration' },
     { name: t('nav.reports'), href: '/rapports', icon: BarChart3 },
-    { name: t('nav.rent_matrix'), href: '/rapports', icon: BarChart3 }, 
+    { name: t('nav.rent_matrix'), href: '/matrice-loyers', icon: Table2 }, 
     { name: t('nav.notifications'), href: '/notifications', icon: Bell },
     { 
       name: IS_STANDALONE ? 'Application' : t('nav.settings'), 

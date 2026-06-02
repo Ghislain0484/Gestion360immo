@@ -19,6 +19,7 @@ import { PropertyDetails } from './components/properties/PropertyDetails';
 import { ContractsList } from './components/contracts/ContractsList';
 import { CollaborationHub } from './components/collaboration/CollaborationHub';
 import { ReportsHub } from './components/reports/ReportsHub';
+import { RentRollMatrix } from './components/reports/RentRollMatrix';
 import { NotificationsCenter } from './components/notifications/NotificationsCenter';
 import { SettingsHub } from './components/settings/SettingsHub';
 import { AdminDashboard } from './components/admin/AdminDashboard';
@@ -217,6 +218,7 @@ const AppContent: React.FC = () => {
             element={<ModuleGuard module="collaboration"><CollaborationHub /></ModuleGuard>} 
           />
           <Route path="/rapports" element={<ReportsHub />} />
+          <Route path="/matrice-loyers" element={<RentRollMatrix />} />
           <Route path="/notifications" element={<NotificationsCenter />} />
           <Route path="/parametres" element={<SettingsHub />} />
           <Route path="/admin/audit" element={<AuditLogsPage />} />

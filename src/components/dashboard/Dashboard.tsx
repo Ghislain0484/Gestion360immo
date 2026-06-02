@@ -35,6 +35,7 @@ import { DashboardCharts } from './DashboardCharts';
 import { MonthlyRevenueItem } from '../../types/contracts';
 import { ModularTransaction } from '../../types/modular';
 import { audioService } from '../../utils/audio';
+import { RentRollMatrix } from '../reports/RentRollMatrix';
 
 interface DashboardRental {
   id: string;
@@ -72,6 +73,7 @@ export const Dashboard: React.FC = () => {
   const [showAllPayments, setShowAllPayments] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'matrix'>('overview');
   const [error, setError] = useState<string | null>(null);
   const [activitiesError, setActivitiesError] = useState<string | null>(null);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
@@ -782,7 +784,37 @@ export const Dashboard: React.FC = () => {
           </motion.div>
         </div>
 
-        <section className="space-y-10">
+        {/* Custom Navigation Tabs */}
+        <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-px mb-8">
+          <button
+            type="button"
+            onClick={() => setActiveTab('overview')}
+            className={clsx(
+              "px-6 py-3 text-sm font-black transition-all duration-300 border-b-2",
+              activeTab === 'overview'
+                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-extrabold"
+                : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
+            )}
+          >
+            📊 Vue d'ensemble & KPIs
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('matrix')}
+            className={clsx(
+              "px-6 py-3 text-sm font-black transition-all duration-300 border-b-2",
+              activeTab === 'matrix'
+                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-extrabold"
+                : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
+            )}
+          >
+            🗓️ Matrice Radar des Loyers
+          </button>
+        </div>
+
+        {activeTab === 'overview' ? (
+          <>
+            <section className="space-y-10">
           <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
             <DashboardCharts data={monthlyRevenueData} />
             <div className="flex flex-col gap-8">
@@ -1092,6 +1124,12 @@ export const Dashboard: React.FC = () => {
             </Button>
           </div>
         </Card>
+          </>
+        ) : (
+          <div className="animate-fade-in">
+            <RentRollMatrix />
+          </div>
+        )}
         <Modal
           isOpen={showAllActivities}
           onClose={() => setShowAllActivities(false)}

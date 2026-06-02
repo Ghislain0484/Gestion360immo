@@ -89,13 +89,14 @@ export const Navbar: React.FC = () => {
     ...(checkModule('residences') ? [{ name: t('nav.residences'), href: '/residences', icon: Building2 }] : []),
     ...(checkModule('travaux') ? [{ name: t('nav.maintenance'), href: '/travaux', icon: Settings }] : []),
     { name: t('nav.reports'), href: '/rapports', icon: BarChart3 },
+    { name: t('nav.rent_matrix'), href: '/matrice-loyers', icon: Table2 },
   ];
 
   const moreNavigation = [
     ...(checkModule('collaboration') && !checkModule('internal_mode')
       ? [{ name: t('collab.title'), href: '/collaboration', icon: Users }]
       : []),
-    { name: t('nav.rent_matrix'), href: '/rapports', icon: Table2 },
+    { name: t('nav.rent_matrix'), href: '/matrice-loyers', icon: Table2 },
     ...(!IS_STANDALONE
       ? [{ name: t('nav.settings'), href: '/parametres', icon: Settings }]
       : [{ name: t('Application'), href: '/parametres', icon: Settings }]),
