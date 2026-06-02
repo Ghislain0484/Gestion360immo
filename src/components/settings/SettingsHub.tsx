@@ -1,5 +1,5 @@
 import React, { useState, Suspense, lazy } from 'react';
-import { Settings, User, Shield, Bell, Palette, Database, Users, Loader2, FileText, Wallet, CreditCard, Building2 } from 'lucide-react';
+import { Settings, User, Shield, Bell, Palette, Database, Users, Loader2, FileText, Wallet, CreditCard, Building2, MessageSquare } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useAuth } from '../../contexts/AuthContext';
 import { APP_NAME, IS_STANDALONE } from '../../lib/constants';
@@ -16,6 +16,7 @@ const ContractTemplates = lazy(() => import('./ContractTemplates').then(m => ({ 
 const WalletSettings = lazy(() => import('./WalletSettings').then(m => ({ default: m.WalletSettings })));
 const PaymentGatewaySettings = lazy(() => import('./PaymentGatewaySettings').then(m => ({ default: m.PaymentGatewaySettings })));
 const AgencySettings = lazy(() => import('./AgencySettings').then(m => ({ default: m.AgencySettings })));
+const SmsSettings = lazy(() => import('./SmsSettings').then(m => ({ default: m.SmsSettings })));
 
 const LoadingTab = () => (
   <Card className="p-8 flex flex-col items-center justify-center">
@@ -42,7 +43,8 @@ export const SettingsHub: React.FC = () => {
       { id: 'agency', name: 'Mon Agence & Signatures', icon: Building2 },
       { id: 'users', name: 'Utilisateurs', icon: Users },
       { id: 'templates', name: 'Modèles de Contrats', icon: FileText },
-      { id: 'gateways', name: 'Moyens de Paiement', icon: CreditCard }
+      { id: 'gateways', name: 'Moyens de Paiement', icon: CreditCard },
+      { id: 'sms', name: 'SMS Pro & Forfaits', icon: MessageSquare }
     ] : [])
   ];
 
@@ -93,10 +95,11 @@ export const SettingsHub: React.FC = () => {
             {activeTab === 'templates' && <ContractTemplates />}
             {activeTab === 'gateways' && <PaymentGatewaySettings />}
             {activeTab === 'agency' && <AgencySettings />}
+            {activeTab === 'sms' && <SmsSettings />}
           </Suspense>
 
           {/* Other tabs placeholder */}
-          {!['profile', 'security', 'notifications', 'appearance', 'wallet', 'data', 'users', 'templates', 'gateways', 'agency'].includes(activeTab) && (
+          {!['profile', 'security', 'notifications', 'appearance', 'wallet', 'data', 'users', 'templates', 'gateways', 'agency', 'sms'].includes(activeTab) && (
             <Card className="p-8 text-center">
               <Settings className="h-16 w-16 mx-auto mb-4 text-gray-400" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">

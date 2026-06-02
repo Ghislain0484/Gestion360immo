@@ -199,6 +199,24 @@ export const TenantCheckout: React.FC = () => {
               amount_paid: receipt.total_amount,
               balance_due: 0
             }));
+            
+            // Envoi automatique du SMS de confirmation (non-bloquant)
+            if (tenant?.phone && tenant?.agency_id) {
+              const smsMessage = `Cher(e) ${tenant.first_name} ${tenant.last_name}, votre paiement en ligne de ${receipt.total_amount.toLocaleString('fr-FR')} FCFA pour le mois de ${MONTHS_FR[receipt.period_month]} ${receipt.period_year} a ete valide avec succes ! Ref: ${receipt.receipt_number}. - ${agency?.name || 'G360Immo'}`;
+              
+              fetch('/api/sms/send-sms', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  recipient: tenant.phone,
+                  message: smsMessage,
+                  agency_id: tenant.agency_id
+                })
+              }).catch(err => console.error("Erreur envoi SMS:", err));
+            }
+
             toast.success("Votre paiement a été traité et enregistré avec succès !");
           } catch (err: any) {
             console.error("Post-checkout DB updates failed:", err);

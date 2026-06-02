@@ -35,7 +35,7 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   ownerId,
   onReceiptGenerated,
 }) => {
-  const { user } = useAuth();
+  const { user, agencyId, agencies } = useAuth();
 
   const [contractInfo, setContractInfo] = useState<Contract | null>(null);
   const [tenantInfo, setTenantInfo] = useState<Tenant | null>(null);
@@ -219,6 +219,28 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
       };
 
       const saved = await dbService.rentReceipts.create(newReceipt);
+      
+      // Envoi du SMS de confirmation de quittance automatique (non-bloquant)
+      if (tenantInfo?.phone && (agencyId || user?.agency_id)) {
+        const targetAgencyId = agencyId || user?.agency_id;
+        const currentAgency = agencies?.find(a => a.agency_id === targetAgencyId);
+        const agencyName = currentAgency?.name || 'G360Immo';
+        
+        const smsMessage = `Cher(e) ${tenantInfo.first_name} ${tenantInfo.last_name}, votre paiement de ${paidAmount.toLocaleString('fr-FR')} FCFA pour le mois de ${MONTHS_FR[month]} ${year} a ete valide. Ref: ${saved.receipt_number}. Merci ! - ${agencyName}`;
+        
+        fetch('/api/sms/send-sms', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recipient: tenantInfo.phone,
+            message: smsMessage,
+            agency_id: targetAgencyId,
+            sender_id: user.id
+          })
+        }).catch(err => console.error("Erreur envoi SMS:", err));
+      }
       
       // Phase 9: Marquer les dépenses comme déduites
       if (pendingExpenses.length > 0) {
