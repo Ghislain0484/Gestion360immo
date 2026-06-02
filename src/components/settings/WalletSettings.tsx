@@ -195,10 +195,18 @@ export const WalletSettings: React.FC = () => {
               <Wallet className="w-6 h-6 text-white" />
             </div>
           </div>
-          <div className="mt-6 flex items-center gap-2">
+          <div className="mt-6 flex flex-wrap gap-2">
             <span className="px-2 py-1 bg-white/20 rounded-lg text-xs font-bold flex items-center gap-1">
               <Zap className="w-3 h-3 text-yellow-300 fill-yellow-300" />
-              {wallet?.bonus_credits || 0} crédits offerts
+              {wallet?.bonus_credits || 0} offerts
+            </span>
+            <span className="px-2 py-1 bg-white/20 rounded-lg text-xs font-bold flex items-center gap-1">
+              <Zap className="w-3 h-3 text-sky-300 fill-sky-300" />
+              {Math.floor((wallet?.balance || 0) / 1000)} achetés
+            </span>
+            <span className="px-2 py-1 bg-emerald-500/30 rounded-lg text-xs font-black flex items-center gap-1 text-emerald-200">
+              <Zap className="w-3 h-3 text-emerald-300 fill-emerald-300" />
+              Total : {(wallet?.bonus_credits || 0) + Math.floor((wallet?.balance || 0) / 1000)} disponibles
             </span>
           </div>
         </Card>

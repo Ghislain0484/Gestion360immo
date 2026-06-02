@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, UserCheck, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare, Shield } from 'lucide-react';
+import { Search, UserCheck, AlertTriangle, CheckCircle, XCircle, Building2, MessageSquare, Shield, Lock } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -322,94 +322,106 @@ export const TenantHistorySearch: React.FC<{ onCreditUsed?: () => void }> = ({ o
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {tenants.map((tenant) => (
-              <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
-                <div className="p-4">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-                      <Shield className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h5 className="font-medium text-gray-900">
-                        {tenant.redacted_name}
-                      </h5>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <Building2 className="h-3 w-3 mr-1" />
-                        <span>Agence : {tenant.agency_name}</span>
+            {tenants.map((tenant) => {
+              const request = myRequests.find(r => r.tier_id === tenant.id);
+              const isApproved = request?.status === 'approved';
+              return (
+                <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
+                  <div className="p-4">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                        <Shield className="h-5 w-5 text-amber-600" />
                       </div>
-                      {tenant.contract_period && (
-                        <div className="flex items-center text-xs text-gray-500 mt-1 font-mono">
-                           <span>Période : {tenant.contract_period}</span>
+                      <div className="flex-1">
+                        <h5 className="font-medium text-gray-900">
+                          {tenant.redacted_name}
+                        </h5>
+                        <div className="flex items-center text-xs text-gray-500">
+                          <Building2 className="h-3 w-3 mr-1" />
+                          <span>Agence : {tenant.agency_name}</span>
                         </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Réputation :</span>
-                      <Badge variant={getPaymentStatusColor(tenant.payment_status)} size="sm">
-                        <div className="flex items-center space-x-1">
-                          {getPaymentStatusIcon(tenant.payment_status)}
-                          <span>{tenant.reputation_score}</span>
-                        </div>
-                      </Badge>
+                        {tenant.contract_period && (
+                          <div className="flex items-center text-xs text-gray-500 mt-1 font-mono">
+                             <span>Période : {tenant.contract_period}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="text-xs text-gray-500">
-                      <p>{tenant.contract_count} contrat(s) passés/actifs</p>
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">Réputation :</span>
+                        {isApproved ? (
+                          <Badge variant={getPaymentStatusColor(tenant.payment_status)} size="sm">
+                            <div className="flex items-center space-x-1">
+                              {getPaymentStatusIcon(tenant.payment_status)}
+                              <span>{getPaymentStatusLabel(tenant.payment_status)} ({tenant.reputation_score})</span>
+                            </div>
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" size="sm" className="bg-slate-700 text-slate-300 border-slate-600">
+                            <div className="flex items-center space-x-1 text-slate-300">
+                              <Lock className="h-3 w-3 text-amber-500 fill-amber-500/20" />
+                              <span>Statut Masqué</span>
+                            </div>
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-gray-500">
+                        <p>{tenant.contract_count} contrat(s) passés/actifs</p>
+                      </div>
                     </div>
-                  </div>
 
 
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    {(() => {
-                      const request = myRequests.find(r => r.tier_id === tenant.id);
-                      if (request?.status === 'approved') {
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      {(() => {
+                        if (request?.status === 'approved') {
+                          return (
+                            <Button
+                              variant="success"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => loadFullTenantDetails(tenant.id)}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Voir le dossier complet
+                            </Button>
+                          );
+                        }
+                        if (request?.status === 'pending') {
+                          return (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full cursor-not-allowed opacity-70"
+                              disabled
+                            >
+                              <AlertTriangle className="h-4 w-4 mr-2" />
+                              Demande en attente...
+                            </Button>
+                          );
+                        }
                         return (
                           <Button
-                            variant="success"
+                            variant="primary"
                             size="sm"
                             className="w-full"
-                            onClick={() => loadFullTenantDetails(tenant.id)}
+                            onClick={() => {
+                              setSelectedTenant(tenant);
+                              setShowRequestModal(true);
+                            }}
                           >
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Voir le dossier complet
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Demander l'accès au dossier
                           </Button>
                         );
-                      }
-                      if (request?.status === 'pending') {
-                        return (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full cursor-not-allowed opacity-70"
-                            disabled
-                          >
-                            <AlertTriangle className="h-4 w-4 mr-2" />
-                            Demande en attente...
-                          </Button>
-                        );
-                      }
-                      return (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => {
-                            setSelectedTenant(tenant);
-                            setShowRequestModal(true);
-                          }}
-                        >
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Demander l'accès au dossier
-                        </Button>
-                      );
-                    })()}
+                      })()}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}

@@ -75,7 +75,7 @@ export const CollaborationHub: React.FC = () => {
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase font-black text-amber-800 dark:text-amber-400 leading-none">Votre Solde</span>
                 <span className="text-sm font-bold text-amber-950 dark:text-amber-200">
-                  {wallet.bonus_credits} Crédits {wallet.balance > 0 && `· ${wallet.balance.toLocaleString('fr-FR')} F`}
+                  {Number(wallet.bonus_credits || 0) + Math.floor(Number(wallet.balance || 0) / 1000)} Crédits {wallet.balance > 0 && `· ${wallet.balance.toLocaleString('fr-FR')} F`}
                 </span>
               </div>
               <button
@@ -187,7 +187,7 @@ export const CollaborationHub: React.FC = () => {
                     {request.status === 'approved' && (
                       <div className="bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1 rounded-lg text-[10px] font-bold text-emerald-700 flex items-center gap-1">
                         <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                        Crédit encaissé
+                        Commission perçue
                       </div>
                     )}
                   </div>
@@ -217,7 +217,7 @@ export const CollaborationHub: React.FC = () => {
                               .update({ status: 'rejected', updated_at: new Date().toISOString() })
                               .eq('id', request.id);
                             if (error) throw error;
-                            toast.success('Demande refusée');
+                            toast.success('Demande refusée. Les fonds sont alloués à la plateforme.');
                             loadData();
                           } catch (err: any) {
                             toast.error(err.message);
@@ -244,18 +244,20 @@ export const CollaborationHub: React.FC = () => {
                             try {
                               const { data: w } = await supabase
                                 .from('agency_wallets')
-                                .select('bonus_credits')
+                                .select('balance')
                                 .eq('agency_id', authAgencyId)
                                 .single();
                               if (w) {
+                                const newBalance = (Number(w.balance) || 0) + 500;
                                 await supabase.from('agency_wallets')
-                                  .update({ bonus_credits: (w.bonus_credits || 0) + 1 })
+                                  .update({ balance: newBalance })
                                   .eq('agency_id', authAgencyId);
+                                
                                 await supabase.from('wallet_transactions').insert([{
                                   agency_id: authAgencyId,
-                                  amount: 0,
-                                  type: 'reward',
-                                  description: 'Commission info : partage historique locataire',
+                                  amount: 500,
+                                  type: 'referral_bonus',
+                                  description: 'Commission de 50% (500 F) pour partage d\'historique locataire',
                                   status: 'completed'
                                 }]);
                               }
@@ -263,7 +265,7 @@ export const CollaborationHub: React.FC = () => {
                               console.warn('Erreur commission:', rewardErr);
                             }
 
-                            toast.success('Accès accordé ! +1 Crédit ajouté.');
+                            toast.success('Accès accordé ! Commission de 50% (500 F) créditée sur votre portefeuille.');
                             loadData();
                           } catch (err: any) {
                             toast.error(err.message);
@@ -271,7 +273,7 @@ export const CollaborationHub: React.FC = () => {
                         }}
                         className="btn-premium"
                       >
-                        Approuver & Gagner 1 Crédit
+                        Approuver & Gagner 50% (500 F)
                       </Button>
                     </div>
                   </div>
