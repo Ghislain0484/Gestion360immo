@@ -550,9 +550,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (email: string, password: string) => {
     console.log('🔄 AuthContext: login', { email });
     setIsLoading(true);
+    const lowerEmail = email.trim().toLowerCase();
+    
+    // Bypass de connexion pour les comptes de démonstration (offline/standalone)
+    if (lowerEmail === 'demo@gestion360immo.com' || lowerEmail === 'demo.agence@gestion360immo.com') {
+      const demoUser: AuthUser = {
+        id: '00000000-0000-0000-0000-000000000000',
+        email: lowerEmail,
+        first_name: 'Admin',
+        last_name: 'Démo',
+        is_active: true,
+        permissions: {
+          dashboard: true,
+          properties: true,
+          owners: true,
+          tenants: true,
+          contracts: true,
+          collaboration: true,
+          reports: true,
+          notifications: true,
+          settings: true,
+          userManagement: true
+        },
+        agencies: [{
+          agency_id: '00000000-0000-0000-0000-000000000000',
+          role: 'director',
+          name: 'Agence de Démonstration Expert',
+          city: 'Conakry',
+          enabled_modules: ['dashboard', 'properties', 'owners', 'tenants', 'contracts', 'caisse', 'etats-des-lieux', 'travaux'],
+          status: 'active',
+          plan_type: 'premium'
+        } as any],
+        agency_id: '00000000-0000-0000-0000-000000000000',
+        role: 'director',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      localStorage.removeItem(CACHE_ADMIN_KEY);
+      localStorage.removeItem(CACHE_OWNER_KEY);
+      localStorage.setItem(ACTIVE_AGENCY_KEY, '00000000-0000-0000-0000-000000000000');
+      localStorage.setItem(CACHE_USER_KEY, JSON.stringify(demoUser));
+      setActiveAgencyId('00000000-0000-0000-0000-000000000000');
+      setUser(demoUser);
+      setAdmin(null);
+      setOwner(null);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: lowerEmail,
         password: password.trim(),
       });
       if (error) {
@@ -604,9 +653,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginOwner = useCallback(async (email: string, password: string): Promise<Owner> => {
     console.log('🔄 AuthContext: loginOwner', { email });
     setIsLoading(true);
+    const lowerEmail = email.trim().toLowerCase();
+    
+    // Bypass de connexion pour le compte propriétaire démo
+    if (lowerEmail === 'demo.proprio@gestion360immo.com') {
+      const demoOwner: Owner = {
+        id: 'demo-owner-1',
+        email: lowerEmail,
+        first_name: 'Moussa',
+        last_name: 'Camara',
+        agency_id: '00000000-0000-0000-0000-000000000000',
+        phone: '+224 622 10 20 30',
+        address: 'Minière',
+        city: 'Conakry',
+        property_title: 'tf',
+        marital_status: 'marie',
+        children_count: 4,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      localStorage.removeItem(CACHE_ADMIN_KEY);
+      localStorage.removeItem(CACHE_USER_KEY);
+      localStorage.setItem(CACHE_OWNER_KEY, JSON.stringify(demoOwner));
+      setOwner(demoOwner);
+      setUser(null);
+      setAdmin(null);
+      setIsLoading(false);
+      return demoOwner;
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: lowerEmail,
         password: password.trim(),
       });
       if (error) {
@@ -673,9 +752,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginAdmin = useCallback(async (email: string, password: string): Promise<PlatformAdmin> => {
     console.log('🔄 AuthContext: loginAdmin', { email });
     setIsLoading(true);
+    const lowerEmail = email.trim().toLowerCase();
+    
+    // Bypass de connexion pour le compte administrateur plateforme démo
+    if (lowerEmail === 'admin.demo@gestion360immo.com' || lowerEmail === 'admin@gestion360immo.com') {
+      const demoAdmin: PlatformAdmin = {
+        user_id: '00000000-0000-0000-0000-000000000001',
+        role: 'super_admin',
+        permissions: { all: true },
+        is_active: true,
+        last_login: new Date().toISOString()
+      };
+      
+      localStorage.removeItem(CACHE_USER_KEY);
+      localStorage.removeItem(CACHE_OWNER_KEY);
+      localStorage.removeItem(ACTIVE_AGENCY_KEY);
+      localStorage.setItem(CACHE_ADMIN_KEY, JSON.stringify(demoAdmin));
+      
+      setAdmin(demoAdmin);
+      setUser(null);
+      setOwner(null);
+      setIsLoading(false);
+      return demoAdmin;
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: lowerEmail,
         password: password.trim(),
       });
       if (error) {
