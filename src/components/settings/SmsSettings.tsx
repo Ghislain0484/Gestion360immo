@@ -314,7 +314,7 @@ export const SmsSettings: React.FC = () => {
                       Valable {pack.validity_days} jours
                     </span>
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/50 px-1.5 py-0.5 rounded-md">
-                      100 FCFA/SMS
+                      {pack.sms_count > 0 ? Math.round(pack.price_xof / pack.sms_count) : 20} FCFA/SMS
                     </span>
                   </div>
                 </div>

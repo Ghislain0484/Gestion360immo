@@ -11,12 +11,12 @@ ADD COLUMN IF NOT EXISTS sms_expiry_date TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS sms_sender_name VARCHAR(11) DEFAULT 'G360Immo';
 
 -- 2. Création de la table des forfaits SMS disponibles à la vente (public.sms_packages)
--- Tarifs fixés à 100 FCFA par SMS avec rollover Orange-style
+-- Tarifs fixés à 20 FCFA par SMS avec rollover Orange-style
 CREATE TABLE IF NOT EXISTS public.sms_packages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,            -- ex. "Pack Standard"
     sms_count INTEGER NOT NULL,            -- ex. 100
-    price_xof INTEGER NOT NULL,            -- ex. 10000 (100 FCFA / SMS)
+    price_xof INTEGER NOT NULL,            -- ex. 2000 (20 FCFA / SMS)
     validity_days INTEGER NOT NULL,        -- ex. 30 (jours de validité)
     active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
@@ -52,21 +52,21 @@ CREATE TABLE IF NOT EXISTS public.sms_logs (
 CREATE INDEX IF NOT EXISTS idx_sms_logs_agency ON public.sms_logs(agency_id);
 CREATE INDEX IF NOT EXISTS idx_sms_purchases_agency ON public.sms_purchase_history(agency_id);
 
--- 5. Pré-population des forfaits à 100 FCFA par SMS (Si vides)
+-- 5. Pré-population des forfaits à 20 FCFA par SMS (Si vides)
 INSERT INTO public.sms_packages (name, sms_count, price_xof, validity_days)
-SELECT 'Pack Découverte', 20, 2000, 7
+SELECT 'Pack Découverte', 20, 400, 7
 WHERE NOT EXISTS (SELECT 1 FROM public.sms_packages WHERE name = 'Pack Découverte');
 
 INSERT INTO public.sms_packages (name, sms_count, price_xof, validity_days)
-SELECT 'Pack Standard', 100, 10000, 30
+SELECT 'Pack Standard', 100, 2000, 30
 WHERE NOT EXISTS (SELECT 1 FROM public.sms_packages WHERE name = 'Pack Standard');
 
 INSERT INTO public.sms_packages (name, sms_count, price_xof, validity_days)
-SELECT 'Pack Pro', 1000, 100000, 45
+SELECT 'Pack Pro', 1000, 20000, 45
 WHERE NOT EXISTS (SELECT 1 FROM public.sms_packages WHERE name = 'Pack Pro');
 
 INSERT INTO public.sms_packages (name, sms_count, price_xof, validity_days)
-SELECT 'Pack Entreprise', 10000, 1000000, 60
+SELECT 'Pack Entreprise', 10000, 200000, 60
 WHERE NOT EXISTS (SELECT 1 FROM public.sms_packages WHERE name = 'Pack Entreprise');
 
 -- 6. Configuration de la Sécurité Row Level Security (RLS) et permissions
