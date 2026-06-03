@@ -78,7 +78,16 @@ export const contractsService = {
 
     const { data, error } = await query;
     if (error) throw new Error(formatSbError('❌ contracts.select', error));
-    return data ?? [];
+    
+    // Filter out corrupt contracts that have null foreign keys or unresolved relationships to prevent UI crashes
+    return (data ?? []).filter((c: any) => 
+      c.property_id !== null &&
+      c.tenant_id !== null &&
+      c.owner_id !== null &&
+      c.property !== null &&
+      c.tenant !== null &&
+      c.owner !== null
+    );
   },
   async create(contract: Partial<Contract>): Promise<Contract> {
     const clean = normalizeContract(contract);
@@ -138,6 +147,9 @@ export const contractsService = {
     if (error) {
       if (error.code === 'PGRST116') return null;
       throw new Error(formatSbError('❌ contracts.findOne', error));
+    }
+    if (data && (!data.property_id || !data.tenant_id || !data.owner_id)) {
+      return null;
     }
     return data;
   },
