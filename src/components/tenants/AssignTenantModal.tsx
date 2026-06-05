@@ -191,6 +191,11 @@ export const AssignTenantModal: React.FC<AssignTenantModalProps> = ({
             await dbService.contracts.create(contractPayload);
             await dbService.properties.update(property.id, { is_available: false });
 
+            // ⚡ Propager le signal de mise à jour immédiate
+            window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+                detail: { table: 'all', action: 'create' } 
+            }));
+
             toast.success(
                 `${tenant.first_name} ${tenant.last_name} rattaché(e) à "${property.title}" avec succès !`,
                 { id: toastId }

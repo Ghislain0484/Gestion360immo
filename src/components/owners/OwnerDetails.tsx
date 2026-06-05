@@ -106,6 +106,7 @@ export const OwnerDetails: React.FC = () => {
     const [reversalAmount, setReversalAmount] = useState<number>(0);
     const [reversalDetails, setReversalDetails] = useState<ReversalDetails | null>(null);
     const [propertyToAssign, setPropertyToAssign] = useState<Property | null>(null);
+    const [showAssignTenantModal, setShowAssignTenantModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
@@ -288,24 +289,30 @@ export const OwnerDetails: React.FC = () => {
                                                 c.property_id === property.id && c.status === 'active' && c.type === 'location'
                                             );
                                             return (
-                                                <div key={property.id} className="space-y-2">
-                                                    <PropertyCard
-                                                        property={property}
-                                                        isOccupied={!!activeContract}
-                                                        tenantName={activeContract ? `${activeContract.tenant?.first_name} ${activeContract.tenant?.last_name}` : undefined}
-                                                        rentAmount={activeContract?.monthly_rent}
-                                                        onClick={() => {
-                                                            const slugId = property.business_id || property.id;
-                                                            const slug = generateSlug(slugId, property.title);
-                                                            navigate(`/proprietes/${slug}`);
-                                                        }}
-                                                    />
+                                                <div key={property.id} className="flex flex-col h-full space-y-2">
+                                                    <div className="flex-1 flex flex-col">
+                                                        <PropertyCard
+                                                            property={property}
+                                                            isOccupied={!!activeContract}
+                                                            tenantName={activeContract ? `${activeContract.tenant?.first_name} ${activeContract.tenant?.last_name}` : undefined}
+                                                            rentAmount={activeContract?.monthly_rent}
+                                                            onClick={() => {
+                                                                const slugId = property.business_id || property.id;
+                                                                const slug = generateSlug(slugId, property.title);
+                                                                navigate(`/proprietes/${slug}`);
+                                                            }}
+                                                        />
+                                                    </div>
                                                     {!activeContract && (
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
                                                             className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
-                                                            onClick={(e) => { e.stopPropagation(); setPropertyToAssign(property); }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setPropertyToAssign(property);
+                                                                setShowAssignTenantModal(true);
+                                                            }}
                                                         >
                                                             <Users className="w-4 h-4 mr-2" />
                                                             Attribuer un locataire
@@ -321,6 +328,20 @@ export const OwnerDetails: React.FC = () => {
 
                         {activeTab === 'tenants' && (
                             <div className="space-y-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h3 className="text-lg font-bold text-gray-900">Locataires actifs</h3>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => {
+                                            const vacant = ownerProperties.find(p => !contracts?.some(c => c.property_id === p.id && c.status === 'active' && c.type === 'location'));
+                                            setPropertyToAssign(vacant || null);
+                                            setShowAssignTenantModal(true);
+                                        }}
+                                    >
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Attribuer un locataire
+                                    </Button>
+                                </div>
                                 {ownerTenants.length === 0 ? (
                                     <div className="text-center py-12 text-gray-500">
                                         <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -643,13 +664,20 @@ export const OwnerDetails: React.FC = () => {
                 />
             )}
 
-            {/* Assign Tenant Modal — for vacant properties */}
-            {propertyToAssign && (
+            {/* Assign Tenant Modal */}
+            {showAssignTenantModal && (
                 <AssignTenantModal
-                    isOpen={!!propertyToAssign}
-                    onClose={() => setPropertyToAssign(null)}
+                    isOpen={showAssignTenantModal}
+                    onClose={() => {
+                        setShowAssignTenantModal(false);
+                        setPropertyToAssign(null);
+                    }}
                     preSelectedProperty={propertyToAssign}
-                    onSuccess={() => setPropertyToAssign(null)}
+                    onSuccess={() => {
+                        setShowAssignTenantModal(false);
+                        setPropertyToAssign(null);
+                        refetch();
+                    }}
                 />
             )}
 

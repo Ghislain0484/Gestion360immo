@@ -115,6 +115,11 @@ export const LinkTenantToPropertyModal: React.FC<LinkTenantToPropertyModalProps>
             await dbService.contracts.create(contractPayload);
             await dbService.properties.update(selectedProperty.id, { is_available: false });
 
+            // ⚡ Propager le signal de mise à jour immédiate
+            window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+                detail: { table: 'all', action: 'create' } 
+            }));
+
             toast.success(`${tenant.first_name} ${tenant.last_name} rattaché(e) à "${selectedProperty.title}" avec succès !`, { id: toastId });
             
             if (confirm('Le contrat a été généré. Voulez-vous l\'imprimer maintenant ?')) {
