@@ -27,8 +27,8 @@ export const CollaborationAds: React.FC = () => {
     setLoading(true);
     try {
       let query = supabase
-        .from('collaboration_ads')
-        .select('*, agency:agencies(name)')
+        .from('collaboration_ads_with_agency')
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
@@ -299,13 +299,40 @@ export const CollaborationAds: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-center gap-2 pt-2">
-                    <div className="h-6 w-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                      <Building2 className="h-3 w-3 text-slate-400" />
+                  <div className="mt-5 pt-4 border-t border-slate-100/60 dark:border-slate-800/40 flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2">
+                      {ad.agency_logo_url ? (
+                        <img 
+                          src={ad.agency_logo_url} 
+                          alt={ad.agency_name} 
+                          className="h-6 w-6 rounded-md object-contain bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800"
+                        />
+                      ) : (
+                        <div className="h-6 w-6 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200/40">
+                          <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                        </div>
+                      )}
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">Agence partenaire</span>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 line-clamp-1">
+                          {ad.agency_name || 'Agence non spécifiée'}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                      {ad.agency?.name}
-                    </span>
+
+                    {ad.contact_phone && (
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-md bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center border border-blue-100/40">
+                          <Phone className="h-3 w-3 text-blue-500 dark:text-blue-400" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">Contact Direct</span>
+                          <span className="text-xs font-black text-slate-800 dark:text-slate-100 font-mono tracking-tight">
+                            {ad.contact_phone}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
