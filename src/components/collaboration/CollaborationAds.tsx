@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, Plus, Search, MapPin, Building2, Phone, Filter, Trash2, ExternalLink } from 'lucide-react';
+import { Megaphone, Plus, Search, MapPin, Building2, Phone, Filter, Trash2, Edit, ExternalLink } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { supabase } from '../../lib/config';
@@ -12,6 +12,8 @@ export const CollaborationAds: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'sale' | 'rent'>('all');
+
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     type: 'rent',
@@ -55,18 +57,38 @@ export const CollaborationAds: React.FC = () => {
     if (!authAgencyId) return;
 
     try {
-      const { error } = await supabase
-        .from('collaboration_ads')
-        .insert([{
-          ...formData,
-          agency_id: authAgencyId,
-          price: formData.price ? parseFloat(formData.price) : null
-        }]);
+      if (editingId) {
+        const { error } = await supabase
+          .from('collaboration_ads')
+          .update({
+            type: formData.type,
+            category: formData.category,
+            title: formData.title,
+            description: formData.description,
+            price: formData.price ? parseFloat(formData.price) : null,
+            location_text: formData.location_text,
+            contact_phone: formData.contact_phone,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingId);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast.success('Annonce modifiée avec succès !');
+      } else {
+        const { error } = await supabase
+          .from('collaboration_ads')
+          .insert([{
+            ...formData,
+            agency_id: authAgencyId,
+            price: formData.price ? parseFloat(formData.price) : null
+          }]);
 
-      toast.success('Annonce publiée avec succès !');
+        if (error) throw error;
+        toast.success('Annonce publiée avec succès !');
+      }
+
       setShowAddForm(false);
+      setEditingId(null);
       setFormData({
         type: 'rent',
         category: 'residential',
@@ -80,6 +102,21 @@ export const CollaborationAds: React.FC = () => {
     } catch (err: any) {
       toast.error(err.message);
     }
+  };
+
+  const handleStartEdit = (ad: any) => {
+    setEditingId(ad.id);
+    setFormData({
+      type: ad.type,
+      category: ad.category,
+      title: ad.title || '',
+      description: ad.description || '',
+      price: ad.price ? String(ad.price) : '',
+      location_text: ad.location_text || '',
+      contact_phone: ad.contact_phone || '',
+    });
+    setShowAddForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const deleteAd = async (id: string) => {
@@ -116,7 +153,21 @@ export const CollaborationAds: React.FC = () => {
             </p>
           </div>
           <Button 
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => {
+              if (showAddForm) {
+                setEditingId(null);
+                setFormData({
+                  type: 'rent',
+                  category: 'residential',
+                  title: '',
+                  description: '',
+                  price: '',
+                  location_text: '',
+                  contact_phone: '',
+                });
+              }
+              setShowAddForm(!showAddForm);
+            }}
             className="btn-premium bg-white text-blue-600 hover:bg-blue-50 border-none shadow-xl"
           >
             {showAddForm ? 'Fermer le formulaire' : (
@@ -213,8 +264,28 @@ export const CollaborationAds: React.FC = () => {
             </div>
 
             <div className="flex justify-end gap-4 pt-4">
-              <button type="button" className="text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors" onClick={() => setShowAddForm(false)}>Annuler</button>
-              <Button type="submit" className="btn-premium">Propulser l'annonce</Button>
+              <button 
+                type="button" 
+                className="text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors" 
+                onClick={() => {
+                  setShowAddForm(false);
+                  setEditingId(null);
+                  setFormData({
+                    type: 'rent',
+                    category: 'residential',
+                    title: '',
+                    description: '',
+                    price: '',
+                    location_text: '',
+                    contact_phone: '',
+                  });
+                }}
+              >
+                Annuler
+              </button>
+              <Button type="submit" className="btn-premium">
+                {editingId ? "Mettre à jour l'annonce" : "Propulser l'annonce"}
+              </Button>
             </div>
           </form>
         </Card>
@@ -279,15 +350,24 @@ export const CollaborationAds: React.FC = () => {
                     <div className="text-lg font-black text-slate-900 dark:text-white">
                       {ad.price ? `${ad.price.toLocaleString()} F` : 'Sur demande'}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5 items-center">
                       {ad.agency_id === authAgencyId && (
-                        <button 
-                          onClick={() => deleteAd(ad.id)}
-                          className="p-2 text-slate-300 hover:text-red-500 transition-all"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => handleStartEdit(ad)}
+                            className="p-2 text-slate-300 hover:text-blue-500 transition-all"
+                            title="Modifier"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={() => deleteAd(ad.id)}
+                            className="p-2 text-slate-300 hover:text-red-500 transition-all"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                       <a 
                         href={`tel:${ad.contact_phone}`}
