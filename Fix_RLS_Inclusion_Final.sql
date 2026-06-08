@@ -23,7 +23,7 @@ BEGIN
 
         IF has_agency_id THEN
             -- Ignorer les tables coeurs/système
-            IF t_name NOT IN ('agencies', 'agency_users', 'users', 'agency_registration_requests', 'collaboration_requests', 'platform_admins') THEN
+            IF t_name NOT IN ('agencies', 'agency_users', 'users', 'agency_registration_requests', 'collaboration_requests', 'platform_admins', 'collaboration_ads') THEN
                 
                 -- Supprimer l'ancienne politique si elle existe
                 EXECUTE format('DROP POLICY IF EXISTS "%I_master_agency_all" ON public.%I;', t_name, t_name);

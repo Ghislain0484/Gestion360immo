@@ -33,7 +33,7 @@ BEGIN
         -- 1. CAS: La table a un agency_id (Ex: owner_transactions, property_expenses, etc.)
         IF has_agency_id THEN
             -- Ignorer les tables coeurs qui ont déjà des règles très spécifiques
-            IF t_name NOT IN ('agencies', 'agency_users', 'users', 'agency_registration_requests', 'collaboration_requests', 'platform_admins') THEN
+            IF t_name NOT IN ('agencies', 'agency_users', 'users', 'agency_registration_requests', 'collaboration_requests', 'platform_admins', 'collaboration_ads') THEN
                 
                 -- Activer RLS au cas où
                 EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
