@@ -71,7 +71,7 @@ export const OwnerFinances: React.FC = () => {
         const contractIds = (ctrs || []).map((c: any) => c.id);
         const { data: rcts } = contractIds.length > 0 ? await supabase
           .from('rent_receipts')
-          .select('id, receipt_number, payment_date, total_amount, owner_payment, payment_status, contract_id, created_at')
+          .select('id, receipt_number, payment_date, total_amount, amount_paid, owner_payment, payment_status, contract_id, created_at')
           .in('contract_id', contractIds)
           .order('payment_date', { ascending: false }) : { data: [] };
 
@@ -107,7 +107,7 @@ export const OwnerFinances: React.FC = () => {
 
     const normalizedReceipts: OwnerTransaction[] = receipts.map(r => {
       const commRate = getCommissionRate(r.contract_id, r.property_id);
-      const ownerNet = r.owner_payment || (Number(r.total_amount) * (1 - commRate / 100));
+      const ownerNet = Number(r.owner_payment) || ((Number(r.amount_paid ?? r.total_amount) || 0) * (1 - commRate / 100));
       return {
         id: r.id,
         date: r.payment_date || r.created_at,

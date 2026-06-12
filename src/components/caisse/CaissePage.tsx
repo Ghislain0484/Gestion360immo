@@ -62,7 +62,7 @@ export const CaissePage: React.FC = () => {
                     setLoading(false);
                     return;
                 }
-                const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment, total_amount, contract_id, property_id').eq('owner_id', ownerId);
+                const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment, total_amount, amount_paid, contract_id, property_id').eq('owner_id', ownerId);
                 const { data: manualTrans } = await supabase.from('modular_transactions')
                     .select('amount, category, type, description, related_property_id')
                     .eq('related_owner_id', ownerId);
@@ -83,7 +83,7 @@ export const CaissePage: React.FC = () => {
 
                 const earnedFromReceipts = receipts?.reduce((s, r) => {
                     const commRate = getCommissionRate(r.contract_id, r.property_id);
-                    const ownerPart = Number(r.owner_payment) || ((Number(r.total_amount) || 0) * (1 - commRate / 100));
+                    const ownerPart = Number(r.owner_payment) || ((Number(r.amount_paid ?? r.total_amount) || 0) * (1 - commRate / 100));
                     return s + ownerPart;
                 }, 0) || 0;
                 

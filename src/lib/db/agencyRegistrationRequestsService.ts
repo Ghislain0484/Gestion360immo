@@ -56,34 +56,31 @@ export const agencyRegistrationRequestsService = {
         return true;
     },
     async approve(requestId: string): Promise<{ agencyId: string }> {
-        // 🚀 EXTREME BYPASS (XHR vs KASPERSKY)
-        // On utilise XHR car Kaspersky enveloppe fetch() mais ignore souvent XHR,
-        // ce qui evite les erreurs 400 (Bad Request) dues a la corruption du flux.
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
         
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            // Utilisation d'une URL absolue pour eviter toute interference
-            const url = "https://jedknkbevxiyytsypjrv.supabase.co/rest/v1/rpc/approve_agency_request";
-            const apiKey = (supabase as any).supabaseKey;
+            const url = "/api/admin/approve-agency";
 
             xhr.open("POST", url, true);
             xhr.setRequestHeader("Content-Type", "application/json");
-            xhr.setRequestHeader("apikey", apiKey);
-            xhr.setRequestHeader("Authorization", `Bearer ${apiKey}`);
-            xhr.setRequestHeader("Prefer", "return=representation");
+            if (token) {
+                xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+            }
 
             xhr.onreadystatechange = async () => {
                 if (xhr.readyState === 4) {
                     if (xhr.status >= 200 && xhr.status < 300) {
                         try {
                             const result = JSON.parse(xhr.responseText);
-                            if (result && (result.success || result.agency_id)) {
-                                const agencyId = result.agency_id || "TRANSITION_OK";
+                            if (result && result.ok && result.data) {
+                                const agencyId = result.data.agency_id || "TRANSITION_OK";
                                 // On tente le deplacement du logo apres le succes
                                 this.moveLogo(requestId, agencyId).catch(() => {});
                                 resolve({ agencyId });
                             } else {
-                                reject(new Error(result.error || "Échec de l'approbation RPC"));
+                                reject(new Error(result.error || "Échec de l'approbation"));
                             }
                         } catch (e) {
                             // Verif de secours
@@ -99,7 +96,7 @@ export const agencyRegistrationRequestsService = {
                         } else {
                             try {
                                 const errObj = JSON.parse(xhr.responseText);
-                                reject(new Error(errObj.message || `Erreur ${xhr.status}`));
+                                reject(new Error(errObj.error || errObj.message || `Erreur ${xhr.status}`));
                             } catch (e) {
                                 reject(new Error(`Erreur XHR ${xhr.status}`));
                             }
@@ -108,8 +105,8 @@ export const agencyRegistrationRequestsService = {
                 }
             };
 
-            xhr.onerror = () => reject(new Error("Erreur reseau XHR (Antivirus ?)"));
-            xhr.send(JSON.stringify({ p_request_id: requestId }));
+            xhr.onerror = () => reject(new Error("Erreur reseau XHR"));
+            xhr.send(JSON.stringify({ request_id: requestId }));
         });
     },
 

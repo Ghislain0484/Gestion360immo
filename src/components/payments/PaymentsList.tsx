@@ -141,7 +141,7 @@ export const PaymentsList: React.FC<PaymentsListProps> = ({
             
             const amt = r.amount_paid ?? r.total_amount;
             const commRate = (r.contract as any)?.commission_rate !== undefined ? (r.contract as any).commission_rate : 10;
-            const ownPay = amt * (1 - commRate / 100);
+            const ownPay = Number(r.owner_payment) || (amt * (1 - commRate / 100));
             
             return {
                 ...r,

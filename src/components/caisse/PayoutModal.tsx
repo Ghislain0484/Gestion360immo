@@ -55,7 +55,7 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
             // 1. Get total expected owner payments from rent receipts
             const { data: rentReceipts } = await supabase
                 .from('rent_receipts')
-                .select('owner_payment, total_amount, contract_id, property_id')
+                .select('owner_payment, total_amount, amount_paid, contract_id, property_id')
                 .eq('owner_id', ownerId);
 
             // 2. Get all modular transactions for this owner
@@ -83,7 +83,7 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
 
             const earnedFromReceipts = rentReceipts?.reduce((sum, r) => {
                 const commRate = getCommissionRate(r.contract_id, r.property_id);
-                const ownerPart = Number(r.owner_payment) || ((Number(r.total_amount) || 0) * (1 - commRate / 100));
+                const ownerPart = Number(r.owner_payment) || ((Number(r.amount_paid ?? r.total_amount) || 0) * (1 - commRate / 100));
                 return sum + ownerPart;
             }, 0) || 0;
 
