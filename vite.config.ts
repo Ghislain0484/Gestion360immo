@@ -3,7 +3,6 @@ import { defineConfig, loadEnv, ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import legacy from '@vitejs/plugin-legacy';
 import { handleVerifySubscriptionRequest } from './server/payments/verifySubscription';
-import approveAgencyHandler from './api/admin/approve-agency';
 
 const readJsonBody = async (req: IncomingMessage) => {
   const chunks: Buffer[] = [];
@@ -95,7 +94,8 @@ const subscriptionVerificationDevPlugin = () => ({
       }
 
       if (pathname === '/api/admin/approve-agency') {
-        const handler = adaptVercelHandler(approveAgencyHandler);
+        const approveAgencyModule = await import('./api/admin/approve-agency');
+        const handler = adaptVercelHandler(approveAgencyModule.default);
         await handler(req, res);
         return;
       }
