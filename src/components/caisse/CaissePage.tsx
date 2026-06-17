@@ -101,7 +101,7 @@ export const CaissePage: React.FC = () => {
                     return s;
                 }, 0) || 0;
 
-                const paid = manualTrans?.filter(t => t.category === 'owner_payout' && t.type === 'debit')
+                const paid = manualTrans?.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense'))
                     .reduce((s, p) => s + (Number(p.amount) || 0), 0) || 0;
                     
                 const repairs = maintenance?.reduce((s, m) => s + (Number(m.cost) || 0), 0) || 0;

@@ -121,7 +121,7 @@ export const OwnerFinances: React.FC = () => {
     });
 
     const normalizedManual: OwnerTransaction[] = (payouts || []).map(p => {
-      const isPayout = p.category === 'owner_payout' && p.type === 'debit';
+      const isPayout = p.category === 'owner_payout' && (p.type === 'debit' || p.type === 'expense');
       const isCaution = p.category === 'caution';
       const isRentPayment = p.category === 'rent_payment';
       

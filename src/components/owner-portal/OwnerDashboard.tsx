@@ -113,7 +113,7 @@ export const OwnerDashboard: React.FC = () => {
           .select('amount, transaction_date')
           .eq('related_owner_id', owner.id)
           .eq('category', 'owner_payout')
-          .eq('type', 'debit');
+          .in('type', ['debit', 'expense']);
 
         // Process chart data (last 6 months)
         const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];

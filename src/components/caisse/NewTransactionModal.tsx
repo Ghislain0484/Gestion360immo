@@ -153,6 +153,33 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                     console.error('Insert RLS error:', error);
                     throw error;
                 }
+
+                // Synchronisation avec owner_transactions si c'est un reversement propriétaire
+                if (payload.category === 'owner_payout' && payload.related_owner_id) {
+                    const dbPaymentMethod = 
+                        payload.payment_method === 'bank_transfer' ? 'virement' :
+                        payload.payment_method === 'check' ? 'cheque' :
+                        payload.payment_method === 'cash' ? 'especes' : 'mobile_money';
+                    
+                    const { error: ownerTxError } = await supabase
+                        .from('owner_transactions')
+                        .insert({
+                            owner_id: payload.related_owner_id,
+                            agency_id: payload.agency_id,
+                            type: 'debit',
+                            montant: payload.amount,
+                            mode_paiement: dbPaymentMethod,
+                            reference: '',
+                            description: payload.description,
+                            notes: 'Enregistré manuellement depuis le journal de caisse',
+                            date_transaction: new Date(payload.transaction_date).toISOString(),
+                            created_by: user?.id,
+                        });
+                    if (ownerTxError) {
+                        console.error('Error syncing manual payout to owner_transactions:', ownerTxError);
+                    }
+                }
+
                 toast.success('Transaction enregistrée');
 
                 // Play sound

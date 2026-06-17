@@ -106,8 +106,8 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 return s;
             }, 0) || 0;
 
-            // 4. Calculate total paid out
-            const totalPaidOut = manualTrans?.filter(t => t.category === 'owner_payout' && t.type === 'debit')
+            // 4. Calculate total paid out (take both debit and expense types for robustness)
+            const totalPaidOut = manualTrans?.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense'))
                 .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
             
             // 5. Get Maintenance costs
@@ -141,18 +141,43 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
     const onSubmit = async (data: PayoutFormData) => {
         setIsLoading(true);
         try {
+            const dbPaymentMethod = 
+                data.payment_method === 'bank_transfer' ? 'virement' :
+                data.payment_method === 'check' ? 'cheque' :
+                data.payment_method === 'cash' ? 'especes' : 'mobile_money';
+
+            // 1. Record in owner_transactions (Owner Ledger)
+            const { error: ownerTxError } = await supabase
+                .from('owner_transactions')
+                .insert({
+                    owner_id: ownerId,
+                    agency_id: user?.agency_id,
+                    type: 'debit',
+                    montant: data.amount,
+                    mode_paiement: dbPaymentMethod,
+                    reference: '',
+                    description: data.description,
+                    notes: 'Enregistré depuis le menu caisse',
+                    date_transaction: new Date(data.transaction_date).toISOString(),
+                    created_by: user?.id,
+                });
+
+            if (ownerTxError) throw ownerTxError;
+
+            // 2. Record in modular_transactions (Caisse Journal)
             const { error } = await supabase
                 .from('modular_transactions')
                 .insert([{
                     agency_id: user?.agency_id,
                     created_by: user?.id,
-                    type: 'debit',
+                    type: 'expense',
                     amount: data.amount,
                     category: 'owner_payout',
                     description: data.description,
                     transaction_date: data.transaction_date,
                     payment_method: data.payment_method,
-                    related_owner_id: ownerId
+                    related_owner_id: ownerId,
+                    module_type: 'owner'
                 }]);
 
             if (error) throw error;

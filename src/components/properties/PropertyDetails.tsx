@@ -505,7 +505,7 @@ export const PropertyDetails: React.FC = () => {
                         await dbService.properties.update(property.id, data);
                         
                         // Si le bien est occupé et que le loyer a changé, mettre à jour le contrat actif !
-                        if (activeContract && data.monthly_rent !== undefined && Number(data.monthly_rent) !== Number(property.monthly_rent)) {
+                        if (activeContract && data.monthly_rent !== undefined && Number(data.monthly_rent) !== Number(activeContract.monthly_rent)) {
                             const newRent = Number(data.monthly_rent);
                             const commType = activeContract.extra_data?.commission_type || 'percentage';
                             let newCommissionAmount = activeContract.commission_amount || 0;
