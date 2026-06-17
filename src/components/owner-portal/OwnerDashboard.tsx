@@ -103,7 +103,7 @@ export const OwnerDashboard: React.FC = () => {
         const contractIds = (contracts || []).map((c: any) => c.id);
         const { data: receipts } = contractIds.length > 0 ? await supabase
           .from('rent_receipts')
-          .select('id, payment_date, total_amount, owner_payment, contract_id')
+          .select('id, payment_date, total_amount, amount_paid, owner_payment, payment_status, contract_id')
           .in('contract_id', contractIds)
           .order('payment_date', { ascending: true }) : { data: [] };
 
@@ -124,23 +124,46 @@ export const OwnerDashboard: React.FC = () => {
           const year = d.getFullYear();
           const monthReceipts = (receipts || []).filter((r: any) => {
             const rd = new Date(r.payment_date);
-            return rd.getMonth() === month && rd.getFullYear() === year;
+            return r.payment_status !== 'unpaid' && rd.getMonth() === month && rd.getFullYear() === year;
           });
-          const total = monthReceipts.reduce((sum: number, r: any) => sum + (r.owner_payment ?? r.total_amount * 0.9), 0);
+          const total = monthReceipts.reduce((sum: number, r: any) => {
+            const contract = (contracts || []).find(c => c.id === r.contract_id);
+            const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+            const amountPaid = r.payment_status === 'partial' 
+              ? (Number(r.amount_paid) || 0)
+              : (Number(r.amount_paid ?? r.total_amount) || 0);
+            const ownerPart = (r.owner_payment && r.payment_status !== 'partial')
+              ? r.owner_payment 
+              : amountPaid * (1 - commRate / 100);
+            return sum + ownerPart;
+          }, 0);
           return { name: monthNames[month], revenue: total };
         });
 
         // Compute KPIs
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const thisMonthReceipts = (receipts || []).filter((r: any) => new Date(r.payment_date) >= startOfMonth);
-        const monthlyRevenue = thisMonthReceipts.reduce((sum: number, r: any) => sum + (r.owner_payment ?? r.total_amount * 0.9), 0);
+        const thisMonthReceipts = (receipts || []).filter((r: any) => r.payment_status !== 'unpaid' && new Date(r.payment_date) >= startOfMonth);
+        const monthlyRevenue = thisMonthReceipts.reduce((sum: number, r: any) => {
+          const contract = (contracts || []).find(c => c.id === r.contract_id);
+          const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+          const amountPaid = r.payment_status === 'partial' 
+            ? (Number(r.amount_paid) || 0)
+            : (Number(r.amount_paid ?? r.total_amount) || 0);
+          const ownerPart = (r.owner_payment && r.payment_status !== 'partial')
+            ? r.owner_payment 
+            : amountPaid * (1 - commRate / 100);
+          return sum + ownerPart;
+        }, 0);
         
         const overdueContracts = (contracts || []).filter((c: any) => {
           if (c.status !== 'active' && c.status !== 'renewed') return false; // Only active contracts can be overdue
           if (!c.next_payment_date) return false;
           const relReceipts = (receipts || []).filter((r: any) => r.contract_id === c.id);
-          const totalPaid = relReceipts.reduce((sum: number, r: any) => sum + (r.amount_paid || r.total_amount || 0), 0);
+          const totalPaid = relReceipts.reduce((sum: number, r: any) => {
+            if (r.payment_status === 'unpaid') return sum;
+            return sum + (r.amount_paid ?? r.total_amount ?? 0);
+          }, 0);
           const monthlyTotal = (c.monthly_rent || 0) + (c.charges || 0);
           const monthsCovered = monthlyTotal > 0 ? totalPaid / monthlyTotal : 0;
           
@@ -155,7 +178,7 @@ export const OwnerDashboard: React.FC = () => {
         setData({
           properties,
           contracts: contracts || [],
-          recentReceipts: (receipts || []).slice(-5).reverse(),
+          recentReceipts: (receipts || []).filter(r => r.payment_status !== 'unpaid').slice(-5).reverse(),
           chartData,
           monthlyRevenue,
           overdueContracts,

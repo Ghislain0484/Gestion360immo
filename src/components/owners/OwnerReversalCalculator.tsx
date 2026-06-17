@@ -127,22 +127,26 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         
         // Process Receipts
         periodPayments.receipts.forEach(p => {
+            if (p.payment_status === 'unpaid') return;
+
             const prop = ownerProperties.find(op => op.id === p.property_id);
             const contract = contracts.find(c => c.id === p.contract_id || c.property_id === p.property_id);
             const contractRent = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
             const isPaid = p.payment_status === 'paid' || p.payment_status === 'full' || (p.amount_paid ?? p.total_amount) >= p.total_amount;
             
-            let amount = p.amount_paid ?? p.total_amount;
+            const amount = p.payment_status === 'partial'
+                ? (p.amount_paid || 0)
+                : (p.amount_paid ?? p.total_amount ?? 0);
             
-            // Prioritize saved commission_amount / owner_payment on the receipt
+            // Prioritize saved commission_amount / owner_payment on the receipt unless it's a partial payment
             let comm = Number(p.commission_amount);
             let ownerPart = Number(p.owner_payment);
             
-            if (isNaN(comm) || comm === 0 || isNaN(ownerPart) || ownerPart === 0) {
+            if (p.payment_status === 'partial' || isNaN(comm) || comm === 0 || isNaN(ownerPart) || ownerPart === 0) {
                 const commType = contract?.extra_data?.commission_type || 'percentage';
                 if (commType === 'fixed') {
                     comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
-                    ownerPart = amount - comm;
+                    ownerPart = Math.max(0, amount - comm);
                 } else {
                     const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
                     comm = (amount * commRate) / 100;
@@ -150,18 +154,19 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
                 }
             }
 
-            const isFullRentReceipt = Math.abs((p.amount_paid ?? p.total_amount ?? 0) - contractRent) <= Math.max(5000, contractRent * 0.05);
+            const isFullRentReceipt = Math.abs(amount - contractRent) <= Math.max(5000, contractRent * 0.05);
+            let finalAmount = amount;
             if (isPaid && contractRent > 0 && isFullRentReceipt) {
-                amount = contractRent;
+                finalAmount = contractRent;
                 // If it is a full payment, make sure we deduct the correct commission based on contract type
                 const commType = contract?.extra_data?.commission_type || 'percentage';
                 if (commType === 'fixed') {
                     comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
-                    ownerPart = amount - comm;
+                    ownerPart = Math.max(0, finalAmount - comm);
                 } else {
                     const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-                    comm = (amount * commRate) / 100;
-                    ownerPart = amount - comm;
+                    comm = (finalAmount * commRate) / 100;
+                    ownerPart = finalAmount - comm;
                 }
             }
             
@@ -170,12 +175,12 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
                 date: p.payment_date,
                 description: `Quittance - ${p.receipt_number || 'N/A'}`,
                 propertyTitle: prop?.title || 'Bien non identifié',
-                amount: amount,
+                amount: finalAmount,
                 commission: comm,
                 type: 'receipt',
                 status: isPaid ? 'full' : (p.payment_status || 'partial')
             });
-        });
+        });;
 
         // Process Manual Transactions
         periodPayments.manual.forEach(m => {

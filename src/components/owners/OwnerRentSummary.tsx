@@ -126,9 +126,12 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
 
         // --- New Metrics ---
         // 1. Recent Collections (Last 30 days) - only rent_payment
-        const recentReceipts = allReceipts.filter(r => new Date(r.payment_date) >= thirtyDaysAgo);
+        const recentReceipts = allReceipts.filter(r => r.payment_status !== 'unpaid' && new Date(r.payment_date) >= thirtyDaysAgo);
         const recentManual = allManual.filter(m => m.category === 'rent_payment' && new Date(m.transaction_date) >= thirtyDaysAgo);
-        const recentTotal = recentReceipts.reduce((sum, r) => sum + (r.amount_paid || r.total_amount), 0) +
+        const recentTotal = recentReceipts.reduce((sum, r) => {
+            const amt = r.payment_status === 'partial' ? (Number(r.amount_paid) || 0) : (Number(r.amount_paid ?? r.total_amount) || 0);
+            return sum + amt;
+        }, 0) +
                            recentManual.reduce((sum, m) => sum + Number(m.amount), 0);
 
         // 2. Global Balance (Total Accumulated - Total Reversed)
@@ -146,16 +149,21 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         };
 
         const totalAccumulated = allReceipts.reduce((sum, r) => {
+            if (r.payment_status === 'unpaid') return sum;
             const { monthlyRentContract, commissionRate } = getContractInfo(r.contract_id, r.property_id);
             const isPaid = r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount;
             
-            let ownerPart = Number(r.owner_payment) || 0;
-            const isFullRentReceipt = Math.abs((r.amount_paid ?? r.total_amount ?? 0) - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+            const amountPaid = r.payment_status === 'partial'
+                ? (Number(r.amount_paid) || 0)
+                : (Number(r.amount_paid ?? r.total_amount) || 0);
+            
+            let ownerPart = 0;
+            const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
             
             if (isPaid && monthlyRentContract > 0 && isFullRentReceipt) {
                 ownerPart = monthlyRentContract * (1 - commissionRate / 100);
-            } else if (ownerPart === 0) {
-                ownerPart = (r.amount_paid || r.total_amount || 0) * (1 - commissionRate / 100);
+            } else {
+                ownerPart = amountPaid * (1 - commissionRate / 100);
             }
             return sum + ownerPart;
         }, 0) +
@@ -201,7 +209,10 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const propReceipts = filteredReceipts.filter(r => r.property_id === prop.id);
             const propManual = filteredManual.filter((m: any) => m.related_property_id === prop.id);
             
-            const rawPaid = propReceipts.reduce((sum, r) => sum + (r.amount_paid ?? r.total_amount), 0) +
+            const rawPaid = propReceipts.reduce((sum, r) => {
+                if (r.payment_status === 'unpaid') return sum;
+                return sum + (r.payment_status === 'partial' ? (Number(r.amount_paid) || 0) : (Number(r.amount_paid ?? r.total_amount) || 0));
+            }, 0) +
                         propManual.filter((m: any) => m.category === 'rent_payment').reduce((sum, m) => sum + Number(m.amount), 0);
 
             let expectedRent = monthlyRentContract;

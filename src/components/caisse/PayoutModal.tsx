@@ -55,7 +55,7 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
             // 1. Get total expected owner payments from rent receipts
             const { data: rentReceipts } = await supabase
                 .from('rent_receipts')
-                .select('owner_payment, total_amount, amount_paid, contract_id, property_id')
+                .select('owner_payment, total_amount, amount_paid, payment_status, contract_id, property_id')
                 .eq('owner_id', ownerId);
 
             // 2. Get all modular transactions for this owner
@@ -70,14 +70,19 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 .eq('status', 'active');
 
             const earnedFromReceipts = rentReceipts?.reduce((sum, r) => {
-                let ownerPart = Number(r.owner_payment);
+                if (r.payment_status === 'unpaid') return sum;
+                
+                const amountPaid = r.payment_status === 'partial'
+                    ? (Number(r.amount_paid) || 0)
+                    : (Number(r.amount_paid ?? r.total_amount) || 0);
+
+                let ownerPart = (r.owner_payment && r.payment_status !== 'partial') ? Number(r.owner_payment) : 0;
                 if (isNaN(ownerPart) || ownerPart === 0) {
                     const contract = contracts?.find(c => c.id === r.contract_id || c.property_id === r.property_id);
                     const commType = contract?.extra_data?.commission_type || 'percentage';
-                    const amountPaid = Number(r.amount_paid ?? r.total_amount) || 0;
                     if (commType === 'fixed') {
                         const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
-                        ownerPart = amountPaid - comm;
+                        ownerPart = Math.max(0, amountPaid - comm);
                     } else {
                         const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
                         ownerPart = amountPaid * (1 - commRate / 100);

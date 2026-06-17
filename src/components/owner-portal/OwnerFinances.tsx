@@ -105,20 +105,29 @@ export const OwnerFinances: React.FC = () => {
       return 10;
     };
 
-    const normalizedReceipts: OwnerTransaction[] = receipts.map(r => {
-      const commRate = getCommissionRate(r.contract_id, r.property_id);
-      const ownerNet = Number(r.owner_payment) || ((Number(r.amount_paid ?? r.total_amount) || 0) * (1 - commRate / 100));
-      return {
-        id: r.id,
-        date: r.payment_date || r.created_at,
-        type: 'receipt' as 'receipt',
-        amount: r.total_amount,
-        owner_net: ownerNet,
-        reference: r.receipt_number,
-        contract_id: r.contract_id,
-        description: 'Encaissement Loyer (Quittance)'
-      };
-    });
+    const normalizedReceipts: OwnerTransaction[] = receipts
+      .filter(r => r.payment_status !== 'unpaid')
+      .map(r => {
+        const commRate = getCommissionRate(r.contract_id, r.property_id);
+        const amountPaid = r.payment_status === 'partial' 
+          ? (Number(r.amount_paid) || 0) 
+          : (Number(r.amount_paid ?? r.total_amount) || 0);
+        
+        const ownerNet = (r.owner_payment && r.payment_status !== 'partial') 
+          ? Number(r.owner_payment) 
+          : amountPaid * (1 - commRate / 100);
+
+        return {
+          id: r.id,
+          date: r.payment_date || r.created_at,
+          type: 'receipt' as 'receipt',
+          amount: amountPaid,
+          owner_net: ownerNet,
+          reference: r.receipt_number,
+          contract_id: r.contract_id,
+          description: 'Encaissement Loyer (Quittance)'
+        };
+      });
 
     const normalizedManual: OwnerTransaction[] = (payouts || []).map(p => {
       const isPayout = p.category === 'owner_payout' && (p.type === 'debit' || p.type === 'expense');
