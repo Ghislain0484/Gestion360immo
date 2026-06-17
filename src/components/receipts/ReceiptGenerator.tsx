@@ -173,12 +173,14 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
       // On considère que le "amountPaid" saisi par l'utilisateur est le global
       const paidAmount = amountPaid > 0 ? amountPaid : Math.max(0, expectedRentTotal - alreadyPaidSum + depositAmount + agencyFees);
       
-      // 2. Calcul des Commissions : Frais de dossier (100% agence) + % sur le loyer encaissé
-      const commissionRate = contractInfo.commission_rate || 10;
+      // 2. Calcul des Commissions : Frais de dossier (100% agence) + % ou fixe sur le loyer encaissé
+      const commType = contractInfo.extra_data?.commission_type || 'percentage';
       
       // Ratio de paiement appliqué au loyer (si paiement partiel)
       const rentPaidPart = Math.max(0, Math.min(expectedRentTotal, paidAmount - depositAmount - agencyFees));
-      const commissionOnRent = (rentPaidPart * commissionRate) / 100;
+      const commissionOnRent = commType === 'fixed'
+        ? (contractInfo.commission_amount !== undefined ? contractInfo.commission_amount : 0)
+        : (rentPaidPart * (contractInfo.commission_rate !== undefined ? contractInfo.commission_rate : 10)) / 100;
       
       // Commission Totale Agence = Part du loyer + Frais de dossier
       const commissionAmount = commissionOnRent + agencyFees;
@@ -302,7 +304,7 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   ];
 
   // Calcul du net propriétaire estimé pour affichage
-  const commissionRate = contractInfo?.commission_rate || 10;
+  const commType = contractInfo?.extra_data?.commission_type || 'percentage';
   const contractRent = contractInfo?.monthly_rent || 0;
   const contractCharges = contractInfo?.charges || 0;
   const contractExpectedRent = contractRent + contractCharges;
@@ -310,7 +312,9 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
   const rentWithCharges = expectedRentTotal;
   const paidAmount = amountPaid > 0 ? amountPaid : (rentWithCharges + depositAmount + agencyFees);
   const rentPaidPart = Math.max(0, Math.min(rentWithCharges, paidAmount - depositAmount - agencyFees));
-  const commissionOnRent = (rentPaidPart * commissionRate) / 100;
+  const commissionOnRent = commType === 'fixed'
+    ? (contractInfo?.commission_amount !== undefined ? contractInfo.commission_amount : 0)
+    : (rentPaidPart * (contractInfo?.commission_rate !== undefined ? contractInfo.commission_rate : 10)) / 100;
   const estimatedOwnerPayment = rentPaidPart - commissionOnRent - totalExpenses;
 
   return (

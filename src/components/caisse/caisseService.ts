@@ -10,7 +10,7 @@ export interface Transaction {
   category: string;
   description: string;
   payment_method: string;
-  source: 'rent_receipt' | 'modular_transaction';
+  source: 'rent_receipt' | 'modular_transaction' | 'property_expense';
   reference_id: string;
   details?: any;
 }
@@ -205,7 +205,7 @@ export const fetchCaisseData = async (
     category: e.category || 'maintenance',
     description: `Travaux - ${e.description || 'Intervention'} (${e.property?.title || 'Bien'})`,
     payment_method: 'especes',
-    source: 'modular_transaction',
+    source: 'property_expense',
     reference_id: '',
     details: e,
   }));

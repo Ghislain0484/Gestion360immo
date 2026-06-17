@@ -93,13 +93,12 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             // Fetch contract to get commission rate (any non-terminated contract)
             const { data: contract } = await supabase
                 .from('contracts')
-                .select('id, commission_rate, start_date, status')
+                .select('id, commission_rate, commission_amount, extra_data, start_date, status')
                 .eq('property_id', data.property_id)
                 .eq('tenant_id', data.tenant_id)
                 .neq('status', 'terminated')
                 .maybeSingle();
 
-            const commissionRate = contract?.commission_rate || 10;
             const tvaRate = platformSettings?.finance_tva_rate || 20;
             const airsiRate = platformSettings?.finance_airsi_rate || 2;
 
@@ -125,7 +124,15 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
             // 2. Transactions Avance Loyer (Ventilées mois par mois pour amortissement)
             if (advanceAmount > 0 && data.advance_months > 0) {
                 const monthlyRentValue = monthlyRent;
-                const monthlyOwnerPart = monthlyRentValue * (1 - commissionRate / 100);
+                const commType = contract?.extra_data?.commission_type || 'percentage';
+                let monthlyOwnerPart = 0;
+                if (commType === 'fixed') {
+                    const commAmount = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                    monthlyOwnerPart = monthlyRentValue - commAmount;
+                } else {
+                    const commissionRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                    monthlyOwnerPart = monthlyRentValue * (1 - commissionRate / 100);
+                }
                 
                 for (let i = 0; i < data.advance_months; i++) {
                     const valueDate = new Date(data.transaction_date);

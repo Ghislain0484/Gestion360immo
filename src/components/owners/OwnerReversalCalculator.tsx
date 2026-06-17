@@ -125,39 +125,45 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
     const calculations = useMemo(() => {
         const transactions: ReversalTransaction[] = [];
         
-        const getCommissionRate = (contractId?: string, propertyId?: string) => {
-            if (contractId && contracts) {
-                const contract = contracts.find(c => c.id === contractId);
-                if (contract?.commission_rate !== undefined) return contract.commission_rate;
-            }
-            if (propertyId && contracts) {
-                const contract = contracts.find(c => c.property_id === propertyId);
-                if (contract?.commission_rate !== undefined) return contract.commission_rate;
-            }
-            return 10;
-        };
-
         // Process Receipts
         periodPayments.receipts.forEach(p => {
             const prop = ownerProperties.find(op => op.id === p.property_id);
             const contract = contracts.find(c => c.id === p.contract_id || c.property_id === p.property_id);
             const contractRent = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
-            const commRate = getCommissionRate(p.contract_id, p.property_id);
             const isPaid = p.payment_status === 'paid' || p.payment_status === 'full' || (p.amount_paid ?? p.total_amount) >= p.total_amount;
             
             let amount = p.amount_paid ?? p.total_amount;
-            let ownerPart = Number(p.owner_payment) || 0;
             
+            // Prioritize saved commission_amount / owner_payment on the receipt
+            let comm = Number(p.commission_amount);
+            let ownerPart = Number(p.owner_payment);
+            
+            if (isNaN(comm) || comm === 0 || isNaN(ownerPart) || ownerPart === 0) {
+                const commType = contract?.extra_data?.commission_type || 'percentage';
+                if (commType === 'fixed') {
+                    comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                    ownerPart = amount - comm;
+                } else {
+                    const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                    comm = (amount * commRate) / 100;
+                    ownerPart = amount - comm;
+                }
+            }
+
             const isFullRentReceipt = Math.abs((p.amount_paid ?? p.total_amount ?? 0) - contractRent) <= Math.max(5000, contractRent * 0.05);
-            
             if (isPaid && contractRent > 0 && isFullRentReceipt) {
                 amount = contractRent;
-                ownerPart = contractRent * (1 - commRate / 100);
-            } else if (ownerPart === 0) {
-                ownerPart = amount * (1 - commRate / 100);
+                // If it is a full payment, make sure we deduct the correct commission based on contract type
+                const commType = contract?.extra_data?.commission_type || 'percentage';
+                if (commType === 'fixed') {
+                    comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                    ownerPart = amount - comm;
+                } else {
+                    const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                    comm = (amount * commRate) / 100;
+                    ownerPart = amount - comm;
+                }
             }
-            
-            const comm = amount - ownerPart;
             
             transactions.push({
                 id: p.id,
@@ -175,9 +181,25 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         periodPayments.manual.forEach(m => {
             const prop = ownerProperties.find(op => op.id === m.related_property_id);
             const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
-            const commRate = getCommissionRate(undefined, m.related_property_id);
-            const ownerNet = match ? Number(match[1]) : (Number(m.amount) * (1 - commRate / 100));
-            const comm = Number(m.amount) - ownerNet;
+            const contract = contracts.find(c => c.property_id === m.related_property_id);
+            
+            let ownerNet = 0;
+            let comm = 0;
+            
+            if (match) {
+                ownerNet = Number(match[1]);
+                comm = Number(m.amount) - ownerNet;
+            } else {
+                const commType = contract?.extra_data?.commission_type || 'percentage';
+                if (commType === 'fixed') {
+                    comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                    ownerNet = Number(m.amount) - comm;
+                } else {
+                    const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                    comm = (Number(m.amount) * commRate) / 100;
+                    ownerNet = Number(m.amount) - comm;
+                }
+            }
 
             transactions.push({
                 id: m.id,

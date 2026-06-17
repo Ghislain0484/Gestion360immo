@@ -422,6 +422,8 @@ export const CaissePage: React.FC = () => {
         if (t.source === 'modular_transaction') {
             setTransactionToEdit(t.details);
             setIsTransactionModalOpen(true);
+        } else if (t.source === 'property_expense') {
+            toast.error("Les dépenses de travaux doivent être modifiées depuis la fiche du bien correspondant");
         } else {
             toast.error("Les quittances de loyer doivent être modifiées depuis le menu Locations");
         }
@@ -434,9 +436,15 @@ export const CaissePage: React.FC = () => {
         const toastId = toast.loading('Suppression en cours...');
 
         try {
-            const isReceipt = transactionToDelete.source === 'rent_receipt';
-            const table = isReceipt ? 'rent_receipts' : 'modular_transactions';
-            const recordId = isReceipt ? transactionToDelete.id.replace('receipt-', '') : transactionToDelete.id;
+            const source = transactionToDelete.source;
+            const isReceipt = source === 'rent_receipt';
+            const isExpense = source === 'property_expense';
+            const table = isReceipt ? 'rent_receipts' : isExpense ? 'property_expenses' : 'modular_transactions';
+            const recordId = isReceipt 
+                ? transactionToDelete.id.replace('receipt-', '') 
+                : isExpense 
+                    ? transactionToDelete.id.replace('expense-', '') 
+                    : transactionToDelete.id;
 
             // 1. Audit Log Snapshot
             await dbService.auditLogs.logDeletion({
@@ -732,9 +740,11 @@ export const CaissePage: React.FC = () => {
                                                         "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest",
                                                         tTrans.source === 'rent_receipt' 
                                                             ? "bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30" 
-                                                            : "bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30"
+                                                            : tTrans.source === 'property_expense'
+                                                                ? "bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30"
+                                                                : "bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30"
                                                     )}>
-                                                        {tTrans.source === 'rent_receipt' ? t('Quittance') : t('Opération')}
+                                                        {tTrans.source === 'rent_receipt' ? t('Quittance') : tTrans.source === 'property_expense' ? t('Travaux') : t('Opération')}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">

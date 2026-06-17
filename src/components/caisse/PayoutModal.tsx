@@ -66,24 +66,23 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
 
             const { data: contracts } = await supabase
                 .from('contracts')
-                .select('id, property_id, commission_rate')
+                .select('id, property_id, commission_rate, commission_amount, extra_data')
                 .eq('status', 'active');
 
-            const getCommissionRate = (contractId?: string, propertyId?: string) => {
-                if (contractId && contracts) {
-                    const contract = contracts.find(c => c.id === contractId);
-                    if (contract?.commission_rate !== undefined) return contract.commission_rate;
-                }
-                if (propertyId && contracts) {
-                    const contract = contracts.find(c => c.property_id === propertyId);
-                    if (contract?.commission_rate !== undefined) return contract.commission_rate;
-                }
-                return 10;
-            };
-
             const earnedFromReceipts = rentReceipts?.reduce((sum, r) => {
-                const commRate = getCommissionRate(r.contract_id, r.property_id);
-                const ownerPart = Number(r.owner_payment) || ((Number(r.amount_paid ?? r.total_amount) || 0) * (1 - commRate / 100));
+                let ownerPart = Number(r.owner_payment);
+                if (isNaN(ownerPart) || ownerPart === 0) {
+                    const contract = contracts?.find(c => c.id === r.contract_id || c.property_id === r.property_id);
+                    const commType = contract?.extra_data?.commission_type || 'percentage';
+                    const amountPaid = Number(r.amount_paid ?? r.total_amount) || 0;
+                    if (commType === 'fixed') {
+                        const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                        ownerPart = amountPaid - comm;
+                    } else {
+                        const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                        ownerPart = amountPaid * (1 - commRate / 100);
+                    }
+                }
                 return sum + ownerPart;
             }, 0) || 0;
 
@@ -93,8 +92,16 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 if (t.category === 'rent_payment') {
                     const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
                     if (match) return s + Number(match[1]);
-                    const commRate = getCommissionRate(undefined, t.related_property_id);
-                    return s + (Number(t.amount) * (1 - commRate / 100));
+                    
+                    const contract = contracts?.find(c => c.property_id === t.related_property_id);
+                    const commType = contract?.extra_data?.commission_type || 'percentage';
+                    if (commType === 'fixed') {
+                        const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                        return s + (Number(t.amount) - comm);
+                    } else {
+                        const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                        return s + (Number(t.amount) * (1 - commRate / 100));
+                    }
                 }
                 return s;
             }, 0) || 0;

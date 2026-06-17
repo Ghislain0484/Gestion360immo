@@ -503,6 +503,33 @@ export const PropertyDetails: React.FC = () => {
                     const toastId = toast.loading('Mise à jour du bien...');
                     try {
                         await dbService.properties.update(property.id, data);
+                        
+                        // Si le bien est occupé et que le loyer a changé, mettre à jour le contrat actif !
+                        if (activeContract && data.monthly_rent !== undefined && Number(data.monthly_rent) !== Number(property.monthly_rent)) {
+                            const newRent = Number(data.monthly_rent);
+                            const commType = activeContract.extra_data?.commission_type || 'percentage';
+                            let newCommissionAmount = activeContract.commission_amount || 0;
+                            
+                            if (commType !== 'fixed') {
+                                const commissionRate = activeContract.commission_rate || 10;
+                                newCommissionAmount = (newRent * commissionRate) / 100;
+                            }
+                            
+                            const { error: contractUpdateError } = await supabase
+                                .from('contracts')
+                                .update({ 
+                                    monthly_rent: newRent,
+                                    commission_amount: newCommissionAmount
+                                })
+                                .eq('id', activeContract.id);
+                                
+                            if (contractUpdateError) {
+                                console.error('Error updating active contract rent:', contractUpdateError);
+                            } else {
+                                console.log('Successfully updated active contract rent to', newRent);
+                            }
+                        }
+                        
                         toast.success('Bien mis à jour avec succès', { id: toastId });
                         setShowEditForm(false);
                     } catch (err: any) {

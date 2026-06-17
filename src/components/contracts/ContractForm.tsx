@@ -151,10 +151,18 @@ export const ContractForm = React.memo<ContractFormProps>(
           updated.deposit = rent * months;
         }
         // Recalculate commission
-        if (updates.monthly_rent !== undefined || updates.commission_rate !== undefined) {
-          const rent = updates.monthly_rent ?? prev.monthly_rent ?? 0;
-          const rate = updates.commission_rate ?? prev.commission_rate ?? 10;
-          updated.commission_amount = (rent * rate) / 100;
+        const commType = updated.extra_data?.commission_type || 'percentage';
+        if (commType === 'percentage') {
+          if (updates.monthly_rent !== undefined || updates.commission_rate !== undefined) {
+            const rent = updates.monthly_rent ?? prev.monthly_rent ?? 0;
+            const rate = updates.commission_rate !== undefined ? updates.commission_rate : (prev.commission_rate ?? 10);
+            updated.commission_amount = (rent * rate) / 100;
+          }
+        } else {
+          updated.commission_rate = 0;
+          if (updates.commission_amount !== undefined) {
+            updated.commission_amount = updates.commission_amount;
+          }
         }
         console.log('[formData] updateFormData:', updated); // <-- LOG FORM DATA
         return updated;
@@ -220,9 +228,17 @@ export const ContractForm = React.memo<ContractFormProps>(
             throw new Error('Veuillez saisir un prix de vente valide');
         }
 
-        // Validation taux de commission (toujours requis)
-        if (!formData.commission_rate || formData.commission_rate < 0 || formData.commission_rate > 100)
-          throw new Error('Veuillez saisir un taux de commission valide (0-100%)');
+        // Validation taux de commission
+        const commType = formData.extra_data?.commission_type || 'percentage';
+        if (commType === 'percentage') {
+          if (formData.commission_rate === undefined || formData.commission_rate === null || formData.commission_rate < 0 || formData.commission_rate > 100) {
+            throw new Error('Veuillez saisir un taux de commission valide (0-100%)');
+          }
+        } else {
+          if (formData.commission_amount === undefined || formData.commission_amount === null || formData.commission_amount < 0) {
+            throw new Error('Veuillez saisir un montant de commission fixe valide');
+          }
+        }
 
         await onSubmit(formData, !!initialData?.id);
         resetForm();
@@ -635,20 +651,68 @@ export const ContractForm = React.memo<ContractFormProps>(
                 />
               )}
 
-              <Input
-                id="commission_rate"
-                label="Taux de commission (%)"
-                type="number"
-                value={formData.commission_rate}
-                onChange={(e) =>
-                  updateFormData({ commission_rate: parseFloat(e.target.value) || 10 })
-                }
-                min={0}
-                max={100}
-                step={0.1}
-                placeholder="10"
-                disabled={readOnly}
-              />
+              <div>
+                <label htmlFor="commission_type" className="block text-sm font-medium text-gray-700 mb-2">Type de commission</label>
+                <select
+                  id="commission_type"
+                  value={formData.extra_data?.commission_type || 'percentage'}
+                  onChange={(e) => {
+                    const type = e.target.value;
+                    const updates: Partial<Contract> = {
+                      extra_data: {
+                        ...formData.extra_data,
+                        commission_type: type
+                      }
+                    };
+                    if (type === 'fixed') {
+                      updates.commission_rate = 0;
+                      updates.commission_amount = 0;
+                    } else {
+                      updates.commission_rate = 10;
+                      const rent = formData.monthly_rent ?? 0;
+                      updates.commission_amount = (rent * 10) / 100;
+                    }
+                    updateFormData(updates);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  disabled={readOnly}
+                >
+                  <option value="percentage">Pourcentage (%)</option>
+                  <option value="fixed">Montant Fixe (FCFA)</option>
+                </select>
+              </div>
+
+              {formData.extra_data?.commission_type === 'fixed' ? (
+                <Input
+                  id="commission_amount"
+                  label="Commission fixe (FCFA)"
+                  type="number"
+                  value={formData.commission_amount !== undefined ? formData.commission_amount : ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    updateFormData({ commission_amount: isNaN(val) ? 0 : val });
+                  }}
+                  min={0}
+                  placeholder="Ex: 1"
+                  disabled={readOnly}
+                />
+              ) : (
+                <Input
+                  id="commission_rate"
+                  label="Taux de commission (%)"
+                  type="number"
+                  value={formData.commission_rate !== undefined ? formData.commission_rate : 10}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    updateFormData({ commission_rate: isNaN(val) ? 0 : val });
+                  }}
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  placeholder="10"
+                  disabled={readOnly}
+                />
+              )}
             </div>
 
             <div className="mt-4 p-4 bg-blue-50 rounded-lg space-y-2 border border-blue-100">
