@@ -276,6 +276,12 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                                                 <span className="font-medium">- {details.totalFees.toLocaleString('fr-FR')} FCFA</span>
                                             </div>
                                         )}
+                                        {details.totalReversed !== undefined && details.totalReversed > 0 && (
+                                            <div className="flex justify-between text-rose-700 font-semibold">
+                                                <span>Déjà reversé (Acomptes) :</span>
+                                                <span>- {details.totalReversed.toLocaleString('fr-FR')} FCFA</span>
+                                            </div>
+                                        )}
                                         <div className="border-t border-blue-300 pt-2 mt-2 flex justify-between font-semibold text-blue-900">
                                             <span>Montant net:</span>
                                             <span>{details.netAmount.toLocaleString('fr-FR')} FCFA</span>

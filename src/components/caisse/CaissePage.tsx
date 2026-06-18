@@ -64,32 +64,45 @@ export const CaissePage: React.FC = () => {
                 }
                  const { data: receipts } = await supabase.from('rent_receipts').select('owner_payment, total_amount, amount_paid, payment_status, contract_id, property_id').eq('owner_id', ownerId);
                  const { data: manualTrans } = await supabase.from('modular_transactions')
-                     .select('amount, category, type, description, related_property_id')
+                     .select('amount, category, type, description, related_property_id, transaction_date, created_at')
                      .eq('related_owner_id', ownerId);
-                 const { data: contracts } = await supabase.from('contracts').select('id, property_id, commission_rate').eq('status', 'active');
+                 const { data: ownerTrans } = await supabase.from('owner_transactions')
+                     .select('montant, date_transaction, created_at, type')
+                     .eq('owner_id', ownerId);
+                 const { data: contracts } = await supabase.from('contracts').select('id, property_id, commission_rate, commission_amount, extra_data').eq('status', 'active');
                  const { data: maintenance } = await supabase.from('tickets').select('cost').eq('owner_id', ownerId).eq('charge_to', 'owner').eq('status', 'resolved');
                  
-                 const getCommissionRate = (contractId?: string, propertyId?: string) => {
+                 const getContractInfo = (contractId?: string, propertyId?: string) => {
+                     let contract = null;
                      if (contractId && contracts) {
-                         const contract = contracts.find(c => c.id === contractId);
-                         if (contract?.commission_rate !== undefined) return contract.commission_rate;
+                         contract = contracts.find(c => c.id === contractId);
                      }
-                     if (propertyId && contracts) {
-                         const contract = contracts.find(c => c.property_id === propertyId);
-                         if (contract?.commission_rate !== undefined) return contract.commission_rate;
+                     if (!contract && propertyId && contracts) {
+                         contract = contracts.find(c => c.property_id === propertyId);
                      }
-                     return 10;
+                     const monthlyRentContract = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
+                     const commissionRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                     return { monthlyRentContract, commissionRate, contract };
                  };
  
                  const earnedFromReceipts = receipts?.reduce((s, r) => {
                      if (r.payment_status === 'unpaid') return s;
-                     const commRate = getCommissionRate(r.contract_id, r.property_id);
                      const amountPaid = r.payment_status === 'partial'
                          ? (Number(r.amount_paid) || 0)
                          : (Number(r.amount_paid ?? r.total_amount) || 0);
-                     const ownerPart = (r.owner_payment && r.payment_status !== 'partial')
-                         ? Number(r.owner_payment)
-                         : amountPaid * (1 - commRate / 100);
+
+                     let ownerPart = (r.owner_payment && r.payment_status !== 'partial') ? Number(r.owner_payment) : 0;
+                     if (isNaN(ownerPart) || ownerPart === 0) {
+                         const { contract } = getContractInfo(r.contract_id, r.property_id);
+                         const commType = contract?.extra_data?.commission_type || 'percentage';
+                         if (commType === 'fixed') {
+                             const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                             ownerPart = Math.max(0, amountPaid - comm);
+                         } else {
+                             const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                             ownerPart = amountPaid * (1 - commRate / 100);
+                         }
+                     }
                      return s + ownerPart;
                  }, 0) || 0;
                 
@@ -100,15 +113,31 @@ export const CaissePage: React.FC = () => {
                         // Try to parse [Part Proprio: XXX] from description (newly added in TenantCollectionModal)
                         const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
                         if (match) return s + Number(match[1]);
-                        // Fallback: dynamic commission
-                        const commRate = getCommissionRate(undefined, t.related_property_id);
-                        return s + (Number(t.amount) * (1 - commRate / 100));
+                        // Fallback: contract commission
+                        const { contract } = getContractInfo(undefined, t.related_property_id);
+                        const commType = contract?.extra_data?.commission_type || 'percentage';
+                        if (commType === 'fixed') {
+                            const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                            return s + Math.max(0, Number(t.amount) - comm);
+                        } else {
+                            const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                            return s + (Number(t.amount) * (1 - commRate / 100));
+                        }
                     }
                     return s;
                 }, 0) || 0;
 
-                const paid = manualTrans?.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense'))
-                    .reduce((s, p) => s + (Number(p.amount) || 0), 0) || 0;
+                const manualPayouts = manualTrans?.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense')) || [];
+                const ownerTxReversals = ownerTrans?.filter(r => r.type !== 'credit') || [];
+
+                const paid = ownerTxReversals.reduce((sum, r) => sum + Number(r.montant), 0) +
+                    manualPayouts.reduce((sum, mp) => {
+                        const isDuplicated = ownerTxReversals.some(r => 
+                            Math.abs(Number(r.montant) - Number(mp.amount)) < 1 &&
+                            Math.abs(new Date(r.date_transaction || r.created_at).getTime() - new Date(mp.transaction_date || mp.created_at).getTime()) < 172800000
+                        );
+                        return isDuplicated ? sum : sum + Number(mp.amount);
+                    }, 0);
                     
                 const repairs = maintenance?.reduce((s, m) => s + (Number(m.cost) || 0), 0) || 0;
                 

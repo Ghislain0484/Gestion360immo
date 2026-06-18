@@ -81,9 +81,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         const { data, error } = await supabase
             .from('modular_transactions')
             .select('*')
-            .eq('related_owner_id', ownerId)
-            .eq('category', 'rent_payment')
-            .in('type', ['income', 'credit']);
+            .eq('related_owner_id', ownerId);
         if (error) throw error;
         return data || [];
     }, [ownerId]);
@@ -94,11 +92,32 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         { related_owner_id: ownerId }
     );
 
+    // --- Fetch all owner transactions (reversals) ---
+    const fetchOwnerTransactions = React.useCallback(async () => {
+        if (!ownerId) return [];
+        const { data, error } = await supabase
+            .from('owner_transactions')
+            .select('*')
+            .eq('owner_id', ownerId);
+        if (error) throw error;
+        return data || [];
+    }, [ownerId]);
+
+    const { data: allOwnerTransactions = [], initialLoading: loadingOwnerTransactions } = useRealtimeData<any>(
+        fetchOwnerTransactions,
+        'owner_transactions',
+        { owner_id: ownerId }
+    );
+
+    const rentManualTransactions = useMemo(() => {
+        return allManual.filter(m => m.category === 'rent_payment' && (m.type === 'income' || m.type === 'credit'));
+    }, [allManual]);
+
     // Filter payments and manual transactions by selected period
     const periodPayments = useMemo(() => {
         // En mode "Tout l'historique", on prend TOUS les paiements sans filtre de date
         if (allHistoryMode) {
-            return { receipts: allPayments, manual: allManual };
+            return { receipts: allPayments, manual: rentManualTransactions };
         }
 
         const start = new Date(startDate);
@@ -112,14 +131,43 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
             return paymentDate >= start && paymentDate <= end;
         });
 
-        const filteredManual = allManual.filter((m: any) => {
+        const filteredManual = rentManualTransactions.filter((m: any) => {
             const d = new Date(m.transaction_date);
             d.setHours(0, 0, 0, 0);
             return d >= start && d <= end;
         });
 
         return { receipts: filteredReceipts, manual: filteredManual };
-    }, [allPayments, allManual, startDate, endDate, allHistoryMode]);
+    }, [allPayments, rentManualTransactions, startDate, endDate, allHistoryMode]);
+
+    // Filter reversals by selected period
+    const periodReversals = useMemo(() => {
+        const manualPayouts = allManual.filter(m => m.category === 'owner_payout' && (m.type === 'expense' || m.type === 'debit'));
+        const ownerTxReversals = allOwnerTransactions.filter(r => r.type !== 'credit');
+
+        if (allHistoryMode) {
+            return { manual: manualPayouts, ownerTx: ownerTxReversals };
+        }
+
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+
+        const filteredManual = manualPayouts.filter(m => {
+            const d = new Date(m.transaction_date);
+            d.setHours(0, 0, 0, 0);
+            return d >= start && d <= end;
+        });
+
+        const filteredOwnerTx = ownerTxReversals.filter(r => {
+            const d = new Date(r.date_transaction || r.created_at);
+            d.setHours(0, 0, 0, 0);
+            return d >= start && d <= end;
+        });
+
+        return { manual: filteredManual, ownerTx: filteredOwnerTx };
+    }, [allManual, allOwnerTransactions, startDate, endDate, allHistoryMode]);
 
     // Calculate totals and transaction breakdown
     const calculations = useMemo(() => {
@@ -127,16 +175,13 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         
         // Process Receipts
         periodPayments.receipts.forEach(p => {
-            if (p.payment_status === 'unpaid') return;
+            const isPaid = p.payment_status === 'paid' || p.payment_status === 'full';
+            const amount = isPaid ? (Number(p.amount_paid || p.total_amount) || 0) : (Number(p.amount_paid) || 0);
+            if (amount === 0) return;
 
             const prop = ownerProperties.find(op => op.id === p.property_id);
             const contract = contracts.find(c => c.id === p.contract_id || c.property_id === p.property_id);
             const contractRent = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
-            const isPaid = p.payment_status === 'paid' || p.payment_status === 'full' || (p.amount_paid ?? p.total_amount) >= p.total_amount;
-            
-            const amount = p.payment_status === 'partial'
-                ? (p.amount_paid || 0)
-                : (p.amount_paid ?? p.total_amount ?? 0);
             
             // Prioritize saved commission_amount / owner_payment on the receipt unless it's a partial payment
             let comm = Number(p.commission_amount);
@@ -220,17 +265,28 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         const totalRent = transactions.reduce((sum, t) => sum + t.amount, 0);
         const totalCommission = transactions.reduce((sum, t) => sum + t.commission, 0);
         const totalFees = fees.reduce((sum, f) => sum + f.amount, 0);
-        const netAmount = totalRent - totalCommission - totalFees;
+        
+        const totalReversed = periodReversals.ownerTx.reduce((sum, r) => sum + Number(r.montant), 0) +
+            periodReversals.manual.reduce((sum, mp) => {
+                const isDuplicated = periodReversals.ownerTx.some(r => 
+                    Math.abs(Number(r.montant) - Number(mp.amount)) < 1 &&
+                    Math.abs(new Date(r.date_transaction || r.created_at).getTime() - new Date(mp.transaction_date || mp.created_at).getTime()) < 172800000
+                );
+                return isDuplicated ? sum : sum + Number(mp.amount);
+            }, 0);
+
+        const netAmount = totalRent - totalCommission - totalFees - totalReversed;
 
         return {
             totalRent,
             totalCommission,
             totalFees,
+            totalReversed,
             netAmount,
             paymentsCount: transactions.length,
             transactions
         };
-    }, [periodPayments, fees, ownerProperties, contracts]);
+    }, [periodPayments, periodReversals, fees, ownerProperties, contracts]);
 
     const handleAddFee = () => {
         if (newFee.description && newFee.amount > 0) {
@@ -273,7 +329,7 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
         return `${start} - ${end}`;
     };
 
-    if (initialLoading || loadingManual) {
+    if (initialLoading || loadingManual || loadingOwnerTransactions) {
         return (
             <div className="flex justify-center py-12">
                 <LoadingSpinner size="lg" label="Chargement..." />
@@ -443,13 +499,25 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
                         </div>
                     )}
 
+                    {calculations.totalReversed > 0 && (
+                        <div className="flex items-center justify-between py-2">
+                            <div className="flex items-center gap-2">
+                                <TrendingDown className="w-4 h-4 text-rose-500" />
+                                <span className="text-sm text-gray-700">Déjà reversé (Acomptes)</span>
+                            </div>
+                            <span className="font-semibold text-rose-600">- {formatCurrency(calculations.totalReversed)}</span>
+                        </div>
+                    )}
+
                     <div className="border-t-2 border-indigo-300 pt-3 mt-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <ArrowRight className="w-5 h-5 text-indigo-600" />
                                 <span className="font-semibold text-gray-900">Montant à reverser</span>
                             </div>
-                            <span className="text-2xl font-bold text-indigo-600">{formatCurrency(calculations.netAmount)}</span>
+                            <span className={`text-2xl font-bold ${calculations.netAmount < 0 ? 'text-rose-600' : 'text-indigo-600'}`}>
+                                {formatCurrency(calculations.netAmount)}
+                            </span>
                         </div>
                     </div>
                 </div>

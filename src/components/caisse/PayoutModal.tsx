@@ -61,8 +61,14 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
             // 2. Get all modular transactions for this owner
             const { data: manualTrans } = await supabase
                 .from('modular_transactions')
-                .select('amount, category, type, description, related_property_id')
+                .select('amount, category, type, description, related_property_id, transaction_date, created_at')
                 .eq('related_owner_id', ownerId);
+
+            // Fetch owner transactions reversals
+            const { data: ownerTrans } = await supabase
+                .from('owner_transactions')
+                .select('montant, date_transaction, created_at, type')
+                .eq('owner_id', ownerId);
 
             const { data: contracts } = await supabase
                 .from('contracts')
@@ -72,13 +78,15 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
             const earnedFromReceipts = rentReceipts?.reduce((sum, r) => {
                 if (r.payment_status === 'unpaid') return sum;
                 
-                const amountPaid = r.payment_status === 'partial'
-                    ? (Number(r.amount_paid) || 0)
-                    : (Number(r.amount_paid ?? r.total_amount) || 0);
+                const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+                const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+                if (amountPaid === 0) return sum;
+
+                const contract = contracts?.find(c => c.id === r.contract_id || c.property_id === r.property_id);
+                const contractRent = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
 
                 let ownerPart = (r.owner_payment && r.payment_status !== 'partial') ? Number(r.owner_payment) : 0;
                 if (isNaN(ownerPart) || ownerPart === 0) {
-                    const contract = contracts?.find(c => c.id === r.contract_id || c.property_id === r.property_id);
                     const commType = contract?.extra_data?.commission_type || 'percentage';
                     if (commType === 'fixed') {
                         const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
@@ -88,6 +96,19 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                         ownerPart = amountPaid * (1 - commRate / 100);
                     }
                 }
+
+                const isFullRentReceipt = Math.abs(amountPaid - contractRent) <= Math.max(5000, contractRent * 0.05);
+                if (isPaid && contractRent > 0 && isFullRentReceipt) {
+                    const commType = contract?.extra_data?.commission_type || 'percentage';
+                    if (commType === 'fixed') {
+                        const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                        ownerPart = Math.max(0, contractRent - comm);
+                    } else {
+                        const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                        ownerPart = contractRent * (1 - commRate / 100);
+                    }
+                }
+
                 return sum + ownerPart;
             }, 0) || 0;
 
@@ -111,9 +132,18 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 return s;
             }, 0) || 0;
 
-            // 4. Calculate total paid out (take both debit and expense types for robustness)
-            const totalPaidOut = manualTrans?.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense'))
-                .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+            // 4. Calculate total paid out (take both debit and expense types for robustness, and merge with owner_transactions)
+            const manualPayouts = manualTrans?.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense')) || [];
+            const ownerTxReversals = ownerTrans?.filter(r => r.type !== 'credit') || [];
+
+            const totalPaidOut = ownerTxReversals.reduce((sum, r) => sum + Number(r.montant), 0) +
+                manualPayouts.reduce((sum, mp) => {
+                    const isDuplicated = ownerTxReversals.some(r => 
+                        Math.abs(Number(r.montant) - Number(mp.amount)) < 1 &&
+                        Math.abs(new Date(r.date_transaction || r.created_at).getTime() - new Date(mp.transaction_date || mp.created_at).getTime()) < 172800000
+                    );
+                    return isDuplicated ? sum : sum + Number(mp.amount);
+                }, 0);
             
             // 5. Get Maintenance costs
             const { data: maintenance } = await supabase

@@ -65,9 +65,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         const { data, error } = await supabase
             .from('modular_transactions')
             .select('*')
-            .eq('related_owner_id', ownerId)
-            .in('category', ['rent_payment', 'caution'])
-            .in('type', ['income', 'credit']);
+            .eq('related_owner_id', ownerId);
         if (error) throw error;
         return data || [];
     }, [ownerId]);
@@ -84,8 +82,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         const { data, error } = await supabase
             .from('owner_transactions')
             .select('*')
-            .eq('owner_id', ownerId)
-            .eq('type', 'debit');
+            .eq('owner_id', ownerId);
         if (error) throw error;
         return data || [];
     }, [ownerId]);
@@ -120,16 +117,19 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
 
         // Filter manual transactions for the selected period
         const filteredManual = allManual.filter((m: any) => {
+            if (m.type !== 'income' && m.type !== 'credit') return false;
+            if (m.category !== 'rent_payment' && m.category !== 'caution') return false;
             const d = new Date(m.transaction_date);
             return (d.getMonth() + 1) === selectedMonth && d.getFullYear() === selectedYear;
         });
 
         // --- New Metrics ---
         // 1. Recent Collections (Last 30 days) - only rent_payment
-        const recentReceipts = allReceipts.filter(r => r.payment_status !== 'unpaid' && new Date(r.payment_date) >= thirtyDaysAgo);
-        const recentManual = allManual.filter(m => m.category === 'rent_payment' && new Date(m.transaction_date) >= thirtyDaysAgo);
+        const recentReceipts = allReceipts.filter(r => new Date(r.payment_date) >= thirtyDaysAgo);
+        const recentManual = allManual.filter(m => m.category === 'rent_payment' && (m.type === 'income' || m.type === 'credit') && new Date(m.transaction_date) >= thirtyDaysAgo);
         const recentTotal = recentReceipts.reduce((sum, r) => {
-            const amt = r.payment_status === 'partial' ? (Number(r.amount_paid) || 0) : (Number(r.amount_paid ?? r.total_amount) || 0);
+            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+            const amt = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
             return sum + amt;
         }, 0) +
                            recentManual.reduce((sum, m) => sum + Number(m.amount), 0);
@@ -145,42 +145,77 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             }
             const monthlyRentContract = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
             const commissionRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-            return { monthlyRentContract, commissionRate };
+            return { monthlyRentContract, commissionRate, contract };
         };
 
         const totalAccumulated = allReceipts.reduce((sum, r) => {
-            if (r.payment_status === 'unpaid') return sum;
-            const { monthlyRentContract, commissionRate } = getContractInfo(r.contract_id, r.property_id);
-            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full' || (r.amount_paid ?? r.total_amount) >= r.total_amount;
+            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+            const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+            if (amountPaid === 0) return sum;
+
+            const { monthlyRentContract, contract } = getContractInfo(r.contract_id, r.property_id);
             
-            const amountPaid = r.payment_status === 'partial'
-                ? (Number(r.amount_paid) || 0)
-                : (Number(r.amount_paid ?? r.total_amount) || 0);
+            // Prioritize saved commission_amount / owner_payment on the receipt unless it's a partial payment
+            let comm = Number(r.commission_amount);
+            let ownerPart = Number(r.owner_payment);
             
-            let ownerPart = 0;
-            const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
-            
-            if (isPaid && monthlyRentContract > 0 && isFullRentReceipt) {
-                ownerPart = monthlyRentContract * (1 - commissionRate / 100);
-            } else {
-                ownerPart = amountPaid * (1 - commissionRate / 100);
+            if (r.payment_status === 'partial' || isNaN(comm) || comm === 0 || isNaN(ownerPart) || ownerPart === 0) {
+                const commType = contract?.extra_data?.commission_type || 'percentage';
+                if (commType === 'fixed') {
+                    comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                    ownerPart = Math.max(0, amountPaid - comm);
+                } else {
+                    const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                    comm = (amountPaid * commRate) / 100;
+                    ownerPart = amountPaid - comm;
+                }
             }
+
+            const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+            if (isPaid && monthlyRentContract > 0 && isFullRentReceipt) {
+                const commType = contract?.extra_data?.commission_type || 'percentage';
+                if (commType === 'fixed') {
+                    comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                    ownerPart = Math.max(0, monthlyRentContract - comm);
+                } else {
+                    const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                    comm = (monthlyRentContract * commRate) / 100;
+                    ownerPart = monthlyRentContract - comm;
+                }
+            }
+            
             return sum + ownerPart;
         }, 0) +
         allManual.reduce((sum, m) => {
-            if (m.category !== 'rent_payment') return sum;
+            if (m.category !== 'rent_payment' || (m.type !== 'income' && m.type !== 'credit')) return sum;
             const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
             if (match) return sum + Number(match[1]);
-            const { commissionRate } = getContractInfo(undefined, m.related_property_id);
-            return sum + (Number(m.amount) * (1 - commissionRate / 100));
+            const { contract } = getContractInfo(undefined, m.related_property_id);
+            const commType = contract?.extra_data?.commission_type || 'percentage';
+            if (commType === 'fixed') {
+                const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                return sum + Math.max(0, Number(m.amount) - comm);
+            } else {
+                const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                return sum + (Number(m.amount) * (1 - commRate / 100));
+            }
         }, 0);
 
-        const totalReversed = allReversals.reduce((sum, r) => sum + Number(r.montant), 0);
+        const allManualPayouts = allManual.filter(m => m.category === 'owner_payout' && (m.type === 'expense' || m.type === 'debit'));
+        const totalReversed = allReversals.filter(r => r.type !== 'credit').reduce((sum, r) => sum + Number(r.montant), 0) +
+            allManualPayouts.reduce((sum, mp) => {
+                const isDuplicated = allReversals.some(r => 
+                    Math.abs(Number(r.montant) - Number(mp.amount)) < 1 &&
+                    Math.abs(new Date(r.date_transaction || r.created_at).getTime() - new Date(mp.transaction_date || mp.created_at).getTime()) < 172800000
+                );
+                return isDuplicated ? sum : sum + Number(mp.amount);
+            }, 0);
+
         const globalBalance = totalAccumulated - totalReversed;
 
         // 3. Caution Séquestre (Escrowed Guarantees)
         const totalCautionEscrow = allManual.reduce((sum, m) => {
-            if (m.category === 'caution') return sum + Number(m.amount);
+            if (m.category === 'caution' && (m.type === 'income' || m.type === 'credit')) return sum + Number(m.amount);
             return sum;
         }, 0);
 
@@ -210,8 +245,9 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             const propManual = filteredManual.filter((m: any) => m.related_property_id === prop.id);
             
             const rawPaid = propReceipts.reduce((sum, r) => {
-                if (r.payment_status === 'unpaid') return sum;
-                return sum + (r.payment_status === 'partial' ? (Number(r.amount_paid) || 0) : (Number(r.amount_paid ?? r.total_amount) || 0));
+                const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+                const amt = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+                return sum + amt;
             }, 0) +
                         propManual.filter((m: any) => m.category === 'rent_payment').reduce((sum, m) => sum + Number(m.amount), 0);
 

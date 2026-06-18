@@ -33,6 +33,7 @@ export const OwnerFinances: React.FC = () => {
   const { isDemoMode } = useDemoMode();
     const [receipts, setReceipts] = useState<any[]>([]);
     const [payouts, setPayouts] = useState<any[]>([]);
+    const [ownerTransactions, setOwnerTransactions] = useState<any[]>([]);
     const [contracts, setContracts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -54,6 +55,7 @@ export const OwnerFinances: React.FC = () => {
           setContracts(profileContracts);
           setReceipts(profileReceipts);
           setPayouts(profilePayouts);
+          setOwnerTransactions([]);
           setLoading(false);
           return;
         }
@@ -65,13 +67,13 @@ export const OwnerFinances: React.FC = () => {
 
         const { data: ctrs } = await supabase
           .from('contracts')
-          .select('id, monthly_rent, commission_rate, property_id, property:properties(title), tenant:tenants(first_name, last_name)')
+          .select('id, monthly_rent, charges, commission_rate, commission_amount, extra_data, property_id, property:properties(title), tenant:tenants(first_name, last_name)')
           .in('property_id', propIds);
 
         const contractIds = (ctrs || []).map((c: any) => c.id);
         const { data: rcts } = contractIds.length > 0 ? await supabase
           .from('rent_receipts')
-          .select('id, receipt_number, payment_date, total_amount, amount_paid, owner_payment, payment_status, contract_id, created_at')
+          .select('id, receipt_number, payment_date, total_amount, amount_paid, owner_payment, commission_amount, payment_status, contract_id, created_at')
           .in('contract_id', contractIds)
           .order('payment_date', { ascending: false }) : { data: [] };
 
@@ -80,9 +82,15 @@ export const OwnerFinances: React.FC = () => {
           .select('id, amount, transaction_date, description, payment_method, category, type')
           .eq('related_owner_id', owner.id);
 
+        const { data: ownerTxData } = await supabase
+          .from('owner_transactions')
+          .select('id, montant, date_transaction, created_at, type, description, reference')
+          .eq('owner_id', owner.id);
+
         setContracts(ctrs || []);
         setReceipts(rcts || []);
         setPayouts(payoutsData || []);
+        setOwnerTransactions(ownerTxData || []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -93,29 +101,38 @@ export const OwnerFinances: React.FC = () => {
   }, [owner?.id]);
 
   const allTransactions = useMemo<OwnerTransaction[]>(() => {
-    const getCommissionRate = (contractId?: string, propertyId?: string) => {
-      if (contractId && contracts) {
-        const contract = contracts.find(c => c.id === contractId);
-        if (contract?.commission_rate !== undefined) return contract.commission_rate;
-      }
-      if (propertyId && contracts) {
-        const contract = contracts.find(c => c.property_id === propertyId);
-        if (contract?.commission_rate !== undefined) return contract.commission_rate;
-      }
-      return 10;
-    };
-
     const normalizedReceipts: OwnerTransaction[] = receipts
       .filter(r => r.payment_status !== 'unpaid')
       .map(r => {
-        const commRate = getCommissionRate(r.contract_id, r.property_id);
-        const amountPaid = r.payment_status === 'partial' 
-          ? (Number(r.amount_paid) || 0) 
-          : (Number(r.amount_paid ?? r.total_amount) || 0);
+        const contract = contracts.find(c => c.id === r.contract_id || c.property_id === r.property_id);
+        const monthlyRentContract = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
         
-        const ownerNet = (r.owner_payment && r.payment_status !== 'partial') 
-          ? Number(r.owner_payment) 
-          : amountPaid * (1 - commRate / 100);
+        const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+        const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+        
+        let ownerNet = (r.owner_payment && r.payment_status !== 'partial') ? Number(r.owner_payment) : 0;
+        if (isNaN(ownerNet) || ownerNet === 0) {
+          const commType = contract?.extra_data?.commission_type || 'percentage';
+          if (commType === 'fixed') {
+            const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+            ownerNet = Math.max(0, amountPaid - comm);
+          } else {
+            const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+            ownerNet = amountPaid * (1 - commRate / 100);
+          }
+        }
+
+        const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+        if (isPaid && monthlyRentContract > 0 && isFullRentReceipt) {
+          const commType = contract?.extra_data?.commission_type || 'percentage';
+          if (commType === 'fixed') {
+            const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+            ownerNet = Math.max(0, monthlyRentContract - comm);
+          } else {
+            const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+            ownerNet = monthlyRentContract * (1 - commRate / 100);
+          }
+        }
 
         return {
           id: r.id,
@@ -129,37 +146,73 @@ export const OwnerFinances: React.FC = () => {
         };
       });
 
-    const normalizedManual: OwnerTransaction[] = (payouts || []).map(p => {
-      const isPayout = p.category === 'owner_payout' && (p.type === 'debit' || p.type === 'expense');
-      const isCaution = p.category === 'caution';
-      const isRentPayment = p.category === 'rent_payment';
-      
-      let ownerNet = 0;
-      if (isPayout) ownerNet = Number(p.amount);
-      else if (isRentPayment) {
-          const match = p.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
-          if (match) {
-              ownerNet = Number(match[1]);
-          } else {
-              const commRate = getCommissionRate(undefined, p.related_property_id);
-              ownerNet = Number(p.amount) * (1 - commRate / 100);
-          }
-      }
+    // Payouts from modular_transactions
+    const manualPayouts = (payouts || []).filter(p => p.category === 'owner_payout' && (p.type === 'debit' || p.type === 'expense'));
+    
+    // Payouts from owner_transactions
+    const ownerTxPayouts = (ownerTransactions || []).filter(r => r.type !== 'credit');
 
-      return {
-        id: p.id,
-        date: p.transaction_date,
-        type: (isPayout ? 'payout' : 'receipt') as 'payout' | 'receipt',
-        amount: Number(p.amount),
-        owner_net: ownerNet,
-        reference: isPayout ? `REV-${p.id.slice(0,8).toUpperCase()}` : `ENC-${p.id.slice(0,8).toUpperCase()}`,
-        description: p.description || (isPayout ? 'Reversement Agence' : 'Versement Manuel')
-      };
-    }).filter(t => (t.owner_net > 0 && t.description.toLowerCase().indexOf('caution') === -1) || t.type === 'payout');
+    // Deduplicate modular payouts
+    const uniqueManualPayouts = manualPayouts.filter(mp => {
+      const isDuplicated = ownerTxPayouts.some(r => 
+        Math.abs(Number(r.montant) - Number(mp.amount)) < 1 &&
+        Math.abs(new Date(r.date_transaction || r.created_at).getTime() - new Date(mp.transaction_date || mp.created_at).getTime()) < 172800000
+      );
+      return !isDuplicated;
+    });
 
-    return [...normalizedReceipts, ...normalizedManual]
+    const normalizedManualPayouts: OwnerTransaction[] = uniqueManualPayouts.map(p => ({
+      id: p.id,
+      date: p.transaction_date,
+      type: 'payout' as 'payout',
+      amount: Number(p.amount),
+      owner_net: Number(p.amount),
+      reference: `REV-${p.id.slice(0,8).toUpperCase()}`,
+      description: p.description || 'Reversement Agence'
+    }));
+
+    const normalizedOwnerTxPayouts: OwnerTransaction[] = ownerTxPayouts.map(r => ({
+      id: r.id,
+      date: r.date_transaction || r.created_at,
+      type: 'payout' as 'payout',
+      amount: Number(r.montant),
+      owner_net: Number(r.montant),
+      reference: r.reference || `REV-${r.id.slice(0,8).toUpperCase()}`,
+      description: r.description || 'Reversement Agence'
+    }));
+
+    const normalizedManualRent: OwnerTransaction[] = (payouts || [])
+      .filter(p => p.category === 'rent_payment' && p.type !== 'debit')
+      .map(p => {
+        const contract = contracts.find(c => c.property_id === p.related_property_id);
+        const commType = contract?.extra_data?.commission_type || 'percentage';
+        let ownerNet = 0;
+        const match = p.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+        if (match) {
+          ownerNet = Number(match[1]);
+        } else if (commType === 'fixed') {
+          const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+          ownerNet = Math.max(0, Number(p.amount) - comm);
+        } else {
+          const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+          ownerNet = Number(p.amount) * (1 - commRate / 100);
+        }
+
+        return {
+          id: p.id,
+          date: p.transaction_date,
+          type: 'receipt' as 'receipt',
+          amount: Number(p.amount),
+          owner_net: ownerNet,
+          reference: `ENC-${p.id.slice(0,8).toUpperCase()}`,
+          description: p.description || 'Versement Manuel'
+        };
+      });
+
+    return [...normalizedReceipts, ...normalizedManualPayouts, ...normalizedOwnerTxPayouts, ...normalizedManualRent]
+      .filter(t => (t.owner_net > 0 && t.description.toLowerCase().indexOf('caution') === -1) || t.type === 'payout')
       .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [receipts, payouts, contracts]);
+  }, [receipts, payouts, ownerTransactions, contracts]);
 
   const filteredTransactions = useMemo(() => {
     const cutoff = period === 'all' ? null : new Date(Date.now() - parseInt(period) * 30 * 24 * 60 * 60 * 1000);

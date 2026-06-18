@@ -93,7 +93,7 @@ export const OwnerDashboard: React.FC = () => {
         const { data: contracts } = await supabase
           .from('contracts')
           .select(`
-            id, status, monthly_rent, start_date, next_payment_date, commission_rate,
+            id, status, monthly_rent, charges, start_date, next_payment_date, commission_rate, commission_amount, extra_data,
             property:properties(id, title),
             tenant:tenants(id, first_name, last_name, phone)
           `)
@@ -103,17 +103,34 @@ export const OwnerDashboard: React.FC = () => {
         const contractIds = (contracts || []).map((c: any) => c.id);
         const { data: receipts } = contractIds.length > 0 ? await supabase
           .from('rent_receipts')
-          .select('id, payment_date, total_amount, amount_paid, owner_payment, payment_status, contract_id')
+          .select('id, payment_date, total_amount, amount_paid, owner_payment, commission_amount, payment_status, contract_id')
           .in('contract_id', contractIds)
           .order('payment_date', { ascending: true }) : { data: [] };
 
         // Fetch actual payouts from modular_transactions
         const { data: payouts } = await supabase
           .from('modular_transactions')
-          .select('amount, transaction_date')
+          .select('amount, transaction_date, created_at')
           .eq('related_owner_id', owner.id)
           .eq('category', 'owner_payout')
           .in('type', ['debit', 'expense']);
+
+        // Fetch actual payouts from owner_transactions
+        const { data: ownerTxPayouts } = await supabase
+          .from('owner_transactions')
+          .select('montant, date_transaction, created_at, type')
+          .eq('owner_id', owner.id);
+
+        const manualPayouts = payouts || [];
+        const ownerTxReversals = ownerTxPayouts?.filter(r => r.type !== 'credit') || [];
+        const totalReversements = ownerTxReversals.reduce((sum, r) => sum + Number(r.montant), 0) +
+            manualPayouts.reduce((sum, mp) => {
+                const isDuplicated = ownerTxReversals.some(r => 
+                    Math.abs(Number(r.montant) - Number(mp.amount)) < 1 &&
+                    Math.abs(new Date(r.date_transaction || r.created_at).getTime() - new Date(mp.transaction_date || mp.created_at).getTime()) < 172800000
+                );
+                return isDuplicated ? sum : sum + Number(mp.amount);
+            }, 0);
 
         // Process chart data (last 6 months)
         const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
@@ -124,17 +141,39 @@ export const OwnerDashboard: React.FC = () => {
           const year = d.getFullYear();
           const monthReceipts = (receipts || []).filter((r: any) => {
             const rd = new Date(r.payment_date);
-            return r.payment_status !== 'unpaid' && rd.getMonth() === month && rd.getFullYear() === year;
+            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+            const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+            return amountPaid > 0 && rd.getMonth() === month && rd.getFullYear() === year;
           });
           const total = monthReceipts.reduce((sum: number, r: any) => {
             const contract = (contracts || []).find(c => c.id === r.contract_id);
-            const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-            const amountPaid = r.payment_status === 'partial' 
-              ? (Number(r.amount_paid) || 0)
-              : (Number(r.amount_paid ?? r.total_amount) || 0);
-            const ownerPart = (r.owner_payment && r.payment_status !== 'partial')
-              ? r.owner_payment 
-              : amountPaid * (1 - commRate / 100);
+            const monthlyRentContract = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
+            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+            const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+            
+            let ownerPart = (r.owner_payment && r.payment_status !== 'partial') ? Number(r.owner_payment) : 0;
+            if (isNaN(ownerPart) || ownerPart === 0) {
+              const commType = contract?.extra_data?.commission_type || 'percentage';
+              if (commType === 'fixed') {
+                const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                ownerPart = Math.max(0, amountPaid - comm);
+              } else {
+                const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                ownerPart = amountPaid * (1 - commRate / 100);
+              }
+            }
+
+            const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+            if (isPaid && monthlyRentContract > 0 && isFullRentReceipt) {
+              const commType = contract?.extra_data?.commission_type || 'percentage';
+              if (commType === 'fixed') {
+                const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                ownerPart = Math.max(0, monthlyRentContract - comm);
+              } else {
+                const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                ownerPart = monthlyRentContract * (1 - commRate / 100);
+              }
+            }
             return sum + ownerPart;
           }, 0);
           return { name: monthNames[month], revenue: total };
@@ -143,16 +182,40 @@ export const OwnerDashboard: React.FC = () => {
         // Compute KPIs
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const thisMonthReceipts = (receipts || []).filter((r: any) => r.payment_status !== 'unpaid' && new Date(r.payment_date) >= startOfMonth);
+        const thisMonthReceipts = (receipts || []).filter((r: any) => {
+          const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+          const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+          return amountPaid > 0 && new Date(r.payment_date) >= startOfMonth;
+        });
         const monthlyRevenue = thisMonthReceipts.reduce((sum: number, r: any) => {
           const contract = (contracts || []).find(c => c.id === r.contract_id);
-          const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-          const amountPaid = r.payment_status === 'partial' 
-            ? (Number(r.amount_paid) || 0)
-            : (Number(r.amount_paid ?? r.total_amount) || 0);
-          const ownerPart = (r.owner_payment && r.payment_status !== 'partial')
-            ? r.owner_payment 
-            : amountPaid * (1 - commRate / 100);
+          const monthlyRentContract = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
+          const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+          const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+          
+          let ownerPart = (r.owner_payment && r.payment_status !== 'partial') ? Number(r.owner_payment) : 0;
+          if (isNaN(ownerPart) || ownerPart === 0) {
+            const commType = contract?.extra_data?.commission_type || 'percentage';
+            if (commType === 'fixed') {
+              const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+              ownerPart = Math.max(0, amountPaid - comm);
+            } else {
+              const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+              ownerPart = amountPaid * (1 - commRate / 100);
+            }
+          }
+
+          const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+          if (isPaid && monthlyRentContract > 0 && isFullRentReceipt) {
+            const commType = contract?.extra_data?.commission_type || 'percentage';
+            if (commType === 'fixed') {
+              const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+              ownerPart = Math.max(0, monthlyRentContract - comm);
+            } else {
+              const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+              ownerPart = monthlyRentContract * (1 - commRate / 100);
+            }
+          }
           return sum + ownerPart;
         }, 0);
         
@@ -161,8 +224,9 @@ export const OwnerDashboard: React.FC = () => {
           if (!c.next_payment_date) return false;
           const relReceipts = (receipts || []).filter((r: any) => r.contract_id === c.id);
           const totalPaid = relReceipts.reduce((sum: number, r: any) => {
-            if (r.payment_status === 'unpaid') return sum;
-            return sum + (r.amount_paid ?? r.total_amount ?? 0);
+            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+            const amt = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+            return sum + amt;
           }, 0);
           const monthlyTotal = (c.monthly_rent || 0) + (c.charges || 0);
           const monthsCovered = monthlyTotal > 0 ? totalPaid / monthlyTotal : 0;
@@ -178,11 +242,15 @@ export const OwnerDashboard: React.FC = () => {
         setData({
           properties,
           contracts: contracts || [],
-          recentReceipts: (receipts || []).filter(r => r.payment_status !== 'unpaid').slice(-5).reverse(),
+          recentReceipts: (receipts || []).filter(r => {
+            const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+            const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
+            return amountPaid > 0;
+          }).slice(-5).reverse(),
           chartData,
           monthlyRevenue,
           overdueContracts,
-          totalReversements: (payouts || []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0),
+          totalReversements: totalReversements,
           occupancy: properties.length > 0 ? Math.round(((contracts?.length || 0) / properties.length) * 100) : 0,
           agencyPhone: owner.agency_id ? (await supabase.from('agencies').select('phone').eq('id', owner.agency_id).maybeSingle()).data?.phone : '+225 00 00 00 00 00'
         });
