@@ -110,13 +110,25 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+        // --- Déduplication intelligente des loyers perçus ---
+        // On exclut les transactions manuelles rent_payment qui font doublon avec une quittance de loyer (reçu)
+        const uniqueManualRent = allManual.filter((m: any) => {
+            if (m.category !== 'rent_payment' || (m.type !== 'income' && m.type !== 'credit')) return true; // Conserver les autres types (payouts, caution, etc.)
+            const isDuplicated = allReceipts.some(r =>
+                r.property_id === m.related_property_id &&
+                Math.abs(Number(r.amount_paid || r.total_amount) - Number(m.amount)) < 1 &&
+                Math.abs(new Date(r.payment_date || r.created_at).getTime() - new Date(m.transaction_date || m.created_at).getTime()) < 172800000
+            );
+            return !isDuplicated;
+        });
+
         // Filter receipts for the selected period
         const filteredReceipts = allReceipts.filter(
             r => r.period_month === selectedMonth && r.period_year === selectedYear
         );
 
         // Filter manual transactions for the selected period
-        const filteredManual = allManual.filter((m: any) => {
+        const filteredManual = uniqueManualRent.filter((m: any) => {
             if (m.type !== 'income' && m.type !== 'credit') return false;
             if (m.category !== 'rent_payment' && m.category !== 'caution') return false;
             const d = new Date(m.transaction_date);
@@ -126,7 +138,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         // --- New Metrics ---
         // 1. Recent Collections (Last 30 days) - only rent_payment
         const recentReceipts = allReceipts.filter(r => new Date(r.payment_date) >= thirtyDaysAgo);
-        const recentManual = allManual.filter(m => m.category === 'rent_payment' && (m.type === 'income' || m.type === 'credit') && new Date(m.transaction_date) >= thirtyDaysAgo);
+        const recentManual = uniqueManualRent.filter(m => m.category === 'rent_payment' && (m.type === 'income' || m.type === 'credit') && new Date(m.transaction_date) >= thirtyDaysAgo);
         const recentTotal = recentReceipts.reduce((sum, r) => {
             const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
             const amt = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
@@ -186,7 +198,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             
             return sum + ownerPart;
         }, 0) +
-        allManual.reduce((sum, m) => {
+        uniqueManualRent.reduce((sum, m) => {
             if (m.category !== 'rent_payment' || (m.type !== 'income' && m.type !== 'credit')) return sum;
             const match = m.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
             if (match) return sum + Number(match[1]);
@@ -201,7 +213,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
             }
         }, 0);
 
-        const allManualPayouts = allManual.filter(m => m.category === 'owner_payout' && (m.type === 'expense' || m.type === 'debit'));
+        const allManualPayouts = uniqueManualRent.filter(m => m.category === 'owner_payout' && (m.type === 'expense' || m.type === 'debit'));
         const totalReversed = allReversals.filter(r => r.type !== 'credit').reduce((sum, r) => sum + Number(r.montant), 0) +
             allManualPayouts.reduce((sum, mp) => {
                 const isDuplicated = allReversals.some(r => 
@@ -214,7 +226,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         const globalBalance = totalAccumulated - totalReversed;
 
         // 3. Caution Séquestre (Escrowed Guarantees)
-        const totalCautionEscrow = allManual.reduce((sum, m) => {
+        const totalCautionEscrow = uniqueManualRent.reduce((sum, m) => {
             if (m.category === 'caution' && (m.type === 'income' || m.type === 'credit')) return sum + Number(m.amount);
             return sum;
         }, 0);
@@ -223,7 +235,7 @@ export const OwnerRentSummary: React.FC<OwnerRentSummaryProps> = ({ ownerId, own
         const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
         const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
         const hasPrevActivity = allReceipts.some(r => r.period_month === prevMonth && r.period_year === prevYear) ||
-                               allManual.some(m => {
+                               uniqueManualRent.some(m => {
                                    const d = new Date(m.transaction_date);
                                    return (d.getMonth() + 1) === prevMonth && d.getFullYear() === prevYear;
                                });

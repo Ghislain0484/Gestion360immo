@@ -106,38 +106,48 @@ export const CaissePage: React.FC = () => {
                      return s + ownerPart;
                  }, 0) || 0;
                 
-                // Add modular transactions (Rent)
-                const earnedFromManual = manualTrans?.reduce((s, t) => {
-                    if (t.type === 'debit') return s; // Skip payouts here
-                    if (t.category === 'rent_payment') {
-                        // Try to parse [Part Proprio: XXX] from description (newly added in TenantCollectionModal)
-                        const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
-                        if (match) return s + Number(match[1]);
-                        // Fallback: contract commission
-                        const { contract } = getContractInfo(undefined, t.related_property_id);
-                        const commType = contract?.extra_data?.commission_type || 'percentage';
-                        if (commType === 'fixed') {
-                            const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
-                            return s + Math.max(0, Number(t.amount) - comm);
-                        } else {
-                            const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-                            return s + (Number(t.amount) * (1 - commRate / 100));
-                        }
-                    }
-                    return s;
-                }, 0) || 0;
+                 // Déduplication des transactions de loyer manuelles par rapport aux reçus
+                 const uniqueManualTrans = manualTrans?.filter(m => {
+                     if (m.category !== 'rent_payment' || m.type === 'debit') return true;
+                     const isDuplicated = receipts?.some(r =>
+                         r.property_id === m.related_property_id &&
+                         Math.abs(Number(r.amount_paid || r.total_amount) - Number(m.amount)) < 1 &&
+                         Math.abs(new Date(r.payment_date || r.created_at).getTime() - new Date(m.transaction_date || m.created_at).getTime()) < 172800000
+                     );
+                     return !isDuplicated;
+                 }) || [];
 
-                const manualPayouts = manualTrans?.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense')) || [];
-                const ownerTxReversals = ownerTrans?.filter(r => r.type !== 'credit') || [];
-
-                const paid = ownerTxReversals.reduce((sum, r) => sum + Number(r.montant), 0) +
-                    manualPayouts.reduce((sum, mp) => {
-                        const isDuplicated = ownerTxReversals.some(r => 
-                            Math.abs(Number(r.montant) - Number(mp.amount)) < 1 &&
-                            Math.abs(new Date(r.date_transaction || r.created_at).getTime() - new Date(mp.transaction_date || mp.created_at).getTime()) < 172800000
-                        );
-                        return isDuplicated ? sum : sum + Number(mp.amount);
-                    }, 0);
+                 const earnedFromManual = uniqueManualTrans.reduce((s, t) => {
+                     if (t.type === 'debit') return s; // Skip payouts here
+                     if (t.category === 'rent_payment') {
+                         // Try to parse [Part Proprio: XXX] from description (newly added in TenantCollectionModal)
+                         const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
+                         if (match) return s + Number(match[1]);
+                         // Fallback: contract commission
+                         const { contract } = getContractInfo(undefined, t.related_property_id);
+                         const commType = contract?.extra_data?.commission_type || 'percentage';
+                         if (commType === 'fixed') {
+                             const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                             return s + Math.max(0, Number(t.amount) - comm);
+                         } else {
+                             const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                             return s + (Number(t.amount) * (1 - commRate / 100));
+                         }
+                     }
+                     return s;
+                 }, 0);
+ 
+                 const manualPayouts = uniqueManualTrans.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense'));
+                 const ownerTxReversals = ownerTrans?.filter(r => r.type !== 'credit') || [];
+ 
+                 const paid = ownerTxReversals.reduce((sum, r) => sum + Number(r.montant), 0) +
+                     manualPayouts.reduce((sum, mp) => {
+                         const isDuplicated = ownerTxReversals.some(r => 
+                             Math.abs(Number(r.montant) - Number(mp.amount)) < 1 &&
+                             Math.abs(new Date(r.date_transaction || r.created_at).getTime() - new Date(mp.transaction_date || mp.created_at).getTime()) < 172800000
+                         );
+                         return isDuplicated ? sum : sum + Number(mp.amount);
+                     }, 0);
                     
                 const repairs = maintenance?.reduce((s, m) => s + (Number(m.cost) || 0), 0) || 0;
                 

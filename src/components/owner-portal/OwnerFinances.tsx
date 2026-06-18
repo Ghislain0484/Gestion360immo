@@ -181,8 +181,18 @@ export const OwnerFinances: React.FC = () => {
       description: r.description || 'Reversement Agence'
     }));
 
-    const normalizedManualRent: OwnerTransaction[] = (payouts || [])
+    const uniqueManualRentTransactions = (payouts || [])
       .filter(p => p.category === 'rent_payment' && p.type !== 'debit')
+      .filter(m => {
+        const isDuplicated = receipts.some(r =>
+          r.property_id === m.related_property_id &&
+          Math.abs(Number(r.amount_paid || r.total_amount) - Number(m.amount)) < 1 &&
+          Math.abs(new Date(r.payment_date || r.created_at).getTime() - new Date(m.transaction_date || m.created_at).getTime()) < 172800000
+        );
+        return !isDuplicated;
+      });
+
+    const normalizedManualRent: OwnerTransaction[] = uniqueManualRentTransactions
       .map(p => {
         const contract = contracts.find(c => c.property_id === p.related_property_id);
         const commType = contract?.extra_data?.commission_type || 'percentage';

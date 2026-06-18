@@ -101,8 +101,8 @@ export const fetchCaisseData = async (
       })(),
 
       // Global queries (for accurate balance — no filters)
-      supabase.from('rent_receipts').select('amount_paid, total_amount').eq('agency_id', agencyId),
-      supabase.from('modular_transactions').select('amount, type').eq('agency_id', agencyId),
+      supabase.from('rent_receipts').select('amount_paid, total_amount, property_id, payment_date, created_at').eq('agency_id', agencyId),
+      supabase.from('modular_transactions').select('amount, type, category, related_property_id, transaction_date, created_at').eq('agency_id', agencyId),
       supabase.from('property_expenses').select('amount').eq('agency_id', agencyId),
 
       // KPI data
@@ -125,13 +125,24 @@ export const fetchCaisseData = async (
   const globalManual = globalManualRes.data ?? [];
   const globalExpenses = globalExpensesRes.data ?? [];
 
+  // Dédupliquer les modular_transactions globales de type rent_payment qui font doublon avec rent_receipts
+  const uniqueGlobalManual = globalManual.filter(m => {
+    if (m.category !== 'rent_payment' || !CREDIT_TYPES.includes(m.type)) return true;
+    const isDuplicated = globalReceipts.some(r =>
+      r.property_id === m.related_property_id &&
+      Math.abs(Number(r.amount_paid || r.total_amount) - Number(m.amount)) < 1 &&
+      Math.abs(new Date(r.payment_date || r.created_at).getTime() - new Date(m.transaction_date || m.created_at).getTime()) < 172800000
+    );
+    return !isDuplicated;
+  });
+
   // ── Global balance ──────────────────────────────────────────────────────────
   const globalCredits =
     globalReceipts.reduce((s, r) => s + (Number(r.amount_paid ?? r.total_amount) || 0), 0) +
-    globalManual.filter(t => CREDIT_TYPES.includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0);
+    uniqueGlobalManual.filter(t => CREDIT_TYPES.includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0);
 
   const globalDebits =
-    globalManual.filter(t => !CREDIT_TYPES.includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0) +
+    uniqueGlobalManual.filter(t => !CREDIT_TYPES.includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0) +
     globalExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
@@ -175,7 +186,18 @@ export const fetchCaisseData = async (
     details: r,
   }));
 
-  const mappedManual: Transaction[] = cashTrans.map(t => {
+  // Dédupliquer les transactions de loyer manuelles par rapport aux reçus
+  const uniqueCashTrans = cashTrans.filter(m => {
+    if (m.category !== 'rent_payment' || !CREDIT_TYPES.includes(m.type)) return true;
+    const isDuplicated = receipts.some(r =>
+      r.property_id === m.related_property_id &&
+      Math.abs(Number(r.amount_paid || r.total_amount) - Number(m.amount)) < 1 &&
+      Math.abs(new Date(r.payment_date || r.created_at).getTime() - new Date(m.transaction_date || m.created_at).getTime()) < 172800000
+    );
+    return !isDuplicated;
+  });
+
+  const mappedManual: Transaction[] = uniqueCashTrans.map(t => {
     let ownerPayment = 0;
     if (t.category === 'owner_payout') ownerPayment = t.amount;
     else if (t.category === 'caution') ownerPayment = 0;

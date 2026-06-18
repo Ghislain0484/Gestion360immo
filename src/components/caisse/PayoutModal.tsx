@@ -112,8 +112,19 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 return sum + ownerPart;
             }, 0) || 0;
 
+            // Déduplication des transactions de loyer manuelles par rapport aux reçus
+            const uniqueManualTrans = manualTrans?.filter(m => {
+                if (m.category !== 'rent_payment' || m.type === 'debit') return true;
+                const isDuplicated = rentReceipts?.some(r =>
+                    r.property_id === m.related_property_id &&
+                    Math.abs(Number(r.amount_paid || r.total_amount) - Number(m.amount)) < 1 &&
+                    Math.abs(new Date(r.payment_date || r.created_at).getTime() - new Date(m.transaction_date || m.created_at).getTime()) < 172800000
+                );
+                return !isDuplicated;
+            }) || [];
+
             // 3. Calculate earnings from manual transactions (Rent)
-            const earnedFromManual = manualTrans?.reduce((s, t) => {
+            const earnedFromManual = uniqueManualTrans.reduce((s, t) => {
                 if (t.type === 'debit') return s;
                 if (t.category === 'rent_payment') {
                     const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
@@ -130,10 +141,10 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                     }
                 }
                 return s;
-            }, 0) || 0;
+            }, 0);
 
             // 4. Calculate total paid out (take both debit and expense types for robustness, and merge with owner_transactions)
-            const manualPayouts = manualTrans?.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense')) || [];
+            const manualPayouts = uniqueManualTrans.filter(t => t.category === 'owner_payout' && (t.type === 'debit' || t.type === 'expense'));
             const ownerTxReversals = ownerTrans?.filter(r => r.type !== 'credit') || [];
 
             const totalPaidOut = ownerTxReversals.reduce((sum, r) => sum + Number(r.montant), 0) +
