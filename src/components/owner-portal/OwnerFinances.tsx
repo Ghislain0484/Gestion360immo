@@ -110,27 +110,21 @@ export const OwnerFinances: React.FC = () => {
         const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
         const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
         
-        let ownerNet = (r.owner_payment && r.payment_status !== 'partial') ? Number(r.owner_payment) : 0;
+        // Prioritize saved owner_payment on the receipt if it exists and is defined
+        let ownerNet = Number(r.owner_payment);
+        
         if (isNaN(ownerNet) || ownerNet === 0) {
           const commType = contract?.extra_data?.commission_type || 'percentage';
           if (commType === 'fixed') {
             const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
-            ownerNet = Math.max(0, amountPaid - comm);
+            const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+            const baseAmount = (isPaid && monthlyRentContract > 0 && isFullRentReceipt) ? monthlyRentContract : amountPaid;
+            ownerNet = Math.max(0, baseAmount - comm);
           } else {
             const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-            ownerNet = amountPaid * (1 - commRate / 100);
-          }
-        }
-
-        const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
-        if (isPaid && monthlyRentContract > 0 && isFullRentReceipt) {
-          const commType = contract?.extra_data?.commission_type || 'percentage';
-          if (commType === 'fixed') {
-            const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
-            ownerNet = Math.max(0, monthlyRentContract - comm);
-          } else {
-            const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-            ownerNet = monthlyRentContract * (1 - commRate / 100);
+            const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+            const baseAmount = (isPaid && monthlyRentContract > 0 && isFullRentReceipt) ? monthlyRentContract : amountPaid;
+            ownerNet = baseAmount * (1 - commRate / 100);
           }
         }
 

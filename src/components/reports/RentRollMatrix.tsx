@@ -110,11 +110,12 @@ export const RentRollMatrix: React.FC = () => {
       if (!receiptMap[r.contract_id]) {
         receiptMap[r.contract_id] = {};
       }
+      const isPaid = r.payment_status === 'paid' || r.payment_status === 'full' || r.payment_status === 'partial';
       receiptMap[r.contract_id][r.period_month] = {
-        paid: true,
+        paid: isPaid,
         isPartial: r.payment_status === 'partial',
-        amountPaid: r.amount_paid ?? r.total_amount,
-        totalAmount: r.total_amount,
+        amountPaid: isPaid ? (r.amount_paid ?? r.total_amount ?? 0) : 0,
+        totalAmount: r.total_amount ?? 0,
         balanceDue: r.balance_due ?? 0
       };
     });

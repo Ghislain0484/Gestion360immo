@@ -63,7 +63,7 @@ export const OwnerProperties: React.FC = () => {
         const { data: ctrs } = propIds.length > 0 ? await supabase
           .from('contracts')
           .select(`
-            id, monthly_rent, commission_rate, next_payment_date, start_date, status, property_id,
+            id, monthly_rent, commission_rate, commission_amount, extra_data, next_payment_date, start_date, status, property_id,
             tenant:tenants(id, first_name, last_name, phone)
           `)
           .in('property_id', propIds) : { data: [] };
@@ -84,9 +84,18 @@ export const OwnerProperties: React.FC = () => {
       const contract = contracts.find((c: any) => c.property_id === p.id);
       const isLate = contract?.next_payment_date && new Date(contract.next_payment_date) < new Date();
       // Expert metric: Yield (simplified for demo: monthly rent * 12 / some base value if we had it, or just ratio)
-      const commission = contract?.commission_rate ?? 10;
       const rentAmount = contract?.monthly_rent || p.monthly_rent || 0;
-      const netMonthly = rentAmount * (1 - commission/100);
+      let netMonthly = rentAmount;
+      if (contract) {
+        const commType = contract.extra_data?.commission_type || 'percentage';
+        if (commType === 'fixed') {
+          const comm = contract.commission_amount !== undefined ? contract.commission_amount : 0;
+          netMonthly = Math.max(0, rentAmount - comm);
+        } else {
+          const commRate = contract.commission_rate !== undefined ? contract.commission_rate : 10;
+          netMonthly = rentAmount * (1 - commRate / 100);
+        }
+      }
       
       return { ...p, contract, isOccupied: !!contract, isLate, netMonthly, rentAmount };
     });

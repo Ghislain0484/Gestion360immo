@@ -85,26 +85,33 @@ export const CaissePage: React.FC = () => {
                      return { monthlyRentContract, commissionRate, contract };
                  };
  
-                 const earnedFromReceipts = receipts?.reduce((s, r) => {
-                     if (r.payment_status === 'unpaid') return s;
-                     const amountPaid = r.payment_status === 'partial'
-                         ? (Number(r.amount_paid) || 0)
-                         : (Number(r.amount_paid ?? r.total_amount) || 0);
+                  const earnedFromReceipts = receipts?.reduce((s, r) => {
+                      if (r.payment_status === 'unpaid') return s;
+                      const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+                      const amountPaid = isPaid
+                          ? (Number(r.amount_paid ?? r.total_amount) || 0)
+                          : (Number(r.amount_paid) || 0);
 
-                     let ownerPart = (r.owner_payment && r.payment_status !== 'partial') ? Number(r.owner_payment) : 0;
-                     if (isNaN(ownerPart) || ownerPart === 0) {
-                         const { contract } = getContractInfo(r.contract_id, r.property_id);
-                         const commType = contract?.extra_data?.commission_type || 'percentage';
-                         if (commType === 'fixed') {
-                             const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
-                             ownerPart = Math.max(0, amountPaid - comm);
-                         } else {
-                             const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-                             ownerPart = amountPaid * (1 - commRate / 100);
-                         }
-                     }
-                     return s + ownerPart;
-                 }, 0) || 0;
+                      // Prioritize saved owner_payment on the receipt if it exists and is defined
+                      let ownerPart = Number(r.owner_payment);
+                      
+                      if (isNaN(ownerPart) || ownerPart === 0) {
+                          const { contract, monthlyRentContract } = getContractInfo(r.contract_id, r.property_id);
+                          const commType = contract?.extra_data?.commission_type || 'percentage';
+                          if (commType === 'fixed') {
+                              const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                              const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+                              const baseAmount = (isPaid && monthlyRentContract > 0 && isFullRentReceipt) ? monthlyRentContract : amountPaid;
+                              ownerPart = Math.max(0, baseAmount - comm);
+                          } else {
+                              const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                              const isFullRentReceipt = Math.abs(amountPaid - monthlyRentContract) <= Math.max(5000, monthlyRentContract * 0.05);
+                              const baseAmount = (isPaid && monthlyRentContract > 0 && isFullRentReceipt) ? monthlyRentContract : amountPaid;
+                              ownerPart = baseAmount * (1 - commRate / 100);
+                          }
+                      }
+                      return s + ownerPart;
+                  }, 0) || 0;
                 
                  // Déduplication des transactions de loyer manuelles par rapport aux reçus
                  const uniqueManualTrans = manualTrans?.filter(m => {

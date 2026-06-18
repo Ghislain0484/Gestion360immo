@@ -74,7 +74,7 @@ export const OwnerTenants: React.FC = () => {
         const { data: contracts } = await supabase
           .from('contracts')
           .select(`
-            id, monthly_rent, charges, commission_rate, start_date, end_date, next_payment_date, status,
+            id, monthly_rent, charges, commission_rate, commission_amount, extra_data, start_date, end_date, next_payment_date, status,
             property:properties(id, title, location),
             tenant:tenants(id, first_name, last_name, phone, email, address)
           `)
@@ -269,10 +269,21 @@ export const OwnerTenants: React.FC = () => {
                          'À jour'}
                       </p>
                    </div>
-                   <div className="bg-slate-900 px-8 py-5 rounded-[2rem] text-white shadow-xl shadow-slate-900/20 min-w-[140px]">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 text-center">Loyer Net</p>
-                      <p className="text-xl font-black text-center">{formatCurrency(c.monthly_rent * (1 - (c.commission_rate || 10)/100))}</p>
-                   </div>
+                    <div className="bg-slate-900 px-8 py-5 rounded-[2rem] text-white shadow-xl shadow-slate-900/20 min-w-[140px]">
+                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 text-center">Loyer Net</p>
+                       <p className="text-xl font-black text-center">
+                         {formatCurrency((() => {
+                           const commType = c.extra_data?.commission_type || 'percentage';
+                           if (commType === 'fixed') {
+                             const comm = c.commission_amount !== undefined ? c.commission_amount : 0;
+                             return Math.max(0, c.monthly_rent - comm);
+                           } else {
+                             const commRate = c.commission_rate !== undefined ? c.commission_rate : 10;
+                             return c.monthly_rent * (1 - commRate / 100);
+                           }
+                         })())}
+                       </p>
+                    </div>
                 </div>
 
                 {/* Actions Button */}

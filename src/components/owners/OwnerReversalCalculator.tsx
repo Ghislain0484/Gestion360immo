@@ -183,36 +183,28 @@ export const OwnerReversalCalculator: React.FC<OwnerReversalCalculatorProps> = (
             const contract = contracts.find(c => c.id === p.contract_id || c.property_id === p.property_id);
             const contractRent = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
             
-            // Prioritize saved commission_amount / owner_payment on the receipt unless it's a partial payment
+            // Prioritize saved commission_amount / owner_payment on the receipt if they exist and are defined
             let comm = Number(p.commission_amount);
             let ownerPart = Number(p.owner_payment);
-            
-            if (p.payment_status === 'partial' || isNaN(comm) || comm === 0 || isNaN(ownerPart) || ownerPart === 0) {
-                const commType = contract?.extra_data?.commission_type || 'percentage';
-                if (commType === 'fixed') {
-                    comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
-                    ownerPart = Math.max(0, amount - comm);
-                } else {
-                    const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
-                    comm = (amount * commRate) / 100;
-                    ownerPart = amount - comm;
-                }
-            }
-
-            const isFullRentReceipt = Math.abs(amount - contractRent) <= Math.max(5000, contractRent * 0.05);
             let finalAmount = amount;
-            if (isPaid && contractRent > 0 && isFullRentReceipt) {
-                finalAmount = contractRent;
-                // If it is a full payment, make sure we deduct the correct commission based on contract type
+            
+            if (isNaN(comm) || comm === 0 || isNaN(ownerPart) || ownerPart === 0) {
                 const commType = contract?.extra_data?.commission_type || 'percentage';
                 if (commType === 'fixed') {
                     comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                    const isFullRentReceipt = Math.abs(amount - contractRent) <= Math.max(5000, contractRent * 0.05);
+                    finalAmount = (isPaid && contractRent > 0 && isFullRentReceipt) ? contractRent : amount;
                     ownerPart = Math.max(0, finalAmount - comm);
                 } else {
                     const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                    const isFullRentReceipt = Math.abs(amount - contractRent) <= Math.max(5000, contractRent * 0.05);
+                    finalAmount = (isPaid && contractRent > 0 && isFullRentReceipt) ? contractRent : amount;
                     comm = (finalAmount * commRate) / 100;
                     ownerPart = finalAmount - comm;
                 }
+            } else {
+                const isFullRentReceipt = Math.abs(amount - contractRent) <= Math.max(5000, contractRent * 0.05);
+                finalAmount = (isPaid && contractRent > 0 && isFullRentReceipt) ? contractRent : amount;
             }
             
             transactions.push({

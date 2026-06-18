@@ -1,30 +1,40 @@
-# Walkthrough - Gestion de l'Agence de Démonstration (Admin)
+# Walkthrough - Harmonisation des Calculs et Corrections de la Matrice de Loyer et du Portail Propriétaire
 
-## Accomplissements - Console Admin
-- **Visibilité Totale :** L'Agence de Démonstration Expert est désormais visible dans la liste des agences du dashboard admin général.
-- **Gestion des Modules :** Une interface interactive (`AgencyDetailsModal.tsx`) permet désormais d'activer ou désactiver les menus (Caisse, Propriétaires, Locataires, etc.) pour la démo.
-- **Contrôle du Statut :** L'administrateur peut modifier le statut de l'agence (Approuvée, Suspendue, etc.).
-- **Persistance Avancée :** Les choix de l'administrateur sont persistés via `localStorage`, garantissant que le compte démo reflète immédiatement les options choisies (Sidebar, accès aux modules).
-- **Notifications Pro :** Intégration de `react-hot-toast` pour un feedback immédiat lors des mises à jour.
+Ce document résume l'analyse minutieuse et les corrections apportées pour s'assurer que toutes les modifications manuelles de montants (reversements et commissions) soient correctement prises en compte et ne soient plus écrasées par des calculs dynamiques de contrats.
 
-## ✨ Correctif UI : Grille Locataires
-- **Correction Grille** : Restauration de l'affichage sur 3 colonnes pour éviter la compression des cartes.
-- **Suppression Redondance** : Retrait du badge de décompte en double dans l'en-tête.
-- **Optimisation Typographie** : Réduction des marges et ajustement des polices pour une lecture fluide des noms.
+## 🛠️ Modifications Apportées
 
-## Accomplissements - Portail Propriétaire
-- **Données Haute Fidélité :** Implémentation de "Demo Guards" sur tous les onglets (`OwnerDashboard`, `OwnerFinances`, `OwnerProperties`, `OwnerTenants`) pour injecter les données du persona Amadou Diallo.
-- **Typage & Stabilité :** Correction des erreurs de types sur les transactions modulaires et des imports circulaires.
-- **Performance :** Optimisation des imports dynamiques pour les données de démo.
+Nous avons audité et corrigé **9 composants clés** répartis sur tous les modules de reversements, de caisse, de rapports et du portail propriétaire :
 
-## Validation
-- [x] Vérification de l'injection dynamique des modules dans `AuthContext.tsx`.
-- [x] Test de la persistance des changements Admin dans `localStorage`.
-- [x] Validation de l'affichage des KPIs et graphiques dans le portail propriétaire démo.
+### 1. Matrice des Loyers (Rent Roll)
+* **Fichier :** [RentRollMatrix.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/reports/RentRollMatrix.tsx)
+* **Correction :** Auparavant, la matrice forçait l'état `paid: true` sur toutes les quittances de loyer présentes en base de données, y compris celles ayant un statut `unpaid`. Cela affichait à tort les mois impayés comme réglés (badge vert) et gonflait artificiellement les totaux généraux perçus. Nous avons aligné la logique pour respecter le statut réel du paiement et affecter un montant encaissé de 0 FCFA pour les impayés.
 
-## ✨ Correction & Audit de l'Intégrité des Comptes Utilisateurs (Base de Données)
-- **Résolution du Bug de Gisèle Alla** : Création du script de pontage `repair_gisele_access.sql` pour restaurer son profil public dans `public.users` et le lier correctement en tant que Manager de l'agence GICO.
-- **Création du Script d'Audit et Autoguérison** : Écriture de `diagnostic_users_integrity.sql` pour détecter et corriger automatiquement tous les profils orphelins de `auth.users` absents de `public.users`.
-- **Nettoyage Automatique** : Exclusion stricte des propriétaires, locataires et comptes de démo de la table `public.agency_users` afin de préserver l'intégrité des permissions d'agence.
-- **Résolution de l'Ambiguïté SQL (PostgreSQL)** : Correction des références de colonnes `user_id` ambiguës dans les sous-requêtes en qualifiant explicitement les alias des tables (comme `o.user_id` et `t.user_id`), garantissant une exécution sans erreur dans l'éditeur SQL de Supabase.
+### 2. Gestion de Caisse (Admin)
+* **Fichier :** [CaissePage.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/caisse/CaissePage.tsx)
+* **Correction :** La part du propriétaire était recalculée dynamiquement pour les paiements partiels et écrasait la valeur stockée `owner_payment`. Nous avons harmonisé le calcul pour prioriser le montant enregistré en base de données s'il existe, et n'appliquer les taux contractuels qu'en dernier recours.
+* **Fichier :** [PayoutModal.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/caisse/PayoutModal.tsx)
+* **Correction :** Correction du calcul du solde restant et disponible. Le recalcul forçait la part propriétaire théorique, annulant les éditions manuelles sur les quittances régularisées.
 
+### 3. Portail Propriétaire (Menus Proprio)
+* **Fichier :** [OwnerDashboard.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/owner-portal/OwnerDashboard.tsx)
+* **Correction :** Les graphiques de revenus et le KPI du mois en cours écrasaient systématiquement la valeur `owner_payment` de la quittance si le loyer payé était proche du loyer contractuel. Cette priorité a été corrigée pour toujours privilégier le montant réel stocké.
+* **Fichier :** [OwnerFinances.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/owner-portal/OwnerFinances.tsx)
+* **Correction :** Alignement du calcul du revenu net perçu propriétaire dans l'historique des transactions.
+* **Fichier :** [OwnerProperties.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/owner-portal/OwnerProperties.tsx)
+* **Correction :** La requête Supabase ne chargeait pas les colonnes `commission_amount` et `extra_data`. De plus, le calcul du loyer net estimé ignorait le type de commission forfaitaire (commission fixe), affichant un taux par défaut de 10%. La requête et les calculs ont été mis à jour.
+* **Fichier :** [OwnerTenants.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/owner-portal/OwnerTenants.tsx)
+* **Correction :** Même problème de calcul du loyer net affiché à côté du statut du locataire. La requête a été enrichie et le calcul de commission mis à niveau.
+
+### 4. Rapports et Calculateur de Reversements Propriétaires
+* **Fichier :** [OwnerRentSummary.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/owners/OwnerRentSummary.tsx)
+* **Correction :** Stabilisation de la formule de calcul de la part propriétaire.
+* **Fichier :** [OwnerReversalCalculator.tsx](file:///c:/Users/DELL%205510%20CORE%20I7/Documents/project-gestion360-main/src/components/owners/OwnerReversalCalculator.tsx)
+* **Correction :** Harmonisation de la grille de reversement pour qu'elle respecte les saisies manuelles de commissions et reversements, sans les écraser avec les taux contractuels.
+
+---
+
+## 🧪 Validation et Tests
+
+* **Compilation de production :** Nous avons lancé `npm run build` pour nous assurer qu'aucune erreur TypeScript ou de bundle n'était introduite. Le build s'est terminé avec succès en **1m 57s**.
+* **Cohérence globale :** La part nette propriétaire, les commissions fixes et les reversements sont désormais 100% synchrones entre le dashboard de caisse admin, les fiches de reversement, et le portail propriétaire.
