@@ -210,6 +210,9 @@ export const TenantCollectionModal: React.FC<TenantCollectionModalProps> = ({ is
                     'Encaissement Global (Nouveau Locataire)'
                 );
             }
+            window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+                detail: { table: 'all', action: 'create' } 
+            }));
             reset();
             onSuccess();
             onClose();

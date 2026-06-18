@@ -224,6 +224,9 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
 
             toast.success('Reversement enregistré');
             audioService.playCashOut();
+            window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+                detail: { table: 'all', action: 'create' } 
+            }));
             reset();
             onSuccess();
             onClose();

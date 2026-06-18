@@ -25,6 +25,7 @@ interface MatrixData {
       totalAmount: number;
       balanceDue: number;
     } | null>;
+    monthlyActiveContracts?: Record<number, any>;
   }[];
 }
 
@@ -121,6 +122,7 @@ export const RentRollMatrix: React.FC = () => {
     });
 
     const ownerMap = new Map<string, MatrixData>();
+    const ownerPropertiesContracts = new Map<string, Map<string, any[]>>();
 
     contracts.forEach(c => {
       // Robust extraction based on aliases
@@ -141,27 +143,88 @@ export const RentRollMatrix: React.FC = () => {
         });
       }
 
-      const ownerGroup = ownerMap.get(ownerId)!;
-      
-      const receiptsObj: Record<number, {
-        paid: boolean;
-        isPartial: boolean;
-        amountPaid: number;
-        totalAmount: number;
-        balanceDue: number;
-      } | null> = {};
-      for (let i = 1; i <= 12; i++) {
-        receiptsObj[i] = receiptMap[c.id]?.[i] || null;
+      if (!ownerPropertiesContracts.has(ownerId)) {
+        ownerPropertiesContracts.set(ownerId, new Map<string, any[]>());
       }
+      
+      const propMap = ownerPropertiesContracts.get(ownerId)!;
+      const propId = prop.id || 'unknown-property';
+      if (!propMap.has(propId)) {
+        propMap.set(propId, []);
+      }
+      propMap.get(propId)!.push(c);
+    });
 
-      ownerGroup.contracts.push({
-        contract_id: c.id,
-        tenant_name: `${ten.first_name || ''} ${ten.last_name || ''}`.trim() || 'Locataire inconnu',
-        property_title: prop.title || 'Bien inconnu',
-        monthly_rent: c.monthly_rent || 0,
-        start_date: c.start_date,
-        end_date: c.end_date,
-        receipts: receiptsObj
+    const isContractActiveInMonth = (c: any, year: number, month: number) => {
+      const start = new Date(c.start_date);
+      const contractStartMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+      
+      const contractEndMonth = c.end_date ? new Date(new Date(c.end_date).getFullYear(), new Date(c.end_date).getMonth(), 1) : null;
+      const targetMonth = new Date(year, month - 1, 1);
+      
+      return targetMonth >= contractStartMonth && (!contractEndMonth || targetMonth <= contractEndMonth);
+    };
+
+    ownerMap.forEach((ownerGroup, ownerId) => {
+      const propMap = ownerPropertiesContracts.get(ownerId);
+      if (!propMap) return;
+
+      propMap.forEach((propContracts, propId) => {
+        const sortedContracts = [...propContracts].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+        const latestContract = sortedContracts[sortedContracts.length - 1];
+        const prop = latestContract.property;
+
+        const tenantNames = sortedContracts.map(c => 
+          `${c.tenant?.first_name || ''} ${c.tenant?.last_name || ''}`.trim()
+        ).filter(Boolean);
+        const uniqueTenantNames = Array.from(new Set(tenantNames));
+
+        const monthlyReceipts: Record<number, {
+          paid: boolean;
+          isPartial: boolean;
+          amountPaid: number;
+          totalAmount: number;
+          balanceDue: number;
+        } | null> = {};
+        const monthlyActive: Record<number, any> = {};
+
+        for (let m = 1; m <= 12; m++) {
+          const activeContracts = propContracts.filter(c => isContractActiveInMonth(c, selectedYear, m));
+          
+          if (activeContracts.length === 0) {
+            monthlyActive[m] = null;
+            monthlyReceipts[m] = null;
+          } else {
+            let selectedContract = activeContracts[0];
+            if (activeContracts.length > 1) {
+              const contractWithReceipt = activeContracts.find(c => receiptMap[c.id]?.[m]);
+              if (contractWithReceipt) {
+                selectedContract = contractWithReceipt;
+              } else {
+                const activeStatus = activeContracts.find(c => c.status === 'active');
+                if (activeStatus) {
+                  selectedContract = activeStatus;
+                } else {
+                  selectedContract = [...activeContracts].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())[0];
+                }
+              }
+            }
+            
+            monthlyActive[m] = selectedContract;
+            monthlyReceipts[m] = receiptMap[selectedContract.id]?.[m] || null;
+          }
+        }
+
+        ownerGroup.contracts.push({
+          contract_id: latestContract.id,
+          tenant_name: uniqueTenantNames.join(' → ') || 'Locataire inconnu',
+          property_title: prop?.title || 'Bien inconnu',
+          monthly_rent: latestContract.monthly_rent || 0,
+          start_date: latestContract.start_date,
+          end_date: latestContract.end_date,
+          receipts: monthlyReceipts,
+          monthlyActiveContracts: monthlyActive
+        });
       });
     });
 
@@ -218,11 +281,10 @@ export const RentRollMatrix: React.FC = () => {
           x += 20;
           
           for (let i = 1; i <= 12; i++) {
-            const cellDate = new Date(selectedYear, i - 1, 1);
+            const activeContractForMonth = contract.monthlyActiveContracts?.[i];
             const receiptInfo = contract.receipts[i];
             const isPaid = !!receiptInfo?.paid;
             const isPartial = !!receiptInfo?.isPartial;
-            const amountPaid = receiptInfo ? receiptInfo.amountPaid : 0;
             
             if (isPaid) {
                if (isPartial) {
@@ -233,13 +295,7 @@ export const RentRollMatrix: React.FC = () => {
                  doc.text('PAYE', x, y);
                }
             } else {
-               const contractStart = new Date(contract.start_date);
-               const contractEnd = contract.end_date ? new Date(contract.end_date) : null;
-               
-               const isBeforeContract = cellDate < new Date(contractStart.getFullYear(), contractStart.getMonth(), 1);
-               const isAfterContract = contractEnd && cellDate > new Date(contractEnd.getFullYear(), contractEnd.getMonth(), 1);
-               
-               if (isBeforeContract || isAfterContract) {
+               if (!activeContractForMonth) {
                  doc.setTextColor(150, 150, 150);
                  doc.text('-', x, y);
                } else {
@@ -357,7 +413,6 @@ export const RentRollMatrix: React.FC = () => {
                     
                     {/* Contracts Rows */}
                     {ownerGroup.contracts.map((contract) => {
-                      const contractStart = new Date(contract.start_date);
                       let rowTotal = 0;
                       
                       return (
@@ -376,19 +431,16 @@ export const RentRollMatrix: React.FC = () => {
                                         {/* Month Cells */}
                           {[...Array(12)].map((_, i) => {
                             const monthNum = i + 1;
-                            const cellDate = new Date(selectedYear, i, 1);
+                            const activeContractForMonth = contract.monthlyActiveContracts?.[monthNum];
                             const receiptInfo = contract.receipts[monthNum];
                             const isPaid = !!receiptInfo?.paid;
                             const isPartial = !!receiptInfo?.isPartial;
                             const amountPaid = receiptInfo ? receiptInfo.amountPaid : 0;
-                            const totalAmount = receiptInfo ? receiptInfo.totalAmount : contract.monthly_rent;
+                            const rentForMonth = activeContractForMonth ? activeContractForMonth.monthly_rent : contract.monthly_rent;
+                            const totalAmount = receiptInfo ? receiptInfo.totalAmount : rentForMonth;
                             const balanceDue = receiptInfo ? receiptInfo.balanceDue : 0;
                             
                             if (isPaid) rowTotal += amountPaid;
-                            
-                            const contractEnd = contract.end_date ? new Date(contract.end_date) : null;
-                            const isBeforeContract = cellDate < new Date(contractStart.getFullYear(), contractStart.getMonth(), 1);
-                            const isAfterContract = contractEnd && cellDate > new Date(contractEnd.getFullYear(), contractEnd.getMonth(), 1);
                             
                             if (isPaid) {
                               if (isPartial) {
@@ -412,10 +464,10 @@ export const RentRollMatrix: React.FC = () => {
                               );
                             }
  
-                            if (isBeforeContract || isAfterContract) {
+                            if (!activeContractForMonth) {
                               return (
                                 <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
-                                  <div className="w-6 h-6 mx-auto rounded-full bg-gray-100 flex items-center justify-center" title="Contrat non démarré">
+                                  <div className="w-6 h-6 mx-auto rounded-full bg-gray-100 flex items-center justify-center" title="Vacant / Pas de contrat">
                                     <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
                                   </div>
                                 </td>
@@ -424,7 +476,7 @@ export const RentRollMatrix: React.FC = () => {
                             
                             return (
                               <td key={monthNum} className="px-2 py-3 text-center border-l border-gray-50">
-                                <div className="w-7 h-7 mx-auto rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shadow-sm" title="Impayé">
+                                <div className="w-7 h-7 mx-auto rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shadow-sm" title={`Impayé: ${formatAmount(rentForMonth)} F`}>
                                   <X className="w-4 h-4 stroke-[3]" />
                                 </div>
                               </td>

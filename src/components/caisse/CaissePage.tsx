@@ -531,6 +531,9 @@ export const CaissePage: React.FC = () => {
             toast.success("Opération supprimée avec succès", { id: toastId });
             setShowDeleteModal(false);
             setTransactionToDelete(null);
+            window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+                detail: { table: 'all', action: 'delete' } 
+            }));
             fetchData();
         } catch (error: any) {
             console.error('Error deleting transaction:', error);

@@ -263,6 +263,9 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                 );
             }
 
+            window.dispatchEvent(new CustomEvent('gestion360:refetch', { 
+                detail: { table: 'all', action: transaction?.id ? 'update' : 'create' } 
+            }));
             reset();
             onSuccess();
             onClose();
