@@ -507,6 +507,19 @@ export const CaissePage: React.FC = () => {
                 .eq('id', recordId);
             
             if (error) throw error;
+
+            // 2b. Suppression en cascade dans owner_transactions s'il s'agit d'un reversement de propriétaire
+            if (table === 'modular_transactions' && transactionToDelete.category === 'owner_payout' && transactionToDelete.details?.related_owner_id) {
+                const { error: deleteOwnerTxError } = await supabase
+                    .from('owner_transactions')
+                    .delete()
+                    .eq('owner_id', transactionToDelete.details.related_owner_id)
+                    .eq('montant', transactionToDelete.amount)
+                    .like('notes', '%journal de caisse%');
+                if (deleteOwnerTxError) {
+                    console.error('Error deleting linked owner transaction during deletion:', deleteOwnerTxError);
+                }
+            }
             
             toast.success("Opération supprimée avec succès", { id: toastId });
             setShowDeleteModal(false);
