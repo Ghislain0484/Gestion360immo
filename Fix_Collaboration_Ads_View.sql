@@ -11,7 +11,11 @@
 -- 1. Créer le schéma privé s'il n'existe pas
 CREATE SCHEMA IF NOT EXISTS private;
 
--- 2. Supprimer les anciennes vues pour éviter les conflits de types
+-- Accorder l'usage du schéma privé aux rôles de l'API
+GRANT USAGE ON SCHEMA private TO authenticated;
+GRANT USAGE ON SCHEMA private TO anon;
+
+-- 2. Supprimer les anciennes vues pour éviter les conflits de types ou de paramètres
 DROP VIEW IF EXISTS public.collaboration_ads_with_agency;
 DROP VIEW IF EXISTS public.agencies_public_info;
 DROP VIEW IF EXISTS private.agencies_public_info;
@@ -26,6 +30,10 @@ SELECT id, name, logo_url
 FROM public.agencies;
 
 ALTER VIEW private.agencies_public_info OWNER TO postgres;
+
+-- Accorder la lecture sur la vue privée pour les rôles de l'API
+GRANT SELECT ON private.agencies_public_info TO authenticated;
+GRANT SELECT ON private.agencies_public_info TO anon;
 
 -- 4. Créer la vue publique de pont (SECURITY INVOKER)
 -- Recommandé par Supabase (PG15+) pour exposer proprement les données non sensibles à l'API.
