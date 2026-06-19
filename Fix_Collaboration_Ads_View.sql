@@ -28,8 +28,10 @@ FROM public.agencies;
 ALTER VIEW private.agencies_public_info OWNER TO postgres;
 
 -- 4. Créer la vue publique de pont (SECURITY INVOKER)
--- Recommandé par Supabase pour exposer proprement les données non sensibles à l'API.
-CREATE OR REPLACE VIEW public.agencies_public_info AS
+-- Recommandé par Supabase (PG15+) pour exposer proprement les données non sensibles à l'API.
+CREATE OR REPLACE VIEW public.agencies_public_info 
+WITH (security_invoker = true) 
+AS
 SELECT * FROM private.agencies_public_info;
 
 ALTER VIEW public.agencies_public_info OWNER TO postgres;
@@ -39,7 +41,9 @@ GRANT SELECT ON public.agencies_public_info TO anon;
 
 -- 5. Créer la vue principale de collaboration (SECURITY INVOKER)
 -- Le RLS sur la table 'collaboration_ads' sera maintenant parfaitement appliqué.
-CREATE OR REPLACE VIEW public.collaboration_ads_with_agency AS
+CREATE OR REPLACE VIEW public.collaboration_ads_with_agency 
+WITH (security_invoker = true) 
+AS
 SELECT 
   ca.*,
   a.name AS agency_name,
@@ -52,4 +56,4 @@ REVOKE ALL ON public.collaboration_ads_with_agency FROM public;
 GRANT SELECT ON public.collaboration_ads_with_agency TO authenticated;
 GRANT SELECT ON public.collaboration_ads_with_agency TO anon;
 
-SELECT '✅ Vue collaboration_ads_with_agency configurée en toute sécurité.' as status;
+SELECT '✅ Vue collaboration_ads_with_agency et agencies_public_info configurées en SECURITY INVOKER.' as status;
