@@ -522,7 +522,8 @@ export const CaissePage: React.FC = () => {
                     .delete()
                     .eq('owner_id', transactionToDelete.details.related_owner_id)
                     .eq('montant', transactionToDelete.amount)
-                    .like('notes', '%journal de caisse%');
+                    .eq('type', 'debit')
+                    .or('notes.ilike.%caisse%,notes.ilike.%journal%');
                 if (deleteOwnerTxError) {
                     console.error('Error deleting linked owner transaction during deletion:', deleteOwnerTxError);
                 }

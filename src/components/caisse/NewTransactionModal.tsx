@@ -145,7 +145,8 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                         .delete()
                         .eq('owner_id', transaction.related_owner_id)
                         .eq('montant', transaction.amount)
-                        .like('notes', '%journal de caisse%');
+                        .eq('type', 'debit')
+                        .or('notes.ilike.%caisse%,notes.ilike.%journal%');
                     if (deleteError) {
                         console.error('Error deleting linked owner transaction during edit:', deleteError);
                     }
@@ -175,7 +176,8 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                         .select('id')
                         .eq('owner_id', transaction.related_owner_id)
                         .eq('montant', transaction.amount)
-                        .like('notes', '%journal de caisse%')
+                        .eq('type', 'debit')
+                        .or('notes.ilike.%caisse%,notes.ilike.%journal%')
                         .limit(1);
                     
                     if (matchedTxs && matchedTxs.length > 0) {
