@@ -690,7 +690,13 @@ export const ContractsList: React.FC = () => {
                     <div className="flex items-center gap-1.5">
                       <DollarSign className="h-3.5 w-3.5 text-amber-500" />
                       <span className="text-sm font-bold text-gray-900">
-                        {formatCurrency(contract.monthly_rent || contract.sale_price || 0)}
+                        {contract.type === 'gestion' ? (
+                          contract.extra_data?.commission_type === 'fixed'
+                            ? `${formatCurrency(contract.commission_amount || 0)}`
+                            : `${contract.commission_rate ?? 10} %`
+                        ) : (
+                          formatCurrency(contract.monthly_rent || contract.sale_price || 0)
+                        )}
                       </span>
                     </div>
                     <Badge variant={getStatusColor(contract.status)} size="sm">
