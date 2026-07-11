@@ -52,7 +52,11 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium' | 'enterprise'>('basic');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
-  const [agencyData, setAgencyData] = useState<AgencyFormData>({
+  const [structureType, setStructureType] = useState<'agency' | 'independent' | 'owner_manager'>('agency');
+  const [idCardFile, setIdCardFile] = useState<File | null>(null);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+
+  const [agencyData, setAgencyData] = useState<AgencyFormData & { id_card_url?: string | null; profile_photo_url?: string | null; structure_type?: string }>({
     name: '',
     commercialRegister: '',
     logo_url: null,
@@ -62,6 +66,9 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     city: '',
     phone: '',
     email: '',
+    id_card_url: null,
+    profile_photo_url: null,
+    structure_type: 'agency',
   });
 
   const [directorData, setDirectorData] = useState<UserFormData>({
@@ -86,7 +93,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     password: '',
   });
 
-  const updateAgencyData = (updates: Partial<AgencyFormData>) => {
+  const updateAgencyData = (updates: Partial<AgencyFormData & { id_card_url?: string | null; profile_photo_url?: string | null; structure_type?: string }>) => {
     setAgencyData((prev) => ({ ...prev, ...updates }));
   };
 
@@ -122,6 +129,62 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     }
   };
 
+  const handleIdCardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Le fichier doit être inférieur à 5 Mo');
+      return;
+    }
+    setIdCardFile(file);
+
+    try {
+      const fileName = `temp-registration-kyc/${Date.now()}_id_${file.name}`;
+      const { data, error } = await supabase.storage
+        .from('agency-logos')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+      if (error) {
+        console.error('ID Card upload error:', error);
+        toast.error(`Erreur lors du téléchargement de la pièce d'identité: ${error.message}`);
+        return;
+      }
+      const publicUrl = supabase.storage.from('agency-logos').getPublicUrl(fileName).data.publicUrl;
+      updateAgencyData({ id_card_url: publicUrl });
+      toast.success("Pièce d'identité téléchargée avec succès");
+    } catch (err) {
+      console.error('ID Card upload failed:', err);
+      toast.error("Erreur lors du téléchargement de la pièce d'identité");
+    }
+  };
+
+  const handleSelfieUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Le fichier doit être inférieur à 5 Mo');
+      return;
+    }
+    setSelfieFile(file);
+
+    try {
+      const fileName = `temp-registration-kyc/${Date.now()}_selfie_${file.name}`;
+      const { data, error } = await supabase.storage
+        .from('agency-logos')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+      if (error) {
+        console.error('Selfie upload error:', error);
+        toast.error(`Erreur lors du téléchargement du selfie: ${error.message}`);
+        return;
+      }
+      const publicUrl = supabase.storage.from('agency-logos').getPublicUrl(fileName).data.publicUrl;
+      updateAgencyData({ profile_photo_url: publicUrl });
+      toast.success('Selfie/Photo de profil téléchargé avec succès');
+    } catch (err) {
+      console.error('Selfie upload failed:', err);
+      toast.error('Erreur lors du téléchargement du selfie');
+    }
+  };
+
   const logAudit = useCallback(
     async (action: string, details: any, registrationId?: string) => {
       try {
@@ -150,12 +213,28 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^\+?\d{10,15}$/;
 
-    if (!agencyData.name.trim() || !agencyData.commercialRegister.trim()) {
-      toast.error('Le nom de l’agence et le registre de commerce sont obligatoires');
+    const isRccmRequired = structureType === 'agency';
+
+    if (!agencyData.name.trim()) {
+      toast.error('Le nom de la structure est obligatoire');
       return;
     }
+    if (isRccmRequired && !agencyData.commercialRegister.trim()) {
+      toast.error('Le registre de commerce (RCCM) est obligatoire pour les agences professionnelles');
+      return;
+    }
+    if (structureType !== 'agency') {
+      if (!agencyData.id_card_url) {
+        toast.error("La photo de votre pièce d'identité (CNI/Passeport) est obligatoire");
+        return;
+      }
+      if (!agencyData.profile_photo_url) {
+        toast.error('Une photo de profil ou un selfie est obligatoire');
+        return;
+      }
+    }
     if (!directorData.first_name.trim() || !directorData.last_name.trim() || !directorData.email.trim()) {
-      toast.error('Les informations du directeur sont obligatoires');
+      toast.error('Les informations de la personne physique sont obligatoires');
       return;
     }
     if (!emailRegex.test(directorData.email)) {
@@ -175,7 +254,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
       return;
     }
     if (agencyData.isAccredited && !agencyData.accreditationNumber?.trim()) {
-      toast.error('Numéro d’agrément requis si l’agence est agréée');
+      toast.error('Numéro d’agrément requis si la structure est agréée');
       return;
     }
 
@@ -216,17 +295,17 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 
       const registrationId = uuidv4();
 
-      const requestData: Partial<AgencyRegistrationRequest> = {
+      const requestData: any = {
         id: registrationId,
         agency_name: agencyData.name,
-        commercial_register: agencyData.commercialRegister,
+        commercial_register: isRccmRequired ? agencyData.commercialRegister : '',
         director_first_name: directorData.first_name,
         director_last_name: directorData.last_name,
         director_email: directorData.email.toLowerCase(),
         phone: agencyData.phone,
         city: agencyData.city,
         address: agencyData.address,
-        logo_url: agencyData.logo_url || null,
+        logo_url: isRccmRequired ? agencyData.logo_url : (agencyData.profile_photo_url || null),
         is_accredited: agencyData.isAccredited,
         accreditation_number: agencyData.isAccredited ? agencyData.accreditationNumber : null,
         status: 'pending',
@@ -234,6 +313,9 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
         selected_plan: selectedPlan,
         billing_cycle: billingCycle,
         created_at: new Date().toISOString(),
+        id_card_url: agencyData.id_card_url || null,
+        profile_photo_url: agencyData.profile_photo_url || null,
+        structure_type: structureType,
       };
 
       console.log("📡 [Registration] Inserting registration request...");
@@ -313,27 +395,50 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
             <Card>
               <div className="flex items-center mb-4">
                 <Building2 className="h-5 w-5 text-blue-600 mr-2" />
-                <h3 className="text-lg font-medium text-gray-900">Informations de l'agence</h3>
+                <h3 className="text-lg font-medium text-gray-900">Informations de la structure</h3>
               </div>
               <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
+                    Type d'activité / Structure
+                  </label>
+                  <select
+                    value={structureType}
+                    onChange={(e) => {
+                      const val = e.target.value as 'agency' | 'independent' | 'owner_manager';
+                      setStructureType(val);
+                      updateAgencyData({ structure_type: val });
+                      if (val !== 'agency') {
+                        updateAgencyData({ commercialRegister: '' });
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="agency">🏢 Agence Immobilière Professionnelle (avec RCCM)</option>
+                    <option value="independent">👤 Agent Immobilier Indépendant / Démarcheur (sans RCCM)</option>
+                    <option value="owner_manager">🏡 Propriétaire-Bailleur / Gestionnaire Particulier (sans RCCM)</option>
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
-                    label="Nom de l'agence"
+                    label={structureType === 'agency' ? "Nom de l'agence" : "Nom de la structure ou de l'activité"}
                     value={agencyData.name}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgencyData({ name: e.target.value })}
                     required
-                    placeholder="Ex: Immobilier Excellence"
+                    placeholder={structureType === 'agency' ? "Ex: Immobilier Excellence" : "Ex: Jean Kouadio Gestion"}
                     autoComplete="organization"
                   />
                   <Input
-                    label="Registre de commerce"
+                    label={structureType === 'agency' ? "Registre de commerce" : "Registre de commerce (Optionnel)"}
                     value={agencyData.commercialRegister}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       updateAgencyData({ commercialRegister: e.target.value })
                     }
-                    required
-                    placeholder="Ex: CI-ABJ-2024-B-12345"
+                    required={structureType === 'agency'}
+                    placeholder={structureType === 'agency' ? "Ex: CI-ABJ-2024-B-12345" : "Non applicable"}
                     autoComplete="off"
+                    disabled={structureType !== 'agency'}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -391,7 +496,7 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
                     }
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700">L'agence possède un agrément officiel</span>
+                  <span className="text-sm text-gray-700">La structure possède un agrément officiel</span>
                 </label>
                 {agencyData.isAccredited && (
                   <Input
@@ -407,48 +512,141 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
                 )}
               </div>
             </Card>
-            <Card>
-              <div className="flex items-center mb-4">
-                <Upload className="h-5 w-5 text-purple-600 mr-2" />
-                <h3 className="text-lg font-medium text-gray-900">Logo de l'agence</h3>
-              </div>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                {agencyData.logo_url ? (
-                  <div className="space-y-4">
-                    <img src={agencyData.logo_url} alt="Logo agence" className="w-24 h-24 object-contain mx-auto" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => document.getElementById('logo-upload')?.click()}
-                    >
-                      Changer le logo
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <Upload className="h-12 w-12 mx-auto text-gray-400" />
-                    <div>
+            
+            {structureType === 'agency' ? (
+              <Card>
+                <div className="flex items-center mb-4">
+                  <Upload className="h-5 w-5 text-purple-600 mr-2" />
+                  <h3 className="text-lg font-medium text-gray-900">Logo de l'agence</h3>
+                </div>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  {agencyData.logo_url ? (
+                    <div className="space-y-4">
+                      <img src={agencyData.logo_url} alt="Logo agence" className="w-24 h-24 object-contain mx-auto" />
                       <Button
                         type="button"
                         variant="outline"
+                        size="sm"
                         onClick={() => document.getElementById('logo-upload')?.click()}
                       >
-                        Télécharger un logo
+                        Changer le logo
                       </Button>
-                      <p className="text-sm text-gray-500 mt-2">PNG, JPG ou SVG. Max 5 Mo, 200x200px recommandé</p>
                     </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <Upload className="h-12 w-12 mx-auto text-gray-400" />
+                      <div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById('logo-upload')?.click()}
+                        >
+                          Télécharger un logo
+                        </Button>
+                        <p className="text-sm text-gray-500 mt-2">PNG, JPG ou SVG. Max 5 Mo, 200x200px recommandé</p>
+                      </div>
+                    </div>
+                  )}
+                  <input
+                    id="logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                </div>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <div className="flex items-center mb-4">
+                    <Users className="h-5 w-5 text-blue-600 mr-2" />
+                    <h3 className="text-lg font-medium text-gray-900">Photo de profil / Selfie</h3>
                   </div>
-                )}
-                <input
-                  id="logo-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleLogoUpload}
-                />
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    {agencyData.profile_photo_url ? (
+                      <div className="space-y-4">
+                        <img src={agencyData.profile_photo_url} alt="Selfie" className="w-24 h-24 object-cover rounded-full mx-auto" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById('selfie-upload')?.click()}
+                        >
+                          Changer la photo
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <Upload className="h-12 w-12 mx-auto text-gray-400" />
+                        <div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => document.getElementById('selfie-upload')?.click()}
+                          >
+                            Télécharger un selfie/photo
+                          </Button>
+                          <p className="text-sm text-gray-500 mt-2">Format JPEG, PNG. Max 5 Mo. Visage bien visible</p>
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      id="selfie-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleSelfieUpload}
+                    />
+                  </div>
+                </Card>
+
+                <Card>
+                  <div className="flex items-center mb-4">
+                    <Shield className="h-5 w-5 text-indigo-600 mr-2" />
+                    <h3 className="text-lg font-medium text-gray-900">Pièce d'identité (CNI/Passeport)</h3>
+                  </div>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    {agencyData.id_card_url ? (
+                      <div className="space-y-4">
+                        <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-lg text-indigo-700 text-xs font-semibold max-w-[200px] mx-auto truncate">
+                          ✓ Pièce d'identité chargée
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById('cni-upload')?.click()}
+                        >
+                          Changer le document
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <Upload className="h-12 w-12 mx-auto text-gray-400" />
+                        <div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => document.getElementById('cni-upload')?.click()}
+                          >
+                            Télécharger la CNI / Passeport
+                          </Button>
+                          <p className="text-sm text-gray-500 mt-2">Image ou PDF lisible. Max 5 Mo</p>
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      id="cni-upload"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={handleIdCardUpload}
+                    />
+                  </div>
+                </Card>
               </div>
-            </Card>
+            )}
           </div>
         )}
 
@@ -533,19 +731,43 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                 <div className="space-y-3">
-                  <h4 className="font-bold text-blue-600 uppercase text-[10px] tracking-widest">📋 Agence & Directeur</h4>
+                  <h4 className="font-bold text-blue-600 uppercase text-[10px] tracking-widest">📋 Informations & Gestionnaire</h4>
                   <div>
-                    <p className="font-medium text-gray-400 text-[10px] uppercase">Nom Agence</p>
+                    <p className="font-medium text-gray-400 text-[10px] uppercase">
+                      {structureType === 'agency' ? "Nom Agence" : "Structure / Activité"}
+                    </p>
                     <p className="text-gray-900 font-semibold">{agencyData.name}</p>
                   </div>
                   <div>
-                    <p className="font-medium text-gray-400 text-[10px] uppercase">Directeur</p>
+                    <p className="font-medium text-gray-400 text-[10px] uppercase">
+                      {structureType === 'agency' ? "Directeur" : "Administrateur / Gestionnaire"}
+                    </p>
                     <p className="text-gray-900 font-semibold">{directorData.first_name} {directorData.last_name}</p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-400 text-[10px] uppercase">Email de contact</p>
                     <p className="text-gray-900 font-semibold">{directorData.email}</p>
                   </div>
+                  <div>
+                    <p className="font-medium text-gray-400 text-[10px] uppercase">Type de structure</p>
+                    <p className="text-gray-900 font-semibold uppercase text-xs">
+                      {structureType === 'agency' && "🏢 Agence Professionnelle"}
+                      {structureType === 'independent' && "👤 Agent Indépendant / Démarcheur"}
+                      {structureType === 'owner_manager' && "🏡 Propriétaire-Bailleur / Particulier"}
+                    </p>
+                  </div>
+                  {structureType !== 'agency' && (
+                    <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100">
+                      <div>
+                        <p className="font-medium text-gray-400 text-[9px] uppercase">Selfie / Photo</p>
+                        <p className="text-green-600 font-semibold text-xs">✓ Chargé</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-400 text-[9px] uppercase">Pièce d'identité</p>
+                        <p className="text-green-600 font-semibold text-xs">✓ Chargée</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3 p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100">
@@ -625,11 +847,15 @@ export const AgencyRegistration: React.FC<AgencyRegistrationProps> = ({
 
           <div className="w-full max-w-md bg-slate-50 border border-slate-100 rounded-2xl p-6 mb-8 space-y-4 shadow-sm">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400 font-medium">Agence</span>
+              <span className="text-gray-400 font-medium">
+                {structureType === 'agency' ? "Agence" : "Structure / Activité"}
+              </span>
               <span className="text-gray-900 font-bold">{agencyData.name}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400 font-medium">Directeur</span>
+              <span className="text-gray-400 font-medium">
+                {structureType === 'agency' ? "Directeur" : "Administrateur / Gestionnaire"}
+              </span>
               <span className="text-gray-900 font-bold">{directorData.first_name} {directorData.last_name}</span>
             </div>
             <div className="flex justify-between items-center text-sm">

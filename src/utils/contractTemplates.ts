@@ -48,6 +48,7 @@ export class OHADAContractGenerator {
       agencyPhone: agencyData.phone,
       agencyEmail: agencyData.email,
       agencyRegister: agencyData.commercial_register,
+      agencyAccreditation: agencyData.accreditation_number,
       ownerFirstName: ownerData.first_name,
       ownerLastName: ownerData.last_name,
       ownerAddress: ownerData.address,
@@ -67,12 +68,12 @@ ENTRE LES SOUSSIGNÉS :
 
 D'UNE PART,
 ${data.agencyName.toUpperCase()}
-Société de gestion immobilière
-Registre de Commerce : ${data.agencyRegister || 'En cours'}
+${data.agencyRegister ? `Société de gestion immobilière\nRegistre de Commerce : ${data.agencyRegister}` : `Mandataire Immobilier Indépendant`}
+${data.agencyAccreditation ? `${data.agencyRegister ? 'Agrément N°' : 'N° Pièce d\'identité'} : ${data.agencyAccreditation}` : ''}
 Siège social : ${data.agencyAddress}
 Téléphone : ${data.agencyPhone}
 Email : ${data.agencyEmail}
-Représentée par son Directeur, dûment habilité aux fins des présentes,
+${data.agencyRegister ? 'Représentée par son Directeur, dûment habilité aux fins des présentes,' : 'Agissant en son nom propre,'}
 Ci-après dénommée "L'AGENCE" ou "LE MANDATAIRE"
 
 ET D'AUTRE PART,
@@ -137,8 +138,8 @@ ENTRE LES SOUSSIGNÉS :
 
 D'UNE PART,
 ${agencyData.name.toUpperCase()}
-Société de gestion immobilière
-Registre de Commerce : ${agencyData.commercial_register || 'En cours'}
+${agencyData.commercial_register ? `Société de gestion immobilière\nRegistre de Commerce : ${agencyData.commercial_register}` : `Mandataire Immobilier Indépendant`}
+${agencyData.accreditation_number ? `${agencyData.commercial_register ? 'Agrément N°' : 'N° Pièce d\'identité'} : ${agencyData.accreditation_number}` : ''}
 Siège social : ${agencyData.address}
 Téléphone : ${agencyData.phone}
 Email : ${agencyData.email}
@@ -529,6 +530,7 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
                 <div>Tél: ${agencyData.phone || ''}</div>
                 <div>Email: ${agencyData.email || ''}</div>
                 ${agencyData.commercial_register ? `<div>RC: ${agencyData.commercial_register}</div>` : ''}
+                ${!agencyData.commercial_register && agencyData.accreditation_number ? `<div>ID: ${agencyData.accreditation_number}</div>` : ''}
               </div>
             </div>
             

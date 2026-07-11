@@ -186,6 +186,9 @@ export type Database = {
           settings: Json | null
           status: string
           updated_at: string | null
+          id_card_url: string | null
+          profile_photo_url: string | null
+          structure_type: string | null
         }
         Insert: {
           accreditation_number?: string | null
@@ -203,6 +206,9 @@ export type Database = {
           settings?: Json | null
           status?: string
           updated_at?: string | null
+          id_card_url?: string | null
+          profile_photo_url?: string | null
+          structure_type?: string | null
         }
         Update: {
           accreditation_number?: string | null
@@ -220,6 +226,9 @@ export type Database = {
           settings?: Json | null
           status?: string
           updated_at?: string | null
+          id_card_url?: string | null
+          profile_photo_url?: string | null
+          structure_type?: string | null
         }
         Relationships: [
           {
@@ -306,6 +315,9 @@ export type Database = {
           processed_at: string | null
           processed_by: string | null
           status: string | null
+          id_card_url: string | null
+          profile_photo_url: string | null
+          structure_type: string | null
         }
         Insert: {
           accreditation_number?: string | null
@@ -328,6 +340,9 @@ export type Database = {
           processed_at?: string | null
           processed_by?: string | null
           status?: string | null
+          id_card_url?: string | null
+          profile_photo_url?: string | null
+          structure_type?: string | null
         }
         Update: {
           accreditation_number?: string | null
@@ -350,6 +365,9 @@ export type Database = {
           processed_at?: string | null
           processed_by?: string | null
           status?: string | null
+          id_card_url?: string | null
+          profile_photo_url?: string | null
+          structure_type?: string | null
         }
         Relationships: [
           {

@@ -177,7 +177,7 @@ export const AgencyRequests: React.FC = () => {
             {rows.map((r) => (
               <tr key={r.id} className="border-t">
                 <td className="px-3 py-2">{r.agency_name}</td>
-                <td className="px-3 py-2">{r.commercial_register}</td>
+                <td className="px-3 py-2">{r.commercial_register || 'Aucun (Indépendant / Particulier)'}</td>
                 <td className="px-3 py-2">
                   {r.director_first_name} {r.director_last_name}
                 </td>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, Plus, Search, MapPin, Building2, Phone, Filter, Trash2, Edit, ExternalLink } from 'lucide-react';
+import { Megaphone, Plus, Search, MapPin, Building2, Phone, Filter, Trash2, Edit, ExternalLink, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { supabase } from '../../lib/config';
@@ -128,6 +128,21 @@ export const CollaborationAds: React.FC = () => {
         .eq('id', id);
       if (error) throw error;
       toast.success('Annonce supprimée');
+      loadAds();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const reportAd = async (id: string) => {
+    if (!window.confirm('Voulez-vous signaler cette annonce comme suspecte ou frauduleuse ? Elle sera retirée du réseau pour vérification administrative.')) return;
+    try {
+      const { error } = await supabase
+        .from('collaboration_ads')
+        .update({ status: 'flagged' })
+        .eq('id', id);
+      if (error) throw error;
+      toast.success('Merci pour votre signalement. L’annonce a été retirée du réseau pour vérification.');
       loadAds();
     } catch (err: any) {
       toast.error(err.message);
@@ -351,7 +366,7 @@ export const CollaborationAds: React.FC = () => {
                       {ad.price ? `${ad.price.toLocaleString()} F` : 'Sur demande'}
                     </div>
                     <div className="flex gap-1.5 items-center">
-                      {ad.agency_id === authAgencyId && (
+                      {ad.agency_id === authAgencyId ? (
                         <>
                           <button 
                             onClick={() => handleStartEdit(ad)}
@@ -368,6 +383,14 @@ export const CollaborationAds: React.FC = () => {
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </>
+                      ) : (
+                        <button 
+                          onClick={() => reportAd(ad.id)}
+                          className="p-2 text-slate-300 hover:text-rose-500 transition-all"
+                          title="Signaler comme suspect"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </button>
                       )}
                       <a 
                         href={`tel:${ad.contact_phone}`}
@@ -393,10 +416,21 @@ export const CollaborationAds: React.FC = () => {
                         </div>
                       )}
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">Agence partenaire</span>
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 line-clamp-1">
-                          {ad.agency_name || 'Agence non spécifiée'}
-                        </span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">Partenaire</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 line-clamp-1">
+                            {ad.agency_name || 'Partenaire non spécifié'}
+                          </span>
+                          {ad.agency_commercial_register ? (
+                            <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 rounded text-[9px] font-bold border border-emerald-100/50" title="Agence Agréée (avec RCCM)">
+                              🏢 Pro
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 rounded text-[9px] font-bold border border-blue-100/50" title="Profil Indépendant Vérifié par CNI">
+                              👤 Vérifié
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 

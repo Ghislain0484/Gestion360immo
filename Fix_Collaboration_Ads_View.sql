@@ -26,7 +26,7 @@ DROP VIEW IF EXISTS private.agencies_public_info;
 CREATE OR REPLACE VIEW private.agencies_public_info 
 WITH (security_barrier)
 AS
-SELECT id, name, logo_url
+SELECT id, name, logo_url, commercial_register, structure_type
 FROM public.agencies;
 
 ALTER VIEW private.agencies_public_info OWNER TO postgres;
@@ -55,7 +55,9 @@ AS
 SELECT 
   ca.*,
   a.name AS agency_name,
-  a.logo_url AS agency_logo_url
+  a.logo_url AS agency_logo_url,
+  a.commercial_register AS agency_commercial_register,
+  a.structure_type AS agency_structure_type
 FROM public.collaboration_ads ca
 LEFT JOIN public.agencies_public_info a ON ca.agency_id = a.id;
 

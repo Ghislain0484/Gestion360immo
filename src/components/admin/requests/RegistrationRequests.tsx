@@ -162,14 +162,15 @@ export const RegistrationRequests: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-
-                                <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 p-6 rounded-3xl bg-slate-50/50 border border-slate-100/50 mb-6 group-hover:bg-white transition-colors duration-300">
+                                <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 p-6 rounded-3xl bg-slate-50/50 border border-slate-100/50 mb-6 group-hover:bg-white transition-colors duration-300">
                                     <div className="flex items-start gap-3">
                                         <div className="p-2 rounded-lg bg-white shadow-sm">
                                             <User className="h-4 w-4 text-indigo-500" />
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Directeur</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                                                {request.structure_type === 'agency' ? 'Directeur' : 'Mandataire'}
+                                            </p>
                                             <p className="text-sm font-semibold text-slate-900">
                                                 {request.director_first_name} {request.director_last_name}
                                             </p>
@@ -200,9 +201,52 @@ export const RegistrationRequests: React.FC = () => {
                                         <Building2 className="h-4 w-4 text-gray-400" />
                                         <div>
                                             <p className="text-gray-500">Registre de commerce</p>
-                                            <p className="font-medium text-gray-900">{request.commercial_register}</p>
+                                            <p className="font-medium text-gray-900">{request.commercial_register || 'Aucun (Indépendant / Particulier)'}</p>
                                         </div>
                                     </div>
+
+                                    {(request.id_card_url || request.profile_photo_url) && (
+                                        <div className="col-span-full pt-4 mt-2 border-t border-slate-200/60 flex flex-wrap gap-6 items-center">
+                                            {request.profile_photo_url && (
+                                                <div className="flex items-center gap-3">
+                                                    <img 
+                                                        src={request.profile_photo_url} 
+                                                        alt="Selfie" 
+                                                        className="w-12 h-12 rounded-full object-cover border-2 border-slate-200 shadow-sm"
+                                                    />
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Selfie de vérification</p>
+                                                        <a 
+                                                            href={request.profile_photo_url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer" 
+                                                            className="text-xs font-bold text-blue-600 hover:underline"
+                                                        >
+                                                            Voir le selfie en grand ↗
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {request.id_card_url && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-center shadow-sm">
+                                                        <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Pièce d'identité (CNI/Passeport)</p>
+                                                        <a 
+                                                            href={request.id_card_url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer" 
+                                                            className="text-xs font-bold text-indigo-600 hover:underline"
+                                                        >
+                                                            Consulter la CNI ↗
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {request.status === 'pending' && (

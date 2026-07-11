@@ -16,6 +16,9 @@ export interface Agency extends AgencyEntity {
   status: string;
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
+  id_card_url?: string | null;
+  profile_photo_url?: string | null;
+  structure_type?: string | null;
 
   // Propriétés de subscription (peuvent être null si pas d'abonnement)
   subscription_status?: SubscriptionStatus | null;
@@ -34,6 +37,9 @@ export interface AgencyFormData {
   city: string;
   phone: string;
   email: string;
+  id_card_url?: string | null;
+  profile_photo_url?: string | null;
+  structure_type?: string;
 }
 
 export interface AgencyRegistrationRequest {
@@ -58,6 +64,9 @@ export interface AgencyRegistrationRequest {
   director_auth_user_id?: string | null; // UUID, FK vers users(id)
   selected_plan?: PlanType | null;
   billing_cycle?: 'monthly' | 'yearly' | null;
+  id_card_url?: string | null;
+  profile_photo_url?: string | null;
+  structure_type?: string | null;
 }
 
 export interface AgencySubscription extends AgencyEntity {

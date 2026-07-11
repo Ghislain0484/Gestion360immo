@@ -65,6 +65,9 @@ export const normalizeAgency = (a: Partial<Agency>) => {
     if (a.email !== undefined) result.email = nilIfEmpty(a.email);
     if (a.director_id !== undefined) result.director_id = nilIfEmpty(a.director_id);
     if (a.status !== undefined) result.status = nilIfEmpty(a.status) ?? 'approved';
+    if (a.id_card_url !== undefined) result.id_card_url = nilIfEmpty(a.id_card_url);
+    if (a.profile_photo_url !== undefined) result.profile_photo_url = nilIfEmpty(a.profile_photo_url);
+    if (a.structure_type !== undefined) result.structure_type = nilIfEmpty(a.structure_type) ?? 'agency';
 
     // Champs d'abonnement - IMPORTANT: ne pas filtrer avec nilIfEmpty
     if (a.subscription_status !== undefined) result.subscription_status = a.subscription_status;
@@ -134,6 +137,9 @@ export const normalizeAgencyRegistrationRequest = (arr: Partial<AgencyRegistrati
     director_auth_user_id: nilIfEmpty(arr.director_auth_user_id),
     selected_plan: nilIfEmpty(arr.selected_plan),
     billing_cycle: nilIfEmpty(arr.billing_cycle),
+    id_card_url: nilIfEmpty(arr.id_card_url),
+    profile_photo_url: nilIfEmpty(arr.profile_photo_url),
+    structure_type: nilIfEmpty(arr.structure_type) ?? 'agency',
 });
 
 export const normalizeAgencySubscription = (as: Partial<AgencySubscription>) => ({
