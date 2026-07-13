@@ -77,6 +77,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const directorName = `${request.director_first_name} ${request.director_last_name}`;
     const agencyName = request.agency_name;
     const selectedPlan = request.selected_plan || 'basic';
+    const structureType = request.structure_type || 'agency';
+
+    const isAgency = structureType === 'agency';
+    const welcomeSubject = isAgency 
+      ? 'Bienvenue sur Gestion360 - Votre agence a été activée ! 🚀' 
+      : 'Bienvenue sur Gestion360 - Votre compte a été activé ! 🚀';
+    
+    const subtitle = isAgency
+      ? 'Votre agence est désormais en ligne'
+      : 'Votre espace de gestion est désormais en ligne';
+
+    const welcomeText = isAgency
+      ? `Nous avons le plaisir de vous informer que votre demande d'inscription pour l'agence <strong>${agencyName}</strong> a été validée par nos administrateurs. Votre espace de gestion immobilière est maintenant entièrement activé.`
+      : `Nous avons le plaisir de vous informer que votre demande d'inscription en tant que gestionnaire / indépendant (<strong>${agencyName}</strong>) a été validée par nos administrateurs après vérification de vos pièces justificatives. Votre espace de gestion immobilière est maintenant entièrement activé.`;
 
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = Number(process.env.SMTP_PORT || '587');
@@ -105,17 +119,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const mailOptions = {
           from: `"Gestion360" <${smtpFrom}>`,
           to: directorEmail,
-          subject: 'Bienvenue sur Gestion360 - Votre agence a été activée ! 🚀',
+          subject: welcomeSubject,
           html: `
             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
               <div style="background-color: #2563eb; color: #ffffff; padding: 30px; text-align: center;">
                 <h1 style="margin: 0; font-size: 24px; font-weight: bold;">Félicitations ! 🎉</h1>
-                <p style="margin: 5px 0 0 0; font-size: 16px; opacity: 0.9;">Votre agence est désormais en ligne</p>
+                <p style="margin: 5px 0 0 0; font-size: 16px; opacity: 0.9;">${subtitle}</p>
               </div>
               <div style="padding: 30px; background-color: #ffffff;">
                 <p style="font-size: 16px; margin-bottom: 20px;">Bonjour <strong>${directorName}</strong>,</p>
                 <p style="font-size: 15px; margin-bottom: 20px;">
-                  Nous avons le plaisir de vous informer que votre demande d'inscription pour l'agence <strong>${agencyName}</strong> a été validée par nos administrateurs. Votre espace de gestion immobilière est maintenant entièrement activé.
+                  ${welcomeText}
                 </p>
                 <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                   <h3 style="margin-top: 0; color: #1e3a8a; font-size: 14px; text-transform: uppercase; tracking-wider: 0.05em;">Vos informations d'accès</h3>
