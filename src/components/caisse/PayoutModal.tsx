@@ -72,7 +72,7 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
 
             const { data: contracts } = await supabase
                 .from('contracts')
-                .select('id, property_id, commission_rate, commission_amount, extra_data')
+                .select('id, property_id, owner_id, type, commission_rate, commission_amount, extra_data, monthly_rent, charges')
                 .eq('status', 'active');
 
             const earnedFromReceipts = rentReceipts?.reduce((sum, r) => {
@@ -82,21 +82,24 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 const amountPaid = isPaid ? (Number(r.amount_paid || r.total_amount) || 0) : (Number(r.amount_paid) || 0);
                 if (amountPaid === 0) return sum;
 
-                const contract = contracts?.find(c => c.id === r.contract_id || c.property_id === r.property_id);
-                const contractRent = contract ? ((contract.monthly_rent || 0) + (contract.charges || 0)) : 0;
+                const leaseContract = contracts?.find(c => c.type === 'location' && (c.id === r.contract_id || c.property_id === r.property_id));
+                const contractRent = leaseContract ? ((leaseContract.monthly_rent || 0) + (leaseContract.charges || 0)) : 0;
+                
+                const mgmtContract = contracts?.find(c => c.type === 'gestion' && c.property_id === r.property_id)
+                                  || contracts?.find(c => c.type === 'gestion' && c.owner_id === ownerId);
 
                 // Prioritize saved owner_payment on the receipt if it exists and is defined
                 let ownerPart = Number(r.owner_payment);
                 
                 if (isNaN(ownerPart) || ownerPart === 0) {
-                    const commType = contract?.extra_data?.commission_type || 'percentage';
+                    const commType = mgmtContract?.extra_data?.commission_type || 'percentage';
                     if (commType === 'fixed') {
-                        const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                        const comm = mgmtContract?.commission_amount !== undefined ? mgmtContract.commission_amount : 0;
                         const isFullRentReceipt = Math.abs(amountPaid - contractRent) <= Math.max(5000, contractRent * 0.05);
                         const baseAmount = (isPaid && contractRent > 0 && isFullRentReceipt) ? contractRent : amountPaid;
                         ownerPart = Math.max(0, baseAmount - comm);
                     } else {
-                        const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                        const commRate = mgmtContract?.commission_rate !== undefined ? mgmtContract.commission_rate : 10;
                         const isFullRentReceipt = Math.abs(amountPaid - contractRent) <= Math.max(5000, contractRent * 0.05);
                         const baseAmount = (isPaid && contractRent > 0 && isFullRentReceipt) ? contractRent : amountPaid;
                         ownerPart = baseAmount * (1 - commRate / 100);
@@ -124,13 +127,14 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                     const match = t.description?.match(/\[Part Proprio:\s*(\d+\.?\d*)\]/);
                     if (match) return s + Number(match[1]);
                     
-                    const contract = contracts?.find(c => c.property_id === t.related_property_id);
-                    const commType = contract?.extra_data?.commission_type || 'percentage';
+                    const mgmtContract = contracts?.find(c => c.type === 'gestion' && c.property_id === t.related_property_id)
+                                      || contracts?.find(c => c.type === 'gestion' && c.owner_id === ownerId);
+                    const commType = mgmtContract?.extra_data?.commission_type || 'percentage';
                     if (commType === 'fixed') {
-                        const comm = contract?.commission_amount !== undefined ? contract.commission_amount : 0;
+                        const comm = mgmtContract?.commission_amount !== undefined ? mgmtContract.commission_amount : 0;
                         return s + (Number(t.amount) - comm);
                     } else {
-                        const commRate = contract?.commission_rate !== undefined ? contract.commission_rate : 10;
+                        const commRate = mgmtContract?.commission_rate !== undefined ? mgmtContract.commission_rate : 10;
                         return s + (Number(t.amount) * (1 - commRate / 100));
                     }
                 }
