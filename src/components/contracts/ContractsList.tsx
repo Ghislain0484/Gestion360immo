@@ -282,7 +282,7 @@ export const ContractsList: React.FC = () => {
         agency_id: user.agency_id,
         property_id: contractData.property_id,
         owner_id: contractData.owner_id,
-        tenant_id: contractData.type === 'gestion' ? '00000000-0000-0000-0000-000000000000' : contractData.tenant_id,
+        tenant_id: contractData.type === 'gestion' ? null : contractData.tenant_id,
         type: contractData.type,
         start_date: contractData.start_date,
         end_date: contractData.end_date,

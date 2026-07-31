@@ -27,7 +27,7 @@ SELECT
   p.agency_id,
   p.id as property_id,
   p.owner_id,
-  '00000000-0000-0000-0000-000000000000'::uuid as tenant_id,
+  NULL as tenant_id, -- Pas de locataire pour un mandat de gestion
   'gestion'::public.contract_type as type,
   COALESCE(p.created_at::date, NOW()::date) as start_date,
   10 as commission_rate, -- Taux par défaut à 10%
@@ -73,7 +73,7 @@ SELECT
   p.agency_id,
   p.id as property_id,
   p.owner_id,
-  '00000000-0000-0000-0000-000000000000'::uuid as tenant_id,
+  NULL as tenant_id,
   'gestion'::public.contract_type as type,
   COALESCE(p.created_at::date, NOW()::date) as start_date,
   10 as commission_rate,

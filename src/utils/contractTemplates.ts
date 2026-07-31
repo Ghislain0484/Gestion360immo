@@ -309,7 +309,7 @@ Conformément à la Loi n°96-669 du 29 août 1996 et aux Actes Uniformes OHADA.
     return {
       type: 'gestion' as const,
       owner_id: ownerData.id,
-      tenant_id: '00000000-0000-0000-0000-000000000000',
+      tenant_id: null,
       property_id: propertyData.id,
       agency_id: agencyData.id,
       start_date: new Date().toISOString().split('T')[0],

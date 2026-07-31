@@ -125,7 +125,7 @@ export const PropertiesList: React.FC = () => {
                 agency_id: authAgencyId,
                 property_id: newProperty.id,
                 owner_id: newProperty.owner_id,
-                tenant_id: '00000000-0000-0000-0000-000000000000', // Locataire vide pour gestion
+                tenant_id: null, // Locataire vide pour gestion
                 type: 'gestion' as const,
                 start_date: new Date().toISOString().split('T')[0],
                 commission_rate: 10,
