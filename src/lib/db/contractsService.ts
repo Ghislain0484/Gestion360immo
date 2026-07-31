@@ -81,20 +81,19 @@ export const contractsService = {
     
     // Filter out corrupt contracts that have null foreign keys or unresolved relationships to prevent UI crashes
     return (data ?? []).filter((c: any) => {
+      if (c.type === 'gestion') {
+        return c.owner_id !== null && c.owner !== null;
+      }
+
       const hasBaseRelations = 
         c.property_id !== null &&
         c.owner_id !== null &&
+        c.tenant_id !== null &&
         c.property !== null &&
-        c.owner !== null;
+        c.owner !== null &&
+        c.tenant !== null;
 
-      if (!hasBaseRelations) return false;
-
-      // Lease/rental contracts must also have a tenant
-      if (c.type !== 'gestion') {
-        return c.tenant_id !== null && c.tenant !== null;
-      }
-
-      return true;
+      return hasBaseRelations;
     });
   },
   async create(contract: Partial<Contract>): Promise<Contract> {

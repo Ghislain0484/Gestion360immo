@@ -270,7 +270,7 @@ export const ContractsList: React.FC = () => {
     }
 
     try {
-      if (!contractData.property_id?.trim()) throw new Error('ID de la propriété requis');
+      if (contractData.type !== 'gestion' && !contractData.property_id?.trim()) throw new Error('ID de la propriété requis');
       if (!contractData.owner_id?.trim()) throw new Error('ID du propriétaire requis');
       if (contractData.type !== 'gestion' && !contractData.tenant_id?.trim()) throw new Error('ID du locataire requis');
       if (!contractData.type) throw new Error('Type de contrat requis');
@@ -280,7 +280,7 @@ export const ContractsList: React.FC = () => {
       const contractPayload: Partial<Contract> = {
         id: contractData.id,
         agency_id: user.agency_id,
-        property_id: contractData.property_id,
+        property_id: contractData.type === 'gestion' ? null : contractData.property_id,
         owner_id: contractData.owner_id,
         tenant_id: contractData.type === 'gestion' ? null : contractData.tenant_id,
         type: contractData.type,
@@ -672,7 +672,7 @@ export const ContractsList: React.FC = () => {
                 <div className="px-4 py-3 space-y-2.5">
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     <Home className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                    <span className="truncate font-medium">{property?.title || t('Bien inconnu')}</span>
+                    <span className="truncate font-medium">{contract.type === 'gestion' ? t('Gestion Globale (Portefeuille)') : (property?.title || t('Bien inconnu'))}</span>
                   </div>
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-1.5 text-gray-500">

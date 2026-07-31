@@ -209,7 +209,7 @@ export const ContractForm = React.memo<ContractFormProps>(
         // Validation des champs essentiels
         if (!formData.agency_id?.trim()) throw new Error("L'ID de l'agence est requis");
         if (!formData.owner_id?.trim()) throw new Error('Veuillez sélectionner un propriétaire');
-        if (!formData.property_id?.trim()) throw new Error('Veuillez sélectionner une propriété');
+        if (formData.type !== 'gestion' && !formData.property_id?.trim()) throw new Error('Veuillez sélectionner une propriété');
 
         // Le locataire est requis pour Location et Vente, mais optionnel pour Gestion
         if (formData.type !== 'gestion' && !formData.tenant_id?.trim()) {
@@ -381,7 +381,9 @@ export const ContractForm = React.memo<ContractFormProps>(
               </div>
 
               <div>
-                <label htmlFor="property_id" className="block text-sm font-medium text-gray-700 mb-2">Propriété</label>
+                <label htmlFor="property_id" className="block text-sm font-medium text-gray-700 mb-2">
+                  Propriété {formData.type === 'gestion' && <span className="text-gray-400 font-normal">(Optionnel pour Gestion Globale)</span>}
+                </label>
                 <AsyncSelect<Property, false>
                   key={formData.owner_id}
                   id="property_id"
@@ -396,7 +398,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                   placeholder="Rechercher une propriété..."
                   styles={selectStyles}
                   isClearable
-                  required
+                  required={formData.type !== 'gestion'}
                 />
               </div>
 

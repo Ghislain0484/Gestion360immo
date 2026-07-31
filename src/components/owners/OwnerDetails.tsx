@@ -616,20 +616,23 @@ export const OwnerDetails: React.FC = () => {
                 onSubmit={async (data) => {
                     const newProperty = await createProperty(data);
                     if (newProperty && user?.agency_id) {
-                        try {
-                            const agency = await dbService.agencies.getById(user.agency_id);
-                            if (agency) {
-                                const contractPayload = await OHADAContractGenerator.generateManagementContractForOwner(
-                                    owner,
-                                    agency,
-                                    newProperty
-                                );
-                                await dbService.contracts.create(contractPayload);
-                                toast.success("Contrat de gestion généré automatiquement");
+                        const hasMgmt = contracts?.some(c => c.type === 'gestion');
+                        if (!hasMgmt) {
+                            try {
+                                const agency = await dbService.agencies.getById(user.agency_id);
+                                if (agency) {
+                                    const contractPayload = await OHADAContractGenerator.generateManagementContractForOwner(
+                                        owner,
+                                        agency,
+                                        newProperty
+                                    );
+                                    await dbService.contracts.create(contractPayload);
+                                    toast.success("Contrat de gestion généré automatiquement");
+                                }
+                            } catch (error) {
+                                console.error("Error generating management contract:", error);
+                                toast.error("Erreur lors de la génération du contrat de gestion");
                             }
-                        } catch (error) {
-                            console.error("Error generating management contract:", error);
-                            toast.error("Erreur lors de la génération du contrat de gestion");
                         }
                     }
                 }}
