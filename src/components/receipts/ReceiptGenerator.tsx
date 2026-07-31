@@ -317,6 +317,8 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
     : (rentPaidPart * (contractInfo?.commission_rate !== undefined ? contractInfo.commission_rate : 10)) / 100;
   const estimatedOwnerPayment = rentPaidPart - commissionOnRent - totalExpenses;
 
+  const totalExpected = rentAmount + charges + depositAmount + agencyFees;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
       <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -474,7 +476,7 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Montant versé (FCFA) *
                   <span className="ml-2 text-xs text-gray-400 font-normal">
-                    — Loyer total dû : {(rentAmount + charges).toLocaleString('fr-FR')} FCFA
+                    — Total dû : {totalExpected.toLocaleString('fr-FR')} FCFA
                   </span>
                 </label>
                 <div className="relative">
@@ -485,12 +487,12 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                     type="number"
                     className={clsx(
                       'w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 text-lg font-semibold transition-colors',
-                      amountPaid < (rentAmount + charges) && amountPaid > 0
+                      amountPaid < totalExpected && amountPaid > 0
                         ? 'border-orange-400 bg-orange-50 focus:ring-orange-400 focus:border-orange-400'
                         : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                     )}
                     value={amountPaid}
-                    max={rentAmount + charges}
+                    max={totalExpected}
                     onChange={(e) => setAmountPaid(Number(e.target.value))}
                     placeholder="0"
                   />
@@ -499,19 +501,19 @@ const ReceiptGenerator: React.FC<ReceiptGeneratorProps> = ({
                   </div>
                 </div>
                 {/* Badge paiement partiel */}
-                {amountPaid > 0 && amountPaid < (rentAmount + charges) && (
+                {amountPaid > 0 && amountPaid < totalExpected && (
                   <div className="mt-2 flex items-center gap-2 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
                     <span className="text-orange-500">⚠️</span>
                     <span>
                       <strong>Paiement partiel</strong> — Solde restant :
-                      <strong className="ml-1">{(rentAmount + charges - amountPaid).toLocaleString('fr-FR')} FCFA</strong>
+                      <strong className="ml-1">{(totalExpected - amountPaid).toLocaleString('fr-FR')} FCFA</strong>
                     </span>
                   </div>
                 )}
-                {amountPaid >= (rentAmount + charges) && amountPaid > 0 && (
+                {amountPaid >= totalExpected && amountPaid > 0 && (
                   <div className="mt-2 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                     <span>✅</span>
-                    <span><strong>Loyer soldé intégralement</strong></span>
+                    <span><strong>Paiement soldé intégralement</strong></span>
                   </div>
                 )}
               </div>
