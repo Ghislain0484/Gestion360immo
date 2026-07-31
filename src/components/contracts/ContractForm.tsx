@@ -717,51 +717,53 @@ export const ContractForm = React.memo<ContractFormProps>(
               )}
             </div>
 
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg space-y-2 border border-blue-100">
-              <div className="flex items-center gap-2 mb-2">
-                <Info className="h-4 w-4 text-blue-600" />
-                <h4 className="text-sm font-bold text-blue-900">Calculateur Initial (OHADA)</h4>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Dépot de garantie ({formData.deposit_months} mois) :</span>
-                  <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.deposit || 0)} XOF</span>
+            {formData.type === 'location' && (
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg space-y-2 border border-blue-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <h4 className="text-sm font-bold text-blue-900">Calculateur Initial (OHADA)</h4>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Avance de loyer ({formData.advance_rent_months} mois) :</span>
-                  <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format((formData.monthly_rent || 0) * (formData.advance_rent_months || 0))} XOF</span>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Dépot de garantie ({formData.deposit_months} mois) :</span>
+                    <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.deposit || 0)} XOF</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Avance de loyer ({formData.advance_rent_months} mois) :</span>
+                    <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format((formData.monthly_rent || 0) * (formData.advance_rent_months || 0))} XOF</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Loyer du 1er mois :</span>
+                    <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.monthly_rent || 0)} XOF</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Charges initiales :</span>
+                    <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.charges || 0)} XOF</span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Loyer du 1er mois :</span>
-                  <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.monthly_rent || 0)} XOF</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Charges initiales :</span>
-                  <span className="font-semibold">{new Intl.NumberFormat('fr-FR').format(formData.charges || 0)} XOF</span>
-                </div>
-              </div>
 
-              <div className="pt-3 mt-3 border-t border-blue-200 flex justify-between items-center">
-                <span className="text-blue-900 font-black uppercase text-xs tracking-wider">Total à payer à l'entrée :</span>
-                <span className="text-blue-700 font-black text-xl">
-                  {new Intl.NumberFormat('fr-FR', {
-                    style: 'currency',
-                    currency: 'XOF',
-                    minimumFractionDigits: 0,
-                  }).format(
-                    (formData.deposit || 0) + 
-                    ((formData.monthly_rent || 0) * (formData.advance_rent_months || 0)) + 
-                    (formData.monthly_rent || 0) + 
-                    (formData.charges || 0)
-                  )}
-                </span>
+                <div className="pt-3 mt-3 border-t border-blue-200 flex justify-between items-center">
+                  <span className="text-blue-900 font-black uppercase text-xs tracking-wider">Total à payer à l'entrée :</span>
+                  <span className="text-blue-700 font-black text-xl">
+                    {new Intl.NumberFormat('fr-FR', {
+                      style: 'currency',
+                      currency: 'XOF',
+                      minimumFractionDigits: 0,
+                    }).format(
+                      (formData.deposit || 0) + 
+                      ((formData.monthly_rent || 0) * (formData.advance_rent_months || 0)) + 
+                      (formData.monthly_rent || 0) + 
+                      (formData.charges || 0)
+                    )}
+                  </span>
+                </div>
+                
+                <p className="text-[10px] text-blue-600 italic">
+                  Note: Le locataire a payé {formData.advance_rent_months} mois d'avance. Son prochain paiement sera dû dans {(formData.advance_rent_months || 0) + 1} mois.
+                </p>
               </div>
-              
-              <p className="text-[10px] text-blue-600 italic">
-                Note: Le locataire a payé {formData.advance_rent_months} mois d'avance. Son prochain paiement sera dû dans {(formData.advance_rent_months || 0) + 1} mois.
-              </p>
-            </div>
+            )}
 
             <div className="mt-4 p-4 bg-green-50 rounded-lg">
               <p className="text-sm text-green-800">
