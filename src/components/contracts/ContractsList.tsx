@@ -272,7 +272,7 @@ export const ContractsList: React.FC = () => {
     try {
       if (!contractData.property_id?.trim()) throw new Error('ID de la propriété requis');
       if (!contractData.owner_id?.trim()) throw new Error('ID du propriétaire requis');
-      if (!contractData.tenant_id?.trim()) throw new Error('ID du locataire requis');
+      if (contractData.type !== 'gestion' && !contractData.tenant_id?.trim()) throw new Error('ID du locataire requis');
       if (!contractData.type) throw new Error('Type de contrat requis');
       if (!contractData.start_date) throw new Error('Date de début requise');
       if (!contractData.terms?.trim()) throw new Error('Termes du contrat requis');
@@ -282,7 +282,7 @@ export const ContractsList: React.FC = () => {
         agency_id: user.agency_id,
         property_id: contractData.property_id,
         owner_id: contractData.owner_id,
-        tenant_id: contractData.tenant_id,
+        tenant_id: contractData.type === 'gestion' ? '00000000-0000-0000-0000-000000000000' : contractData.tenant_id,
         type: contractData.type,
         start_date: contractData.start_date,
         end_date: contractData.end_date,
