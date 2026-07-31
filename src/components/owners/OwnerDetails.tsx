@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, Plus, ArrowLeft, Users, Trash2, Hammer, LineChart, CreditCard } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Building2, Wallet, Edit, Plus, ArrowLeft, Users, Trash2, Hammer, LineChart, CreditCard, FileText } from 'lucide-react';
 import { useRealtimeData, useSupabaseCreate } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
 import { OHADAContractGenerator } from '../../utils/contractTemplates';
@@ -25,6 +25,7 @@ import { OwnerPortfolioInsights } from './OwnerPortfolioInsights';
 import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { supabase } from '../../lib/supabase';
 import { generatePayoutOrderPDF } from '../../utils/payoutPdfActions';
+import { ContractForm } from '../contracts/ContractForm';
 
 export const OwnerDetails: React.FC = () => {
     const { id: slug } = useParams<{ id: string }>();
@@ -109,6 +110,33 @@ export const OwnerDetails: React.FC = () => {
     const [showAssignTenantModal, setShowAssignTenantModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [editingContract, setEditingContract] = useState<any>(null);
+
+    const handleUpdateContract = async (contractData: any) => {
+        const toastId = toast.loading('Mise à jour du contrat...');
+        try {
+            const { error } = await supabase
+                .from('contracts')
+                .update({
+                    commission_rate: contractData.commission_rate ?? 10,
+                    commission_amount: contractData.commission_amount ?? 0,
+                    extra_data: contractData.extra_data || {},
+                    start_date: contractData.start_date,
+                    end_date: contractData.end_date,
+                    status: contractData.status || 'active',
+                    terms: contractData.terms
+                })
+                .eq('id', contractData.id);
+            
+            if (error) throw error;
+            toast.success('Contrat mis à jour avec succès', { id: toastId });
+            setEditingContract(null);
+            refetch();
+        } catch (error: any) {
+            console.error('Error updating contract:', error);
+            toast.error('Erreur lors de la mise à jour : ' + error.message, { id: toastId });
+        }
+    };
 
     // 4. Mutation Hooks
     const { create: createProperty } = useSupabaseCreate(
@@ -602,6 +630,112 @@ export const OwnerDetails: React.FC = () => {
                                         </dd>
                                     </div>
                                 </dl>
+
+                                {/* Mandat de Gestion Globale */}
+                                {(() => {
+                                    const activeMgmtContract = contracts?.find(c => c.type === 'gestion');
+                                    if (activeMgmtContract) {
+                                        return (
+                                            <div className="mt-8 pt-6 border-t border-gray-150 animate-fade-in-up">
+                                                <h4 className="text-sm font-bold text-gray-950 mb-3 flex items-center gap-2">
+                                                    <FileText className="w-4 h-4 text-indigo-600" />
+                                                    Mandat de Gestion Globale
+                                                </h4>
+                                                <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-4 space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2 text-indigo-850 font-bold">
+                                                            <Building2 className="w-4 h-4 text-indigo-600" />
+                                                            <span>Type de commission : {activeMgmtContract.extra_data?.commission_type === 'fixed' ? 'Montant Fixe' : 'Pourcentage'}</span>
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setEditingContract(activeMgmtContract)}
+                                                            className="text-indigo-700 border-indigo-200 hover:bg-indigo-100 bg-white"
+                                                        >
+                                                            <Edit className="w-3.5 h-3.5 mr-1" />
+                                                            Modifier le Mandat
+                                                        </Button>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                                        <div>
+                                                            <span className="text-gray-500 block font-medium">Commission :</span>
+                                                            <span className="font-bold text-gray-800 text-sm">
+                                                                {activeMgmtContract.extra_data?.commission_type === 'fixed'
+                                                                    ? `${new Intl.NumberFormat('fr-FR').format(activeMgmtContract.commission_amount || 0)} FCFA`
+                                                                    : `${activeMgmtContract.commission_rate ?? 10} %`
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500 block font-medium">Statut du mandat :</span>
+                                                            <span className="font-bold text-gray-800 text-sm capitalize">{activeMgmtContract.status}</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500 block font-medium">Date d'effet :</span>
+                                                            <span className="font-bold text-gray-800 text-sm">
+                                                                {activeMgmtContract.start_date ? new Date(activeMgmtContract.start_date).toLocaleDateString('fr-FR') : '-'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    } else {
+                                        return (
+                                            <div className="mt-8 pt-6 border-t border-gray-150 animate-fade-in-up">
+                                                <h4 className="text-sm font-bold text-gray-950 mb-3 flex items-center gap-2">
+                                                    <FileText className="w-4 h-4 text-indigo-600" />
+                                                    Mandat de Gestion Globale
+                                                </h4>
+                                                <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                    <div className="text-xs text-amber-800">
+                                                        Aucun mandat de gestion globale n'est encore enregistré pour ce propriétaire. Le système en générera un par défaut lors de l'ajout du premier bien.
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={async () => {
+                                                            if (!user?.agency_id) return;
+                                                            const toastId = toast.loading('Création du mandat de gestion...');
+                                                            try {
+                                                                const agency = await dbService.agencies.getById(user.agency_id);
+                                                                if (agency) {
+                                                                    const payload = {
+                                                                        type: 'gestion' as const,
+                                                                        owner_id: owner.id,
+                                                                        tenant_id: null,
+                                                                        property_id: null,
+                                                                        agency_id: user.agency_id,
+                                                                        start_date: new Date().toISOString().split('T')[0],
+                                                                        commission_rate: 10,
+                                                                        commission_amount: 0,
+                                                                        status: 'active' as const,
+                                                                        terms: OHADAContractGenerator.generateManagementContract(agency, owner, 10),
+                                                                        documents: [],
+                                                                        extra_data: { commission_type: 'percentage' }
+                                                                    };
+                                                                    await dbService.contracts.create(payload);
+                                                                    toast.success('Mandat de gestion globale créé avec succès !', { id: toastId });
+                                                                    refetch();
+                                                                }
+                                                            } catch (err: any) {
+                                                                console.error('Error generating management contract:', err);
+                                                                toast.error('Erreur lors de la génération : ' + err.message, { id: toastId });
+                                                            }
+                                                        }}
+                                                        className="text-amber-800 border-amber-300 hover:bg-amber-100 bg-white shrink-0 font-bold"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5 mr-1" />
+                                                        Créer un mandat
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                })()}
                             </div>
                         )}
                     </div>
@@ -692,6 +826,16 @@ export const OwnerDetails: React.FC = () => {
                 isLoading={isDeleting}
                 message="Voulez-vous vraiment supprimer ce propriétaire ? Pour une suppression complète, ses biens et contrats doivent être supprimés individuellement au préalable."
             />
+
+            {editingContract && (
+                <ContractForm
+                    isOpen={!!editingContract}
+                    onClose={() => setEditingContract(null)}
+                    initialData={editingContract}
+                    onSubmit={handleUpdateContract}
+                    readOnly={false}
+                />
+            )}
         </div>
     );
 };

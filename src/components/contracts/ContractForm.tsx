@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Save, FileText, Calendar, DollarSign, Upload, Printer, Eye } from 'lucide-react';
+import { Save, FileText, Calendar, DollarSign, Upload, Printer, Eye, Edit } from 'lucide-react';
 import Select, { SingleValue } from 'react-select';
 import AsyncSelect from 'react-select/async';
 import { Button } from '../ui/Button';
@@ -25,8 +25,15 @@ interface ContractFormProps {
 }
 
 export const ContractForm = React.memo<ContractFormProps>(
-  ({ isOpen, onClose, onSubmit, initialData, readOnly = false }) => {
+  ({ isOpen, onClose, onSubmit, initialData, readOnly: initialReadOnly = false }) => {
     const { user } = useAuth();
+    const [isReadOnly, setIsReadOnly] = useState(initialReadOnly);
+
+    useEffect(() => {
+      setIsReadOnly(initialReadOnly);
+    }, [initialReadOnly, isOpen]);
+
+    const readOnly = isReadOnly;
 
     const [formData, setFormData] = useState<Partial<Contract>>({
       agency_id: user?.agency_id ?? undefined,
@@ -315,10 +322,24 @@ export const ContractForm = React.memo<ContractFormProps>(
         onClose={() => { resetForm(); onClose(); }}
         size="lg"
         title={
-          <div className="flex items-center gap-3">
-            <span>{initialData?.id ? (readOnly ? 'Détails du contrat' : 'Modifier le contrat') : 'Nouveau contrat'}</span>
+          <div className="flex items-center justify-between w-full pr-8">
+            <div className="flex items-center gap-3">
+              <span>{initialData?.id ? (readOnly ? 'Détails du contrat' : 'Modifier le contrat') : 'Nouveau contrat'}</span>
+              {readOnly && (
+                <Badge variant="info" size="sm">Lecture seule</Badge>
+              )}
+            </div>
             {readOnly && (
-              <Badge variant="info" size="sm">Mode Lecture Seule</Badge>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setIsReadOnly(false)}
+                className="text-orange-600 border-orange-200 hover:bg-orange-50 font-bold px-3 py-1 h-auto"
+              >
+                <Edit className="w-3.5 h-3.5 mr-1" />
+                Modifier
+              </Button>
             )}
           </div>
         }
