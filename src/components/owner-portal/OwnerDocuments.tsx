@@ -184,7 +184,7 @@ export const OwnerDocuments: React.FC = () => {
 
                 <div className="mb-6">
                   <span className="px-3 py-1 bg-slate-50 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition-colors">
-                    {activeTab === 'contracts' ? 'Bail de Location' : activeTab === 'inventories' ? 'État des Lieux' : 'Reçu de Loyer'}
+                    {activeTab === 'contracts' ? (item.type === 'gestion' ? 'Mandat de Gestion' : 'Bail de Location') : activeTab === 'inventories' ? 'État des Lieux' : 'Reçu de Loyer'}
                   </span>
                   <h3 className="text-lg font-black text-slate-900 mt-3 group-hover:text-emerald-700 transition-colors">
                     {item.property?.title || item.contract?.property?.title || 'Document Immobilier'}
