@@ -63,6 +63,40 @@ export const ContractForm = React.memo<ContractFormProps>(
       ...initialData,
     });
 
+    useEffect(() => {
+      if (isOpen) {
+        setFormData({
+          agency_id: initialData?.agency_id ?? user?.agency_id ?? undefined,
+          owner_id: initialData?.owner_id ?? undefined,
+          property_id: initialData?.property_id ?? undefined,
+          tenant_id: initialData?.tenant_id ?? undefined,
+          type: initialData?.type ?? 'location',
+          start_date: initialData?.start_date ?? new Date().toISOString().split('T')[0],
+          end_date: initialData?.end_date ?? undefined,
+          monthly_rent: initialData?.monthly_rent ?? undefined,
+          deposit: initialData?.deposit ?? undefined,
+          deposit_months: initialData?.deposit_months ?? 2,
+          advance_rent_months: initialData?.advance_rent_months ?? 2,
+          charges: initialData?.charges ?? undefined,
+          commission_rate: initialData?.commission_rate ?? 10,
+          commission_amount: initialData?.commission_amount ?? 0,
+          status: initialData?.status ?? 'draft',
+          terms: initialData?.terms ?? '',
+          documents: initialData?.documents ?? [],
+          sale_price: initialData?.sale_price ?? undefined,
+          extra_data: {
+            is_existing_tenant: false,
+            deposit_held_by: 'agency',
+            lease_usage: 'habitation',
+            business_activity: '',
+            billing_start_date: new Date().toISOString().split('T')[0],
+            ...initialData?.extra_data
+          },
+          ...initialData
+        });
+      }
+    }, [isOpen, initialData, user?.agency_id]);
+
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [currentOwner, setCurrentOwner] = useState<Owner | null>(null);
