@@ -450,8 +450,9 @@ export const ContractForm = React.memo<ContractFormProps>(
                   id="type"
                   value={formData.type}
                   onChange={(e) => updateFormData({ type: e.target.value as Contract['type'] })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                   required
+                  disabled={readOnly}
                 >
                   <option value="location">Location</option>
                   <option value="vente">Vente</option>
@@ -468,8 +469,9 @@ export const ContractForm = React.memo<ContractFormProps>(
                     onChange={(e) => updateFormData({
                       extra_data: { ...formData.extra_data, lease_usage: e.target.value }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                     required
+                    disabled={readOnly}
                   >
                     <option value="habitation">Habitation (OHADA)</option>
                     <option value="professionnel">Professionnel (OHADA)</option>
@@ -508,6 +510,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                       extra_data: { ...formData.extra_data, business_activity: e.target.value }
                     })}
                     placeholder="Ex: Vente de tissus, Restauration, Services informatiques..."
+                    disabled={readOnly}
                   />
                 </div>
               )}
@@ -525,7 +528,8 @@ export const ContractForm = React.memo<ContractFormProps>(
                       is_existing_tenant: e.target.checked
                     }
                   })}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+                  disabled={readOnly}
                 />
                 <label htmlFor="is_existing_tenant" className="text-sm font-medium text-gray-900">
                   Reprise de bail (Locataire déjà en place)
@@ -547,7 +551,8 @@ export const ContractForm = React.memo<ContractFormProps>(
                           deposit_held_by: e.target.value
                         }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                      disabled={readOnly}
                     >
                       <option value="agency">Notre agence</option>
                       <option value="previous_owner">Ancien propriétaire / agence</option>
@@ -568,7 +573,8 @@ export const ContractForm = React.memo<ContractFormProps>(
                           billing_start_date: e.target.value
                         }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                      disabled={readOnly}
                     />
                   </div>
                 </div>
@@ -590,6 +596,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                 value={formData.start_date ?? ''}
                 onChange={(e) => updateFormData({ start_date: e.target.value || undefined })}
                 required
+                disabled={readOnly}
               />
               <Input
                 id="end_date"
@@ -621,6 +628,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                     }
                     min={0}
                     placeholder="450000"
+                    disabled={readOnly}
                   />
                   <div className="grid grid-cols-2 gap-4">
                     <Input
@@ -633,6 +641,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                       }
                       min={0}
                       max={12}
+                      disabled={readOnly}
                     />
                     <Input
                       id="advance_rent_months"
@@ -644,6 +653,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                       }
                       min={0}
                       max={12}
+                      disabled={readOnly}
                     />
                   </div>
                   <Input
@@ -656,6 +666,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                     }
                     min={0}
                     placeholder="25000"
+                    disabled={readOnly}
                   />
                 </>
               )}
@@ -671,6 +682,7 @@ export const ContractForm = React.memo<ContractFormProps>(
                   }
                   min={0}
                   placeholder="25000000"
+                  disabled={readOnly}
                 />
               )}
 
