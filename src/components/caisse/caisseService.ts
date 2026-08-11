@@ -101,7 +101,7 @@ export const fetchCaisseData = async (
       })(),
 
       // Global queries (for accurate balance — no filters)
-      supabase.from('rent_receipts').select('amount_paid, total_amount, property_id, payment_date, created_at').eq('agency_id', agencyId),
+      supabase.from('rent_receipts').select('amount_paid, total_amount, property_id, payment_date, created_at, payment_status').eq('agency_id', agencyId),
       supabase.from('modular_transactions').select('amount, type, category, related_property_id, transaction_date, created_at').eq('agency_id', agencyId),
       supabase.from('property_expenses').select('amount').eq('agency_id', agencyId),
 
@@ -138,7 +138,15 @@ export const fetchCaisseData = async (
 
   // ── Global balance ──────────────────────────────────────────────────────────
   const globalCredits =
-    globalReceipts.reduce((s, r) => s + (Number(r.amount_paid ?? r.total_amount) || 0), 0) +
+    globalReceipts
+      .filter(r => r.payment_status !== 'unpaid')
+      .reduce((s, r) => {
+        const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+        const amountPaid = isPaid
+            ? (Number(r.amount_paid ?? r.total_amount) || 0)
+            : (Number(r.amount_paid) || 0);
+        return s + amountPaid;
+      }, 0) +
     uniqueGlobalManual.filter(t => CREDIT_TYPES.includes(t.type)).reduce((s, t) => s + Number(t.amount || 0), 0);
 
   const globalDebits =
@@ -173,18 +181,26 @@ export const fetchCaisseData = async (
   }, 0);
 
   // ── Map to normalized Transaction objects ────────────────────────────────────
-  const mappedReceipts: Transaction[] = receipts.map(r => ({
-    id: `receipt-${r.id}`,
-    date: r.payment_date,
-    type: 'credit',
-    category: 'rent_payment',
-    amount: r.amount_paid ?? r.total_amount,
-    description: `Loyer ${r.property?.title || 'Bien'} - ${r.tenant?.first_name || ''} ${r.tenant?.last_name || ''}`,
-    payment_method: r.payment_method,
-    source: 'rent_receipt',
-    reference_id: r.receipt_number,
-    details: r,
-  }));
+  const mappedReceipts: Transaction[] = receipts
+    .filter(r => r.payment_status !== 'unpaid')
+    .map(r => {
+      const isPaid = r.payment_status === 'paid' || r.payment_status === 'full';
+      const amountPaid = isPaid
+          ? (Number(r.amount_paid ?? r.total_amount) || 0)
+          : (Number(r.amount_paid) || 0);
+      return {
+        id: `receipt-${r.id}`,
+        date: r.payment_date || r.created_at,
+        type: 'credit',
+        category: 'rent_payment',
+        amount: amountPaid,
+        description: `Loyer ${r.property?.title || 'Bien'} - ${r.tenant?.first_name || ''} ${r.tenant?.last_name || ''}`,
+        payment_method: r.payment_method,
+        source: 'rent_receipt',
+        reference_id: r.receipt_number,
+        details: r,
+      };
+    });
 
   // Dédupliquer les transactions de loyer manuelles par rapport aux reçus
   const uniqueCashTrans = cashTrans.filter(m => {
@@ -257,7 +273,7 @@ export const fetchCaisseData = async (
       // Si on a filtré sur une période spécifique, on utilise les encaissements de la période pour le calcul
       if (filters.period && filters.period !== 'all') return true; 
       // Sinon, on extrait uniquement les encaissements du mois courant
-      return t.date.startsWith(currentMonthStr);
+      return t.date && typeof t.date === 'string' && t.date.startsWith(currentMonthStr);
     })
     .reduce((s, t) => s + Number(t.amount || 0), 0);
 

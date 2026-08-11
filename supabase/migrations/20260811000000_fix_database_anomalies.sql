@@ -243,4 +243,19 @@ USING (
 DROP POLICY IF EXISTS "audit_logs_insert" ON public.audit_logs;
 CREATE POLICY "audit_logs_insert" ON public.audit_logs FOR INSERT TO anon, authenticated WITH CHECK (true);
 
+
+-- 5. CORRECTION DE LA RELATION AGENCY_ID SUR LES QUITTANCES EXISTANTES
+-- =============================================================================
+UPDATE public.rent_receipts r 
+SET agency_id = (SELECT agency_id FROM public.contracts c WHERE c.id = r.contract_id)
+WHERE agency_id IS NULL;
+
+UPDATE public.rent_receipts r 
+SET agency_id = (SELECT agency_id FROM public.properties p WHERE p.id = r.property_id)
+WHERE agency_id IS NULL;
+
+UPDATE public.rent_receipts r 
+SET agency_id = (SELECT agency_id FROM public.tenants t WHERE t.id = r.tenant_id)
+WHERE agency_id IS NULL;
+
 COMMIT;
