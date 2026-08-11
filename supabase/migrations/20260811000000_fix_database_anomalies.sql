@@ -258,4 +258,326 @@ UPDATE public.rent_receipts r
 SET agency_id = (SELECT agency_id FROM public.tenants t WHERE t.id = r.tenant_id)
 WHERE agency_id IS NULL;
 
+
+-- 6. HARMONISATION ET SYNCHRONISATION AUTOMATIQUE DES REVERSEMENTS PROPRIÉTAIRES
+-- =============================================================================
+ALTER TABLE public.owner_transactions ADD COLUMN IF NOT EXISTS linked_modular_id UUID;
+ALTER TABLE public.modular_transactions ADD COLUMN IF NOT EXISTS linked_owner_tx_id UUID;
+
+-- Trigger pour synchroniser owner_transactions -> modular_transactions
+CREATE OR REPLACE FUNCTION public.sync_owner_to_modular()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF pg_trigger_depth() > 1 THEN
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.type = 'debit' THEN
+            INSERT INTO public.modular_transactions (
+                agency_id,
+                created_by,
+                type,
+                amount,
+                category,
+                description,
+                transaction_date,
+                payment_method,
+                related_owner_id,
+                module_type,
+                linked_owner_tx_id
+            ) VALUES (
+                NEW.agency_id,
+                NEW.created_by,
+                'expense',
+                NEW.montant,
+                'owner_payout',
+                COALESCE(NEW.description, 'Reversement propriétaire'),
+                NEW.date_transaction::date,
+                CASE 
+                    WHEN NEW.mode_paiement = 'virement' THEN 'bank_transfer'
+                    WHEN NEW.mode_paiement = 'cheque' THEN 'check'
+                    WHEN NEW.mode_paiement = 'especes' THEN 'cash'
+                    ELSE 'mobile_money'
+                END,
+                NEW.owner_id,
+                'owner',
+                NEW.id
+            ) RETURNING id INTO NEW.linked_modular_id;
+        END IF;
+
+    ELSIF TG_OP = 'UPDATE' THEN
+        IF NEW.type = 'debit' THEN
+            IF NEW.linked_modular_id IS NOT NULL THEN
+                UPDATE public.modular_transactions SET
+                    amount = NEW.montant,
+                    description = COALESCE(NEW.description, 'Reversement propriétaire'),
+                    transaction_date = NEW.date_transaction::date,
+                    payment_method = CASE 
+                        WHEN NEW.mode_paiement = 'virement' THEN 'bank_transfer'
+                        WHEN NEW.mode_paiement = 'cheque' THEN 'check'
+                        WHEN NEW.mode_paiement = 'especes' THEN 'cash'
+                        ELSE 'mobile_money'
+                    END,
+                    related_owner_id = NEW.owner_id
+                WHERE id = NEW.linked_modular_id;
+            ELSE
+                INSERT INTO public.modular_transactions (
+                    agency_id,
+                    created_by,
+                    type,
+                    amount,
+                    category,
+                    description,
+                    transaction_date,
+                    payment_method,
+                    related_owner_id,
+                    module_type,
+                    linked_owner_tx_id
+                ) VALUES (
+                    NEW.agency_id,
+                    NEW.created_by,
+                    'expense',
+                    NEW.montant,
+                    'owner_payout',
+                    COALESCE(NEW.description, 'Reversement propriétaire'),
+                    NEW.date_transaction::date,
+                    CASE 
+                        WHEN NEW.mode_paiement = 'virement' THEN 'bank_transfer'
+                        WHEN NEW.mode_paiement = 'cheque' THEN 'check'
+                        WHEN NEW.mode_paiement = 'especes' THEN 'cash'
+                        ELSE 'mobile_money'
+                    END,
+                    NEW.owner_id,
+                    'owner',
+                    NEW.id
+                ) RETURNING id INTO NEW.linked_modular_id;
+            END IF;
+        END IF;
+
+    ELSIF TG_OP = 'DELETE' THEN
+        IF OLD.linked_modular_id IS NOT NULL THEN
+            DELETE FROM public.modular_transactions WHERE id = OLD.linked_modular_id;
+        END IF;
+        RETURN OLD;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_sync_owner_to_modular ON public.owner_transactions;
+CREATE TRIGGER trg_sync_owner_to_modular
+BEFORE INSERT OR UPDATE OR DELETE ON public.owner_transactions
+FOR EACH ROW EXECUTE FUNCTION public.sync_owner_to_modular();
+
+
+-- Trigger pour synchroniser modular_transactions -> owner_transactions
+CREATE OR REPLACE FUNCTION public.sync_modular_to_owner()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF pg_trigger_depth() > 1 THEN
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.category = 'owner_payout' AND NEW.related_owner_id IS NOT NULL THEN
+            INSERT INTO public.owner_transactions (
+                owner_id,
+                agency_id,
+                type,
+                montant,
+                mode_paiement,
+                reference,
+                description,
+                notes,
+                date_transaction,
+                created_by,
+                linked_modular_id
+            ) VALUES (
+                NEW.related_owner_id,
+                NEW.agency_id,
+                'debit',
+                NEW.amount,
+                CASE 
+                    WHEN NEW.payment_method = 'bank_transfer' THEN 'virement'
+                    WHEN NEW.payment_method = 'check' THEN 'cheque'
+                    WHEN NEW.payment_method = 'cash' THEN 'especes'
+                    ELSE 'mobile_money'
+                END,
+                '',
+                NEW.description,
+                'Synchronisé depuis la caisse',
+                COALESCE(NEW.transaction_date::timestamp, NOW()),
+                NEW.created_by,
+                NEW.id
+            ) RETURNING id INTO NEW.linked_owner_tx_id;
+        END IF;
+
+    ELSIF TG_OP = 'UPDATE' THEN
+        IF NEW.category = 'owner_payout' AND NEW.related_owner_id IS NOT NULL THEN
+            IF NEW.linked_owner_tx_id IS NOT NULL THEN
+                UPDATE public.owner_transactions SET
+                    owner_id = NEW.related_owner_id,
+                    montant = NEW.amount,
+                    mode_paiement = CASE 
+                        WHEN NEW.payment_method = 'bank_transfer' THEN 'virement'
+                        WHEN NEW.payment_method = 'check' THEN 'cheque'
+                        WHEN NEW.payment_method = 'cash' THEN 'especes'
+                        ELSE 'mobile_money'
+                    END,
+                    description = NEW.description,
+                    date_transaction = COALESCE(NEW.transaction_date::timestamp, NOW())
+                WHERE id = NEW.linked_owner_tx_id;
+            ELSE
+                INSERT INTO public.owner_transactions (
+                    owner_id,
+                    agency_id,
+                    type,
+                    montant,
+                    mode_paiement,
+                    reference,
+                    description,
+                    notes,
+                    date_transaction,
+                    created_by,
+                    linked_modular_id
+                ) VALUES (
+                    NEW.related_owner_id,
+                    NEW.agency_id,
+                    'debit',
+                    NEW.amount,
+                    CASE 
+                        WHEN NEW.payment_method = 'bank_transfer' THEN 'virement'
+                        WHEN NEW.payment_method = 'check' THEN 'cheque'
+                        WHEN NEW.payment_method = 'cash' THEN 'especes'
+                        ELSE 'mobile_money'
+                    END,
+                    '',
+                    NEW.description,
+                    'Synchronisé depuis la caisse',
+                    COALESCE(NEW.transaction_date::timestamp, NOW()),
+                    NEW.created_by,
+                    NEW.id
+                ) RETURNING id INTO NEW.linked_owner_tx_id;
+            END IF;
+        END IF;
+
+    ELSIF TG_OP = 'DELETE' THEN
+        IF OLD.linked_owner_tx_id IS NOT NULL THEN
+            DELETE FROM public.owner_transactions WHERE id = OLD.linked_owner_tx_id;
+        END IF;
+        RETURN OLD;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_sync_modular_to_owner ON public.modular_transactions;
+CREATE TRIGGER trg_sync_modular_to_owner
+BEFORE INSERT OR UPDATE OR DELETE ON public.modular_transactions
+FOR EACH ROW EXECUTE FUNCTION public.sync_modular_to_owner();
+
+
+-- Rétro-synchronisation initiale des données non liées
+INSERT INTO public.modular_transactions (
+    agency_id,
+    created_by,
+    type,
+    amount,
+    category,
+    description,
+    transaction_date,
+    payment_method,
+    related_owner_id,
+    module_type,
+    linked_owner_tx_id
+)
+SELECT 
+    ot.agency_id,
+    ot.created_by,
+    'expense',
+    ot.montant,
+    'owner_payout',
+    COALESCE(ot.description, 'Reversement propriétaire'),
+    ot.date_transaction::date,
+    CASE 
+        WHEN ot.mode_paiement = 'virement' THEN 'bank_transfer'
+        WHEN ot.mode_paiement = 'cheque' THEN 'check'
+        WHEN ot.mode_paiement = 'especes' THEN 'cash'
+        ELSE 'mobile_money'
+    END,
+    ot.owner_id,
+    'owner',
+    ot.id
+FROM public.owner_transactions ot
+WHERE ot.type = 'debit'
+  AND NOT EXISTS (
+      SELECT 1 FROM public.modular_transactions mt 
+      WHERE mt.related_owner_id = ot.owner_id 
+        AND ABS(mt.amount - ot.montant) < 0.01
+        AND (mt.transaction_date = ot.date_transaction::date OR mt.linked_owner_tx_id = ot.id)
+  );
+
+INSERT INTO public.owner_transactions (
+    owner_id,
+    agency_id,
+    type,
+    montant,
+    mode_paiement,
+    reference,
+    description,
+    notes,
+    date_transaction,
+    created_by,
+    linked_modular_id
+)
+SELECT 
+    mt.related_owner_id,
+    mt.agency_id,
+    'debit',
+    mt.amount,
+    CASE 
+        WHEN mt.payment_method = 'bank_transfer' THEN 'virement'
+        WHEN mt.payment_method = 'check' THEN 'cheque'
+        WHEN mt.payment_method = 'cash' THEN 'especes'
+        ELSE 'mobile_money'
+    END,
+    '',
+    mt.description,
+    'Synchronisé depuis la caisse',
+    COALESCE(mt.transaction_date::timestamp, NOW()),
+    mt.created_by,
+    mt.id
+FROM public.modular_transactions mt
+WHERE mt.category = 'owner_payout'
+  AND mt.related_owner_id IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM public.owner_transactions ot 
+      WHERE ot.owner_id = mt.related_owner_id 
+        AND ABS(ot.montant - mt.amount) < 0.01
+        AND (ot.date_transaction::date = mt.transaction_date OR ot.linked_modular_id = mt.id)
+  );
+
+UPDATE public.owner_transactions ot
+SET linked_modular_id = (
+    SELECT id FROM public.modular_transactions mt
+    WHERE mt.related_owner_id = ot.owner_id
+      AND ABS(mt.amount - ot.montant) < 0.01
+      AND mt.transaction_date = ot.date_transaction::date
+    LIMIT 1
+)
+WHERE linked_modular_id IS NULL;
+
+UPDATE public.modular_transactions mt
+SET linked_owner_tx_id = (
+    SELECT id FROM public.owner_transactions ot
+    WHERE ot.owner_id = mt.related_owner_id
+      AND ABS(ot.montant - mt.amount) < 0.01
+      AND ot.date_transaction::date = mt.transaction_date
+    LIMIT 1
+)
+WHERE linked_owner_tx_id IS NULL AND category = 'owner_payout';
+
 COMMIT;
