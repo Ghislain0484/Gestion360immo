@@ -186,42 +186,16 @@ export const TenantCheckout: React.FC = () => {
   const handlePaymentSuccess = async (transactionId: string, gatewayName: string) => {
     try {
       setIsProcessing(true);
-      // 1. Update Rent Receipt status in DB
-      const { error: updateErr } = await supabase
-        .from('rent_receipts')
-        .update({
-          payment_status: 'paid',
-          amount_paid: receipt.total_amount,
-          balance_due: 0,
-          payment_date: new Date().toISOString(),
-          payment_method: 'mobile_money',
-          notes: `Réglement en ligne sécurisé via ${gatewayName}. Réf: ${transactionId}`
-        })
-        .eq('id', receiptId);
+      
+      // Call secure SECURITY DEFINER RPC to bypass RLS for anonymous checkouts
+      const { error: rpcErr } = await supabase.rpc('confirm_tenant_payment', {
+        p_receipt_id: receiptId,
+        p_transaction_id: transactionId,
+        p_gateway_name: gatewayName,
+        p_amount: receipt.total_amount
+      });
 
-      if (updateErr) throw updateErr;
-
-      // 2. Synchronize payment in Ledger (modular_transactions)
-      const { error: ledgerErr } = await supabase
-        .from('modular_transactions')
-        .insert({
-          agency_id: tenant.agency_id,
-          created_by: receipt.issued_by || null,
-          type: 'income',
-          amount: receipt.total_amount,
-          category: 'rent_receipt',
-          description: `Paiement Loyer en ligne (${gatewayName}) - ${tenant.first_name} ${tenant.last_name} (${MONTHS_FR[receipt.period_month]} ${receipt.period_year})`,
-          transaction_date: new Date().toISOString().split('T')[0],
-          payment_method: 'mobile_money',
-          related_tenant_id: receipt.tenant_id,
-          related_owner_id: receipt.owner_id,
-          related_property_id: receipt.property_id,
-          module_type: 'caisse'
-        });
-
-      if (ledgerErr) {
-        console.error("Ledger synchronization error:", ledgerErr);
-      }
+      if (rpcErr) throw rpcErr;
 
       setPaymentSuccess(true);
       setReceipt(prev => ({
