@@ -258,7 +258,7 @@ export const fetchCaisseData = async (
     }
   );
 
-  const collected = mappedReceipts
+  const collected = allTransactions
     .filter(t => t.category === 'rent_payment' && t.type === 'credit')
     .reduce((s, t) => s + Number(t.amount || 0), 0);
 
@@ -267,7 +267,7 @@ export const fetchCaisseData = async (
   const now = new Date();
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   
-  const collectedThisMonth = mappedReceipts
+  const collectedThisMonth = allTransactions
     .filter(t => {
       if (t.category !== 'rent_payment' || t.type !== 'credit') return false;
       // Si on a filtré sur une période spécifique, on utilise les encaissements de la période pour le calcul
