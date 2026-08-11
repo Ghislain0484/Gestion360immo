@@ -129,74 +129,6 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
             };
 
             if (transaction?.id) {
-                // Synchronisation en cascade avec owner_transactions
-                const wasPayout = transaction.category === 'owner_payout' && transaction.related_owner_id;
-                const isPayout = payload.category === 'owner_payout' && payload.related_owner_id;
-
-                const dbPaymentMethod = 
-                    payload.payment_method === 'bank_transfer' ? 'virement' :
-                    payload.payment_method === 'check' ? 'cheque' :
-                    payload.payment_method === 'cash' ? 'especes' : 'mobile_money';
-
-                if (wasPayout && !isPayout) {
-                    // Si l'opération n'est plus un reversement, on supprime la ligne correspondante dans owner_transactions
-                    const { error: deleteError } = await supabase
-                        .from('owner_transactions')
-                        .delete()
-                        .eq('owner_id', transaction.related_owner_id)
-                        .eq('montant', transaction.amount)
-                        .eq('type', 'debit')
-                        .or('notes.ilike.%caisse%,notes.ilike.%journal%');
-                    if (deleteError) {
-                        console.error('Error deleting linked owner transaction during edit:', deleteError);
-                    }
-                } else if (!wasPayout && isPayout) {
-                    // Si l'opération devient un reversement, on insère la ligne correspondante
-                    const { error: insertError } = await supabase
-                        .from('owner_transactions')
-                        .insert({
-                            owner_id: payload.related_owner_id,
-                            agency_id: payload.agency_id,
-                            type: 'debit',
-                            montant: payload.amount,
-                            mode_paiement: dbPaymentMethod,
-                            reference: '',
-                            description: payload.description,
-                            notes: 'Enregistré manuellement depuis le journal de caisse (mis à jour)',
-                            date_transaction: new Date(payload.transaction_date).toISOString(),
-                            created_by: user?.id,
-                        });
-                    if (insertError) {
-                        console.error('Error inserting linked owner transaction during edit:', insertError);
-                    }
-                } else if (wasPayout && isPayout) {
-                    // Si l'opération reste un reversement, on cherche la ligne d'origine pour la mettre à jour
-                    const { data: matchedTxs } = await supabase
-                        .from('owner_transactions')
-                        .select('id')
-                        .eq('owner_id', transaction.related_owner_id)
-                        .eq('montant', transaction.amount)
-                        .eq('type', 'debit')
-                        .or('notes.ilike.%caisse%,notes.ilike.%journal%')
-                        .limit(1);
-                    
-                    if (matchedTxs && matchedTxs.length > 0) {
-                        const { error: updateError } = await supabase
-                            .from('owner_transactions')
-                            .update({
-                                owner_id: payload.related_owner_id,
-                                montant: payload.amount,
-                                mode_paiement: dbPaymentMethod,
-                                description: payload.description,
-                                date_transaction: new Date(payload.transaction_date).toISOString(),
-                            })
-                            .eq('id', matchedTxs[0].id);
-                        if (updateError) {
-                            console.error('Error updating linked owner transaction during edit:', updateError);
-                        }
-                    }
-                }
-
                 const { error } = await supabase
                     .from('modular_transactions')
                     .update(payload)
@@ -220,32 +152,6 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ isOpen
                 if (error) {
                     console.error('Insert RLS error:', error);
                     throw error;
-                }
-
-                // Synchronisation avec owner_transactions si c'est un reversement propriétaire
-                if (payload.category === 'owner_payout' && payload.related_owner_id) {
-                    const dbPaymentMethod = 
-                        payload.payment_method === 'bank_transfer' ? 'virement' :
-                        payload.payment_method === 'check' ? 'cheque' :
-                        payload.payment_method === 'cash' ? 'especes' : 'mobile_money';
-                    
-                    const { error: ownerTxError } = await supabase
-                        .from('owner_transactions')
-                        .insert({
-                            owner_id: payload.related_owner_id,
-                            agency_id: payload.agency_id,
-                            type: 'debit',
-                            montant: payload.amount,
-                            mode_paiement: dbPaymentMethod,
-                            reference: '',
-                            description: payload.description,
-                            notes: 'Enregistré manuellement depuis le journal de caisse',
-                            date_transaction: new Date(payload.transaction_date).toISOString(),
-                            created_by: user?.id,
-                        });
-                    if (ownerTxError) {
-                        console.error('Error syncing manual payout to owner_transactions:', ownerTxError);
-                    }
                 }
 
                 toast.success('Transaction enregistrée');

@@ -146,7 +146,7 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                 return;
             }
 
-            // Record owner reversal transaction
+            // Record owner reversal transaction (database triggers will automatically sync to modular_transactions)
             const { error } = await supabase
                 .from('owner_transactions')
                 .insert({
@@ -163,28 +163,6 @@ export const OwnerReversalModal: React.FC<OwnerReversalModalProps> = ({
                 });
 
             if (error) throw error;
-            
-            // 💰 Sync with Caisse (modular_transactions)
-            // This ensures the payout impacts the agency cash balance
-            const { error: syncError } = await supabase
-                .from('modular_transactions')
-                .insert({
-                    agency_id: user.agency_id,
-                    created_by: user.id,
-                    type: 'expense',
-                    amount: reversalData.montant,
-                    category: 'owner_payout',
-                    description: `Reversement propriétaire: ${ownerName} ${reversalData.reference ? '(' + reversalData.reference + ')' : ''}`,
-                    transaction_date: new Date().toISOString().split('T')[0],
-                    payment_method: reversalData.mode_paiement,
-                    related_owner_id: ownerId,
-                    module_type: 'owner'
-                });
-
-            if (syncError) {
-                console.error('Erreur synchronisation caisse:', syncError);
-                throw syncError;
-            }
 
             // ⚡ Propager le signal de mise à jour immédiate
             window.dispatchEvent(new CustomEvent('gestion360:refetch', { 

@@ -190,7 +190,7 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 data.payment_method === 'check' ? 'cheque' :
                 data.payment_method === 'cash' ? 'especes' : 'mobile_money';
 
-            // 1. Record in owner_transactions (Owner Ledger)
+            // Record in owner_transactions (Owner Ledger) (database triggers will automatically sync to modular_transactions)
             const { error: ownerTxError } = await supabase
                 .from('owner_transactions')
                 .insert({
@@ -207,24 +207,6 @@ export const PayoutModal: React.FC<PayoutModalProps> = ({ isOpen, onClose, onSuc
                 });
 
             if (ownerTxError) throw ownerTxError;
-
-            // 2. Record in modular_transactions (Caisse Journal)
-            const { error } = await supabase
-                .from('modular_transactions')
-                .insert([{
-                    agency_id: user?.agency_id,
-                    created_by: user?.id,
-                    type: 'expense',
-                    amount: data.amount,
-                    category: 'owner_payout',
-                    description: data.description,
-                    transaction_date: data.transaction_date,
-                    payment_method: data.payment_method,
-                    related_owner_id: ownerId,
-                    module_type: 'owner'
-                }]);
-
-            if (error) throw error;
 
             toast.success('Reversement enregistré');
             audioService.playCashOut();

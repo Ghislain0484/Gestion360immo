@@ -1,0 +1,334 @@
+{
+  "receipts": [
+    {
+      "id": "e7362fa1-c6e7-4de1-9cee-fa2d7765f806",
+      "receipt_number": "REC-202604-1779971471890",
+      "total_amount": "30000",
+      "amount_paid": "30000",
+      "commission_amount": "3000",
+      "owner_payment": "27000",
+      "payment_status": "full",
+      "payment_date": "2026-05-04T00:00:00.000Z"
+    },
+    {
+      "id": "92a72dde-6ba1-4626-bf85-937727e432a1",
+      "receipt_number": "REC-202604-1779972523176",
+      "total_amount": "70000",
+      "amount_paid": "70000",
+      "commission_amount": "7000",
+      "owner_payment": "63000",
+      "payment_status": "full",
+      "payment_date": "2026-05-04T00:00:00.000Z"
+    },
+    {
+      "id": "d98f2ae2-ea36-4cd4-8d89-ce39e7398c9d",
+      "receipt_number": "REC-202604-1779971546120",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-05-05T00:00:00.000Z"
+    },
+    {
+      "id": "ad2cfad4-8745-479c-b3ca-5ee4782c3f81",
+      "receipt_number": "REC-202604-1778064791114",
+      "total_amount": "40000",
+      "amount_paid": "40000",
+      "commission_amount": "4000",
+      "owner_payment": "36000",
+      "payment_status": "full",
+      "payment_date": "2026-05-06T00:00:00.000Z"
+    },
+    {
+      "id": "df7b4b44-e4b8-45a4-9353-66102fba4409",
+      "receipt_number": "REC-202604-1779971662954",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-05-06T00:00:00.000Z"
+    },
+    {
+      "id": "72ccdbd3-f552-4952-8f5a-a0ea6806bd1d",
+      "receipt_number": "REC-202604-1779971965502",
+      "total_amount": "20000",
+      "amount_paid": "20000",
+      "commission_amount": "2000",
+      "owner_payment": "18000",
+      "payment_status": "full",
+      "payment_date": "2026-05-06T00:00:00.000Z"
+    },
+    {
+      "id": "64544d8d-1454-473f-9e5a-bd8372ddd0f8",
+      "receipt_number": "REC-202604-1778320867212",
+      "total_amount": "20000",
+      "amount_paid": "20000",
+      "commission_amount": "2000",
+      "owner_payment": "18000",
+      "payment_status": "full",
+      "payment_date": "2026-05-09T00:00:00.000Z"
+    },
+    {
+      "id": "273882b6-f66a-4bf0-877e-4a4bd604c28f",
+      "receipt_number": "REC-202604-1778332545768",
+      "total_amount": "130000",
+      "amount_paid": "130000",
+      "commission_amount": "13000",
+      "owner_payment": "117000",
+      "payment_status": "full",
+      "payment_date": "2026-05-09T00:00:00.000Z"
+    },
+    {
+      "id": "cfb9934f-10d8-4a8d-ad98-4aaab557ceb8",
+      "receipt_number": "REC-202604-1778320808148",
+      "total_amount": "20000",
+      "amount_paid": "20000",
+      "commission_amount": "2000",
+      "owner_payment": "18000",
+      "payment_status": "full",
+      "payment_date": "2026-05-09T00:00:00.000Z"
+    },
+    {
+      "id": "dc21fe48-8c34-447a-992e-156191258c0a",
+      "receipt_number": "REC-202604-1778332589144",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-05-09T00:00:00.000Z"
+    },
+    {
+      "id": "2d98e82c-1d75-4dd8-9103-3ea66e178474",
+      "receipt_number": "REC-202604-1778510056518",
+      "total_amount": "100000",
+      "amount_paid": "100000",
+      "commission_amount": "10000",
+      "owner_payment": "90000",
+      "payment_status": "full",
+      "payment_date": "2026-05-11T00:00:00.000Z"
+    },
+    {
+      "id": "65d05ba6-6c13-4535-9fed-c55e7ff302b4",
+      "receipt_number": "REC-202604-1778509888846",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-05-11T00:00:00.000Z"
+    },
+    {
+      "id": "9e771225-372c-48c4-8d8e-38e7ea051af6",
+      "receipt_number": "REC-202604-1778509944094",
+      "total_amount": "100000",
+      "amount_paid": "100000",
+      "commission_amount": "10000",
+      "owner_payment": "90000",
+      "payment_status": "full",
+      "payment_date": "2026-05-11T00:00:00.000Z"
+    },
+    {
+      "id": "65184423-2953-4acc-8f2e-ea9963cf3bf1",
+      "receipt_number": "REC-202604-1778509999406",
+      "total_amount": "130000",
+      "amount_paid": "130000",
+      "commission_amount": "13000",
+      "owner_payment": "117000",
+      "payment_status": "full",
+      "payment_date": "2026-05-11T00:00:00.000Z"
+    },
+    {
+      "id": "ce9f5a3d-8f0e-4bec-bad2-62a7ee67c143",
+      "receipt_number": "REC-202604-1778519559634",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-05-11T00:00:00.000Z"
+    },
+    {
+      "id": "bf1d2e4b-6c78-419b-b3e2-8a7d0744d252",
+      "receipt_number": "REC-202604-1779971356612",
+      "total_amount": "30000",
+      "amount_paid": "30000",
+      "commission_amount": "3000",
+      "owner_payment": "27000",
+      "payment_status": "full",
+      "payment_date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "7d3dbae5-c1d7-4e62-9b8c-b22e089dac84",
+      "receipt_number": "REC-202604-1779972309787",
+      "total_amount": "130000",
+      "amount_paid": "130000",
+      "commission_amount": "13000",
+      "owner_payment": "117000",
+      "payment_status": "full",
+      "payment_date": "2026-05-14T00:00:00.000Z"
+    },
+    {
+      "id": "e30532e2-497e-4ced-a1c5-cd587da286b3",
+      "receipt_number": "REC-202604-1779972089079",
+      "total_amount": "130000",
+      "amount_paid": "120000",
+      "commission_amount": "12000",
+      "owner_payment": "108000",
+      "payment_status": "partial",
+      "payment_date": "2026-05-21T00:00:00.000Z"
+    },
+    {
+      "id": "eab45964-4e81-4318-a129-c5555f3660b1",
+      "receipt_number": "REC-202604-1779972220124",
+      "total_amount": "25000",
+      "amount_paid": "25000",
+      "commission_amount": "2500",
+      "owner_payment": "22500",
+      "payment_status": "full",
+      "payment_date": "2026-05-21T00:00:00.000Z"
+    },
+    {
+      "id": "ef2f0616-2b10-4c35-8988-255d3e017fdb",
+      "receipt_number": "REC-202605-1781184112108",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-06-03T00:00:00.000Z"
+    },
+    {
+      "id": "4b6a6656-2e7b-4087-a90d-e3a5ecd9bdbe",
+      "receipt_number": "REC-202604-1781182607866",
+      "total_amount": "35000",
+      "amount_paid": "35000",
+      "commission_amount": "3500",
+      "owner_payment": "31500",
+      "payment_status": "full",
+      "payment_date": "2026-06-06T00:00:00.000Z"
+    },
+    {
+      "id": "2b316329-40d5-445a-91e6-87cb08cc540c",
+      "receipt_number": "REC-202605-1781182630648",
+      "total_amount": "35000",
+      "amount_paid": "35000",
+      "commission_amount": "3500",
+      "owner_payment": "31500",
+      "payment_status": "full",
+      "payment_date": "2026-06-06T00:00:00.000Z"
+    },
+    {
+      "id": "681e1fda-70b4-41f0-acf5-a82a284b0c21",
+      "receipt_number": "REC-202605-1781182967789",
+      "total_amount": "40000",
+      "amount_paid": "40000",
+      "commission_amount": "4000",
+      "owner_payment": "36000",
+      "payment_status": "full",
+      "payment_date": "2026-06-08T00:00:00.000Z"
+    },
+    {
+      "id": "ecc0342e-fc60-4abb-9acf-93a48d040d0c",
+      "receipt_number": "REC-202605-1781183027553",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-06-08T00:00:00.000Z"
+    },
+    {
+      "id": "241b3190-41be-4fee-a246-3b5639b1e229",
+      "receipt_number": "REC-202605-1781183998966",
+      "total_amount": "100000",
+      "amount_paid": "100000",
+      "commission_amount": "10000",
+      "owner_payment": "90000",
+      "payment_status": "full",
+      "payment_date": "2026-06-08T00:00:00.000Z"
+    },
+    {
+      "id": "b568e719-eded-44b8-afc8-032d457cd67e",
+      "receipt_number": "REC-202605-1781183100000",
+      "total_amount": "20000",
+      "amount_paid": "20000",
+      "commission_amount": "2000",
+      "owner_payment": "18000",
+      "payment_status": "full",
+      "payment_date": "2026-06-08T00:00:00.000Z"
+    },
+    {
+      "id": "4837bbb1-0a1c-4703-ab92-8d0110f1bed8",
+      "receipt_number": "REC-202605-1781182780961",
+      "total_amount": "130000",
+      "amount_paid": "130000",
+      "commission_amount": "13000",
+      "owner_payment": "117000",
+      "payment_status": "full",
+      "payment_date": "2026-06-08T00:00:00.000Z"
+    },
+    {
+      "id": "d896ccb2-e440-46d5-a378-c8d8416a2070",
+      "receipt_number": "REC-202605-1781182844112",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-06-08T00:00:00.000Z"
+    },
+    {
+      "id": "8f55d439-851d-4740-a80a-6ced618d3611",
+      "receipt_number": "REC-202605-1781184205416",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-06-09T00:00:00.000Z"
+    },
+    {
+      "id": "c39b7f27-3cbc-44d8-954f-41d65e5eee26",
+      "receipt_number": "REC-202605-1781184290085",
+      "total_amount": "130000",
+      "amount_paid": "130000",
+      "commission_amount": "13000",
+      "owner_payment": "117000",
+      "payment_status": "full",
+      "payment_date": "2026-06-10T00:00:00.000Z"
+    },
+    {
+      "id": "7e779206-65a1-41e6-a9ca-9ca113193f52",
+      "receipt_number": "REC-202605-1781184372262",
+      "total_amount": "60000",
+      "amount_paid": "60000",
+      "commission_amount": "6000",
+      "owner_payment": "54000",
+      "payment_status": "full",
+      "payment_date": "2026-06-10T00:00:00.000Z"
+    }
+  ],
+  "modular_transactions": [
+    {
+      "id": "3b0fc095-a57c-4dfa-b512-93111850cecd",
+      "category": "owner_payout",
+      "type": "debit",
+      "amount": "1138500.00",
+      "description": "Reversement ELIMAN AMANGOUA MATUZALEM - juin 2026",
+      "transaction_date": "2026-05-15T00:00:00.000Z"
+    }
+  ],
+  "reversals": [
+    {
+      "id": "0fb6822c-0529-4531-9848-5213d060b12a",
+      "montant": "1138500.00",
+      "date_transaction": "2026-05-15T00:00:00.000Z",
+      "description": "Reversement ELIMAN AMANGOUA MATUZALEM - juin 2026",
+      "type": "debit",
+      "created_at": "2026-06-17T17:54:51.376Z"
+    }
+  ]
+}

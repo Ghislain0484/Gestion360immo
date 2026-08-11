@@ -265,6 +265,7 @@ ALTER TABLE public.owner_transactions ADD COLUMN IF NOT EXISTS linked_modular_id
 ALTER TABLE public.modular_transactions ADD COLUMN IF NOT EXISTS linked_owner_tx_id UUID;
 
 -- Trigger pour synchroniser owner_transactions -> modular_transactions
+-- Trigger pour synchroniser owner_transactions -> modular_transactions
 CREATE OR REPLACE FUNCTION public.sync_owner_to_modular()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -352,6 +353,12 @@ BEGIN
                     'owner',
                     NEW.id
                 ) RETURNING id INTO NEW.linked_modular_id;
+            END IF;
+        ELSE
+            -- Ce n'est plus un débit
+            IF OLD.linked_modular_id IS NOT NULL THEN
+                DELETE FROM public.modular_transactions WHERE id = OLD.linked_modular_id;
+                NEW.linked_modular_id := NULL;
             END IF;
         END IF;
 
@@ -460,6 +467,12 @@ BEGIN
                     NEW.created_by,
                     NEW.id
                 ) RETURNING id INTO NEW.linked_owner_tx_id;
+            END IF;
+        ELSE
+            -- Ce n'est plus un reversement propriétaire
+            IF OLD.linked_owner_tx_id IS NOT NULL THEN
+                DELETE FROM public.owner_transactions WHERE id = OLD.linked_owner_tx_id;
+                NEW.linked_owner_tx_id := NULL;
             END IF;
         END IF;
 
